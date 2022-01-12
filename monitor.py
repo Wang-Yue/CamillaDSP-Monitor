@@ -1,3 +1,4 @@
+#!python3
 import camilladsp
 import sys
 import time
@@ -7,7 +8,7 @@ import glob
 import subprocess
 import select
 
-cmd = ["./camilladsp", "setting.yml", "-p", "1234", '-l', 'warn', '-w']
+cmd = ["./camilladsp", "setting.yml", "-p", "1234", '-g-20', '-l', 'warn', '-w']
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 c = camilladsp.CamillaConnection("127.0.0.1", 1234)
@@ -125,6 +126,19 @@ def print_output(msg, vol, rate, values):
   stdscr.addstr(15, 0, msg)
   stdscr.refresh()
 
+def setconfig():
+  try:
+    # Get current rate.
+    config = c.get_config()
+    rate = config['devices']['samplerate']
+    # Get updated config.
+    config = c.read_config(generate_setting())
+    config['devices']['samplerate'] = rate
+    c.set_config(config)
+    return "Successfully updated DSP setting!"
+  except camilladsp.CamillaError as e:
+    return "Config has error!"
+ 
 retry = False
 while True:
   msg = ""
@@ -135,6 +149,7 @@ while True:
   try:
     if retry:
       c.connect()
+      msg = setconfig()
     volume = c.get_volume()
     sample_rate = c.get_capture_rate()
     state = c.get_state()
@@ -144,17 +159,7 @@ while True:
       stamp = os.stat(filename).st_mtime
       if stamp != cached_stamp or action == 0:
         cached_stamp = stamp
-        try:
-          # Get current rate.
-          config = c.get_config()
-          rate = config['devices']['samplerate']
-          # Get updated config.
-          config = c.read_config(generate_setting())
-          config['devices']['samplerate'] = rate
-          c.set_config(config)
-          msg = "Successfully updated DSP setting!"
-        except camilladsp.CamillaError as e:
-          msg = "Config has error!"
+        msg = setconfig()
     if state == camilladsp.ProcessingState.STALLED:
       proc.terminate()
       c.exit()
