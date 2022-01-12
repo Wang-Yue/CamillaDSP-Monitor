@@ -1,0 +1,515 @@
+---
+devices:
+  samplerate: 48000
+  chunksize: 4096
+  enable_rate_adjust: true
+  capture:
+    type: CoreAudio
+    device: "BlackHole 64ch"
+    channels: 2
+    format: FLOAT32LE
+  playback:
+    type: CoreAudio
+    channels: 2
+    device: "iMac Pro Speakers"
+    format: FLOAT32LE
+    exclusive: true
+
+filters:
+
+# Speaker room correction
+
+  leftFront_1:
+    parameters:
+      freq: 224.0
+      gain: 18.0
+      q: 2.9
+      type: Peaking
+    type: Biquad
+  leftFront_2:
+    parameters:
+      freq: 120.0
+      gain: -16.2
+      q: 5.6
+      type: Peaking
+    type: Biquad
+  leftFront_3:
+    parameters:
+      freq: 402.7
+      gain: -11.7
+      q: 4.19
+      type: Peaking
+    type: Biquad
+  leftFront_4:
+    parameters:
+      freq: 629.0
+      gain: -8.6
+      q: 2.98
+      type: Peaking
+    type: Biquad
+  leftFront_5:
+    parameters:
+      freq: 1698.0
+      gain: 4.7
+      q: 1.31
+      type: Peaking
+    type: Biquad
+  leftFront_6:
+    parameters:
+      freq: 1328.0
+      gain: -7.6
+      q: 3.38
+      type: Peaking
+    type: Biquad
+  leftFront_7:
+    parameters:
+      freq: 181.9
+      gain: -18.1
+      q: 17.95
+      type: Peaking
+    type: Biquad
+  leftFront_8:
+    parameters:
+      freq: 298.7
+      gain: -11.1
+      q: 11.18
+      type: Peaking
+    type: Biquad
+  leftFront_9:
+    parameters:
+      freq: 223.5
+      gain: -15.9
+      q: 14.65
+      type: Peaking
+    type: Biquad
+  leftFront_10:
+    parameters:
+      freq: 102.5
+      gain: 6.5
+      q: 7.13
+      type: Peaking
+    type: Biquad
+  leftFront_11:
+    parameters:
+      freq: 135.4
+      gain: -11.9
+      q: 13.75
+      type: Peaking
+    type: Biquad
+  leftFront_12:
+    parameters:
+      freq: 2403.0
+      gain: -4.1
+      q: 5.01
+      type: Peaking
+    type: Biquad
+  leftFront_13:
+    parameters:
+      freq: 3774.0
+      gain: -2.3
+      q: 3.25
+      type: Peaking
+    type: Biquad
+  leftFront_14:
+    parameters:
+      freq: 78.93
+      gain: 4.5
+      q: 9.61
+      type: Peaking
+    type: Biquad
+  leftFront_15:
+    parameters:
+      freq: 862.0
+      gain: -4.2
+      q: 8.67
+      type: Peaking
+    type: Biquad
+  leftFront_16:
+    parameters:
+      freq: 67.8
+      gain: -5.8
+      q: 15.45
+      type: Peaking
+    type: Biquad
+  leftFront_17:
+    parameters:
+      freq: 58.88
+      gain: -6.6
+      q: 38.64
+      type: Peaking
+    type: Biquad
+
+  rightFront_1:
+    parameters:
+      freq: 2153.0
+      gain: -14.7
+      q: 2.33
+      type: Peaking
+    type: Biquad
+  rightFront_2:
+    parameters:
+      freq: 54.5
+      gain: 18.0
+      q: 6.63
+      type: Peaking
+    type: Biquad
+  rightFront_3:
+    parameters:
+      freq: 3141.0
+      gain: 9.2
+      q: 2.3
+      type: Peaking
+    type: Biquad
+  rightFront_4:
+    parameters:
+      freq: 76.6
+      gain: -17.6
+      q: 7.31
+      type: Peaking
+    type: Biquad
+  rightFront_5:
+    parameters:
+      freq: 59.1
+      gain: -24.7
+      q: 17.15
+      type: Peaking
+    type: Biquad
+  rightFront_6:
+    parameters:
+      freq: 1950.0
+      gain: 13.6
+      q: 5.01
+      type: Peaking
+    type: Biquad
+  rightFront_7:
+    parameters:
+      freq: 88.6
+      gain: 15.2
+      q: 7.75
+      type: Peaking
+    type: Biquad
+  rightFront_8:
+    parameters:
+      freq: 132.5
+      gain: -15.5
+      q: 13.16
+      type: Peaking
+    type: Biquad
+  rightFront_9:
+    parameters:
+      freq: 67.2
+      gain: 16.3
+      q: 19.1
+      type: Peaking
+    type: Biquad
+  rightFront_10:
+    parameters:
+      freq: 873.0
+      gain: -3.5
+      q: 2.72
+      type: Peaking
+    type: Biquad
+  rightFront_11:
+    parameters:
+      freq: 182.0
+      gain: -10.7
+      q: 15.21
+      type: Peaking
+    type: Biquad
+  rightFront_12:
+    parameters:
+      freq: 405.0
+      gain: -6.4
+      q: 7.29
+      type: Peaking
+    type: Biquad
+  rightFront_13:
+    parameters:
+      freq: 3772.0
+      gain: -3.7
+      q: 3.62
+      type: Peaking
+    type: Biquad
+  rightFront_14:
+    parameters:
+      freq: 553.0
+      gain: -3.0
+      q: 3.1
+      type: Peaking
+    type: Biquad
+  rightFront_15:
+    parameters:
+      freq: 49.1
+      gain: -7.2
+      q: 11.79
+      type: Peaking
+    type: Biquad
+  rightFront_16:
+    parameters:
+      freq: 231.0
+      gain: -7.3
+      q: 13.12
+      type: Peaking
+    type: Biquad
+  rightFront_17:
+    parameters:
+      freq: 272.0
+      gain: -4.0
+      q: 11.83
+      type: Peaking
+    type: Biquad
+
+# Headphone EQ
+
+  band_1:
+    parameters:
+      freq: 20.0
+      gain: 4.0
+      q: 1.1
+      type: Peaking
+    type: Biquad
+  band_2:
+    parameters:
+      freq: 97.0
+      gain: -2.4
+      q: 0.7
+      type: Peaking
+    type: Biquad
+  band_3:
+    parameters:
+      freq: 105.0
+      gain: 5.5
+      q: 0.71
+      type: Lowshelf
+    type: Biquad
+  band_4:
+    parameters:
+      freq: 215.0
+      gain: -1.8
+      q: 1.1
+      type: Peaking
+    type: Biquad
+  band_5:
+    parameters:
+      freq: 1300.0
+      gain: -1.4
+      q: 1.5
+      type: Peaking
+    type: Biquad
+  band_6:
+    parameters:
+      freq: 2000.0
+      gain: 3.0
+      q: 0.71
+      type: Highshelf
+    type: Biquad
+  band_7:
+    parameters:
+      freq: 2700
+      gain: -1.3
+      q: 3.0
+      type: Peaking
+    type: Biquad
+  band_8:
+    parameters:
+      freq: 3250.0
+      gain: -3.0
+      q: 2.7
+      type: Peaking
+    type: Biquad
+  band_9:
+    parameters:
+      freq: 5400.0
+      gain: -1.6
+      q: 3.0
+      type: Peaking
+    type: Biquad
+  band_10:
+    parameters:
+      freq: 11000.0
+      gain: -3.0
+      q: 0.71
+      type: Highshelf
+    type: Biquad
+ 
+# Headphone crossfeed
+
+  cx1_hi:
+    parameters:
+      freq: 954.40
+      gain: -0.75
+      type: Lowshelf
+      q: 0.5
+    type: Biquad
+  cx1_lo:
+    parameters:
+      freq: 650
+      type: LowpassFO
+    type: Biquad
+  cx1_lo_gain:
+    type: Gain
+    parameters:
+      gain: -14.25
+      inverted: false
+
+  cx2_hi:
+    parameters:
+      freq: 824.70
+      gain: -1.4
+      type: Lowshelf
+      q: 0.5
+    type: Biquad
+  cx2_lo:
+    parameters:
+      freq: 650
+      type: LowpassFO
+    type: Biquad
+  cx2_lo_gain:
+    type: Gain
+    parameters:
+      gain: -10.92
+      inverted: false
+
+  cx3_hi:
+    parameters:
+      freq: 868.97
+      gain: -2
+      type: Lowshelf
+      q: 0.5
+    type: Biquad
+  cx3_lo:
+    parameters:
+      freq: 700
+      type: LowpassFO
+    type: Biquad
+  cx3_lo_gain:
+    type: Gain
+    parameters:
+      gain: -8
+      inverted: false
+
+  cx4_hi:
+    parameters:
+      freq: 873.89
+      gain: -2.25
+      type: Lowshelf
+      q: 0.5
+    type: Biquad
+  cx4_lo:
+    parameters:
+      freq: 700
+      type: LowpassFO
+    type: Biquad
+  cx4_lo_gain:
+    type: Gain
+    parameters:
+      gain: -6.75
+      inverted: false
+
+  cx5_hi:
+    parameters:
+      freq: 884.29
+      gain: -2.5
+      type: Lowshelf
+      q: 0.5
+    type: Biquad
+  cx5_lo:
+    parameters:
+      freq: 700
+      type: LowpassFO
+    type: Biquad
+  cx5_lo_gain:
+    type: Gain
+    parameters:
+      gain: -5.5
+      inverted: false
+
+# Phase Invert
+
+  invert:
+    type: Gain
+    parameters:
+      gain: 0.0
+      inverted: true
+
+# Volume
+
+  volume:
+    type: Volume
+    parameters:
+      ramp_time: 200
+
+# Loudness
+
+  loudness:
+    type: Loudness
+    parameters:
+      ramp_time: 200.0
+      reference_level: -25.0
+      high_boost: 7.0
+      low_boost: 7.0
+      
+mixers:
+
+# Headphone crossfeed
+
+  2to4:
+    channels:
+      in: 2
+      out: 4
+    mapping:
+    - dest: 0
+      mute: false
+      sources:
+      - channel: 0
+        gain: 0
+        inverted: false
+        mute: false
+    - dest: 1
+      mute: false
+      sources:
+      - channel: 0
+        gain: 0
+        inverted: false
+        mute: false
+    - dest: 2
+      mute: false
+      sources:
+      - channel: 1
+        gain: 0
+        inverted: false
+        mute: false
+    - dest: 3
+      mute: false
+      sources:
+      - channel: 1
+        gain: 0
+        inverted: false
+        mute: false
+  4to2:
+    channels:
+      in: 4
+      out: 2
+    mapping:
+    - dest: 0
+      mute: false
+      sources:
+      - channel: 0
+        gain: 0
+        inverted: false
+        mute: false
+      - channel: 2
+        gain: 0
+        inverted: false
+        mute: false
+    - dest: 1
+      mute: false
+      sources:
+      - channel: 1
+        gain: 0
+        inverted: false
+        mute: false
+      - channel: 3
+        gain: 0
+        inverted: false
+        mute: false

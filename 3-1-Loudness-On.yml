@@ -1,0 +1,9 @@
+- channel: 0
+  names:
+  - loudness
+  type: Filter
+- channel: 1
+  names:
+  - loudness
+  type: Filter
+

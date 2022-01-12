@@ -1,0 +1,9 @@
+- channel: 0
+  names:
+  - invert
+  type: Filter
+- channel: 1
+  names:
+  - invert
+  type: Filter
+

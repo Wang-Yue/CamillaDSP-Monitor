@@ -1,0 +1,9 @@
+- channel: 0
+  names:
+  - volume
+  type: Filter
+- channel: 1
+  names:
+  - volume
+  type: Filter
+
