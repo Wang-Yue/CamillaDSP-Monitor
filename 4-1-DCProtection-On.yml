@@ -1,0 +1,9 @@
+- channel: 0
+  names:
+  - dcp
+  type: Filter
+- channel: 1
+  names:
+  - dcp
+  type: Filter
+

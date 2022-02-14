@@ -448,6 +448,14 @@ filters:
       reference_level: -25.0
       high_boost: 7.0
       low_boost: 7.0
+
+# DC Protection
+
+  dcp:
+    parameters:
+      freq: 7
+      type: HighpassFO
+    type: Biquad
       
 mixers:
 

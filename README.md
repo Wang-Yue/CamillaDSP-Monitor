@@ -44,6 +44,12 @@ The script offers 5 levels of headphone crossfeed based on my [CamillaDSP-Crossf
 
 The script offers the same Loudness feature as the RME ADI-2 DAC.
 
+## DC Protection
+
+With latest RME ADI-2 DAC/Pro firmware, a DC Protection filter is added to remove potentially harmful DC in the digital source signal. This project provides an identical implementation.
+
+This filter adds a special, smooth high pass to the DA path, with zero latency, very low THD and phase deviation. This filter has a corner frequency of 7 Hz, to not only cancel DC but also reduce the amount of inaudible and imperceptible infrasound a bit that plagues some sources.
+
 # User Interface
 
 The script has a simple terminal user interface. When being executed, CamillaDSP is started automatically.
