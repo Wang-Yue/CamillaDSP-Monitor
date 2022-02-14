@@ -58,6 +58,22 @@ You can enable/disable DSP features by number keys. For instance press `31` turn
 
 You can quit the program and CamillaDSP by pressing `q`. 
 
+## Spectrum analyzer
+
+The Analyzer is modeled after RME’s ADI-2 DAC, which is based on Spectral Analyzer in DIGICheck. 
+
+It uses 29 biquad bandpass filters for high separation between the bands, providing outstanding musical visualization.
+To be able to also show DC content the lowest band is not a band-pass filter, but a low pass, catching the whole range
+from 0 Hz up to 30 Hz. With some unusual signals it therefore can happen that the level shown will be a bit higher than expected.
+
+The shown frequency range is always the human audible range, 20 Hz up to 20 kHz.
+
+As opposed to most other solutions no FFT (Fast Fourier Transform) is used. The Spectral
+Analyzer performs a true band-pass filter calculation, as in professional hardware devices. The
+frequency distance between the filters is scaled matching human hearing. 
+
+The Spectrum Analyzer shows spectrum for both left and right channels. `%` symbol indicates level for the left channel and `@` for the right channel.
+
 ## Parameter Tuning
 
 You can open a text editor and tune parameters in `setting.yml`. The script automatically checks if the file is changed, and will reflect your changes immediately in the DSP. 

@@ -9,15 +9,18 @@ import subprocess
 import select
 
 cmd = ["./camilladsp", "setting.yml", "-p", "1234", '-g-20', '-l', 'warn', '-w']
+scmd = ["./camilladsp", "spectrum.yml", "-p", "5678", '-l', 'warn', '-w']
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+sproc = subprocess.Popen(scmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 c = camilladsp.CamillaConnection("127.0.0.1", 1234)
+sc = camilladsp.CamillaConnection("127.0.0.1", 5678)
 
 stdscr = curses.initscr()
 curses.noecho()
 curses.cbreak()
 stdscr.keypad(True)
-stdscr.timeout(1000)
+stdscr.timeout(200)
 
 setting = []
 setting_count = []
@@ -66,6 +69,7 @@ def get_action():
     stdscr.keypad(False)
     curses.endwin()
     proc.terminate()
+    sproc.terminate()
     exit()
   elif key == curses.KEY_UP: 
     return 1
@@ -97,11 +101,17 @@ def volume_string(volume):
     pieces = length 
   blocks = '='*(length - pieces)
   spaces = ' '*pieces
-  volume_string = "%.2f" % volume
+  volume_string = "{:8.2f}".format(volume)
   return f"[{blocks}{spaces}] {volume_string}dB"
  
+def print_spectrum_line(spectrum, lineno):
+  volume = -lineno * 5
+  volume_string = "{:5.1f}   ".format(volume)
+  for i, v in enumerate(spectrum):
+    volume_string += ("%" if i %2 == 0 else "@") if (v > volume) else " "
+  return volume_string
 
-def print_output(msg, vol, rate, values):
+def print_output(msg, vol, rate, values, spectrum):
   volume = ["RMS ", "PEAK"]
   source = ["Capture ", "Playback"]
   channel = ["Left  ", "Right "]
@@ -119,11 +129,19 @@ def print_output(msg, vol, rate, values):
       checked = '  [x] ' if j == setting[i] else '  [ ] '
       s += checked + subsection_name
     stdscr.addstr(i+10, 0, f" {s}\n")
-  stdscr.move(15, 0)
-  stdscr.clrtoeol()
+
+  for lineno in range(13):
+    line = print_spectrum_line(spectrum, lineno)
+    stdscr.addstr(lineno+16, 0, line)
+  freq = "        25  40  63  100 157 250 430 630 1k  1k5 2k5 4k  6k3 10k 16k"
+  stdscr.addstr(29, 0, freq)
+
+  stdscr.move(31, 0)
   if msg == '' and  select.select([proc.stdout],[],[],0.0)[0]:
     msg = proc.stdout.readline()
-  stdscr.addstr(15, 0, msg)
+  msg = msg.strip()[0:60]
+  stdscr.addstr(31, 0, msg)
+  stdscr.clrtoeol()
   stdscr.refresh()
 
 def setconfig():
@@ -140,12 +158,44 @@ def setconfig():
     return "Config has error!"
  
 retry = False
+sretry = False
 while True:
   msg = ""
   volume = 0.0
   sample_rate = 0.0
   values = [-1000.0]*8
+  spectrum = [-1000.0]*30
   action = get_action()
+
+  try:
+    if sretry:
+      sc.connect()
+    sstate = sc.get_state()
+    if sstate == camilladsp.ProcessingState.RUNNING:
+      spectrum  = sc.get_playback_signal_peak()
+    if sstate == camilladsp.ProcessingState.STALLED:
+      sproc.terminate()
+      sc.exit()
+    if sstate == camilladsp.ProcessingState.INACTIVE:
+      reason = sc.get_stop_reason()
+      if reason == camilladsp.StopReason.CAPTUREFORMATCHANGE:
+        sconfig = sc.get_previous_config()
+        sconfig['devices']['capture_samplerate'] = int(reason.data)
+        sc.set_config(sconfig)
+        msg = "Successfully adjust spectrum to the new sample rate!"
+    sretry = False
+  except ConnectionRefusedError as e:
+    msg = "Can't connect to CamillaDSP, is it running? Error:" + str(e)
+    sretry = True
+  except camilladsp.CamillaError as e:
+    msg = "CamillaDSP replied with error:" + str(e)
+    sretry = True
+  except IOError as e:
+    msg = "Websocket is not connected:" + str(e)
+    sretry = True
+  finally:
+    pass # we ignore all errors for the spectrum display
+
   try:
     if retry:
       c.connect()
@@ -188,4 +238,4 @@ while True:
     msg = "Websocket is not connected:" + str(e)
     retry = True
   finally:
-    print_output(msg, volume, sample_rate, values)
+    print_output(msg, volume, sample_rate, values, spectrum)
