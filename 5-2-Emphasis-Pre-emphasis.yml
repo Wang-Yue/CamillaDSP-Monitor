@@ -1,0 +1,9 @@
+- channel: 0
+  names:
+  - preemphasis
+  type: Filter
+- channel: 1
+  names:
+  - preemphasis
+  type: Filter
+

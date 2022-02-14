@@ -50,6 +50,12 @@ With latest RME ADI-2 DAC/Pro firmware, a DC Protection filter is added to remov
 
 This filter adds a special, smooth high pass to the DA path, with zero latency, very low THD and phase deviation. This filter has a corner frequency of 7 Hz, to not only cancel DC but also reduce the amount of inaudible and imperceptible infrasound a bit that plagues some sources.
 
+## Emphasis
+
+In the early times of digital audio, pre- and de-emphasis were used for radio transmission. The audio signal is equalized to have treble boosted when recorded. When played back an analog treble filter is required. Many older CDs were recorded with Emphasis.
+
+DAC chips, modern ones included, usually hava a register to turn on de-emphasis but not many audio products use this feature. As a result, old CDs may feel too bright when playing via modern hardware. This project offers an identical solution implemented in software. User may choose to pre-emphasis or de-emphasis the signal before sending it to the output.
+
 # User Interface
 
 The script has a simple terminal user interface. When being executed, CamillaDSP is started automatically.

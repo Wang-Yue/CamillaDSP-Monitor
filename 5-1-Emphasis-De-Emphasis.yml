@@ -1,0 +1,9 @@
+- channel: 0
+  names:
+  - deemphasis
+  type: Filter
+- channel: 1
+  names:
+  - deemphasis
+  type: Filter
+

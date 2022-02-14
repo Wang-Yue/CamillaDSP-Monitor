@@ -456,7 +456,25 @@ filters:
       freq: 7
       type: HighpassFO
     type: Biquad
-      
+
+# Emphasis
+
+  preemphasis:
+    parameters:
+      freq: 5200
+      gain: 9.5
+      q: 0.5
+      type: Highshelf
+    type: Biquad
+ 
+  deemphasis:
+    parameters:
+      freq: 5200
+      gain: -9.5
+      q: 0.5
+      type: Highshelf
+    type: Biquad
+
 mixers:
 
 # Headphone crossfeed
