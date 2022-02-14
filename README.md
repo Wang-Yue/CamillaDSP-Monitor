@@ -56,20 +56,6 @@ In the early times of digital audio, pre- and de-emphasis were used for radio tr
 
 DAC chips, modern ones included, usually hava a register to turn on de-emphasis but not many audio products use this feature. As a result, old CDs may feel too bright when playing via modern hardware. This project offers an identical solution implemented in software. User may choose to pre-emphasis or de-emphasis the signal before sending it to the output.
 
-# User Interface
-
-The script has a simple terminal user interface. When being executed, CamillaDSP is started automatically.
-
-![Screenshot](screenshot.png)
-
-## Control
-
-You can control the output volume by arrow keys. Left and right adjust volume by 10dB, while up and down adjust it by 1dB.
-
-You can enable/disable DSP features by number keys. For instance press `31` turn on the loudness feature, and `30` to turn it off.
-
-You can quit the program and CamillaDSP by pressing `q`. 
-
 ## Spectrum analyzer
 
 The Analyzer is modeled after RME’s ADI-2 DAC, which is based on Spectral Analyzer in DIGICheck. 
@@ -85,6 +71,20 @@ Analyzer performs a true band-pass filter calculation, as in professional hardwa
 frequency distance between the filters is scaled matching human hearing. 
 
 The Spectrum Analyzer shows spectrum for both left and right channels. `%` symbol indicates level for the left channel and `@` for the right channel.
+
+# User Interface
+
+The script has a simple terminal user interface. When being executed, CamillaDSP is started automatically.
+
+![Screenshot](screenshot.png)
+
+## Control
+
+You can control the output volume by arrow keys. Left and right adjust volume by 10dB, while up and down adjust it by 1dB.
+
+You can enable/disable DSP features by number keys. For instance press `31` turn on the loudness feature, and `30` to turn it off.
+
+You can quit the program and CamillaDSP by pressing `q`. 
 
 ## Parameter Tuning
 
