@@ -82,6 +82,11 @@ The script has a simple terminal user interface. When being executed, CamillaDSP
 
 ![Screenshot](screenshot.png)
 
+## Prerequisites
+
+The program is written in Python 3. It also uses the [PyCamillaDSP](https://github.com/HEnquist/pycamilladsp/) library.
+So please install both before running this program.
+
 ## Setup
 
 You need to edit the device section in `setting.yml` and `spectrum.yml` to use your loopback and playback devices.
@@ -133,3 +138,8 @@ A: The program occupies some terminal space. Make your terminal window big enoug
 Q: I run into an error: `rate = config['devices']['samplerate']  TypeError: 'NoneType' object is not subscriptable`
 
 A: Make sure you edited the device section in both `settings.yml` and `spectrum.yml` to match your loopback and playback devices. Double check your devices support the the format and sample rate you specified. Also make sure there's no other CamillaDSP process running.
+
+Q: I run into an error: `raise AttributeError(name) from None AttributeError: STALLED`
+
+You need to use the most recent version of `pycamilladsp` (in `next` branch). `STALLED` was added in this [commit](https://github.com/HEnquist/pycamilladsp/commit/1ec0fb4bc7a056dff1b07c2d46ce36db3993b6eb).
+
