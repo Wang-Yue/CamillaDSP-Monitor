@@ -141,5 +141,8 @@ A: Make sure you edited the device section in both `settings.yml` and `spectrum.
 
 Q: I run into an error: `raise AttributeError(name) from None AttributeError: STALLED`
 
-You need to use the most recent version of `pycamilladsp` (in `next` branch). `STALLED` was added in this [commit](https://github.com/HEnquist/pycamilladsp/commit/1ec0fb4bc7a056dff1b07c2d46ce36db3993b6eb).
+A: You need to use the most recent version of `pycamilladsp` (in `next` branch). `STALLED` was added in this [commit](https://github.com/HEnquist/pycamilladsp/commit/1ec0fb4bc7a056dff1b07c2d46ce36db3993b6eb).
 
+Q: RME ADI-2 DAC has option to send mono audio to left and is very useful.
+
+A: Just select `Width` to `Mono` and `M/S Proc` to `On`. Now the right channel is silent.
