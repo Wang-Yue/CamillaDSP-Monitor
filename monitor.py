@@ -123,24 +123,27 @@ def print_output(msg, vol, rate, values, spectrum):
         vol_bar = volume_string(values[i])
         stdscr.addstr(i+1, 0, f"{v} {s} {c} {vol_bar}\n")
         i += 1
-  for i, section_name in enumerate(section_names):
-    s = f"{i}. {section_name}"
-    for j, subsection_name in enumerate(subsection_names[i]):
-      checked = '  [x] ' if j == setting[i] else '  [ ] '
+  for idx, section_name in enumerate(section_names):
+    s = f"{idx}. {section_name}"
+    for j, subsection_name in enumerate(subsection_names[idx]):
+      checked = '  [x] ' if j == setting[idx] else '  [ ] '
       s += checked + subsection_name
-    stdscr.addstr(i+10, 0, f" {s}\n")
+    stdscr.addstr(i, 0, f" {s}\n")
+    i += 1
 
   for lineno in range(13):
     line = print_spectrum_line(spectrum, lineno)
-    stdscr.addstr(lineno+16, 0, line)
+    stdscr.addstr(i, 0, line)
+    i += 1
   freq = "        25  40  63  100 157 250 430 630 1k  1k5 2k5 4k  6k3 10k 16k"
-  stdscr.addstr(29, 0, freq)
+  stdscr.addstr(i, 0, freq)
+  i += 1
 
-  stdscr.move(31, 0)
+  stdscr.move(i, 0)
   if msg == '' and  select.select([proc.stdout],[],[],0.0)[0]:
     msg = proc.stdout.readline()
-  msg = msg.strip()[0:60]
-  stdscr.addstr(31, 0, msg)
+  msg = msg.strip()[0:80]
+  stdscr.addstr(i, 0, msg)
   stdscr.clrtoeol()
   stdscr.refresh()
 

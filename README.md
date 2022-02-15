@@ -20,6 +20,14 @@ That's why I build this short script to address the above issues. The script is 
 
 The DSP workflow is heavily inspired by the [RME ADI-2 DAC](https://www.rme-audio.de/adi-2-dac.html). It offers the following functionalities, and more can be added in the same way.
 
+## Width
+
+Define stereo width. Mono for mono, and Swapped have the channels swapped.
+
+## M/S Proc
+
+Activates M/S processing. Monaural content is sent to the left, stereo to the right channel.
+
 ## Volume Control
 
 You can control the output volume by arrow keys. Left and right adjust volume by 10dB, while up and down adjust it by 1dB.

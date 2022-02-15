@@ -5,7 +5,7 @@ devices:
   enable_rate_adjust: true
   capture:
     type: CoreAudio
-    device: "BlackHole 64ch"
+    device: "BlackHole 16ch"
     channels: 2
     format: FLOAT32LE
   playback:
@@ -477,6 +477,61 @@ filters:
 
 mixers:
 
+# Width
+
+  mono:
+    channels:
+      in: 2
+      out: 2
+    mapping:
+    - dest: 0
+      sources:
+      - channel: 0
+        gain: -6.02
+      - channel: 1
+        gain: -6.02
+    - dest: 1
+      sources:
+      - channel: 0
+        gain: -6.02
+      - channel: 1
+        gain: -6.02
+
+  swapped:
+    channels:
+      in: 2
+      out: 2
+    mapping:
+    - dest: 0
+      sources:
+        - channel: 1
+          gain: 0
+    - dest: 1
+      sources:
+        - channel: 0
+          gain: 0
+
+# M/S Proc
+
+  msproc:
+    channels:
+      in: 2
+      out: 2
+    mapping:
+    - dest: 0
+      sources:
+      - channel: 0
+        gain: 0
+      - channel: 1
+        gain: 0
+    - dest: 1
+      sources:
+      - channel: 0
+        gain: 0
+      - channel: 1
+        gain: 0
+        inverted: true
+
 # Headphone crossfeed
 
   2to4:
@@ -485,57 +540,36 @@ mixers:
       out: 4
     mapping:
     - dest: 0
-      mute: false
       sources:
       - channel: 0
         gain: 0
-        inverted: false
-        mute: false
     - dest: 1
-      mute: false
       sources:
       - channel: 0
         gain: 0
-        inverted: false
-        mute: false
     - dest: 2
-      mute: false
       sources:
       - channel: 1
         gain: 0
-        inverted: false
-        mute: false
     - dest: 3
       mute: false
       sources:
       - channel: 1
         gain: 0
-        inverted: false
-        mute: false
   4to2:
     channels:
       in: 4
       out: 2
     mapping:
     - dest: 0
-      mute: false
       sources:
       - channel: 0
         gain: 0
-        inverted: false
-        mute: false
       - channel: 2
         gain: 0
-        inverted: false
-        mute: false
     - dest: 1
-      mute: false
       sources:
       - channel: 1
         gain: 0
-        inverted: false
-        mute: false
       - channel: 3
         gain: 0
-        inverted: false
-        mute: false
