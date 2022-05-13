@@ -82,6 +82,10 @@ The script has a simple terminal user interface. When being executed, CamillaDSP
 
 ![Screenshot](screenshot.png)
 
+The `monitorgui.py` has a simple graphical user inter face.
+
+![Screenshot](gui.png)
+
 ## Prerequisites
 
 The program is written in Python 3. It also uses the [PyCamillaDSP](https://github.com/HEnquist/pycamilladsp/) library (currently requires the `next` branch).
