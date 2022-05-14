@@ -86,7 +86,7 @@ The `monitorgui.py` has a simple graphical user inter face.
 
 ![Screenshot](gui.png)
 
-Here's a video [demo](https://youtu.be/ho_5mZv6vVc).
+Here's a video [demo](https://www.youtube.com/watch?v=OLZ43epCpHQ).
 
 
 ## Prerequisites
