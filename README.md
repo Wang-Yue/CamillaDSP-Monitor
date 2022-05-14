@@ -86,6 +86,9 @@ The `monitorgui.py` has a simple graphical user inter face.
 
 ![Screenshot](gui.png)
 
+Here's a video [demo](https://youtu.be/ho_5mZv6vVc).
+
+
 ## Prerequisites
 
 The program is written in Python 3. It also uses the [PyCamillaDSP](https://github.com/HEnquist/pycamilladsp/) library (currently requires the `next` branch).
