@@ -2,6 +2,12 @@
 
 A host monitor program for CamillaDSP, inspired by the RME ADI-2 DAC/Pro.
 
+# Note
+
+1. If you are looking to run this project on Raspberry Pi, you probably want to look into its sister project, [CamillaDSP-Gadget](https://github.com/Wang-Yue/CamillaDSP-Gadget), which makes your Raspberry Pi 4 a UAC2 gadget with DSP capabilities.
+
+2. This project is well tested in Mac. To set it up for other operating systems, you have to read official CamillaDSP [documentation](https://henquist.github.io/0.6.3/) on how to set up your audio devices in the YML file.
+
 # Introduction
 
 The [CamillaDSP](https://github.com/HEnquist/camilladsp/) project provides a seamless approach to do DSP system-wide on all major desktop operating systems, with various DSP features ready to be used, such as [Loudness](https://en.wikipedia.org/wiki/Loudness_compensation), [Convolution](https://en.wikipedia.org/wiki/Convolution), or [Parametric EQ](https://en.wikipedia.org/wiki/Equalization_(audio)#Parametric_equalizer).  It utilizes a setting file that can be sent to the [websocket](https://henquist.github.io/0.6.3/websocket.html) in run time. 
@@ -91,7 +97,7 @@ Here's a video [demo](https://www.youtube.com/watch?v=OLZ43epCpHQ).
 
 ## Prerequisites
 
-The program is written in Python 3. It also uses the [PyCamillaDSP](https://github.com/HEnquist/pycamilladsp/) library (currently requires the `next` branch).
+The program is written in Python 3. It also uses the [PyCamillaDSP](https://github.com/HEnquist/pycamilladsp/) library.
 So please install both before running this program.
 
 ## Setup
@@ -154,10 +160,6 @@ A: The program occupies some terminal space. Make your terminal window big enoug
 Q: I run into an error: `rate = config['devices']['samplerate']  TypeError: 'NoneType' object is not subscriptable`
 
 A: Make sure you edited the device section in both `settings.yml` and `spectrum.yml` to match your loopback and playback devices. Double check your devices support the format and sample rate you specified. Also make sure there's no other CamillaDSP process running.
-
-Q: I run into an error: `raise AttributeError(name) from None AttributeError: STALLED`
-
-A: You need to use the most recent version of `pycamilladsp` (in the `next` branch). `STALLED` was added in this [commit](https://github.com/HEnquist/pycamilladsp/commit/1ec0fb4bc7a056dff1b07c2d46ce36db3993b6eb).
 
 Q: RME ADI-2 DAC has the option to send mono audio to the left and is very useful.
 
