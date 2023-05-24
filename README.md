@@ -12,7 +12,7 @@ A host monitor program for CamillaDSP, inspired by the RME ADI-2 DAC/Pro.
 
 The [CamillaDSP](https://github.com/HEnquist/camilladsp/) project provides a seamless approach to do DSP system-wide on all major desktop operating systems, with various DSP features ready to be used, such as [Loudness](https://en.wikipedia.org/wiki/Loudness_compensation), [Convolution](https://en.wikipedia.org/wiki/Convolution), or [Parametric EQ](https://en.wikipedia.org/wiki/Equalization_(audio)#Parametric_equalizer).  It utilizes a setting file that can be sent to the [websocket](https://henquist.github.io/0.6.3/websocket.html) in run time. 
 
-This program provides an easy interface to access various useful DSP features powered by CamillaDSP. Users can enable/disable complex DSP functionalities with just one or two key presses. It also displays a very useful spectrum analyzer in the terminal. The DSP workflow is heavily inspired by the [RME ADI-2 DAC](https://www.rme-audio.de/adi-2-dac.html).
+This program provides an easy interface to access various useful DSP features powered by CamillaDSP. Users can enable/disable complex DSP functionalities. It also displays a very useful spectrum analyzer in the terminal. The DSP workflow is heavily inspired by the [RME ADI-2 DAC](https://www.rme-audio.de/adi-2-dac.html).
 
 # DSPs available
 
@@ -80,13 +80,7 @@ As opposed to most other solutions no FFT (Fast Fourier Transform) is used. The 
 Analyzer performs a true band-pass filter calculation, as in professional hardware devices. The
 frequency distance between the filters is scaled matching human hearing. 
 
-The Spectrum Analyzer shows spectrum for both left and right channels. `%` symbol indicates level for the left channel and `@` for the right channel.
-
 # User Interface
-
-The script has a simple terminal user interface. When being executed, CamillaDSP is started automatically.
-
-![Screenshot](screenshot.png)
 
 The `monitorgui.py` has a simple graphical user inter face.
 
@@ -107,19 +101,7 @@ Please refer the official CamillaDSP [documentation](https://henquist.github.io/
 
 ## Startup
 
-Simply by invoking `./monitor.py` in the command line. That will give you the standard interface.
-
-Alternatively, you can invoke `processing.py` in the command line to have the control interface, but sans the spectrum analyzer.
-
-## Control
-
-You can control the output volume by arrow keys. `LEFT` and `RIGHT` adjust volume by 10dB, while `UP` and `DOWN` adjust it by 1dB.
-
-You can mute or unmute by pressing the `m` key. The mute status will be displayed right after the volume setting.
-
-You can enable/disable DSP features by number keys. For instance press `51` turn on the loudness feature, and `50` to turn it off.
-
-You can quit the program and CamillaDSP by pressing `q`. 
+Simply by invoking `./monitorgui.py` in the command line. That will give you the standard interface.
 
 ## Parameter Tuning
 
@@ -149,13 +131,9 @@ That's why I built this short script to address the above issues. It also has a 
 
 Q: The monitor program uses a lot of CPU power.
 
-A: That's right. The program not only does DSP processing, but also displays the 30-band analyzer, which computes 120 biquads. Unlike Digicheck, due to the way CamillaDSP does the computation it consumes high CPU usage. Fortunately, the script `processing.py` uses the same DSP pipeline, but without the analyzer, which should run well on most machines, including old ones. The spetrum analyzer is also offered as a separate script, `spectrum.py`, which splits the computation into two processes and should have better performance on low power multicore computers, such as the Raspberry Pi 4. 
+A: That's right. The program not only does DSP processing, but also displays the 30-band analyzer, which computes 120 biquads. Unlike Digicheck, due to the way CamillaDSP does the computation it consumes high CPU usage.
 
 The RME ADI-2 DAC/Pro has powerful FPGA and DSP processors and runs all the above computations in hardware. It offers everything in a nice package, and certainly provides a better experience, and much lower latency, compared to running this project. So if you love the DSP workflow in this project, are concerned about the CPU usage, and want those features in a nicer, lovelier machine, you may consider purchasing a RME ADI-2 DAC or Pro unit. With that said, this is an independent project and has no affiliation with RME.
-
-Q: I run into an error: `_curses.error: addwstr() returned ERR` 
-
-A: The program occupies some terminal space. Make your terminal window big enough.
 
 Q: I run into an error: `rate = config['devices']['samplerate']  TypeError: 'NoneType' object is not subscriptable`
 

@@ -11,7 +11,7 @@ devices:
   playback:
     type: CoreAudio
     channels: 2
-    device: "iMac Pro Speakers"
+    device: "MacBook Pro Speakers"
     format: FLOAT32LE
     exclusive: true
 
@@ -432,19 +432,11 @@ filters:
       gain: 0.0
       inverted: true
 
-# Volume
-
-  volume:
-    type: Volume
-    parameters:
-      ramp_time: 200
-
 # Loudness
 
   loudness:
     type: Loudness
     parameters:
-      ramp_time: 200.0
       reference_level: -25.0
       high_boost: 7.0
       low_boost: 7.0

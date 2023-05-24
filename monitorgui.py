@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from tkinter import *
 from tkinter import font
 from tkinter import ttk
@@ -20,7 +21,8 @@ class ConfigWindow(Frame):
     ]
     self.proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    self.cdsp = camilladsp.CamillaConnection('127.0.0.1', 1234)
+    time.sleep(0.3)
+    self.cdsp = camilladsp.CamillaClient('127.0.0.1', 1234)
     self.readconfig()
     self.layout_slider()
     self.layout_monitor()
@@ -39,7 +41,7 @@ class ConfigWindow(Frame):
       self.after(200, self.update)
 
   def destroy(self):
-    self.cdsp.exit()
+    self.cdsp.general.exit()
     self.proc.terminate()
     Frame.destroy(self)
 
@@ -93,9 +95,9 @@ class ConfigWindow(Frame):
   def layout_slider(self):
     def slider_changed(event):
       new_volume = volume_value.get()
-      self.cdsp.set_volume(new_volume)
+      self.cdsp.volume.set_main(new_volume)
     def toggle_mute():
-      self.cdsp.set_mute(not self.cdsp.get_mute())
+      self.cdsp.mute.set_main(not self.cdsp.mute.main())
     volume_value = DoubleVar()
     sl = Label(self, text='Volume:')
     sl.grid(column=0, row=0)
@@ -160,15 +162,15 @@ class ConfigWindow(Frame):
       return s
     try:
       # Get current rate.
-      config = self.cdsp.get_config()
+      config = self.cdsp.config.active()
       rate = config['devices']['samplerate']
       # Get updated config.
-      config = self.cdsp.read_config(generate_setting())
+      config = self.cdsp.config.parse_yaml(generate_setting())
       config['devices']['samplerate'] = rate
-      self.cdsp.set_config(config)
+      self.cdsp.config.set_active(config)
       print('Successfully updated DSP setting!')
     except camilladsp.CamillaError as e:
-      print('Config has error!')
+      print('Config has error: ', e)
     finally:
       for i, mb in enumerate(self.mbs):
         mb.config(text=self.subsection_names[i][self.setting[i]])
@@ -176,13 +178,13 @@ class ConfigWindow(Frame):
       json.dump(self.setting, file)
 
   def update(self):
-    state = self.cdsp.get_state()
+    state = self.cdsp.general.state()
     if state == camilladsp.ProcessingState.RUNNING:
       values = [
-          self.cdsp.get_capture_signal_rms(),
-          self.cdsp.get_playback_signal_rms(),
-          self.cdsp.get_capture_signal_peak(),
-          self.cdsp.get_playback_signal_peak()
+          self.cdsp.levels.capture_rms(),
+          self.cdsp.levels.playback_rms(),
+          self.cdsp.levels.capture_peak(),
+          self.cdsp.levels.playback_peak()
       ]
       values = sum(values, [])
       for i in range(8):
@@ -193,12 +195,12 @@ class ConfigWindow(Frame):
         pb.config(value=value)
         vol = self.vols[i]
         vol.config(text='{:8.2f} dB'.format(values[i]))
-      volume = self.cdsp.get_volume()
+      volume = self.cdsp.volume.main()
       self.volume_label.configure(text='{:8.2f} dB'.format(volume))
       self.volume_slider.set(volume)
       self.mute_button.config(
-          text='Mute: On' if self.cdsp.get_mute() else 'Mute: Off')
-      sample_rate = str(self.cdsp.get_capture_rate())
+          text='Mute: On' if self.cdsp.mute.main() else 'Mute: Off')
+      sample_rate = str(self.cdsp.rate.capture())
       self.samplerate_label.config(text='Sample rate: ' + sample_rate)
 
       stamp = os.stat(self.filename).st_mtime
@@ -207,12 +209,12 @@ class ConfigWindow(Frame):
         self.setconfig()
 
     if state == camilladsp.ProcessingState.INACTIVE:
-      reason = self.cdsp.get_stop_reason()
+      reason = self.cdsp.general.stop_reason()
       if reason == camilladsp.StopReason.CAPTUREFORMATCHANGE:
-        config = self.cdsp.get_previous_config()
+        config = self.cdsp.config.previous()
         rate = int(reason.data)
         config['devices']['samplerate'] = rate
-        self.cdsp.set_config(config)
+        self.cdsp.config.set_active(config)
         print('Successfully adjust to the new sample rate!')
     self.after(200, self.update)
 
@@ -224,7 +226,8 @@ class SpectrumAnalyser(Frame):
     cmd = ['./camilladsp', 'spectrum.yml', '-p', '5678', '-l', 'warn', '-w']
     self.proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    self.cdsp = camilladsp.CamillaConnection('127.0.0.1', 5678)
+    time.sleep(0.3)
+    self.cdsp = camilladsp.CamillaClient('127.0.0.1', 5678)
     self.pbs = []
     freq = [
         '25', '31.5', '40', '50', '63', '80', '100', '125', '160', '200', '250',
@@ -256,14 +259,14 @@ class SpectrumAnalyser(Frame):
       self.after(200, self.update)
 
   def destroy(self):
-    self.cdsp.exit()
+    self.cdsp.general.exit()
     self.proc.terminate()
     Frame.destroy(self)
 
   def update(self):
-    state = self.cdsp.get_state()
+    state = self.cdsp.general.state()
     if state == camilladsp.ProcessingState.RUNNING:
-      spectrum = self.cdsp.get_playback_signal_peak()
+      spectrum = self.cdsp.levels.playback_peak()
       for i in range(30):
         value = max(spectrum[i * 2], spectrum[i * 2 + 1]) + 60
         if value < 0: value = 0
@@ -271,11 +274,11 @@ class SpectrumAnalyser(Frame):
         pb = self.pbs[i]
         pb.config(value=value)
     if state == camilladsp.ProcessingState.INACTIVE:
-      reason = self.cdsp.get_stop_reason()
+      reason = self.cdsp.general.stop_reason()
       if reason == camilladsp.StopReason.CAPTUREFORMATCHANGE:
-        sconfig = self.cdsp.get_previous_config()
+        sconfig = self.cdsp.config.previous()
         sconfig['devices']['capture_samplerate'] = int(reason.data)
-        self.cdsp.set_config(sconfig)
+        self.cdsp.config.set_active(sconfig)
         print('Successfully adjust spectrum to the new sample rate!')
     self.after(200, self.update)
 
