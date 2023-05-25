@@ -17,7 +17,7 @@ class ConfigWindow(Frame):
     self.filename = 'setting.yml'
     self.dumpname = 'save.json'
     cmd = [
-        './camilladsp', 'setting.yml', '-p', '1234', '-g-20', '-l', 'warn', '-w'
+        './camilladsp', 'setting.yml', '-p', '1234', '-l', 'warn', '-w'
     ]
     self.proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -61,7 +61,7 @@ class ConfigWindow(Frame):
           self,
           orient='horizontal',
           mode='determinate',
-          length=130,
+          length=400,
           maximum=100,
           style='TProgressbar')
       pb.grid(column=1, row=i + 1)
@@ -81,7 +81,7 @@ class ConfigWindow(Frame):
     for i, section_name in enumerate(self.section_names):
       lb = Label(self, text=section_name)
       lb.grid(column=3, row=i + 1)
-      mb = ttk.Menubutton(self, text=section_name, width=15)
+      mb = ttk.Menubutton(self, text=section_name, width=30)
       selected_settings.append(IntVar(value = self.setting[i]))
       selected_settings[i].trace('w', menu_item_selected)
       menu = Menu(mb, tearoff=0)
@@ -106,18 +106,18 @@ class ConfigWindow(Frame):
         from_=-100,
         to=0,
         orient='horizontal',
-        length=130,
+        length=400,
         resolution=0.5,
         showvalue=False,
         command=slider_changed,
         variable=volume_value)
     self.volume_slider.grid(column=1, row=0)
-    self.volume_label = Label(self, text='')
+    self.volume_label = Label(self, text='', width = 12)
     self.volume_label.grid(column=2, row=0)
     self.samplerate_label = Label(self, text='Sample rate:')
     self.samplerate_label.grid(column=3, row=0)
     self.mute_button = Button(
-        self, text='Mute', width=5, relief='raised', command=toggle_mute)
+        self, text='Mute', width=20, relief='raised', command=toggle_mute)
     self.mute_button.grid(column=4, row=0)
 
   def readconfig(self):
@@ -180,11 +180,12 @@ class ConfigWindow(Frame):
   def update(self):
     state = self.cdsp.general.state()
     if state == camilladsp.ProcessingState.RUNNING:
+      levels = self.cdsp.levels.levels()
       values = [
-          self.cdsp.levels.capture_rms(),
-          self.cdsp.levels.playback_rms(),
-          self.cdsp.levels.capture_peak(),
-          self.cdsp.levels.playback_peak()
+          levels["capture_rms"],
+          levels["playback_rms"],
+          levels["capture_peak"],
+          levels["playback_peak"]
       ]
       values = sum(values, [])
       for i in range(8):
@@ -239,13 +240,13 @@ class SpectrumAnalyser(Frame):
           self,
           orient='vertical',
           mode='determinate',
-          length=130,
+          length=400,
           maximum=60,
           style='TProgressbar')
       pb.grid(column=i, row=0, sticky='w')
       self.pbs.append(pb)
       frequency = freq[i]
-      lb = Label(self, text=frequency, font=(None, 4))
+      lb = Label(self, text=frequency, font=(None, 14))
       lb.grid(column=i, row=1)
     try:
       self.cdsp.connect()
@@ -285,16 +286,20 @@ class SpectrumAnalyser(Frame):
 
 if __name__ == '__main__':
   window = Tk()
-  window.geometry('480x320')
+  window.geometry('1400x900')
   s = ttk.Style()
   s.theme_use('default')
-  s.configure('TProgressbar', thickness=11)
+  s.configure('TProgressbar', thickness=40)
   default_font = font.nametofont('TkDefaultFont')
-  default_font.configure(size=7)
+  default_font.configure(size=20)
   window.option_add('TkDefaultFont', default_font)
 
-  cw = ConfigWindow(window)
-  cw.grid(column=0, row=0)
   sa = SpectrumAnalyser(window)
   sa.grid(column=0, row=1)
+  cw = ConfigWindow(window)
+  cw.grid(column=0, row=0)
+
+  window.grid_rowconfigure(0, weight=1)
+  window.grid_columnconfigure(0, weight=1)
+
   window.mainloop()
