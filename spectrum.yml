@@ -2,9 +2,9 @@
 devices:
   samplerate: 48000
   chunksize: 4096
-  enable_resampling: true
-  resampler_type: Synchronous
-  capture_samplerate: 192000
+  resampler:
+    type: Synchronous
+  capture_samplerate: 96000
   playback:
     type: File
     filename: "/dev/null"

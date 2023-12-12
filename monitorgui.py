@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from tkinter import *
 from tkinter import font
 from tkinter import ttk
@@ -16,11 +17,12 @@ class ConfigWindow(Frame):
     self.filename = 'setting.yml'
     self.dumpname = 'save.json'
     cmd = [
-        './camilladsp', 'setting.yml', '-p', '1234', '-g-20', '-l', 'warn', '-w'
+        './camilladsp', 'setting.yml', '-p', '1234', '-l', 'warn', '-w'
     ]
     self.proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    self.cdsp = camilladsp.CamillaConnection('127.0.0.1', 1234)
+    time.sleep(0.3)
+    self.cdsp = camilladsp.CamillaClient('127.0.0.1', 1234)
     self.readconfig()
     self.layout_slider()
     self.layout_monitor()
@@ -39,7 +41,7 @@ class ConfigWindow(Frame):
       self.after(200, self.update)
 
   def destroy(self):
-    self.cdsp.exit()
+    self.cdsp.general.exit()
     self.proc.terminate()
     Frame.destroy(self)
 
@@ -59,7 +61,7 @@ class ConfigWindow(Frame):
           self,
           orient='horizontal',
           mode='determinate',
-          length=130,
+          length=400,
           maximum=100,
           style='TProgressbar')
       pb.grid(column=1, row=i + 1)
@@ -79,7 +81,7 @@ class ConfigWindow(Frame):
     for i, section_name in enumerate(self.section_names):
       lb = Label(self, text=section_name)
       lb.grid(column=3, row=i + 1)
-      mb = ttk.Menubutton(self, text=section_name, width=15)
+      mb = ttk.Menubutton(self, text=section_name, width=30)
       selected_settings.append(IntVar(value = self.setting[i]))
       selected_settings[i].trace('w', menu_item_selected)
       menu = Menu(mb, tearoff=0)
@@ -93,9 +95,9 @@ class ConfigWindow(Frame):
   def layout_slider(self):
     def slider_changed(event):
       new_volume = volume_value.get()
-      self.cdsp.set_volume(new_volume)
+      self.cdsp.volume.set_main(new_volume)
     def toggle_mute():
-      self.cdsp.set_mute(not self.cdsp.get_mute())
+      self.cdsp.mute.set_main(not self.cdsp.mute.main())
     volume_value = DoubleVar()
     sl = Label(self, text='Volume:')
     sl.grid(column=0, row=0)
@@ -104,18 +106,18 @@ class ConfigWindow(Frame):
         from_=-100,
         to=0,
         orient='horizontal',
-        length=130,
+        length=400,
         resolution=0.5,
         showvalue=False,
         command=slider_changed,
         variable=volume_value)
     self.volume_slider.grid(column=1, row=0)
-    self.volume_label = Label(self, text='')
+    self.volume_label = Label(self, text='', width = 12)
     self.volume_label.grid(column=2, row=0)
     self.samplerate_label = Label(self, text='Sample rate:')
     self.samplerate_label.grid(column=3, row=0)
     self.mute_button = Button(
-        self, text='Mute', width=5, relief='raised', command=toggle_mute)
+        self, text='Mute', width=20, relief='raised', command=toggle_mute)
     self.mute_button.grid(column=4, row=0)
 
   def readconfig(self):
@@ -160,15 +162,15 @@ class ConfigWindow(Frame):
       return s
     try:
       # Get current rate.
-      config = self.cdsp.get_config()
+      config = self.cdsp.config.active()
       rate = config['devices']['samplerate']
       # Get updated config.
-      config = self.cdsp.read_config(generate_setting())
+      config = self.cdsp.config.parse_yaml(generate_setting())
       config['devices']['samplerate'] = rate
-      self.cdsp.set_config(config)
+      self.cdsp.config.set_active(config)
       print('Successfully updated DSP setting!')
     except camilladsp.CamillaError as e:
-      print('Config has error!')
+      print('Config has error: ', e)
     finally:
       for i, mb in enumerate(self.mbs):
         mb.config(text=self.subsection_names[i][self.setting[i]])
@@ -176,13 +178,14 @@ class ConfigWindow(Frame):
       json.dump(self.setting, file)
 
   def update(self):
-    state = self.cdsp.get_state()
+    state = self.cdsp.general.state()
     if state == camilladsp.ProcessingState.RUNNING:
+      levels = self.cdsp.levels.levels()
       values = [
-          self.cdsp.get_capture_signal_rms(),
-          self.cdsp.get_playback_signal_rms(),
-          self.cdsp.get_capture_signal_peak(),
-          self.cdsp.get_playback_signal_peak()
+          levels["capture_rms"],
+          levels["playback_rms"],
+          levels["capture_peak"],
+          levels["playback_peak"]
       ]
       values = sum(values, [])
       for i in range(8):
@@ -193,12 +196,12 @@ class ConfigWindow(Frame):
         pb.config(value=value)
         vol = self.vols[i]
         vol.config(text='{:8.2f} dB'.format(values[i]))
-      volume = self.cdsp.get_volume()
+      volume = self.cdsp.volume.main()
       self.volume_label.configure(text='{:8.2f} dB'.format(volume))
       self.volume_slider.set(volume)
       self.mute_button.config(
-          text='Mute: On' if self.cdsp.get_mute() else 'Mute: Off')
-      sample_rate = str(self.cdsp.get_capture_rate())
+          text='Mute: On' if self.cdsp.mute.main() else 'Mute: Off')
+      sample_rate = str(self.cdsp.rate.capture())
       self.samplerate_label.config(text='Sample rate: ' + sample_rate)
 
       stamp = os.stat(self.filename).st_mtime
@@ -207,12 +210,12 @@ class ConfigWindow(Frame):
         self.setconfig()
 
     if state == camilladsp.ProcessingState.INACTIVE:
-      reason = self.cdsp.get_stop_reason()
+      reason = self.cdsp.general.stop_reason()
       if reason == camilladsp.StopReason.CAPTUREFORMATCHANGE:
-        config = self.cdsp.get_previous_config()
+        config = self.cdsp.config.previous()
         rate = int(reason.data)
         config['devices']['samplerate'] = rate
-        self.cdsp.set_config(config)
+        self.cdsp.config.set_active(config)
         print('Successfully adjust to the new sample rate!')
     self.after(200, self.update)
 
@@ -224,7 +227,8 @@ class SpectrumAnalyser(Frame):
     cmd = ['./camilladsp', 'spectrum.yml', '-p', '5678', '-l', 'warn', '-w']
     self.proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    self.cdsp = camilladsp.CamillaConnection('127.0.0.1', 5678)
+    time.sleep(0.3)
+    self.cdsp = camilladsp.CamillaClient('127.0.0.1', 5678)
     self.pbs = []
     freq = [
         '25', '31.5', '40', '50', '63', '80', '100', '125', '160', '200', '250',
@@ -236,13 +240,13 @@ class SpectrumAnalyser(Frame):
           self,
           orient='vertical',
           mode='determinate',
-          length=130,
+          length=400,
           maximum=60,
           style='TProgressbar')
       pb.grid(column=i, row=0, sticky='w')
       self.pbs.append(pb)
       frequency = freq[i]
-      lb = Label(self, text=frequency, font=(None, 4))
+      lb = Label(self, text=frequency, font=(None, 14))
       lb.grid(column=i, row=1)
     try:
       self.cdsp.connect()
@@ -256,14 +260,14 @@ class SpectrumAnalyser(Frame):
       self.after(200, self.update)
 
   def destroy(self):
-    self.cdsp.exit()
+    self.cdsp.general.exit()
     self.proc.terminate()
     Frame.destroy(self)
 
   def update(self):
-    state = self.cdsp.get_state()
+    state = self.cdsp.general.state()
     if state == camilladsp.ProcessingState.RUNNING:
-      spectrum = self.cdsp.get_playback_signal_peak()
+      spectrum = self.cdsp.levels.playback_peak()
       for i in range(30):
         value = max(spectrum[i * 2], spectrum[i * 2 + 1]) + 60
         if value < 0: value = 0
@@ -271,27 +275,31 @@ class SpectrumAnalyser(Frame):
         pb = self.pbs[i]
         pb.config(value=value)
     if state == camilladsp.ProcessingState.INACTIVE:
-      reason = self.cdsp.get_stop_reason()
+      reason = self.cdsp.general.stop_reason()
       if reason == camilladsp.StopReason.CAPTUREFORMATCHANGE:
-        sconfig = self.cdsp.get_previous_config()
+        sconfig = self.cdsp.config.previous()
         sconfig['devices']['capture_samplerate'] = int(reason.data)
-        self.cdsp.set_config(sconfig)
+        self.cdsp.config.set_active(sconfig)
         print('Successfully adjust spectrum to the new sample rate!')
     self.after(200, self.update)
 
 
 if __name__ == '__main__':
   window = Tk()
-  window.geometry('480x320')
+  window.geometry('1400x900')
   s = ttk.Style()
   s.theme_use('default')
-  s.configure('TProgressbar', thickness=11)
+  s.configure('TProgressbar', thickness=40)
   default_font = font.nametofont('TkDefaultFont')
-  default_font.configure(size=7)
+  default_font.configure(size=20)
   window.option_add('TkDefaultFont', default_font)
 
-  cw = ConfigWindow(window)
-  cw.grid(column=0, row=0)
   sa = SpectrumAnalyser(window)
   sa.grid(column=0, row=1)
+  cw = ConfigWindow(window)
+  cw.grid(column=0, row=0)
+
+  window.grid_rowconfigure(0, weight=1)
+  window.grid_columnconfigure(0, weight=1)
+
   window.mainloop()
