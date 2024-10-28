@@ -1,10 +1,11 @@
 ---
 devices:
-  samplerate: 48000
+  multithreaded: true
+  samplerate: 44100
   chunksize: 4096
   resampler:
     type: Synchronous
-  capture_samplerate: 96000
+  capture_samplerate: 44100
   playback:
     type: File
     filename: "/dev/null"
@@ -12,7 +13,7 @@ devices:
     format: FLOAT32LE
   capture:
     type: CoreAudio
-    device: "BlackHole 16ch"
+    device: "BlackHole 2ch"
     channels: 2
     format: FLOAT32LE
 filters:
@@ -389,302 +390,152 @@ pipeline:
   - type: Mixer
     name: 30band
   - type: Filter
-    channel: 1
+    channels: [0, 1]
     names:
       - band_0
       - band_0
   - type: Filter
-    channel: 3
+    channels: [2, 3]
     names:
       - band_1
       - band_1
   - type: Filter
-    channel: 5
+    channels: [4, 5]
     names:
       - band_2
       - band_2
   - type: Filter
-    channel: 7
+    channels: [6, 7]
     names:
       - band_3
       - band_3
   - type: Filter
-    channel: 9
+    channels: [8, 9]
     names:
       - band_4
       - band_4
   - type: Filter
-    channel: 11
+    channels: [10, 11]
     names:
       - band_5
       - band_5
   - type: Filter
-    channel: 13
+    channels: [12, 13]
     names:
       - band_6
       - band_6
   - type: Filter
-    channel: 15
+    channels: [14, 15]
     names:
       - band_7
       - band_7
   - type: Filter
-    channel: 17
+    channels: [16, 17]
     names:
       - band_8
       - band_8
   - type: Filter
-    channel: 19
+    channels: [18, 19]
     names:
       - band_9
       - band_9
   - type: Filter
-    channel: 21
+    channels: [20, 21]
     names:
       - band_10
       - band_10
   - type: Filter
-    channel: 23
+    channels: [22, 23]
     names:
       - band_11
       - band_11
   - type: Filter
-    channel: 25
+    channels: [24, 25]
     names:
       - band_12
       - band_12
   - type: Filter
-    channel: 27
+    channels: [26, 27]
     names:
       - band_13
       - band_13
   - type: Filter
-    channel: 29
+    channels: [28, 29]
     names:
       - band_14
       - band_14
   - type: Filter
-    channel: 31
+    channels: [30, 31]
     names:
       - band_15
       - band_15
   - type: Filter
-    channel: 33
+    channels: [32, 33]
     names:
       - band_16
       - band_16
   - type: Filter
-    channel: 35
+    channels: [34, 35]
     names:
       - band_17
       - band_17
   - type: Filter
-    channel: 37
+    channels: [36, 37]
     names:
       - band_18
       - band_18
   - type: Filter
-    channel: 39
+    channels: [38, 39]
     names:
       - band_19
       - band_19
   - type: Filter
-    channel: 41
+    channels: [40, 41]
     names:
       - band_20
       - band_20
   - type: Filter
-    channel: 43
+    channels: [42, 43]
     names:
       - band_21
       - band_21
   - type: Filter
-    channel: 45
+    channels: [44, 45]
     names:
       - band_22
       - band_22
   - type: Filter
-    channel: 47
+    channels: [46, 47]
     names:
       - band_23
       - band_23
   - type: Filter
-    channel: 49
+    channels: [48, 49]
     names:
       - band_24
       - band_24
   - type: Filter
-    channel: 51
+    channels: [50, 51]
     names:
       - band_25
       - band_25
   - type: Filter
-    channel: 53
+    channels: [52, 53]
     names:
       - band_26
       - band_26
   - type: Filter
-    channel: 55
+    channels: [54, 55]
     names:
       - band_27
       - band_27
   - type: Filter
-    channel: 57
+    channels: [56, 57]
     names:
       - band_28
       - band_28
   - type: Filter
-    channel: 59
-    names:
-      - band_29
-      - band_29
-  - type: Filter
-    channel: 0
-    names:
-      - band_0
-      - band_0
-  - type: Filter
-    channel: 2
-    names:
-      - band_1
-      - band_1
-  - type: Filter
-    channel: 4
-    names:
-      - band_2
-      - band_2
-  - type: Filter
-    channel: 6
-    names:
-      - band_3
-      - band_3
-  - type: Filter
-    channel: 8
-    names:
-      - band_4
-      - band_4
-  - type: Filter
-    channel: 10
-    names:
-      - band_5
-      - band_5
-  - type: Filter
-    channel: 12
-    names:
-      - band_6
-      - band_6
-  - type: Filter
-    channel: 14
-    names:
-      - band_7
-      - band_7
-  - type: Filter
-    channel: 16
-    names:
-      - band_8
-      - band_8
-  - type: Filter
-    channel: 18
-    names:
-      - band_9
-      - band_9
-  - type: Filter
-    channel: 20
-    names:
-      - band_10
-      - band_10
-  - type: Filter
-    channel: 22
-    names:
-      - band_11
-      - band_11
-  - type: Filter
-    channel: 24
-    names:
-      - band_12
-      - band_12
-  - type: Filter
-    channel: 26
-    names:
-      - band_13
-      - band_13
-  - type: Filter
-    channel: 28
-    names:
-      - band_14
-      - band_14
-  - type: Filter
-    channel: 30
-    names:
-      - band_15
-      - band_15
-  - type: Filter
-    channel: 32
-    names:
-      - band_16
-      - band_16
-  - type: Filter
-    channel: 34
-    names:
-      - band_17
-      - band_17
-  - type: Filter
-    channel: 36
-    names:
-      - band_18
-      - band_18
-  - type: Filter
-    channel: 38
-    names:
-      - band_19
-      - band_19
-  - type: Filter
-    channel: 40
-    names:
-      - band_20
-      - band_20
-  - type: Filter
-    channel: 42
-    names:
-      - band_21
-      - band_21
-  - type: Filter
-    channel: 44
-    names:
-      - band_22
-      - band_22
-  - type: Filter
-    channel: 46
-    names:
-      - band_23
-      - band_23
-  - type: Filter
-    channel: 48
-    names:
-      - band_24
-      - band_24
-  - type: Filter
-    channel: 50
-    names:
-      - band_25
-      - band_25
-  - type: Filter
-    channel: 52
-    names:
-      - band_26
-      - band_26
-  - type: Filter
-    channel: 54
-    names:
-      - band_27
-      - band_27
-  - type: Filter
-    channel: 56
-    names:
-      - band_28
-      - band_28
-  - type: Filter
-    channel: 58
+    channels: [58, 59]
     names:
       - band_29
       - band_29

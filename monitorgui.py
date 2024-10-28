@@ -95,9 +95,9 @@ class ConfigWindow(Frame):
   def layout_slider(self):
     def slider_changed(event):
       new_volume = volume_value.get()
-      self.cdsp.volume.set_main(new_volume)
+      self.cdsp.volume.set_main_volume(new_volume)
     def toggle_mute():
-      self.cdsp.mute.set_main(not self.cdsp.mute.main())
+      self.cdsp.volume.set_main_mute(not self.cdsp.volume.main_mute())
     volume_value = DoubleVar()
     sl = Label(self, text='Volume:')
     sl.grid(column=0, row=0)
@@ -196,11 +196,11 @@ class ConfigWindow(Frame):
         pb.config(value=value)
         vol = self.vols[i]
         vol.config(text='{:8.2f} dB'.format(values[i]))
-      volume = self.cdsp.volume.main()
+      volume = self.cdsp.volume.main_volume()
       self.volume_label.configure(text='{:8.2f} dB'.format(volume))
       self.volume_slider.set(volume)
       self.mute_button.config(
-          text='Mute: On' if self.cdsp.mute.main() else 'Mute: Off')
+          text='Mute: On' if self.cdsp.volume.main_mute() else 'Mute: Off')
       sample_rate = str(self.cdsp.rate.capture())
       self.samplerate_label.config(text='Sample rate: ' + sample_rate)
 

@@ -1,5 +1,4 @@
-- channel: 1
+- type: Filter
+  channels: [1]
   names:
   - invert
-  type: Filter
-

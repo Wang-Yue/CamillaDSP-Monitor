@@ -1,4 +1,5 @@
-- channel: 0
+- type: Filter
+  channels: [0]
   names:
   - leftFront_1
   - leftFront_2
@@ -17,9 +18,9 @@
   - leftFront_15
   - leftFront_16
   - leftFront_17
-  type: Filter
 
-- channel: 1
+- type: Filter
+  channels: [1]
   names:
   - rightFront_1
   - rightFront_2
@@ -38,5 +39,4 @@
   - rightFront_15
   - rightFront_16
   - rightFront_17
-  type: Filter
 
