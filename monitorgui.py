@@ -83,7 +83,7 @@ class ConfigWindow(Frame):
       lb.grid(column=3, row=i + 1)
       mb = ttk.Menubutton(self, text=section_name, width=30)
       selected_settings.append(IntVar(value = self.setting[i]))
-      selected_settings[i].trace('w', menu_item_selected)
+      selected_settings[i].trace_add('write', menu_item_selected)
       menu = Menu(mb, tearoff=0)
       for j, subsection_name in enumerate(self.subsection_names[i]):
         menu.add_radiobutton(
