@@ -1,23 +1,14 @@
 - type: Mixer
   name: 2to4
-- channel: 0
+- type: Filter
+  channels: [0, 3]
   names:
     - cx1_hi
-  type: Filter
-- channel: 1
+- type: Filter
+  channels: [1, 2]
   names:
     - cx1_lo
     - cx1_lo_gain
-  type: Filter
-- channel: 2
-  names:
-    - cx1_lo
-    - cx1_lo_gain
-  type: Filter
-- channel: 3
-  names:
-    - cx1_hi
-  type: Filter
 - name: 4to2
   type: Mixer
 

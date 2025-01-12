@@ -1,11 +1,11 @@
 ---
 devices:
-  samplerate: 48000
+  samplerate: 44100
   chunksize: 4096
   enable_rate_adjust: true
   capture:
     type: CoreAudio
-    device: "BlackHole 16ch"
+    device: "BlackHole 2ch"
     channels: 2
     format: FLOAT32LE
   playback:

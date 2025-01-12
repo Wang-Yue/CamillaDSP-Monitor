@@ -6,7 +6,7 @@ A host monitor program for CamillaDSP, inspired by the RME ADI-2 DAC/Pro.
 
 1. If you are looking to run this project on Raspberry Pi, you probably want to look into its sister project, [CamillaDSP-Gadget](https://github.com/Wang-Yue/CamillaDSP-Gadget), which makes your Raspberry Pi 4 a UAC2 gadget with DSP capabilities.
 
-2. This project is well tested in Mac. To set it up for other operating systems, you have to read official CamillaDSP [documentation](https://henquist.github.io/0.6.3/) on how to set up your audio devices in the YML file.
+2. This project is well tested in Mac. To set it up for other operating systems, you have to read official CamillaDSP [documentation](https://henquist.github.io/) on how to set up your audio devices in the YML file.
 
 # Introduction
 
