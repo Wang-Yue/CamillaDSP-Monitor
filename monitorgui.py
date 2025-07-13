@@ -61,7 +61,7 @@ class ConfigWindow(Frame):
           self,
           orient='horizontal',
           mode='determinate',
-          length=400,
+          length=130,
           maximum=100,
           style='TProgressbar')
       pb.grid(column=1, row=i + 1)
@@ -81,7 +81,7 @@ class ConfigWindow(Frame):
     for i, section_name in enumerate(self.section_names):
       lb = Label(self, text=section_name)
       lb.grid(column=3, row=i + 1)
-      mb = ttk.Menubutton(self, text=section_name, width=30)
+      mb = ttk.Menubutton(self, text=section_name, width=15)
       selected_settings.append(IntVar(value = self.setting[i]))
       selected_settings[i].trace_add('write', menu_item_selected)
       menu = Menu(mb, tearoff=0)
@@ -106,7 +106,7 @@ class ConfigWindow(Frame):
         from_=-100,
         to=0,
         orient='horizontal',
-        length=400,
+        length=130,
         resolution=0.5,
         showvalue=False,
         command=slider_changed,
@@ -117,7 +117,7 @@ class ConfigWindow(Frame):
     self.samplerate_label = Label(self, text='Sample rate:')
     self.samplerate_label.grid(column=3, row=0)
     self.mute_button = Button(
-        self, text='Mute', width=20, relief='raised', command=toggle_mute)
+        self, text='Mute', width=5, relief='raised', command=toggle_mute)
     self.mute_button.grid(column=4, row=0)
 
   def readconfig(self):
@@ -217,37 +217,70 @@ class ConfigWindow(Frame):
         config['devices']['samplerate'] = rate
         self.cdsp.config.set_active(config)
         print('Successfully adjust to the new sample rate!')
-    self.after(200, self.update)
+    self.after(1000, self.update)
 
 
-class SpectrumAnalyser(Frame):
-
-  def __init__(self, parent):
-    Frame.__init__(self, parent)
+class SpectrumAnalyzer(Frame): # Changed to inherit from tk.Frame
+  def __init__(self, master=None, bar_height_max=150, **kwargs):
+    # Pass master and other keyword arguments to the Frame constructor
+    super().__init__(master, **kwargs)
+    self.master = master # Store master for potential later use if needed
     cmd = ['./camilladsp', 'spectrum.yml', '-p', '5678', '-l', 'warn', '-w']
     self.proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+      cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     time.sleep(0.3)
     self.cdsp = camilladsp.CamillaClient('127.0.0.1', 5678)
-    self.pbs = []
-    freq = [
-        '25', '31.5', '40', '50', '63', '80', '100', '125', '160', '200', '250',
-        '315', '400', '500', '630', '800', '1k', '1k25', '1k6', '2k', '2k5',
-        '3k15', '4k', '5k', '6k3', '8k', '10k', '12k5', '16k', '20k'
+    self.freq = [
+      '25', '31.5', '40', '50', '63', '80', '100', '125', '160', '200', '250',
+      '315', '400', '500', '630', '800', '1k', '1k25', '1k6', '2k', '2k5',
+      '3k15', '4k', '5k', '6k3', '8k', '10k', '12k5', '16k', '20k'
     ]
-    for i in range(30):
-      pb = ttk.Progressbar(
-          self,
-          orient='vertical',
-          mode='determinate',
-          length=400,
-          maximum=60,
-          style='TProgressbar')
-      pb.grid(column=i, row=0, sticky='w')
-      self.pbs.append(pb)
-      frequency = freq[i]
-      lb = Label(self, text=frequency, font=(None, 14))
-      lb.grid(column=i, row=1)
+    self.num_bars = len(self.freq)
+    self.bar_width = 20
+    self.bar_spacing = 5
+
+    self.bar_max_height = bar_height_max
+        
+    self.text_area_height = 30
+    self.text_font_size = 7
+    
+    # The total height of the canvas must accommodate bars AND text
+    self.canvas_height = self.bar_max_height + self.text_area_height + 10 # 10px padding at top of canvas
+
+    # Calculate total width needed for bars and spacing
+    total_bars_width = self.num_bars * (self.bar_width + self.bar_spacing) - self.bar_spacing
+    
+    # The padding for the canvas should now be handled internally by the frame's packing
+    # Or, passed as a parameter to the frame if it dictates the frame's size.
+    # For simplicity, we'll size the canvas directly and pack the frame.
+    self.canvas_width = total_bars_width
+
+
+    # Canvas is now packed directly into this Frame instance
+    self.canvas = Canvas(self, bg="black", height=self.canvas_height,
+                            width=self.canvas_width)
+    # Use .pack() directly on the Frame, as it's now the main container for the canvas
+    self.canvas.pack(pady=10, padx=10) # Some internal padding within the frame
+
+    self.bars = []
+    self.text_labels = []
+
+    for i in range(self.num_bars):
+      x1 = i * (self.bar_width + self.bar_spacing)
+      y1_bar_bottom = self.bar_max_height + 10 # Baseline for bars within canvas
+      x2 = x1 + self.bar_width
+      y2_bar_bottom = self.bar_max_height + 10
+
+      bar_rect = self.canvas.create_rectangle(x1, y1_bar_bottom, x2, y2_bar_bottom, fill="green", outline="")
+      self.bars.append(bar_rect)
+
+      text_x = x1 + self.bar_width / 2
+      text_y = self.bar_max_height + self.text_area_height + 5 # Position within canvas
+
+      label = self.canvas.create_text(text_x, text_y, text=self.freq[i], fill="white",
+                                      font=("Helvetica", self.text_font_size))
+      self.text_labels.append(label)
+
     try:
       self.cdsp.connect()
     except ConnectionRefusedError as e:
@@ -264,16 +297,35 @@ class SpectrumAnalyser(Frame):
     self.proc.terminate()
     Frame.destroy(self)
 
+  def _map_amplitude_to_color(self, amplitude, max_amplitude=1.0):
+    norm_amp = max(0, min(1, amplitude / max_amplitude))
+
+    if norm_amp < 0.5:
+      r = 0
+      g = int(255 * (norm_amp * 2))
+      b = int(255 * (1 - norm_amp * 2))
+    else:
+      r = int(255 * ((norm_amp - 0.5) * 2))
+      g = int(255 * (1 - (norm_amp - 0.5) * 2))
+      b = 0
+
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
   def update(self):
     state = self.cdsp.general.state()
     if state == camilladsp.ProcessingState.RUNNING:
-      spectrum = self.cdsp.levels.playback_peak()
-      for i in range(30):
-        value = max(spectrum[i * 2], spectrum[i * 2 + 1]) + 60
-        if value < 0: value = 0
-        if value > 60: value = 60
-        pb = self.pbs[i]
-        pb.config(value=value)
+      peak = self.cdsp.levels.playback_peak()
+      spectrum = [max(peak[i], peak[i+1]) / 60.0 + 1.0 for i in range(0, len(peak), 2)]
+      for i, amp in enumerate(spectrum):
+        bar_actual_height = amp * self.bar_max_height
+        bar_actual_height = max(1, bar_actual_height)
+
+        x1, _, x2, _ = self.canvas.coords(self.bars[i])
+        self.canvas.coords(self.bars[i], x1, (self.bar_max_height + 10) - bar_actual_height, x2, self.bar_max_height + 10)
+
+        color = self._map_amplitude_to_color(amp, max_amplitude=1.0)
+        self.canvas.itemconfig(self.bars[i], fill=color)
     if state == camilladsp.ProcessingState.INACTIVE:
       reason = self.cdsp.general.stop_reason()
       if reason == camilladsp.StopReason.CAPTUREFORMATCHANGE:
@@ -281,20 +333,19 @@ class SpectrumAnalyser(Frame):
         sconfig['devices']['capture_samplerate'] = int(reason.data)
         self.cdsp.config.set_active(sconfig)
         print('Successfully adjust spectrum to the new sample rate!')
-    self.after(200, self.update)
-
+    self.after(100, self.update)
 
 if __name__ == '__main__':
   window = Tk()
-  window.geometry('1400x900')
+  window.geometry('800x480')
   s = ttk.Style()
   s.theme_use('default')
-  s.configure('TProgressbar', thickness=40)
+  s.configure('TProgressbar', thickness=11)
   default_font = font.nametofont('TkDefaultFont')
-  default_font.configure(size=20)
+  default_font.configure(size=7)
   window.option_add('TkDefaultFont', default_font)
 
-  sa = SpectrumAnalyser(window)
+  sa = SpectrumAnalyzer(window)
   sa.grid(column=0, row=1)
   cw = ConfigWindow(window)
   cw.grid(column=0, row=0)
