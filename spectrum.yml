@@ -10,12 +10,12 @@ devices:
     type: File
     filename: "/dev/null"
     channels: 60
-    format: FLOAT32LE
+    format: F32
   capture:
     type: CoreAudio
     device: "BlackHole 2ch"
     channels: 2
-    format: FLOAT32LE
+    format: F32
 filters:
   band_0:
     type: Biquad

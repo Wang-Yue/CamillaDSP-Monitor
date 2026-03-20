@@ -7,12 +7,12 @@ devices:
     type: CoreAudio
     device: "BlackHole 2ch"
     channels: 2
-    format: FLOAT32LE
+    format: F32
   playback:
     type: CoreAudio
     channels: 2
     device: "MacBook Pro Speakers"
-    format: FLOAT32LE
+    format: F32
     exclusive: true
 
 filters:
