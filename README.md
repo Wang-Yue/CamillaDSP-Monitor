@@ -1,152 +1,177 @@
 # CamillaDSP Monitor
 
-A host monitor program for CamillaDSP, inspired by the RME ADI-2 DAC/Pro.
+A native macOS SwiftUI app for controlling and monitoring [CamillaDSP](https://github.com/HEnquist/camilladsp) — a flexible, real-time audio DSP engine for crossovers, room correction, and general audio filtering.
 
-# Note
+The app connects to a CamillaDSP process via WebSocket, providing real-time level meters, spectrum analysis, device selection, and a full pipeline configuration UI.
 
-1. If you are looking to run this project on Raspberry Pi, you probably want to look into its sister project, [CamillaDSP-Gadget](https://github.com/Wang-Yue/CamillaDSP-Gadget), which makes your Raspberry Pi 4 a UAC2 gadget with DSP capabilities.
+## Screenshots
 
-2. This project is well tested in Mac. To set it up for other operating systems, you have to read official CamillaDSP [documentation](https://henquist.github.io/) on how to set up your audio devices in the YML file.
+![Dashboard](Screenshot-Dashboard.png)
+![Devices](Screenshot-Device.png)
+![EQ](Screenshot-EQ.png)
 
-# Introduction
+## Requirements
 
-The [CamillaDSP](https://github.com/HEnquist/camilladsp/) project provides a seamless approach to do DSP system-wide on all major desktop operating systems, with various DSP features ready to be used, such as [Loudness](https://en.wikipedia.org/wiki/Loudness_compensation), [Convolution](https://en.wikipedia.org/wiki/Convolution), or [Parametric EQ](https://en.wikipedia.org/wiki/Equalization_(audio)#Parametric_equalizer).  It utilizes a setting file that can be sent to the [websocket](https://henquist.github.io/0.6.3/websocket.html) in run time. 
+- macOS 14+ (Sonoma)
+- Swift 6.0+
+- A [CamillaDSP](https://github.com/HEnquist/camilladsp) binary (the app launches and manages the process automatically)
 
-This program provides an easy interface to access various useful DSP features powered by CamillaDSP. Users can enable/disable complex DSP functionalities. It also displays a very useful spectrum analyzer in the terminal. The DSP workflow is heavily inspired by the [RME ADI-2 DAC](https://www.rme-audio.de/adi-2-dac.html).
+## Building
 
-# DSPs available
+```bash
+swift build
+swift run CamillaDSPMonitor
+```
 
-The project offers the following functionalities, and more can be added in the same way.
+The app automatically looks for the CamillaDSP binary in common locations (like `~/camilladsp/target/release/camilladsp`). You can also manually select a custom path in the **Device Settings** screen, which will be saved for future launches.
 
-## Volume Control
+## Features
 
-Current volume setting is displayed on top of the screen.
-
-## Status Monitor
-
-The current sample rate, RMS and peak volume of both input and output channels are clearly displayed on the terminal
-
-## Mute
-
-The mute function will mute the audio output. Its status is shown right after the volume setting.
-
-## Width
-
-Define stereo width. Mono for mono, and Swapped have the channels swapped.
-
-## M/S Proc
-
-Activates M/S processing. Monaural content is sent to the left, stereo to the right channel.
-
-## Phase Inversion
-
-Some poorly mastered recordings have an inverted phase and the script can correct it.
-
-## Crossfeed
-
-The script offers 5 levels of headphone crossfeed based on my [CamillaDSP-Crossfeed](https://github.com/Wang-Yue/camilladsp-crossfeed/) project.
-
-## EQ
-
-The script provides EQ function for headphone and room correction.
-
-## Loudness
-
-The script offers the same Loudness feature as the RME ADI-2 DAC.
-
-## Emphasis
-
-In the early times of digital audio, pre- and de-emphasis were used for radio transmission. The audio signal is equalized to have treble boosted when recorded. When played back an analog treble filter is required. Many older CDs were recorded with Emphasis.
-
-DAC chips, modern ones included, usually have a register to turn on de-emphasis but not many audio products use this feature. As a result, old CDs may feel too bright when playing via modern hardware. This project offers an identical solution implemented in software. Users may choose to pre-emphasis or de-emphasis the signal before sending it to the output.
-
-## DC Protection
-
-With the latest RME ADI-2 DAC/Pro firmware, a DC Protection filter is added to remove potentially harmful DC in the digital source signal. This project provides an identical implementation.
-
-This filter adds a special, smooth high pass to the DA path, with zero latency, very low THD and phase deviation. This filter has a corner frequency of 7 Hz, to not only cancel DC but also reduce the amount of inaudible and imperceptible infrasound that plagues some sources.
-
-## Spectrum analyzer
-
-The Analyzer is modeled after RME’s ADI-2 DAC, which is based on the Spectral Analyzer in DIGICheck. 
-
-It uses 29 biquad bandpass filters for high separation between the bands, providing outstanding musical visualization.
-To be able to also show DC content the lowest band is not a band-pass filter, but a low pass, catching the whole range
-from 0 Hz up to 30 Hz. With some unusual signals it therefore can happen that the level shown will be a bit higher than expected.
-
-The shown frequency range is always the human audible range, 20 Hz up to 20 kHz.
-
-As opposed to most other solutions no FFT (Fast Fourier Transform) is used. The Spectral
-Analyzer performs a true band-pass filter calculation, as in professional hardware devices. The
-frequency distance between the filters is scaled matching human hearing. 
-
-# User Interface
-
-The `monitorgui.py` has a simple graphical user inter face.
-
-![Screenshot](gui.png)
-
-Here's a video [demo](https://www.youtube.com/watch?v=OLZ43epCpHQ).
-
-
-## Prerequisites
-
-The program is written in Python 3. It also uses the [PyCamillaDSP](https://github.com/HEnquist/pycamilladsp/) library.
-So please install both before running this program.
-
-## Setup
-
-You need to edit the device section in `setting.yml` and `spectrum.yml` to use your loopback and playback devices.
-Please refer the official CamillaDSP [documentation](https://henquist.github.io/0.6.3/) on how to set up your audio devices.
-
-## Startup
-
-Simply by invoking `./monitorgui.py` in the command line. That will give you the standard interface.
-
-## Parameter Tuning
-
-You can open a text editor and tune parameters in `setting.yml`. The script automatically checks if the file is changed, and will reflect your changes immediately in the DSP. 
-
-## Automatic Sample Rate Switching
-
-The script will automatically restart the DSP program when it pauses due to sample rate changes.
-
-# Special Thanks
-
-Many thanks to @HEnquist for the wonderful CamillaDSP program, and to RME for creating the mighty ADI-2 DAC that inspired this script.
-
-# FAQ
-
-Q: There's already an official CamillaDSP project, [CamillaGUI](https://github.com/HEnquist/camillagui), which does the similar thing. Why are you reinventing the wheel?
-
-A: CamillaGUI allows run time edit of the parameters and pipeline, and greatly simplifies the workflow for various tasks. Unfortunately, there are certain drawbacks of these programs, mainly in the following perspectives:
-
-1. The GUI program has no way to disable/enable a set of filters/mixers in runtime. Some EQ functions, such as room correction or headphone EQ, require a set filter to be enabled or disabled at the same time. Other functions, such as headphone crossfeed, need a few filters in combination with a few mixers to work together. Neither GUI nor the setting file has the concept of "functional blocks" that allows a group of filters/mixers to work together.
-
-2. The changes to the parameters are not reflected in the DSP immediately. One has to save and apply the settings so see its effect. This is a cumbersome process.
-
-3. There's no automatic error handling in the GUI program. For instance, when the sample rate of the input device changes, CamillaDSP will pause and need another control program to correct itself. the GUI program does not provide this feature.
-
-That's why I built this short script to address the above issues. It also has a very nice spectrum analyzer built in. However, the script is by no means a mature software product compared to CamillaGUI. It's just for me to access some DSP workflow I usually perform. It's super hacky and may crash when you're holding it wrong.
-
-Q: The monitor program uses a lot of CPU power.
-
-A: That's right. The program not only does DSP processing, but also displays the 30-band analyzer, which computes 120 biquads. Unlike Digicheck, due to the way CamillaDSP does the computation it consumes high CPU usage.
-
-The RME ADI-2 DAC/Pro has powerful FPGA and DSP processors and runs all the above computations in hardware. It offers everything in a nice package, and certainly provides a better experience, and much lower latency, compared to running this project. So if you love the DSP workflow in this project, are concerned about the CPU usage, and want those features in a nicer, lovelier machine, you may consider purchasing a RME ADI-2 DAC or Pro unit. With that said, this is an independent project and has no affiliation with RME.
-
-Q: I run into an error: `rate = config['devices']['samplerate']  TypeError: 'NoneType' object is not subscriptable`
-
-A: Make sure you edited the device section in both `settings.yml` and `spectrum.yml` to match your loopback and playback devices. Double check your devices support the format and sample rate you specified. Also make sure there's no other CamillaDSP process running.
-
-Q: RME ADI-2 DAC has the option to send mono audio to the left and is very useful.
-
-A: Just select `Width` to `Mono` and `M/S Proc` to `On`. Now the right channel is silent.
-
-Q: Why some features from ADI-2 DAC, such as balance, is not available?
-
-A: Balance is trivial to implement with CamillaDSP's mixer. So just add it by yourself --- it's a simple exercise. Just notice CamillaDSP accepts gain in dB (-6dB), not percentage (50%). Most DACs also supports balance adjustments in hardware. I choose to skip a few trivial DSPs to make this project not too similar to the ADI-2 DAC.
-
-Q: I want feature X.
-
-A: This project welcomes your contribution. Please submit a PR.
+### Audio Device Management
+- Capture and playback device selection with system default option
+- Per-device sample rate picker with hardware rate change detection
+- Configurable channel count and chunk size
+- Exclusive (hog) mode for output devices
+- Auto-refresh on device connect/disconnect
+
+### Monitoring
+- **Level meters** — Dual RMS/Peak bars for capture and playback (L/R) with dB readouts
+- **Spectrum analyzer** — 30-band 1/3-octave FFT display via independent CoreAudio tap
+- **Processing load** — Real-time CPU usage in the toolbar
+- **Compact level bar** — Always-visible status strip across all detail views
+
+### Pipeline Configuration
+
+Drag-to-reorder processing stages, each with a dedicated settings panel:
+
+| Stage | Description |
+|-------|-------------|
+| Balance | L/R pan with linear pan law |
+| Width | Stereo width (-100% swapped to 200% extra-wide) via Mid/Side matrix |
+| M/S Proc | Mid-Side encoding at -6.02 dB |
+| Phase Invert | Left / Right / Both channel polarity flip |
+| Crossfeed | 5 presets (L1-L5) or custom Fc/dB with computed filter parameters |
+| EQ | Same L/R or Separate L/R mode with preset selection |
+| Loudness | Fletcher-Munson compensation with adjustable reference and boost |
+| Emphasis | De-emphasis / Pre-emphasis highshelf filter |
+| DC Protection | First-order highpass at 7 Hz |
+
+### EQ Preset Editor
+
+Three editing modes for parametric EQ presets:
+
+- **Diagram** — Interactive frequency response graph with draggable color-coded band handles
+- **Form** — Table-based editor with type picker, frequency, gain, and Q fields
+- **CSV** — AutoEq / EqualizerAPO compatible text format with import/export
+
+Supports 13 biquad filter types: Peaking, Lowshelf, Highshelf, Lowpass, Highpass, Notch, Bandpass, Allpass, and first-order variants.
+
+### Resampler
+
+Dedicated configuration panel for sample rate conversion between capture and playback devices:
+
+- AsyncSinc with quality profiles (Very Fast / Fast / Balanced / Accurate)
+- AsyncPoly with cubic interpolation
+- Synchronous (fixed ratio)
+
+### Mini Player
+
+Floating translucent overlay (via toolbar PiP button) visible above all windows including fullscreen video. Three display modes: spectrum, pipeline chips, and level meters.
+
+### Engine Control
+
+- Auto-start on launch with soft volume ramp (-30 dB to target)
+- Start/Stop toggle in the toolbar
+- Auto-recovery when CamillaDSP stalls (e.g., capture format change)
+- Connection retry loop on startup (waits for CamillaDSP to be ready)
+- Graceful shutdown on app termination
+
+### Persistence
+
+All settings saved to UserDefaults across launches: device selection, sample rates, channel counts, pipeline stage state, EQ presets, volume, and mute state.
+
+## Architecture
+
+```
+CamillaDSPMonitor (SwiftUI)
+    |
+    |-- AppState (@MainActor, ObservableObject)
+    |       |-- DSPEngine (actor) ---- WebSocket ----> camilladsp process
+    |       |-- CoreAudioTap (AVAudioEngine input tap for FFT)
+    |       |-- FFTSpectrumAnalyzer (Accelerate vDSP, background queue)
+    |       |-- MeterState (ObservableObject, drives UI)
+    |       |-- PipelineStage[] (ObservableObject per stage)
+    |       `-- EQPreset[] (ObservableObject per preset)
+    |
+    `-- Views (NavigationSplitView)
+            |-- Dashboard (signal chain + meters + spectrum)
+            |-- DevicePicker (capture/playback selection)
+            |-- StageDetail (per-stage config UI)
+            |-- EQPresetDetail (diagram/form/CSV modes)
+            `-- MiniPlayer (NSPanel floating overlay)
+```
+
+The `DSPEngine` is a Swift actor that serializes all WebSocket communication. It manages the CamillaDSP process lifecycle (launch, connect, stop) and exposes async methods for commands like `SetConfigJson`, `GetSignalLevels`, and `SetVolume`.
+
+The spectrum analyzer runs independently from CamillaDSP's signal path — it taps the capture device directly via `AVAudioEngine` and performs FFT on a background dispatch queue.
+
+## Project Structure
+
+```
+Sources/
+  CamillaDSPLib/
+    CamillaDSP.swift            # DSPEngine actor, WebSocket protocol, data types
+  CamillaDSPMonitor/
+    CamillaDSPMonitorApp.swift  # @main app entry, AppDelegate
+    Models/
+      AppState.swift            # Central state, preferences, properties
+      AppState+Engine.swift     # Engine control, config building, soft ramp
+      AppState+Devices.swift    # Device enumeration, CoreAudio listeners
+      AppState+Monitoring.swift # Polling, FFT analyzer, CoreAudio tap, MeterState
+      AppState+Pipeline.swift   # Pipeline persistence
+      PipelineStage.swift       # Stage types, enums, active state
+      PipelineStage+Builders.swift  # CamillaDSP config dict generation
+      PipelineStage+Crossfeed.swift # Crossfeed filter computation
+      PipelineStage+Defaults.swift  # Factory defaults, snapshot persistence
+      EQPreset.swift            # EQ band/preset models, biquad response, CSV
+      EQPreset+Persistence.swift    # Preset CRUD and defaults
+      DSPUtils.swift            # BiquadCoefficients (Peaking, Lowshelf, Highshelf)
+      CoreAudioTap.swift        # AVAudioEngine input tap, device lookup
+    Views/
+      ContentView.swift         # NavigationSplitView, sidebar, detail routing
+      DashboardView.swift       # Signal chain overview + meters + spectrum cards
+      DevicePickerView.swift    # Device/sample rate/chunk size selection
+      StageDetailView.swift     # Per-stage config (balance, width, crossfeed, etc.)
+      EQPresetDetailView.swift  # Tabbed EQ editor (diagram/form/CSV)
+      EQDiagramMode.swift       # Interactive frequency response graph
+      EQFormMode.swift          # Table-based band editor
+      EQCSVMode.swift           # AutoEq/EqualizerAPO text editor
+      LevelMeterView.swift      # Dual RMS/Peak meters, compact bars
+      SpectrumView.swift        # 30-band gradient bar spectrum display
+      VolumeControlView.swift   # Toolbar volume slider + mute button
+      MiniPlayerView.swift      # Floating overlay with mode switcher
+      MiniPlayerContent.swift   # Mini spectrum, pipeline chips, meters
+      MiniPlayerWindowController.swift  # NSPanel lifecycle
+      SettingsView.swift        # App preferences
+```
+
+## Dependencies
+
+No external dependencies. Uses only Apple system frameworks:
+
+- **SwiftUI** — UI
+- **CoreAudio** — Device enumeration and hardware listeners
+- **AVFoundation** — Audio engine tap for spectrum analysis
+- **Accelerate** — vDSP FFT for spectrum analyzer
+- **Foundation** — WebSocket (URLSessionWebSocketTask), JSON, process management
+
+## Acknowledgments
+
+- [CamillaDSP](https://github.com/HEnquist/camilladsp) by Henrik Enquist
+- [CamillaDSP-Monitor](https://github.com/Wang-Yue/CamillaDSP-Monitor) by Wang Yue — inspiration for the monitor UI
+- [camilladsp-crossfeed](https://github.com/Wang-Yue/camilladsp-crossfeed/) — crossfeed parameter computation
+- Audio EQ Cookbook by Robert Bristow-Johnson — biquad coefficient formulas
+
+## License
+
+See [LICENSE](LICENSE).
