@@ -5,54 +5,80 @@ import SwiftUI
 
 extension AppState {
 
+  // MARK: - Engine Lifecycle
+
   func startEngine() {
-    guard !isRunning else { return }
+    switch status {
+    case .inactive, .error:
+      break
+    default:
+      return
+    }
+
+    status = .starting
     lastError = nil
     lastAppliedConfigYAML = nil
-    guard devicesAvailable() else { return }
+    lastRecoveryTime = nil
 
-    // Start the audio tap BEFORE CamillaDSP claims the capture device,
-    // so AVAudioEngine gets shared access to the input.
+    guard devicesAvailable() else {
+      status = .error("Audio devices not available")
+      return
+    }
+
     recreateSpectrumAnalyzer()
     startAudioCapture()
 
     Task {
       do {
+        // 1. Connect
         try await engine.connect(binaryPath: camillaDSPPath)
+
+        // 2. Priming Volume/Mute BEFORE sending config.
+        // CRITICAL: We use setFaderExternalVolume because it updates BOTH target_volume
+        // and current_volume in CamillaDSP. This ensures that when the pipeline
+        // initializes, it doesn't see a difference that triggers a 0dBFS ramp.
+        await engine.setFaderMute(fader: 0, mute: isMuted)
+        await engine.setFaderExternalVolume(fader: 0, db: volume)
+
+        // 3. Apply the configuration
+        lastAppliedConfigYAML = nil
         let config = buildConfigDict()
         try await startEngineWithConfig(config)
-        isRunning = true
-        engineState = .running
-        await engine.setMute(isMuted)
-        await engine.setVolume(volume)
+
+        status = .running
         startMonitoringTimer()
-        // Retry the tap in case the early start didn't get audio
         scheduleSpectrumRestart()
       } catch {
         lastError = "\(error)"
-        engineState = .inactive
-        stopAudioCapture()
+        status = .error("\(error)")
+        stopMonitoring()
         await engine.disconnect()
       }
     }
   }
 
   func stopEngine() {
-    isRunning = false
-    engineState = .inactive
+    status = .inactive
     stopMonitoring()
     meters.reset()
     lastAppliedConfigYAML = nil
+    lastRecoveryTime = nil
     Task { await engine.stop() }
   }
 
+  // MARK: - Configuration Management
+
   func applyConfig() {
     guard !isLoadingPreferences else { return }
+    if case .error = status {
+      startEngine()
+      return
+    }
     Task { await applyConfigAsync() }
   }
 
   func applyConfigAsync() async {
-    guard isRunning && !isApplyingConfig && !isLoadingPreferences else { return }
+    guard isRunning && !isBusy && !isLoadingPreferences else { return }
     savePipelineStages()
 
     let config = buildConfigDict()
@@ -60,44 +86,73 @@ extension AppState {
     let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
     if json == lastAppliedConfigYAML { return }
 
-    isApplyingConfig = true
+    let previousStatus = status
+    status = .applyingConfig
+
     do {
+      // Prime faders before config change to avoid transition spikes
+      await engine.setFaderMute(fader: 0, mute: isMuted)
+      await engine.setFaderExternalVolume(fader: 0, db: volume)
+
       try await startEngineWithConfig(config)
       lastAppliedConfigYAML = json
+
+      if await verifyEngineRunning(config: config) {
+        status = .running
+      } else {
+        let msg = "Engine failed to reach running state"
+        lastError = msg
+        status = .error(msg)
+      }
     } catch {
       print("[AppState] Config apply failed: \(error)")
-      lastAppliedConfigYAML = nil  // allow retry on next attempt
+      lastError = "Config error: \(error.localizedDescription)"
+      lastAppliedConfigYAML = nil
+      status = previousStatus
     }
-    // Wait for engine to stabilize, then verify it's running
-    try? await Task.sleep(nanoseconds: 300_000_000)
-    await verifyEngineRunning(config: config)
-    isApplyingConfig = false
 
-    // CamillaDSP pipeline restart can disrupt the CoreAudioTap
     scheduleSpectrumRestart()
   }
 
-  private func verifyEngineRunning(config: [String: Any]) async {
-    let state: String? = try? await engine.sendCommand("GetState")
-    if state == "Running" { return }
+  @discardableResult
+  private func verifyEngineRunning(config: [String: Any]) async -> Bool {
+    for _ in 0..<25 {
+      let state: String? = try? await engine.sendCommand("GetState")
+      if state == "Running" || state == "Starting" || state == "Stalled" { return true }
+      try? await Task.sleep(nanoseconds: 20_000_000)
+    }
 
-    print("[AppState] Engine state after config: \(state ?? "Unknown"), retrying...")
+    print("[AppState] Engine state after config still not Running/Starting, retrying...")
     let reason: String? = try? await engine.sendCommand("GetStopReason")
     if let stopReason = reason { print("[AppState] Stop reason: \(stopReason)") }
 
-    // Retry once
-    _ = try? await startEngineWithConfig(config)
-    try? await Task.sleep(nanoseconds: 300_000_000)
+    do {
+      try await startEngineWithConfig(config)
+      for _ in 0..<10 {
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let newState: String? = try? await engine.sendCommand("GetState")
+        if newState == "Running" || newState == "Starting" || newState == "Stalled" { return true }
+      }
+      return false
+    } catch {
+      return false
+    }
   }
+
+  // MARK: - Controls
 
   func setVolume(_ db: Double) {
     volume = db
+    // Use regular setVolume for live updates (provides smooth interpolation)
     Task { await engine.setVolume(db) }
   }
   func toggleMute() {
     isMuted.toggle()
+    // Use regular setMute for live updates
     Task { await engine.setMute(isMuted) }
   }
+
+  // MARK: - Private Helpers
 
   private func startEngineWithConfig(_ config: [String: Any]) async throws {
     let data = try JSONSerialization.data(withJSONObject: config)
@@ -109,7 +164,9 @@ extension AppState {
 
   func buildConfigDict() -> [String: Any] {
     var devices: [String: Any] = [
-      "samplerate": playbackSampleRate, "chunksize": chunkSize,
+      "samplerate": playbackSampleRate,
+      "chunksize": chunkSize,
+      "volume_ramp_time": 200.0,  // ms
       "capture": [
         "type": "CoreAudio", "channels": captureChannels, "device": selectedCaptureDevice as Any,
         "format": captureFormat,
@@ -126,7 +183,9 @@ extension AppState {
       case .asyncSinc:
         devices["resampler"] = ["type": "AsyncSinc", "profile": resamplerProfile.rawValue]
       case .asyncPoly:
-        devices["resampler"] = ["type": "AsyncPoly", "interpolation": "Cubic"]
+        devices["resampler"] = [
+          "type": "AsyncPoly", "interpolation": resamplerInterpolation.rawValue,
+        ]
       case .synchronous:
         devices["resampler"] = ["type": "Synchronous"]
       }
@@ -157,6 +216,7 @@ extension AppState {
     if !filters.isEmpty { config["filters"] = filters }
     if !mixers.isEmpty { config["mixers"] = mixers }
     if !pipeline.isEmpty { config["pipeline"] = pipeline }
+
     return config
   }
 }

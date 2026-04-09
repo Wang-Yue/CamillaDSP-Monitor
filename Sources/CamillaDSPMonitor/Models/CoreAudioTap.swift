@@ -1,4 +1,5 @@
 import AVFoundation
+import Accelerate
 import CamillaDSPLib
 import CoreAudio
 import Foundation
@@ -33,9 +34,9 @@ func findCoreAudioDeviceID(name: String) -> AudioDeviceID? {
 
 final class CoreAudioTap {
   private let engine = AVAudioEngine()
-  private let onAudio: ([PrcFmt]) -> Void
+  private let onAudio: ([Float]) -> Void
 
-  init(onAudio: @escaping ([PrcFmt]) -> Void) {
+  init(onAudio: @escaping ([Float]) -> Void) {
     self.onAudio = onAudio
   }
 
@@ -69,13 +70,15 @@ final class CoreAudioTap {
       let frameCount = Int(buffer.frameLength)
       guard frameCount > 0, let channels = buffer.floatChannelData else { return }
 
-      var mono = [PrcFmt](repeating: 0, count: frameCount)
+      var mono = [Float](repeating: 0, count: frameCount)
       let left = channels[0]
       if buffer.format.channelCount >= 2 {
         let right = channels[1]
-        for i in 0..<frameCount { mono[i] = Double((left[i] + right[i]) * 0.5) }
+        var scale: Float = 0.5
+        vDSP_vadd(left, 1, right, 1, &mono, 1, vDSP_Length(frameCount))
+        vDSP_vsmul(mono, 1, &scale, &mono, 1, vDSP_Length(frameCount))
       } else {
-        for i in 0..<frameCount { mono[i] = Double(left[i]) }
+        memcpy(&mono, left, frameCount * MemoryLayout<Float>.size)
       }
       self.onAudio(mono)
     }

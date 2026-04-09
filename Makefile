@@ -18,17 +18,10 @@ app: build
 	mkdir -p $(RESOURCES)
 	cp $(EXECUTABLE) $(MACOS)/
 	@echo "Copying Info.plist..."
-	cp Sources/$(APP_NAME)/Info.plist $(CONTENTS)/
-	@if [ -f "Sources/$(APP_NAME)/Resources/AppIcon.icns" ]; then \
-		echo "Copying AppIcon.icns..."; \
-		cp Sources/$(APP_NAME)/Resources/AppIcon.icns $(RESOURCES)/; \
-	fi
+	cp Info.plist $(CONTENTS)/
+	@if [ -f "AppIcon.icns" ]; then 		echo "Copying AppIcon.icns..."; 		cp AppIcon.icns $(RESOURCES)/; 	fi
 	@echo "Signing application..."
-	@if [ -f "entitlements.plist" ]; then \
-		codesign --force --options runtime --entitlements entitlements.plist --sign - $(APP_BUNDLE); \
-	else \
-		codesign --force --sign - $(APP_BUNDLE); \
-	fi
+	@if [ -f "entitlements.plist" ]; then 		codesign --force --options runtime --entitlements entitlements.plist --sign - $(APP_BUNDLE); 	else 		codesign --force --sign - $(APP_BUNDLE); 	fi
 
 clean:
 	rm -rf .build

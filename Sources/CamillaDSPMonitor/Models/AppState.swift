@@ -5,24 +5,53 @@ import Combine
 import CoreAudio
 import SwiftUI
 
-public enum ResamplerType: String, Codable, Sendable {
+public enum ResamplerType: String, Codable, Sendable, CaseIterable, Identifiable {
   case asyncSinc = "AsyncSinc"
   case asyncPoly = "AsyncPoly"
   case synchronous = "Synchronous"
+  public var id: String { rawValue }
 }
-public enum ResamplerProfile: String, Codable, Sendable {
+
+public enum ResamplerProfile: String, Codable, Sendable, CaseIterable, Identifiable {
   case veryFast = "VeryFast"
   case fast = "Fast"
   case balanced = "Balanced"
   case accurate = "Accurate"
+  public var id: String { rawValue }
+}
+
+public enum ResamplerInterpolation: String, Codable, Sendable, CaseIterable, Identifiable {
+  case linear = "Linear"
+  case quadratic = "Quadratic"
+  case cubic = "Cubic"
+  case sinc = "Sinc"
+  public var id: String { rawValue }
+}
+
+public enum AppStatus: Equatable, Sendable {
+  case inactive
+  case starting
+  case running
+  case applyingConfig
+  case error(String)
 }
 
 @MainActor
 final class AppState: ObservableObject {
   let defaults = UserDefaults.standard
 
-  @Published var engineState: EngineState = .inactive
-  @Published var isRunning: Bool = false
+  @Published var status: AppStatus = .inactive
+
+  var isRunning: Bool {
+    if case .running = status { return true }
+    if case .applyingConfig = status { return true }
+    return false
+  }
+
+  var isBusy: Bool {
+    status == .starting || status == .applyingConfig
+  }
+
   @Published var lastError: String?
 
   @Published var captureDevices: [AudioDevice] = []
@@ -35,7 +64,6 @@ final class AppState: ObservableObject {
     if resamplerEnabled {
       return playbackSupportedRates
     } else {
-      // When resampler is off, only allow rates supported by BOTH devices
       let capSet = Set(captureSupportedRates)
       let pbSet = Set(playbackSupportedRates)
       return capSet.intersection(pbSet).sorted()
@@ -135,6 +163,12 @@ final class AppState: ObservableObject {
       applyConfig()
     }
   }
+  @Published var resamplerInterpolation: ResamplerInterpolation = .cubic {
+    didSet {
+      defaults.set(resamplerInterpolation.rawValue, forKey: Keys.resamplerInterpolation)
+      applyConfig()
+    }
+  }
 
   @Published var volume: Double = 0.0 {
     didSet { defaults.set(volume, forKey: Keys.volume) }
@@ -148,18 +182,20 @@ final class AppState: ObservableObject {
   let meters = MeterState()
 
   let engine = DSPEngine()
-  var monitorTimer: DispatchSourceTimer?
   var isLoadingPreferences = false
   var spectrumAnalyzer: FFTSpectrumAnalyzer?
   var audioTap: CoreAudioTap?
   var lastAppliedConfigYAML: String?
-  var isApplyingConfig = false
   var isPollingLevels = false
   var spectrumRestartTask: Task<Void, Never>?
+  var monitoringTask: Task<Void, Never>?
   var monitoredCaptureDeviceID: AudioDeviceID?
   var monitoredPlaybackDeviceID: AudioDeviceID?
   var captureRateListenerBlock: AudioObjectPropertyListenerBlock?
   var playbackRateListenerBlock: AudioObjectPropertyListenerBlock?
+
+  // Recovery Throttling
+  var lastRecoveryTime: Date?
 
   enum Keys {
     static let captureDevice = "captureDevice"
@@ -168,7 +204,7 @@ final class AppState: ObservableObject {
     static let playbackChannels = "playbackChannels"
     static let captureSampleRate = "captureSampleRate"
     static let playbackSampleRate = "playbackSampleRate"
-    static let chunkSize = "chunkSize"
+    static let chunkSize = "chunksize"
     static let volume = "volume"
     static let isMuted = "isMuted"
     static let enableRateAdjust = "enableRateAdjust"
@@ -176,6 +212,7 @@ final class AppState: ObservableObject {
     static let resamplerEnabled = "resamplerEnabled"
     static let resamplerType = "resamplerType"
     static let resamplerProfile = "resamplerProfile"
+    static let resamplerInterpolation = "resamplerInterpolation"
     static let camillaDSPPath = "camillaDSPPath"
   }
 
@@ -192,15 +229,12 @@ final class AppState: ObservableObject {
 
     startDeviceChangeListener()
 
-    // Create the audio tap early to acquire AVAudioEngine permissions
-    // before CamillaDSP claims the capture device.
     audioTap = CoreAudioTap(onAudio: { [weak self] waveform in
       self?.spectrumAnalyzer?.enqueueAudio(waveform)
     })
 
     Task {
       do {
-        // Try default paths if nothing is saved
         if camillaDSPPath.isEmpty {
           let home = ProcessInfo.processInfo.environment["HOME"] ?? ""
           let defaultPaths = [
@@ -267,6 +301,11 @@ final class AppState: ObservableObject {
       let profile = ResamplerProfile(rawValue: p)
     {
       resamplerProfile = profile
+    }
+    if let i = defaults.string(forKey: Keys.resamplerInterpolation),
+      let interpolation = ResamplerInterpolation(rawValue: i)
+    {
+      resamplerInterpolation = interpolation
     }
     camillaDSPPath = defaults.string(forKey: Keys.camillaDSPPath) ?? ""
   }

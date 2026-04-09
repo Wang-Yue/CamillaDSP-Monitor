@@ -58,6 +58,7 @@ private struct StageDetailContent: View {
         Spacer()
       }
       .padding()
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .background(Color(nsColor: .controlBackgroundColor))
   }
@@ -99,6 +100,7 @@ struct BalanceOptions: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
       }
+      .padding(.vertical, 4)
     }
   }
 }
@@ -149,7 +151,9 @@ struct WidthOptions: View {
         Text(stage.widthDescription)
           .font(.caption)
           .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
       }
+      .padding(.vertical, 4)
     }
   }
 }
@@ -162,6 +166,8 @@ struct MSProcDescription: View {
       Text("Encodes stereo to Mid (L+R) and Side (L-R) signals at -6.02 dB")
         .font(.caption)
         .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
     }
   }
 }
@@ -174,18 +180,33 @@ struct PhaseInvertOptions: View {
 
   var body: some View {
     GroupBox("Phase Inversion") {
-      Picker("Channel", selection: $stage.phaseInvertMode) {
-        Text("Left").tag(PhaseInvertMode.left)
-        Text("Right").tag(PhaseInvertMode.right)
-        Text("Both").tag(PhaseInvertMode.both)
-      }
-      .pickerStyle(.segmented)
-      .onChange(of: stage.phaseInvertMode) { _, _ in appState.applyConfig() }
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 16) {
+          Text("Channel")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
 
-      Text(stage.phaseInvertMode.description)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(.top, 4)
+          Picker("", selection: $stage.phaseInvertMode) {
+            Text("Left").tag(PhaseInvertMode.left)
+            Text("Right").tag(PhaseInvertMode.right)
+            Text("Both").tag(PhaseInvertMode.both)
+          }
+          .pickerStyle(.segmented)
+          .labelsHidden()
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .frame(minWidth: 300)
+          .onChange(of: stage.phaseInvertMode) { _, _ in appState.applyConfig() }
+
+          Spacer()
+        }
+
+        Text(stage.phaseInvertMode.description)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .padding(.vertical, 4)
     }
   }
 }
@@ -197,87 +218,128 @@ struct CrossfeedOptions: View {
   @EnvironmentObject var appState: AppState
 
   var body: some View {
-    GroupBox("Preset") {
-      Picker("Level", selection: $stage.crossfeedLevel) {
-        Text("L1").tag(CrossfeedLevel.l1)
-        Text("L2").tag(CrossfeedLevel.l2)
-        Text("L3").tag(CrossfeedLevel.l3)
-        Text("L4").tag(CrossfeedLevel.l4)
-        Text("L5").tag(CrossfeedLevel.l5)
-      }
-      .pickerStyle(.segmented)
-      .disabled(stage.cxCustomEnabled)
-      .onChange(of: stage.crossfeedLevel) { _, _ in appState.applyConfig() }
+    VStack(alignment: .leading, spacing: 16) {
+      GroupBox("Preset") {
+        VStack(alignment: .leading, spacing: 10) {
+          HStack(spacing: 16) {
+            Text("Level")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .fixedSize()
 
-      if let preset = PipelineStage.crossfeedPresets[stage.crossfeedLevel] {
-        Text(
-          "Fc = \(String(format: "%.0f", preset.fc)) Hz, Level = \(String(format: "%.1f", preset.db)) dB — \(stage.crossfeedLevel.description)"
-        )
-        .font(.caption)
-        .foregroundStyle(.tertiary)
-        .padding(.top, 2)
-      }
-    }
-    .opacity(stage.cxCustomEnabled ? 0.5 : 1.0)
+            Picker("", selection: $stage.crossfeedLevel) {
+              Text("L1").tag(CrossfeedLevel.l1)
+              Text("L2").tag(CrossfeedLevel.l2)
+              Text("L3").tag(CrossfeedLevel.l3)
+              Text("L4").tag(CrossfeedLevel.l4)
+              Text("L5").tag(CrossfeedLevel.l5)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .disabled(stage.cxCustomEnabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minWidth: 400)
+            .onChange(of: stage.crossfeedLevel) { _, _ in appState.applyConfig() }
 
-    GroupBox {
-      VStack(alignment: .leading, spacing: 12) {
-        Toggle("Custom Parameters", isOn: $stage.cxCustomEnabled)
-          .onChange(of: stage.cxCustomEnabled) { _, enabled in
-            if enabled {
-              if let preset = PipelineStage.crossfeedPresets[stage.crossfeedLevel] {
-                stage.cxFc = preset.fc
-                stage.cxDb = preset.db
+            Spacer()
+          }
+
+          if let preset = PipelineStage.crossfeedPresets[stage.crossfeedLevel] {
+            Text(
+              "Fc = \(String(format: "%.0f", preset.fc)) Hz, Level = \(String(format: "%.1f", preset.db)) dB — \(stage.crossfeedLevel.description)"
+            )
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+          }
+        }
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .opacity(stage.cxCustomEnabled ? 0.5 : 1.0)
+
+      GroupBox {
+        VStack(alignment: .leading, spacing: 12) {
+          Toggle("Custom Parameters", isOn: $stage.cxCustomEnabled)
+            .onChange(of: stage.cxCustomEnabled) { _, enabled in
+              if enabled {
+                if let preset = PipelineStage.crossfeedPresets[stage.crossfeedLevel] {
+                  stage.cxFc = preset.fc
+                  stage.cxDb = preset.db
+                }
+              }
+              appState.applyConfig()
+            }
+
+          if stage.cxCustomEnabled {
+            VStack(spacing: 12) {
+              HStack(spacing: 16) {
+                Text("Fc (Hz)")
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+                  .fixedSize()
+                Slider(value: $stage.cxFc, in: 300...1200, step: 10)
+                  .frame(maxWidth: .infinity)
+                  .frame(minWidth: 300)
+                  .onChange(of: stage.cxFc) { _, _ in appState.applyConfig() }
+                Text("\(String(format: "%.0f", stage.cxFc))")
+                  .font(.system(.body, design: .monospaced))
+                  .fixedSize()
+                Spacer()
+              }
+              HStack(spacing: 16) {
+                Text("Level (dB)")
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+                  .fixedSize()
+                Slider(value: $stage.cxDb, in: 1...20, step: 0.5)
+                  .frame(maxWidth: .infinity)
+                  .frame(minWidth: 300)
+                  .onChange(of: stage.cxDb) { _, _ in appState.applyConfig() }
+                Text("\(String(format: "%.1f", stage.cxDb))")
+                  .font(.system(.body, design: .monospaced))
+                  .fixedSize()
+                Spacer()
               }
             }
-            appState.applyConfig()
-          }
-
-        if stage.cxCustomEnabled {
-          HStack {
-            Text("Fc (Hz)").frame(width: 90, alignment: .leading)
-            Slider(value: $stage.cxFc, in: 300...1200, step: 10)
-              .onChange(of: stage.cxFc) { _, _ in appState.applyConfig() }
-            Text(String(format: "%.0f", stage.cxFc)).font(.system(.body, design: .monospaced))
-              .frame(width: 55, alignment: .trailing)
-          }
-          HStack {
-            Text("Level (dB)").frame(width: 90, alignment: .leading)
-            Slider(value: $stage.cxDb, in: 1...20, step: 0.5)
-              .onChange(of: stage.cxDb) { _, _ in appState.applyConfig() }
-            Text(String(format: "%.1f", stage.cxDb)).font(.system(.body, design: .monospaced))
-              .frame(width: 55, alignment: .trailing)
+            .transition(.opacity)
           }
         }
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-    }
 
-    let cx = stage.activeCrossfeedParams
-    GroupBox("Computed Filter Parameters") {
-      Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
-        GridRow {
-          Text("Lowshelf").foregroundStyle(.secondary)
-          Text(String(format: "%.1f Hz", cx.hiFreq)).font(.system(.body, design: .monospaced))
-          Text(String(format: "%.2f dB", cx.hiGain)).font(.system(.body, design: .monospaced))
-          Text("Q 0.5").font(.system(.body, design: .monospaced))
+      let cx = stage.activeCrossfeedParams
+      GroupBox("Computed Filter Parameters") {
+        Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
+          GridRow {
+            Text("Lowshelf").foregroundStyle(.secondary).bold()
+            Text("\(String(format: "%.1f Hz", cx.hiFreq))").font(
+              .system(.body, design: .monospaced))
+            Text("\(String(format: "%.2f dB", cx.hiGain))").font(
+              .system(.body, design: .monospaced))
+            Text("Q 0.5").font(.system(.body, design: .monospaced)).foregroundStyle(.tertiary)
+          }
+          GridRow {
+            Text("Lowpass").foregroundStyle(.secondary).bold()
+            Text("\(String(format: "%.0f Hz", cx.loFreq))").font(
+              .system(.body, design: .monospaced))
+            Text("1st order").font(.caption).foregroundStyle(.tertiary)
+            Text("")
+          }
+          GridRow {
+            Text("Cross gain").foregroundStyle(.secondary).bold()
+            Text("\(String(format: "%.2f dB", cx.loGain))").font(
+              .system(.body, design: .monospaced))
+            Text("")
+            Text("")
+          }
         }
-        GridRow {
-          Text("Lowpass").foregroundStyle(.secondary)
-          Text(String(format: "%.0f Hz", cx.loFreq)).font(.system(.body, design: .monospaced))
-          Text("1st order").font(.caption).foregroundStyle(.tertiary)
-          Text("")
-        }
-        GridRow {
-          Text("Cross gain").foregroundStyle(.secondary)
-          Text(String(format: "%.2f dB", cx.loGain)).font(.system(.body, design: .monospaced))
-          Text("")
-          Text("")
-        }
+        .font(.subheadline)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .font(.caption)
     }
   }
-
 }
 
 // MARK: - Section 4: EQ
@@ -287,55 +349,98 @@ struct EQOptions: View {
   @EnvironmentObject var appState: AppState
 
   var body: some View {
-    GroupBox("Channel Mode") {
-      Picker("Mode", selection: $stage.eqChannelMode) {
-        ForEach(EQChannelMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
-      }
-      .pickerStyle(.segmented)
-      .onChange(of: stage.eqChannelMode) { _, _ in appState.applyConfig() }
-    }
-
-    if !appState.eqPresets.isEmpty {
-      switch stage.eqChannelMode {
-      case .same:
-        GroupBox("EQ Preset") {
-          VStack(alignment: .leading, spacing: 12) {
-            EQPresetPicker(
-              selectedID: $stage.eqPresetID, label: "Preset", presets: appState.eqPresets
-            )
-            .onChange(of: stage.eqPresetID) { _, _ in appState.applyConfig() }
-
-            if let preset = appState.eqPresets.first(where: { $0.id == stage.eqPresetID }) {
-              EQSummaryCard(title: "Combined L/R", preset: preset, sampleRate: appState.sampleRate)
-            }
+    VStack(alignment: .leading, spacing: 16) {
+      GroupBox("Channel Mode") {
+        HStack(spacing: 16) {
+          Text("Mode")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+          Picker("", selection: $stage.eqChannelMode) {
+            ForEach(EQChannelMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
           }
+          .pickerStyle(.segmented)
+          .labelsHidden()
+          .frame(maxWidth: 400)
+          .onChange(of: stage.eqChannelMode) { _, _ in appState.applyConfig() }
+
+          Spacer()
         }
-      case .separate:
-        VStack(spacing: 12) {
-          GroupBox("Left Channel") {
-            VStack(alignment: .leading, spacing: 12) {
-              EQPresetPicker(
-                selectedID: $stage.eqLeftPresetID, label: "Left Preset", presets: appState.eqPresets
-              )
-              .onChange(of: stage.eqLeftPresetID) { _, _ in appState.applyConfig() }
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
 
-              if let lPreset = appState.eqPresets.first(where: { $0.id == stage.eqLeftPresetID }) {
-                EQSummaryCard(title: "Left", preset: lPreset, sampleRate: appState.sampleRate)
+      if !appState.eqPresets.isEmpty {
+        switch stage.eqChannelMode {
+        case .same:
+          GroupBox("EQ Preset") {
+            VStack(alignment: .leading, spacing: 12) {
+              HStack(spacing: 16) {
+                Text("Preset")
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+                  .fixedSize()
+                EQPresetPicker(selectedID: $stage.eqPresetID, presets: appState.eqPresets)
+                  .frame(maxWidth: 400)
+                  .onChange(of: stage.eqPresetID) { _, _ in appState.applyConfig() }
+
+                Spacer()
+              }
+
+              if let preset = appState.eqPresets.first(where: { $0.id == stage.eqPresetID }) {
+                EQSummaryCard(
+                  title: "Combined L/R", preset: preset, sampleRate: appState.sampleRate)
               }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
           }
+        case .separate:
+          VStack(spacing: 12) {
+            GroupBox("Left Channel") {
+              VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 16) {
+                  Text("Preset")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                  EQPresetPicker(selectedID: $stage.eqLeftPresetID, presets: appState.eqPresets)
+                    .frame(maxWidth: 400)
+                    .onChange(of: stage.eqLeftPresetID) { _, _ in appState.applyConfig() }
 
-          GroupBox("Right Channel") {
-            VStack(alignment: .leading, spacing: 12) {
-              EQPresetPicker(
-                selectedID: $stage.eqRightPresetID, label: "Right Preset",
-                presets: appState.eqPresets
-              )
-              .onChange(of: stage.eqRightPresetID) { _, _ in appState.applyConfig() }
+                  Spacer()
+                }
 
-              if let rPreset = appState.eqPresets.first(where: { $0.id == stage.eqRightPresetID }) {
-                EQSummaryCard(title: "Right", preset: rPreset, sampleRate: appState.sampleRate)
+                if let lPreset = appState.eqPresets.first(where: { $0.id == stage.eqLeftPresetID })
+                {
+                  EQSummaryCard(title: "Left", preset: lPreset, sampleRate: appState.sampleRate)
+                }
               }
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(.vertical, 4)
+            }
+
+            GroupBox("Right Channel") {
+              VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 16) {
+                  Text("Preset")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                  EQPresetPicker(selectedID: $stage.eqRightPresetID, presets: appState.eqPresets)
+                    .frame(maxWidth: 400)
+                    .onChange(of: stage.eqRightPresetID) { _, _ in appState.applyConfig() }
+
+                  Spacer()
+                }
+
+                if let rPreset = appState.eqPresets.first(where: { $0.id == stage.eqRightPresetID })
+                {
+                  EQSummaryCard(title: "Right", preset: rPreset, sampleRate: appState.sampleRate)
+                }
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(.vertical, 4)
             }
           }
         }
@@ -354,26 +459,29 @@ struct EQSummaryCard: View {
       HStack {
         Text("Preamp Gain").foregroundStyle(.secondary)
         Spacer()
-        Text(String(format: "%+.1f dB", preset.preampGain)).font(
+        Text("\(String(format: "%+.1f dB", preset.preampGain))").font(
           .system(.body, design: .monospaced))
       }
       EQFrequencyResponseView(
         preset: preset, selectedBandID: .constant(nil), sampleRate: sampleRate
       )
-      .frame(height: 150).allowsHitTesting(false)
+      .frame(height: 150)
+      .padding(.horizontal, 16)
+      .allowsHitTesting(false)
     }
+    .frame(maxWidth: .infinity)
   }
 }
 
 struct EQPresetPicker: View {
   @Binding var selectedID: UUID?
-  let label: String
   let presets: [EQPreset]
   var body: some View {
-    Picker(label, selection: $selectedID) {
+    Picker("", selection: $selectedID) {
       Text("None").tag(nil as UUID?)
       ForEach(presets) { preset in Text(preset.name).tag(preset.id as UUID?) }
     }
+    .labelsHidden()
   }
 }
 
@@ -386,31 +494,51 @@ struct LoudnessOptions: View {
   var body: some View {
     GroupBox("Loudness Compensation") {
       VStack(alignment: .leading, spacing: 12) {
-        HStack {
-          Text("Reference Level").frame(width: 110, alignment: .leading)
+        HStack(spacing: 16) {
+          Text("Reference Level")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
           Slider(value: $stage.loudnessReference, in: -50...20, step: 1)
+            .frame(maxWidth: .infinity)
+            .frame(minWidth: 200)
             .onChange(of: stage.loudnessReference) { _, _ in appState.applyConfig() }
-          Text(String(format: "%.0f dB", stage.loudnessReference)).font(
+          Text("\(String(format: "%.0f dB", stage.loudnessReference))").font(
             .system(.body, design: .monospaced)
-          ).frame(width: 55, alignment: .trailing)
+          ).fixedSize()
+          Spacer()
         }
-        HStack {
-          Text("Low Boost").frame(width: 110, alignment: .leading)
+        HStack(spacing: 16) {
+          Text("Low Boost")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
           Slider(value: $stage.loudnessLowBoost, in: 0...15, step: 0.5)
+            .frame(maxWidth: .infinity)
+            .frame(minWidth: 200)
             .onChange(of: stage.loudnessLowBoost) { _, _ in appState.applyConfig() }
-          Text(String(format: "%.1f dB", stage.loudnessLowBoost)).font(
+          Text("\(String(format: "%.1f dB", stage.loudnessLowBoost))").font(
             .system(.body, design: .monospaced)
-          ).frame(width: 55, alignment: .trailing)
+          ).fixedSize()
+          Spacer()
         }
-        HStack {
-          Text("High Boost").frame(width: 110, alignment: .leading)
+        HStack(spacing: 16) {
+          Text("High Boost")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
           Slider(value: $stage.loudnessHighBoost, in: 0...15, step: 0.5)
+            .frame(maxWidth: .infinity)
+            .frame(minWidth: 200)
             .onChange(of: stage.loudnessHighBoost) { _, _ in appState.applyConfig() }
-          Text(String(format: "%.1f dB", stage.loudnessHighBoost)).font(
+          Text("\(String(format: "%.1f dB", stage.loudnessHighBoost))").font(
             .system(.body, design: .monospaced)
-          ).frame(width: 55, alignment: .trailing)
+          ).fixedSize()
+          Spacer()
         }
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.vertical, 4)
     }
   }
 }
@@ -423,17 +551,32 @@ struct EmphasisOptions: View {
 
   var body: some View {
     GroupBox("Emphasis") {
-      Picker("Mode", selection: $stage.emphasisMode) {
-        Text("De-Emphasis").tag(EmphasisMode.deEmphasis)
-        Text("Pre-Emphasis").tag(EmphasisMode.preEmphasis)
-      }
-      .pickerStyle(.segmented)
-      .onChange(of: stage.emphasisMode) { _, _ in appState.applyConfig() }
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 16) {
+          Text("Mode")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
 
-      Text(stage.emphasisMode.description)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(.top, 4)
+          Picker("", selection: $stage.emphasisMode) {
+            Text("De-Emphasis").tag(EmphasisMode.deEmphasis)
+            Text("Pre-Emphasis").tag(EmphasisMode.preEmphasis)
+          }
+          .pickerStyle(.segmented)
+          .labelsHidden()
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .frame(minWidth: 300)
+          .onChange(of: stage.emphasisMode) { _, _ in appState.applyConfig() }
+
+          Spacer()
+        }
+
+        Text(stage.emphasisMode.description)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .padding(.vertical, 4)
     }
   }
 }
@@ -446,6 +589,8 @@ struct DCProtectionDescription: View {
       Text("First-order highpass at 7 Hz — removes DC offset and subsonic content")
         .font(.caption)
         .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
     }
   }
 }
@@ -466,6 +611,7 @@ struct ResamplerDetailView: View {
             .font(.title2.bold())
           Spacer()
           Toggle("Enabled", isOn: $appState.resamplerEnabled)
+            .onChange(of: appState.resamplerEnabled) { _, _ in appState.applyConfig() }
         }
 
         Divider()
@@ -473,43 +619,95 @@ struct ResamplerDetailView: View {
         Group {
           GroupBox("Resampler Type") {
             VStack(alignment: .leading, spacing: 12) {
-              Picker("Type", selection: $appState.resamplerType) {
-                Text("Async Sinc (highest quality)").tag(ResamplerType.asyncSinc)
-                Text("Async Polynomial (lower latency)").tag(ResamplerType.asyncPoly)
-                Text("Synchronous (fixed ratio)").tag(ResamplerType.synchronous)
-              }
-              .labelsHidden()
+              HStack(spacing: 16) {
+                Text("Type")
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+                  .fixedSize()
 
-              if appState.resamplerType == .asyncSinc {
-                Picker("Quality Profile", selection: $appState.resamplerProfile) {
-                  Text("Very Fast").tag(ResamplerProfile.veryFast)
-                  Text("Fast").tag(ResamplerProfile.fast)
-                  Text("Balanced").tag(ResamplerProfile.balanced)
-                  Text("Accurate").tag(ResamplerProfile.accurate)
+                Picker("", selection: $appState.resamplerType) {
+                  ForEach(ResamplerType.allCases) { type in
+                    Text(type.rawValue).tag(type)
+                  }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: 400)
+                .onChange(of: appState.resamplerType) { _, _ in appState.applyConfig() }
+
+                Spacer()
+              }
+
+              if appState.resamplerType == .asyncSinc || appState.resamplerType == .synchronous {
+                HStack(spacing: 16) {
+                  Text("Profile")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+
+                  Picker("", selection: $appState.resamplerProfile) {
+                    ForEach(ResamplerProfile.allCases) { profile in
+                      Text(profile.rawValue).tag(profile)
+                    }
+                  }
+                  .pickerStyle(.segmented)
+                  .labelsHidden()
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  .frame(minWidth: 400)
+                  .onChange(of: appState.resamplerProfile) { _, _ in appState.applyConfig() }
+
+                  Spacer()
+                }
+              }
+
+              if appState.resamplerType == .asyncPoly {
+                HStack(spacing: 16) {
+                  Text("Interp")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+
+                  Picker("", selection: $appState.resamplerInterpolation) {
+                    ForEach(ResamplerInterpolation.allCases) { interpolation in
+                      Text(interpolation.rawValue).tag(interpolation)
+                    }
+                  }
+                  .pickerStyle(.segmented)
+                  .labelsHidden()
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  .frame(minWidth: 400)
+                  .onChange(of: appState.resamplerInterpolation) { _, _ in appState.applyConfig() }
+
+                  Spacer()
+                }
               }
             }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
           }
 
           GroupBox("Sample Rates") {
             VStack(alignment: .leading, spacing: 8) {
-              HStack {
-                Text("Capture").frame(width: 80, alignment: .leading).foregroundStyle(.secondary)
-                Text(formatRate(appState.captureSampleRate)).font(
+              HStack(spacing: 16) {
+                Text("Capture").foregroundStyle(.secondary).fixedSize()
+                Text("\(formatRate(appState.captureSampleRate))").font(
                   .system(.body, design: .monospaced))
                 Spacer()
               }
-              HStack {
-                Text("Playback").frame(width: 80, alignment: .leading).foregroundStyle(.secondary)
-                Text(formatRate(appState.playbackSampleRate)).font(
+              HStack(spacing: 16) {
+                Text("Playback").foregroundStyle(.secondary).fixedSize()
+                Text("\(formatRate(appState.playbackSampleRate))").font(
                   .system(.body, design: .monospaced))
                 Spacer()
               }
               let ratio = Double(appState.playbackSampleRate) / Double(appState.captureSampleRate)
-              Text(String(format: "Conversion ratio: %.4f", ratio)).font(.caption).foregroundStyle(
-                .tertiary)
+              Text("Conversion ratio: \(String(format: "%.4f", ratio))").font(.caption)
+                .foregroundStyle(
+                  .tertiary)
             }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
           }
 
           Text(
@@ -517,6 +715,7 @@ struct ResamplerDetailView: View {
           )
           .font(.caption)
           .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
         }
         .disabled(!appState.resamplerEnabled)
         .opacity(appState.resamplerEnabled ? 1.0 : 0.5)
@@ -524,6 +723,7 @@ struct ResamplerDetailView: View {
         Spacer()
       }
       .padding()
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .background(Color(nsColor: .controlBackgroundColor))
   }

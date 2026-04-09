@@ -11,74 +11,60 @@ struct SpectrumView: View {
     "2.5k", "", "4k", "", "6.3k", "", "10k", "", "16k", "20k",
   ]
 
+  private let barGradient = Gradient(stops: [
+    .init(color: .green, location: 0.0),
+    .init(color: .green, location: 0.35),
+    .init(color: .yellow, location: 0.55),
+    .init(color: .orange, location: 0.75),
+    .init(color: .red, location: 0.95),
+    .init(color: .red, location: 1.0),
+  ])
+
   var body: some View {
-    GeometryReader { geo in
-      let barWidth = max(4, (geo.size.width - CGFloat(bands.count - 1) * 2) / CGFloat(bands.count))
-      let maxHeight = geo.size.height - 20
+    Canvas { context, size in
+      let maxHeight = size.height - 20
+      let barSpacing: CGFloat = 2
+      let totalSpacing = barSpacing * CGFloat(max(0, bands.count - 1))
+      let barWidth = max(4, (size.width - 20 - totalSpacing) / CGFloat(max(1, bands.count)))
 
-      ZStack(alignment: .bottom) {
-        // Background grid
-        ForEach([0, -12, -24, -36, -48, -60], id: \.self) { db in
-          let y = maxHeight * (1.0 - (Double(db) + 60) / 60)
-          HStack(spacing: 4) {
-            Text("\(db)")
-              .font(.system(size: 8, design: .monospaced))
-              .foregroundStyle(.quaternary)
-            Rectangle()
-              .fill(Color.primary.opacity(0.05))
-              .frame(height: 0.5)
-          }
-          .position(x: geo.size.width / 2, y: y)
-        }
+      // Draw Grid
+      for dbMark in [0, -12, -24, -36, -48, -60] {
+        let y = maxHeight * (1.0 - (Double(dbMark) + 60) / 60)
 
-        // Bars
-        HStack(alignment: .bottom, spacing: 2) {
-          ForEach(0..<min(bands.count, 30), id: \.self) { i in
-            let normalized = normalizedDB(bands[i])
-            let height = max(2, maxHeight * normalized)
+        // Grid Line
+        var line = Path()
+        line.move(to: CGPoint(x: 20, y: y))
+        line.addLine(to: CGPoint(x: size.width, y: y))
+        context.stroke(line, with: .color(Color.primary.opacity(0.05)), lineWidth: 0.5)
 
-            VStack(spacing: 2) {
-              SpectrumBar(height: height, width: barWidth, maxHeight: maxHeight)
+        // Grid Label
+        context.draw(
+          Text("\(dbMark)").font(.system(size: 8, design: .monospaced)).foregroundColor(
+            .secondary.opacity(0.5)), at: CGPoint(x: 10, y: y))
+      }
 
-              Text(Self.labels[i])
-                .font(.system(size: 7))
-                .foregroundStyle(.tertiary)
-                .frame(height: 14)
-            }
-          }
+      // Draw Bars and Labels
+      for i in 0..<min(bands.count, 30) {
+        let x = CGFloat(i) * (barWidth + barSpacing) + 20  // Offset for grid labels
+        let normalized = normalizedDB(bands[i])
+        let barHeight = max(2, Double(maxHeight) * normalized)
+
+        // Bar
+        let barRect = CGRect(
+          x: x, y: CGFloat(Double(maxHeight) - barHeight), width: barWidth,
+          height: CGFloat(barHeight))
+        context.fill(
+          Path(roundedRect: barRect, cornerRadius: 2),
+          with: .linearGradient(
+            barGradient, startPoint: CGPoint(x: x, y: maxHeight), endPoint: CGPoint(x: x, y: 0)))
+
+        // Label
+        if !Self.labels[i].isEmpty {
+          context.draw(
+            Text(Self.labels[i]).font(.system(size: 7)).foregroundColor(.secondary.opacity(0.7)),
+            at: CGPoint(x: x + barWidth / 2, y: maxHeight + 10))
         }
       }
     }
-    .drawingGroup()  // Flatten into single Metal texture — avoids per-bar CoreAnimation layers
-  }
-}
-
-// MARK: - Gradient Bar
-
-struct SpectrumBar: View {
-  let height: Double
-  let width: Double
-  let maxHeight: Double
-
-  var body: some View {
-    // The gradient always spans the full height range (0dB at top, -60dB at bottom).
-    // We clip to the actual bar height so the color at the top of the bar matches
-    // the level — short bars are green, tall bars show red at the top.
-    RoundedRectangle(cornerRadius: 2)
-      .fill(
-        LinearGradient(
-          stops: [
-            .init(color: .green, location: 0.0),
-            .init(color: .green, location: 0.35),
-            .init(color: .yellow, location: 0.55),
-            .init(color: .orange, location: 0.75),
-            .init(color: .red, location: 0.95),
-            .init(color: .red, location: 1.0),
-          ],
-          startPoint: .bottom,
-          endPoint: .top
-        )
-      )
-      .frame(width: width, height: height)
   }
 }

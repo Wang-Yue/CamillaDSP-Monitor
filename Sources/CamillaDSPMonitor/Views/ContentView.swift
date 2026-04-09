@@ -54,32 +54,58 @@ struct ToolbarView: ToolbarContent {
 
   var body: some ToolbarContent {
     ToolbarItemGroup(placement: .primaryAction) {
-      Button {
-        if appState.isRunning {
-          appState.stopEngine()
-        } else {
-          appState.startEngine()
+
+      Group {
+        switch appState.status {
+        case .starting, .applyingConfig:
+          ProgressView()
+            .controlSize(.small)
+            .padding(.trailing, 4)
+        case .running:
+          Button {
+            appState.stopEngine()
+          } label: {
+            Label("Stop", systemImage: "stop.circle.fill")
+              .foregroundStyle(.red)
+          }
+          .help("Stop Engine")
+        case .inactive:
+          Button {
+            appState.startEngine()
+          } label: {
+            Label("Start", systemImage: "play.circle.fill")
+              .foregroundStyle(.green)
+          }
+          .help("Start Engine")
+        case .error(let msg):
+          Button {
+            appState.startEngine()
+          } label: {
+            Label("Error", systemImage: "exclamationmark.circle.fill")
+              .foregroundStyle(.orange)
+          }
+          .help(msg)
         }
-      } label: {
-        Label(
-          appState.isRunning ? "Stop" : "Start",
-          systemImage: appState.isRunning ? "stop.circle.fill" : "play.circle.fill"
-        )
-        .foregroundStyle(appState.isRunning ? .red : .green)
       }
 
       Text("\(appState.sampleRate) Hz")
         .font(.system(.body, design: .monospaced))
         .foregroundStyle(.secondary)
 
-      Text(String(format: "%.0f%%", appState.meters.processingLoad))
-        .font(.system(.caption, design: .monospaced))
-        .foregroundStyle(appState.meters.processingLoad > 80 ? .red : .secondary)
-
-      Divider()
+      // Observed wrapper to ensure updates
+      CPUUsageView(meters: appState.meters)
 
       VolumeControlView()
     }
+  }
+}
+
+struct CPUUsageView: View {
+  @ObservedObject var meters: MeterState
+  var body: some View {
+    Text(String(format: "%.0f%%", meters.processingLoad))
+      .font(.system(.caption, design: .monospaced))
+      .foregroundStyle(meters.processingLoad > 80 ? .red : .secondary)
   }
 }
 
@@ -136,9 +162,9 @@ struct SidebarView: View {
             Label("Add", systemImage: "plus")
               .foregroundStyle(.secondary)
           }
-          
+
           Spacer()
-          
+
           Button {
             showAutoEqSearch = true
           } label: {

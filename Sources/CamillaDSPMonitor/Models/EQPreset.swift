@@ -32,7 +32,7 @@ enum EQBandType: String, CaseIterable, Codable, Identifiable {
   private static let shortNameMap: [String: EQBandType] = [
     "PK": .peaking, "LS": .lowshelf, "HS": .highshelf, "LP": .lowpass,
     "HP": .highpass, "NO": .notch, "BP": .bandpass, "AP": .allpass,
-    "LSC": .lowshelf, "HSC": .highshelf
+    "LSC": .lowshelf, "HSC": .highshelf,
   ]
   var shortName: String { Self.shortNameMap.first(where: { $0.value == self })?.key ?? rawValue }
   static func fromShortName(_ s: String) -> EQBandType {
