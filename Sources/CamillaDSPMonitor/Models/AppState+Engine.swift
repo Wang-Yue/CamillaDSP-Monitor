@@ -28,10 +28,12 @@ extension AppState {
     recreateSpectrumAnalyzer()
     startAudioCapture()
 
-    Task {
+    startEngineTask?.cancel()
+    startEngineTask = Task {
       do {
         // 1. Connect
         try await engine.connect(binaryPath: camillaDSPPath)
+        guard !Task.isCancelled else { return }
 
         // 2. Priming Volume/Mute BEFORE sending config.
         // CRITICAL: We use setFaderExternalVolume because it updates BOTH target_volume
@@ -39,16 +41,19 @@ extension AppState {
         // initializes, it doesn't see a difference that triggers a 0dBFS ramp.
         await engine.setFaderMute(fader: 0, mute: isMuted)
         await engine.setFaderExternalVolume(fader: 0, db: volume)
+        guard !Task.isCancelled else { return }
 
         // 3. Apply the configuration
         lastAppliedConfigYAML = nil
         let config = buildConfigDict()
         try await startEngineWithConfig(config)
+        guard !Task.isCancelled else { return }
 
         status = .running
         startMonitoringTimer()
         scheduleSpectrumRestart()
       } catch {
+        guard !Task.isCancelled else { return }
         lastError = "\(error)"
         status = .error("\(error)")
         stopMonitoring()
@@ -58,9 +63,13 @@ extension AppState {
   }
 
   func stopEngine() {
+    startEngineTask?.cancel()
+    startEngineTask = nil
     status = .inactive
     stopMonitoring()
-    meters.reset()
+    levels.reset()
+    spectrum.reset()
+    load.reset()
     lastAppliedConfigYAML = nil
     lastRecoveryTime = nil
     Task { await engine.stop() }
@@ -86,8 +95,13 @@ extension AppState {
     let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
     if json == lastAppliedConfigYAML { return }
 
-    let previousStatus = status
+    // Capture a safe fallback status — never restore .applyingConfig (would be a stuck state)
+    let fallbackStatus: AppStatus = (status == .applyingConfig) ? .running : status
     status = .applyingConfig
+
+    // Remember what subscriptions were active so we can restart them after.
+    let hadVuSubscription = isVuSubscriptionActive || vuSubscriptionTask != nil
+    let hadStateSubscription = isStateSubscriptionActive || stateSubscriptionTask != nil
 
     do {
       // Prime faders before config change to avoid transition spikes
@@ -108,10 +122,18 @@ extension AppState {
       print("[AppState] Config apply failed: \(error)")
       lastError = "Config error: \(error.localizedDescription)"
       lastAppliedConfigYAML = nil
-      status = previousStatus
+      status = fallbackStatus
     }
 
     scheduleSpectrumRestart()
+
+    // Restart subscriptions after config change. CamillaDSP disconnects all
+    // WebSocket connections when it restarts the pipeline, so old subscription
+    // tasks will have ended by now. Starting fresh avoids the error/restart race.
+    if status == .running {
+      if hadVuSubscription { startVuSubscription() }
+      if hadStateSubscription { startStateSubscription() }
+    }
   }
 
   @discardableResult
@@ -123,8 +145,9 @@ extension AppState {
     }
 
     print("[AppState] Engine state after config still not Running/Starting, retrying...")
-    let reason: String? = try? await engine.sendCommand("GetStopReason")
-    if let stopReason = reason { print("[AppState] Stop reason: \(stopReason)") }
+    if let reason = await engine.getStopReason() {
+      print("[AppState] Stop reason: \(reason)")
+    }
 
     do {
       try await startEngineWithConfig(config)

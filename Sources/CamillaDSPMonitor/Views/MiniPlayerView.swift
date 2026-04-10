@@ -24,7 +24,7 @@ enum MiniPlayerMode: Int, CaseIterable {
 
 struct MiniPlayerView: View {
   @EnvironmentObject var appState: AppState
-  @EnvironmentObject var meters: MeterState
+  @EnvironmentObject var spectrum: SpectrumState
   @State private var mode: MiniPlayerMode = .spectrum
   @State private var isHovering = false
 
@@ -68,7 +68,7 @@ struct MiniPlayerView: View {
       Group {
         switch mode {
         case .spectrum:
-          MiniSpectrumView(bands: meters.spectrumBands)
+          MiniSpectrumView(bands: spectrum.bands)
         case .pipeline:
           MiniPipelineView()
         case .meters:

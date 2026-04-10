@@ -7,40 +7,39 @@ import SwiftUI
 struct MiniSpectrumView: View {
   let bands: [Double]
 
+  private static let barGradient = Gradient(stops: [
+    .init(color: .green, location: 0.0),
+    .init(color: .green, location: 0.35),
+    .init(color: .yellow, location: 0.55),
+    .init(color: .orange, location: 0.75),
+    .init(color: .red, location: 0.95),
+    .init(color: .red, location: 1.0),
+  ])
+
   var body: some View {
-    GeometryReader { geo in
-      let barWidth = max(
-        2, (geo.size.width - CGFloat(bands.count - 1) * 1.5) / CGFloat(bands.count))
-      let maxHeight = geo.size.height
+    Canvas { context, size in
+      let count = min(bands.count, 30)
+      guard count > 0 else { return }
+      let spacing: CGFloat = 1.5
+      let totalSpacing = spacing * CGFloat(count - 1)
+      let barWidth = max(2, (size.width - totalSpacing) / CGFloat(count))
+      let maxHeight = size.height
 
-      VStack {
-        Spacer(minLength: 0)
-        HStack(alignment: .bottom, spacing: 1.5) {
-          ForEach(0..<min(bands.count, 30), id: \.self) { i in
-            let normalized = normalizedDB(bands[i])
-            let height = max(1, maxHeight * normalized)
+      for i in 0..<count {
+        let x = CGFloat(i) * (barWidth + spacing)
+        let normalized = normalizedDB(bands[i])
+        let barHeight = max(1, maxHeight * normalized)
+        let y = maxHeight - barHeight
 
-            RoundedRectangle(cornerRadius: 1)
-              .fill(
-                LinearGradient(
-                  stops: [
-                    .init(color: .green, location: 0.0),
-                    .init(color: .green, location: 0.35),
-                    .init(color: .yellow, location: 0.55),
-                    .init(color: .orange, location: 0.75),
-                    .init(color: .red, location: 0.95),
-                  ],
-                  startPoint: .bottom,
-                  endPoint: .top
-                )
-              )
-              .frame(width: barWidth, height: height)
-          }
-        }
+        let barRect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
+        context.fill(
+          Path(roundedRect: barRect, cornerRadius: 1),
+          with: .linearGradient(
+            Self.barGradient, startPoint: CGPoint(x: x, y: maxHeight),
+            endPoint: CGPoint(x: x, y: 0)))
       }
     }
     .frame(height: 60)
-    .drawingGroup()
   }
 }
 
@@ -50,7 +49,7 @@ struct MiniPipelineView: View {
   @EnvironmentObject var appState: AppState
 
   var body: some View {
-    ScrollView(.horizontal, showsIndicators: false) {
+    HorizontalScrollWithVerticalWheel {
       HStack(spacing: 3) {
         // Resampler chip
         Button {
@@ -112,19 +111,19 @@ struct MiniChip: View {
       Capsule()
         .fill(isEnabled ? Color.green : Color.gray.opacity(0.3))
     )
-    .foregroundStyle(isEnabled ? .black : .gray)
+    .foregroundStyle(isEnabled ? .black : .white.opacity(0.6))
   }
 }
 
 // MARK: - Mini Meters
 
 struct MiniMetersView: View {
-  @EnvironmentObject var meters: MeterState
+  @EnvironmentObject var levels: LevelState
 
   var body: some View {
     VStack(spacing: 6) {
-      MiniMeterRow(label: "L", peak: meters.playbackPeak.left, rms: meters.playbackRms.left)
-      MiniMeterRow(label: "R", peak: meters.playbackPeak.right, rms: meters.playbackRms.right)
+      MiniMeterRow(label: "L", peak: levels.playbackPeak.left, rms: levels.playbackRms.left)
+      MiniMeterRow(label: "R", peak: levels.playbackPeak.right, rms: levels.playbackRms.right)
     }
     .frame(height: 60)
   }

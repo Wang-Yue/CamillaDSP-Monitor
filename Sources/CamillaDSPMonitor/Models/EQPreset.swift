@@ -42,11 +42,19 @@ enum EQBandType: String, CaseIterable, Codable, Identifiable {
 
 final class EQBand: ObservableObject, Identifiable, Codable {
   let id: UUID
-  @Published var type: EQBandType
-  @Published var freq: Double
-  @Published var gain: Double
-  @Published var q: Double
+  @Published var type: EQBandType { didSet { invalidateCache() } }
+  @Published var freq: Double { didSet { invalidateCache() } }
+  @Published var gain: Double { didSet { invalidateCache() } }
+  @Published var q: Double { didSet { invalidateCache() } }
   @Published var isEnabled: Bool
+  // Cached biquad coefficients — invalidated when band parameters change.
+  // Avoids recomputing trig-heavy coefficients on every frequency sample during curve drawing.
+  private var cachedCoeffs: BiquadCoefficients?
+  private var cachedSampleRate: Int = 0
+  private func invalidateCache() {
+    cachedCoeffs = nil
+    cachedSampleRate = 0
+  }
   init(
     type: EQBandType = .peaking, freq: Double = 1000, gain: Double = 0, q: Double = 0.707,
     isEnabled: Bool = true
@@ -78,7 +86,12 @@ final class EQBand: ObservableObject, Identifiable, Codable {
     try c.encode(isEnabled, forKey: .isEnabled)
   }
   func coefficients(sampleRate: Int) -> BiquadCoefficients? {
-    BiquadCoefficients.compute(type.rawValue, freq: freq, gain: gain, q: q, sampleRate: sampleRate)
+    if cachedSampleRate == sampleRate, let cached = cachedCoeffs { return cached }
+    let result = BiquadCoefficients.compute(
+      type.rawValue, freq: freq, gain: gain, q: q, sampleRate: sampleRate)
+    cachedCoeffs = result
+    cachedSampleRate = sampleRate
+    return result
   }
   func response(atFreq f: Double, sampleRate: Int) -> Double {
     guard isEnabled, let coeffs = coefficients(sampleRate: sampleRate) else { return 0 }

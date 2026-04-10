@@ -179,16 +179,28 @@ final class AppState: ObservableObject {
 
   @Published var stages: [PipelineStage] = PipelineStage.defaultStages()
   @Published var eqPresets: [EQPreset] = []
-  let meters = MeterState()
+  let levels = LevelState()
+  let spectrum = SpectrumState()
+  let load = LoadState()
 
   let engine = DSPEngine()
   var isLoadingPreferences = false
-  var spectrumAnalyzer: FFTSpectrumAnalyzer?
+  var spectrumAnalyzer: FFTSpectrumAnalyzer? {
+    didSet { analyzerRef.analyzer = spectrumAnalyzer }
+  }
+  /// Thread-safe reference to the current spectrum analyzer, used by the audio tap callback
+  /// to avoid accessing @MainActor-isolated properties from the audio render thread.
+  let analyzerRef = AnalyzerRef()
   var audioTap: CoreAudioTap?
   var lastAppliedConfigYAML: String?
   var isPollingLevels = false
+  var startEngineTask: Task<Void, Never>?
   var spectrumRestartTask: Task<Void, Never>?
   var monitoringTask: Task<Void, Never>?
+  var vuSubscriptionTask: Task<Void, Never>?
+  var stateSubscriptionTask: Task<Void, Never>?
+  var isVuSubscriptionActive = false
+  var isStateSubscriptionActive = false
   var monitoredCaptureDeviceID: AudioDeviceID?
   var monitoredPlaybackDeviceID: AudioDeviceID?
   var captureRateListenerBlock: AudioObjectPropertyListenerBlock?
@@ -196,6 +208,7 @@ final class AppState: ObservableObject {
 
   // Recovery Throttling
   var lastRecoveryTime: Date?
+  var pollCounter: Int = 0
 
   enum Keys {
     static let captureDevice = "captureDevice"
@@ -218,7 +231,7 @@ final class AppState: ObservableObject {
 
   init() {
     print("[AppState] Initializing...")
-    killStaleCamillaDSP()
+    DSPEngine.killStaleCamillaDSP()
 
     isLoadingPreferences = true
     loadPreferences()
@@ -229,8 +242,9 @@ final class AppState: ObservableObject {
 
     startDeviceChangeListener()
 
-    audioTap = CoreAudioTap(onAudio: { [weak self] waveform in
-      self?.spectrumAnalyzer?.enqueueAudio(waveform)
+    let ref = analyzerRef
+    audioTap = CoreAudioTap(onAudio: { waveform in
+      ref.analyzer?.enqueueAudio(waveform)
     })
 
     Task {
@@ -259,14 +273,6 @@ final class AppState: ObservableObject {
         print("[AppState] Initial connection failed: \(error)")
       }
     }
-  }
-
-  private func killStaleCamillaDSP() {
-    let task = Process()
-    task.launchPath = "/usr/bin/env"
-    task.arguments = ["pkill", "camilladsp"]
-    try? task.run()
-    task.waitUntilExit()
   }
 
   private func syncCaptureRateIfNeeded() {

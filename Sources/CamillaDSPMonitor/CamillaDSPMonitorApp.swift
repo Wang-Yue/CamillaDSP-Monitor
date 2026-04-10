@@ -8,10 +8,12 @@ struct CamillaDSPMonitorApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
   var body: some Scene {
-    WindowGroup {
+    Window("CamillaDSP Monitor", id: "main") {
       ContentView()
         .environmentObject(appState)
-        .environmentObject(appState.meters)
+        .environmentObject(appState.levels)
+        .environmentObject(appState.spectrum)
+        .environmentObject(appState.load)
         .frame(minWidth: 960, minHeight: 680)
         .onAppear {
           appDelegate.appState = appState
@@ -38,6 +40,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApplication.shared.activate(ignoringOtherApps: true)
+
+    // Kill camilladsp on SIGINT (ctrl+c) and SIGTERM (kill).
+    // applicationWillTerminate only fires on graceful quit (cmd+q).
+    for sig in [SIGINT, SIGTERM] {
+      signal(sig) { _ in
+        DSPEngine.killStaleCamillaDSP()
+        _exit(0)
+      }
+    }
+  }
+
+  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    // Don't terminate when the main window is hidden for mini player mode.
+    return false
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool
@@ -56,10 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     appState?.stopMonitoring()
 
     // Kill camilladsp synchronously — can't await the actor during termination
-    let task = Process()
-    task.launchPath = "/usr/bin/env"
-    task.arguments = ["pkill", "camilladsp"]
-    try? task.run()
-    task.waitUntilExit()
+    DSPEngine.killStaleCamillaDSP()
   }
 }

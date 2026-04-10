@@ -1,6 +1,61 @@
 // DashboardView - Main dashboard showing pipeline overview and monitoring
 
+import AppKit
 import SwiftUI
+
+/// Horizontal ScrollView that also scrolls with vertical mouse wheel.
+struct HorizontalScrollWithVerticalWheel<Content: View>: NSViewRepresentable {
+  let content: Content
+
+  init(@ViewBuilder content: () -> Content) {
+    self.content = content()
+  }
+
+  func makeNSView(context: Context) -> NSScrollView {
+    let scrollView = VerticalToHorizontalScrollView()
+    let hostingView = NSHostingView(rootView: content)
+    hostingView.translatesAutoresizingMaskIntoConstraints = false
+
+    scrollView.documentView = hostingView
+    scrollView.hasHorizontalScroller = false
+    scrollView.hasVerticalScroller = false
+    scrollView.drawsBackground = false
+
+    NSLayoutConstraint.activate([
+      hostingView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+      hostingView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+      hostingView.heightAnchor.constraint(equalTo: scrollView.contentView.heightAnchor),
+    ])
+
+    return scrollView
+  }
+
+  func updateNSView(_ nsView: NSScrollView, context: Context) {
+    if let hostingView = nsView.documentView as? NSHostingView<Content> {
+      hostingView.rootView = content
+    }
+  }
+}
+
+private class VerticalToHorizontalScrollView: NSScrollView {
+  override func scrollWheel(with event: NSEvent) {
+    if abs(event.deltaX) >= abs(event.deltaY) {
+      super.scrollWheel(with: event)
+    } else {
+      // Convert vertical scroll to horizontal
+      let converted = NSEvent.init(
+        cgEvent: {
+          let cg = event.cgEvent!
+          cg.setDoubleValueField(
+            .scrollWheelEventDeltaAxis2, value: cg.getDoubleValueField(.scrollWheelEventDeltaAxis1))
+          cg.setDoubleValueField(.scrollWheelEventDeltaAxis1, value: 0)
+          return cg
+        }()
+      )!
+      super.scrollWheel(with: converted)
+    }
+  }
+}
 
 struct DashboardView: View {
   @EnvironmentObject var appState: AppState
@@ -24,7 +79,7 @@ struct PipelineOverview: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text("Signal Chain").font(.headline)
-      ScrollView(.horizontal, showsIndicators: false) {
+      HorizontalScrollWithVerticalWheel {
         HStack(spacing: 4) {
           StageChip(
             icon: "mic", label: appState.selectedCaptureDevice ?? "Input", color: .blue,
@@ -39,8 +94,8 @@ struct PipelineOverview: View {
               isActive: appState.resamplerEnabled)
           }.buttonStyle(.plain)
           Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
-          ForEach(appState.stages.indices, id: \.self) { index in
-            DashboardStageChipButton(stage: appState.stages[index])
+          ForEach(appState.stages) { stage in
+            DashboardStageChipButton(stage: stage)
             Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           }
           StageChip(
@@ -87,7 +142,7 @@ private struct DashboardStageChipButton: View {
 }
 
 struct LevelMetersCard: View {
-  @EnvironmentObject var meters: MeterState
+  @EnvironmentObject var levels: LevelState
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .firstTextBaseline) {
@@ -98,16 +153,17 @@ struct LevelMetersCard: View {
       HStack(spacing: 24) {
         VStack(alignment: .leading, spacing: 8) {
           Text("Capture").font(.subheadline).foregroundStyle(.secondary)
-          DualLevelMeterView(label: "L", peak: meters.capturePeak.left, rms: meters.captureRms.left)
           DualLevelMeterView(
-            label: "R", peak: meters.capturePeak.right, rms: meters.captureRms.right)
+            label: "L", peak: levels.capturePeak.left, rms: levels.captureRms.left)
+          DualLevelMeterView(
+            label: "R", peak: levels.capturePeak.right, rms: levels.captureRms.right)
         }
         VStack(alignment: .leading, spacing: 8) {
           Text("Playback").font(.subheadline).foregroundStyle(.secondary)
           DualLevelMeterView(
-            label: "L", peak: meters.playbackPeak.left, rms: meters.playbackRms.left)
+            label: "L", peak: levels.playbackPeak.left, rms: levels.playbackRms.left)
           DualLevelMeterView(
-            label: "R", peak: meters.playbackPeak.right, rms: meters.playbackRms.right)
+            label: "R", peak: levels.playbackPeak.right, rms: levels.playbackRms.right)
         }
       }
     }.padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -115,7 +171,7 @@ struct LevelMetersCard: View {
 }
 
 struct SpectrumCard: View {
-  @EnvironmentObject var meters: MeterState
+  @EnvironmentObject var spectrum: SpectrumState
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
@@ -123,7 +179,7 @@ struct SpectrumCard: View {
         Spacer()
         Text("FFT Pre-Processing").font(.caption).foregroundStyle(.tertiary)
       }
-      SpectrumView(bands: meters.spectrumBands).frame(height: 160)
+      SpectrumView(bands: spectrum.bands).frame(height: 160)
     }.padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
   }
 }

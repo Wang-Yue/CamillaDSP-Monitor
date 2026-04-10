@@ -1,54 +1,8 @@
-// AppState+Monitoring - Unified FFT spectrum analysis with independent CoreAudio capture
+// AppState+Monitoring - Level polling, audio capture, and spectrum management
 
-import Accelerate
-import AudioToolbox
+import AppKit
 import CamillaDSPLib
 import Foundation
-
-struct StereoLevel: Sendable {
-  var left: Double
-  var right: Double
-  static let silent = StereoLevel(left: -100, right: -100)
-
-  init(left: Double, right: Double) {
-    self.left = left
-    self.right = right
-  }
-
-  init(from levels: [Float]) {
-    left = max(-100.0, Double(levels.first ?? -100))
-    right = max(-100.0, Double(levels.count > 1 ? levels[1] : -100))
-  }
-}
-
-@MainActor
-final class MeterState: ObservableObject {
-  var capturePeak: StereoLevel = .silent
-  var captureRms: StereoLevel = .silent
-  var playbackPeak: StereoLevel = .silent
-  var playbackRms: StereoLevel = .silent
-  var spectrumBands: [Double] = Array(repeating: -100, count: 30)
-  var processingLoad: Double = 0
-
-  func update(
-    capturePeak: StereoLevel, captureRms: StereoLevel, playbackPeak: StereoLevel,
-    playbackRms: StereoLevel, spectrumBands: [Double], processingLoad: Double
-  ) {
-    self.capturePeak = capturePeak
-    self.captureRms = captureRms
-    self.playbackPeak = playbackPeak
-    self.playbackRms = playbackRms
-    self.spectrumBands = spectrumBands
-    self.processingLoad = processingLoad
-    objectWillChange.send()
-  }
-
-  func reset() {
-    update(
-      capturePeak: .silent, captureRms: .silent, playbackPeak: .silent, playbackRms: .silent,
-      spectrumBands: Array(repeating: -100, count: 30), processingLoad: 0)
-  }
-}
 
 extension AppState {
 
@@ -63,29 +17,124 @@ extension AppState {
       try? await Task.sleep(nanoseconds: 500_000_000)
       guard !Task.isCancelled else { return }
       recreateSpectrumAnalyzer()
-      if audioTap != nil {
-        audioTap?.start(deviceName: selectedCaptureDevice)
-      } else {
-        startAudioCapture()
+      if audioTap == nil {
+        let ref = analyzerRef
+        audioTap = CoreAudioTap(onAudio: { waveform in
+          ref.analyzer?.enqueueAudio(waveform)
+        })
       }
+      await audioTap?.start(deviceName: selectedCaptureDevice)
     }
   }
 
   func startMonitoringTimer() {
     monitoringTask?.cancel()
+    vuSubscriptionTask?.cancel()
+    stateSubscriptionTask?.cancel()
+    isVuSubscriptionActive = false
+    isStateSubscriptionActive = false
+
+    // Try to start VU subscription. Will be managed (started/stopped) by the
+    // polling loop based on whether the app is active.
+    startVuSubscription()
+
+    // Try state subscription (server-push) — lightweight, always on
+    startStateSubscription()
+
+    // Polling loop — adapts based on which subscriptions are active.
+    // When the app goes to background, stops VU subscription to save CPU.
+    // When it comes back to foreground, restarts VU subscription.
     monitoringTask = Task {
+      try? await Task.sleep(nanoseconds: 300_000_000)
+      var wasActive = true
       while !Task.isCancelled {
-        if status == .running {
-          await pollLevels()
+        let isActive = NSApp?.isActive ?? false
+
+        // Manage VU subscription lifecycle based on app active state
+        if isActive && !wasActive && !isVuSubscriptionActive {
+          startVuSubscription()
+        } else if !isActive && wasActive && isVuSubscriptionActive {
+          vuSubscriptionTask?.cancel()
+          vuSubscriptionTask = nil
+          isVuSubscriptionActive = false
+          print("[AppState] VU subscription paused (app inactive)")
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+        wasActive = isActive
+
+        if status == .running {
+          if isVuSubscriptionActive && isStateSubscriptionActive {
+            await pollLoadOnly()
+          } else if isVuSubscriptionActive {
+            await pollStateAndLoad()
+          } else {
+            await pollLevels()
+          }
+        }
+        if isVuSubscriptionActive {
+          let interval: UInt64 = isActive ? 500_000_000 : 1_000_000_000
+          try? await Task.sleep(nanoseconds: interval)
+        } else {
+          let interval: UInt64 = isActive ? 100_000_000 : 500_000_000
+          try? await Task.sleep(nanoseconds: interval)
+        }
       }
+    }
+  }
+
+  func startStateSubscription() {
+    stateSubscriptionTask?.cancel()
+    stateSubscriptionTask = Task {
+      guard let stream = await engine.subscribeState() else {
+        print("[AppState] State subscription not available, using polling")
+        return
+      }
+      isStateSubscriptionActive = true
+      print("[AppState] State subscription started")
+      for await update in stream {
+        guard !Task.isCancelled else { break }
+        handleStateUpdate(state: update.state, stopReason: update.stopReason)
+      }
+      isStateSubscriptionActive = false
+    }
+  }
+
+  func startVuSubscription() {
+    vuSubscriptionTask?.cancel()
+    vuSubscriptionTask = Task {
+      guard
+        let stream = await engine.subscribeVuLevels(
+          maxRate: 10.0, attack: 5.0, release: 100.0
+        )
+      else {
+        print("[AppState] VU subscription not available, using polling")
+        return
+      }
+      isVuSubscriptionActive = true
+      print("[AppState] VU subscription started")
+      for await vu in stream {
+        guard !Task.isCancelled else { break }
+        levels.update(
+          capturePeak: StereoLevel(from: vu.capture_peak),
+          captureRms: StereoLevel(from: vu.capture_rms),
+          playbackPeak: StereoLevel(from: vu.playback_peak),
+          playbackRms: StereoLevel(from: vu.playback_rms)
+        )
+        let bands = spectrumAnalyzer?.readBands() ?? spectrum.bands
+        spectrum.update(bands: bands)
+      }
+      isVuSubscriptionActive = false
     }
   }
 
   func stopMonitoring() {
     monitoringTask?.cancel()
     monitoringTask = nil
+    vuSubscriptionTask?.cancel()
+    vuSubscriptionTask = nil
+    stateSubscriptionTask?.cancel()
+    stateSubscriptionTask = nil
+    isVuSubscriptionActive = false
+    isStateSubscriptionActive = false
     spectrumRestartTask?.cancel()
     spectrumRestartTask = nil
     isPollingLevels = false
@@ -93,6 +142,69 @@ extension AppState {
     spectrumAnalyzer = nil
   }
 
+  // MARK: - State Change Handling
+
+  /// Handle a state update from either subscription or polling.
+  private func handleStateUpdate(state: String, stopReason: String?) {
+    if state == "Running" || state == "Starting" || state == "Stalled" {
+      return  // Healthy states — nothing to do
+    }
+    // Don't trigger recovery while we're already busy (starting or applying config).
+    // CamillaDSP briefly reports Inactive during config transitions.
+    guard !isBusy else { return }
+    // Engine stopped unexpectedly — attempt recovery
+    let reason = stopReason ?? "None"
+    if reason == "None" { return }
+    let now = Date()
+    if let last = lastRecoveryTime, now.timeIntervalSince(last) < 5.0 { return }
+    lastRecoveryTime = now
+    lastAppliedConfigYAML = nil
+    // Use applyConfig() instead of applyConfigAsync() so that if status is .error,
+    // it takes the startEngine() path for full recovery.
+    applyConfig()
+  }
+
+  // MARK: - Polling Variants
+
+  /// Minimal poll: only processing load. Used when both subscriptions are active.
+  private func pollLoadOnly() async {
+    pollCounter += 1
+    if pollCounter % 2 == 0 {
+      let pLoad = await engine.fetchProcessingLoad()
+      load.update(load: Double(pLoad))
+    }
+  }
+
+  /// State + load poll. Used when VU subscription is active but state subscription isn't.
+  private func pollStateAndLoad() async {
+    do {
+      let state: String? = try await engine.sendCommand("GetState")
+
+      if state != "Running" && state != "Starting" && state != "Stalled" {
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        let secondCheck: String? = try? await engine.sendCommand("GetState")
+        if secondCheck == "Running" || secondCheck == "Starting" || secondCheck == "Stalled" {
+          return
+        }
+        let stopReason = await engine.getStopReason() ?? "None"
+        handleStateUpdate(state: state ?? "Unknown", stopReason: stopReason)
+        return
+      }
+
+      pollCounter += 1
+      if pollCounter % 2 == 0 {
+        let pLoad = await engine.fetchProcessingLoad()
+        load.update(load: Double(pLoad))
+      }
+    } catch {
+      if !(await engine.ping()) {
+        status = .error("Connection lost: \(error.localizedDescription)")
+        stopMonitoring()
+      }
+    }
+  }
+
+  /// Full polling. Used when no subscriptions are available.
   private func pollLevels() async {
     guard status == .running && !isPollingLevels else { return }
     isPollingLevels = true
@@ -107,30 +219,27 @@ extension AppState {
         if secondCheck == "Running" || secondCheck == "Starting" || secondCheck == "Stalled" {
           return
         }
-        let reason: String? = try await engine.sendCommand("GetStopReason")
-        let stopReason = reason ?? "None"
-        if stopReason == "CaptureFormatChange" || stopReason == "None" { return }
-        let now = Date()
-        if let last = lastRecoveryTime, now.timeIntervalSince(last) < 5.0 { return }
-        lastRecoveryTime = now
-        lastAppliedConfigYAML = nil
-        await applyConfigAsync()
+        let stopReason = await engine.getStopReason() ?? "None"
+        handleStateUpdate(state: state ?? "Unknown", stopReason: stopReason)
         return
       }
 
       if state == "Starting" { return }
-      guard let levels = await engine.getSignalLevels() else { return }
-      let bands = spectrumAnalyzer?.readBands() ?? meters.spectrumBands
-      let newLoad = Double(levels.processing_load ?? 0)
+      pollCounter += 1
+      let includeLoad = pollCounter % 5 == 0
+      guard let sigLevels = await engine.getSignalLevels(includeLoad: includeLoad) else { return }
 
-      meters.update(
-        capturePeak: StereoLevel(from: levels.capture_peak),
-        captureRms: StereoLevel(from: levels.capture_rms),
-        playbackPeak: StereoLevel(from: levels.playback_peak),
-        playbackRms: StereoLevel(from: levels.playback_rms),
-        spectrumBands: bands,
-        processingLoad: newLoad
+      levels.update(
+        capturePeak: StereoLevel(from: sigLevels.capture_peak),
+        captureRms: StereoLevel(from: sigLevels.capture_rms),
+        playbackPeak: StereoLevel(from: sigLevels.playback_peak),
+        playbackRms: StereoLevel(from: sigLevels.playback_rms)
       )
+      let bands = spectrumAnalyzer?.readBands() ?? spectrum.bands
+      spectrum.update(bands: bands)
+      if includeLoad {
+        load.update(load: Double(sigLevels.processing_load ?? 0))
+      }
 
     } catch {
       if !(await engine.ping()) {
@@ -142,151 +251,18 @@ extension AppState {
 
   func startAudioCapture() {
     if audioTap == nil {
-      audioTap = CoreAudioTap(onAudio: { [weak self] waveform in
-        self?.spectrumAnalyzer?.enqueueAudio(waveform)
+      let ref = analyzerRef
+      audioTap = CoreAudioTap(onAudio: { waveform in
+        ref.analyzer?.enqueueAudio(waveform)
       })
     }
-    audioTap?.start(deviceName: selectedCaptureDevice)
+    let tap = audioTap
+    let deviceName = selectedCaptureDevice
+    Task { await tap?.start(deviceName: deviceName) }
   }
 
   func stopAudioCapture() {
-    audioTap?.stop()
-  }
-}
-
-final class FFTSpectrumAnalyzer {
-  private let sampleRate: Int
-  private let fftSize: Int
-  private let log2n: vDSP_Length
-  private let fftSetup: FFTSetup
-  private let window: [Float]
-  private let bandBins: [(lo: Int, hi: Int)]
-  private let bandCount = 30
-  private let bufferLock = NSLock()
-  private var pendingBuffer: [Float]? = nil
-  private let resultsLock = NSLock()
-  private var bandPeaks: [Double]
-  private let spectrumQueue = DispatchQueue(label: "camilladsp.spectrum.fft", qos: .utility)
-  private var spectrumTimer: DispatchSourceTimer?
-
-  // Pre-allocated Float buffers
-  private var windowed: [Float]
-  private var realp: [Float]
-  private var imagp: [Float]
-  private var magnitudes: [Float]
-
-  init(sampleRate: Int, chunkSize: Int) {
-    self.sampleRate = sampleRate
-    var fftN = 4096
-    if sampleRate > 48000 { fftN = 8192 }
-    if sampleRate > 96000 { fftN = 16384 }
-    while fftN < chunkSize { fftN *= 2 }
-    self.fftSize = fftN
-    self.log2n = vDSP_Length(log2(Double(fftN)))
-    self.fftSetup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2))!
-
-    var win = [Float](repeating: 0, count: fftN)
-    vDSP_hann_window(&win, vDSP_Length(fftN), Int32(vDSP_HANN_NORM))
-    self.window = win
-
-    let halfN = fftN / 2
-    self.windowed = [Float](repeating: 0, count: fftN)
-    self.realp = [Float](repeating: 0, count: halfN)
-    self.imagp = [Float](repeating: 0, count: halfN)
-    self.magnitudes = [Float](repeating: 0, count: halfN)
-
-    let binWidth = Double(sampleRate) / Double(fftN)
-    let factor = pow(2.0, 1.0 / 6.0)
-    var bins: [(lo: Int, hi: Int)] = []
-    let centerFrequencies: [Double] = [
-      25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600,
-      2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000,
-    ]
-    for freq in centerFrequencies {
-      let fLo = freq / factor
-      let fHi = freq * factor
-      let binLo = max(1, Int(fLo / binWidth))
-      let binHi = min(fftN / 2 - 1, Int(fHi / binWidth))
-      bins.append((lo: binLo, hi: max(binLo, binHi)))
-    }
-    self.bandBins = bins
-    self.bandPeaks = Array(repeating: -100, count: bandCount)
-    let timer = DispatchSource.makeTimerSource(queue: spectrumQueue)
-    timer.schedule(deadline: .now(), repeating: .milliseconds(50))
-    timer.setEventHandler { [weak self] in self?.processLatestBuffer() }
-    timer.resume()
-    self.spectrumTimer = timer
-  }
-
-  deinit {
-    spectrumTimer?.cancel()
-    vDSP_destroy_fftsetup(fftSetup)
-  }
-
-  func enqueueAudio(_ waveform: [Float]) {
-    bufferLock.lock()
-    pendingBuffer = waveform
-    bufferLock.unlock()
-  }
-
-  func readBands() -> [Double] {
-    resultsLock.lock()
-    let result = bandPeaks
-    resultsLock.unlock()
-    return result
-  }
-
-  private func processLatestBuffer() {
-    bufferLock.lock()
-    guard let waveform = pendingBuffer else {
-      bufferLock.unlock()
-      return
-    }
-    pendingBuffer = nil
-    bufferLock.unlock()
-
-    let n = min(waveform.count, fftSize)
-    vDSP_vmul(waveform, 1, window, 1, &windowed, 1, vDSP_Length(n))
-    if n < fftSize {
-      vDSP_vclr(&windowed[n], 1, vDSP_Length(fftSize - n))
-    }
-
-    let halfN = fftSize / 2
-    realp.withUnsafeMutableBufferPointer { rBuf in
-      imagp.withUnsafeMutableBufferPointer { iBuf in
-        var split = DSPSplitComplex(realp: rBuf.baseAddress!, imagp: iBuf.baseAddress!)
-        windowed.withUnsafeBufferPointer { wBuf in
-          vDSP_ctoz(
-            UnsafePointer<DSPComplex>(OpaquePointer(wBuf.baseAddress!)), 2, &split, 1,
-            vDSP_Length(halfN))
-        }
-        vDSP_fft_zrip(fftSetup, &split, 1, log2n, FFTDirection(kFFTDirection_Forward))
-      }
-    }
-
-    realp.withUnsafeBufferPointer { rBuf in
-      imagp.withUnsafeBufferPointer { iBuf in
-        var split = DSPSplitComplex(
-          realp: UnsafeMutablePointer(mutating: rBuf.baseAddress!),
-          imagp: UnsafeMutablePointer(mutating: iBuf.baseAddress!))
-        vDSP_zvabs(&split, 1, &magnitudes, 1, vDSP_Length(halfN))
-      }
-    }
-
-    var normScale: Float = 2.0 / Float(fftSize)
-    vDSP_vsmul(magnitudes, 1, &normScale, &magnitudes, 1, vDSP_Length(halfN))
-
-    var newPeaks = [Double](repeating: -100, count: bandCount)
-    for i in 0..<min(bandBins.count, bandCount) {
-      let (lo, hi) = bandBins[i]
-      var peakMag: Float = 0.0
-      for bin in lo...hi {
-        if bin < halfN && magnitudes[bin] > peakMag { peakMag = magnitudes[bin] }
-      }
-      newPeaks[i] = PrcFmt.toDB(peakMag)
-    }
-    resultsLock.lock()
-    bandPeaks = newPeaks
-    resultsLock.unlock()
+    let tap = audioTap
+    Task { await tap?.stop() }
   }
 }

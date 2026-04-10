@@ -34,6 +34,20 @@ public struct SignalLevels: Codable, Sendable {
   public let playback_peak: [Float]
 }
 
+/// Pushed VU level event from SubscribeVuLevels.
+public struct VuLevels: Sendable {
+  public let playback_rms: [Float]
+  public let playback_peak: [Float]
+  public let capture_rms: [Float]
+  public let capture_peak: [Float]
+}
+
+/// Pushed state change event from SubscribeState.
+public struct StateUpdate: Sendable {
+  public let state: String
+  public let stopReason: String?
+}
+
 public struct AudioDevice: Identifiable, Sendable {
   public var id: String { name }
   public let name: String
@@ -50,6 +64,15 @@ public actor DSPEngine {
   public init(host: String = "127.0.0.1", port: Int = 1234) {
     self.url = URL(string: "ws://\(host):\(port)")!
     self.session = URLSession(configuration: .default)
+  }
+
+  /// Kill any stale camilladsp processes. Safe to call from any context (synchronous).
+  public static func killStaleCamillaDSP() {
+    let task = Process()
+    task.launchPath = "/usr/bin/env"
+    task.arguments = ["pkill", "camilladsp"]
+    try? task.run()
+    task.waitUntilExit()
   }
 
   deinit {
@@ -105,11 +128,7 @@ public actor DSPEngine {
       throw AudioBackendError.binaryNotFound
     }
 
-    let killTask = Process()
-    killTask.launchPath = "/usr/bin/env"
-    killTask.arguments = ["pkill", "camilladsp"]
-    try? killTask.run()
-    killTask.waitUntilExit()
+    DSPEngine.killStaleCamillaDSP()
 
     print("[DSPEngine] Launching \(binaryPath)... ")
     let p = Process()
@@ -144,7 +163,8 @@ public actor DSPEngine {
     isConnected = false
     if let p = process, p.isRunning {
       p.terminate()
-      p.waitUntilExit()
+      // Don't call waitUntilExit() synchronously — it blocks the actor's executor.
+      // The process will be cleaned up by the OS after termination.
     }
     process = nil
   }
@@ -241,6 +261,45 @@ public actor DSPEngine {
     let _: String? = try? await sendCommand("Stop")
   }
 
+  /// Returns the stop reason as a string. For enum variants with associated data
+  /// (e.g. CaptureFormatChange(44100)), returns just the variant name.
+  public func getStopReason() async -> String? {
+    // Try plain string first (e.g. "None", "Done")
+    if let reason: String = try? await sendCommand("GetStopReason") {
+      return reason
+    }
+    // Variants with data serialize as {"VariantName": value} — extract the key.
+    // Use sendRawCommand to avoid Sendable constraint on [String: Any].
+    return await getStopReasonFromDict()
+  }
+
+  /// Internal helper: parses GetStopReason as a dictionary and extracts the variant name.
+  private func getStopReasonFromDict() async -> String? {
+    guard isConnected, let webSocket = webSocket else { return nil }
+    do {
+      try await webSocket.send(.string("\"GetStopReason\""))
+      let response = try await webSocket.receive()
+      let responseData: Data
+      switch response {
+      case .data(let data): responseData = data
+      case .string(let string): responseData = string.data(using: .utf8)!
+      @unknown default: return nil
+      }
+      guard
+        let responseDict = try JSONSerialization.jsonObject(with: responseData)
+          as? [String: Any],
+        let cmdResult = responseDict["GetStopReason"] as? [String: Any],
+        let value = cmdResult["value"]
+      else { return nil }
+      // value is either a String or a Dict like {"CaptureFormatChange": 44100}
+      if let str = value as? String { return str }
+      if let dict = value as? [String: Any] { return dict.keys.first }
+      return nil
+    } catch {
+      return nil
+    }
+  }
+
   public func setVolume(_ db: Double) async {
     let _: String? = try? await sendCommand("SetVolume", value: Float(db))
   }
@@ -259,20 +318,28 @@ public actor DSPEngine {
     let _: String? = try? await sendCommand("SetFaderMute", value: value)
   }
 
-  public func getSignalLevels() async -> SignalLevels? {
+  public func getSignalLevels(includeLoad: Bool = true) async -> SignalLevels? {
     do {
       guard let levelsValue: [String: any Sendable] = try await sendCommand("GetSignalLevels")
       else { return nil }
       let data = try JSONSerialization.data(withJSONObject: levelsValue)
       var levels = try JSONDecoder().decode(SignalLevels.self, from: data)
 
-      let pLoad = await fetchLoad("GetProcessingLoad")
-      let rLoad = await fetchLoad("GetResamplerLoad")
-      levels.processing_load = pLoad + rLoad
+      if includeLoad {
+        let pLoad = await fetchLoad("GetProcessingLoad")
+        let rLoad = await fetchLoad("GetResamplerLoad")
+        levels.processing_load = pLoad + rLoad
+      }
       return levels
     } catch {
       return nil
     }
+  }
+
+  public func fetchProcessingLoad() async -> Float {
+    let pLoad = await fetchLoad("GetProcessingLoad")
+    let rLoad = await fetchLoad("GetResamplerLoad")
+    return pLoad + rLoad
   }
 
   private func fetchLoad(_ command: String) async -> Float {
@@ -293,6 +360,194 @@ public actor DSPEngine {
       return value.map { AudioDevice(name: $0[0]) }
     } catch {
       return []
+    }
+  }
+
+  // MARK: - VU Level Subscription
+
+  /// Opens a separate WebSocket connection and subscribes to VU level events.
+  /// Returns an AsyncStream that yields VuLevels pushed by CamillaDSP.
+  /// Returns nil if the server doesn't support subscriptions.
+  /// The stream ends when the connection closes or an error occurs.
+  public func subscribeVuLevels(
+    maxRate: Float = 10.0, attack: Float = 5.0, release: Float = 100.0
+  ) async -> AsyncStream<VuLevels>? {
+    guard isConnected else { return nil }
+
+    // Open a dedicated WebSocket for this subscription
+    let subWs = session.webSocketTask(with: url)
+    subWs.resume()
+
+    // Send SubscribeVuLevels command
+    let params: [String: Any] = ["max_rate": maxRate, "attack": attack, "release": release]
+    let cmd: [String: Any] = ["SubscribeVuLevels": params]
+    guard let data = try? JSONSerialization.data(withJSONObject: cmd),
+      let jsonString = String(data: data, encoding: .utf8)
+    else {
+      subWs.cancel(with: .goingAway, reason: nil)
+      return nil
+    }
+
+    do {
+      try await subWs.send(.string(jsonString))
+      let response = try await subWs.receive()
+
+      // Check if subscription was accepted
+      let responseData: Data
+      switch response {
+      case .string(let s): responseData = s.data(using: .utf8)!
+      case .data(let d): responseData = d
+      @unknown default:
+        subWs.cancel(with: .goingAway, reason: nil)
+        return nil
+      }
+
+      guard let dict = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+        let reply = dict["SubscribeVuLevels"] as? [String: Any],
+        let result = reply["result"] as? String, result == "Ok"
+      else {
+        // Server doesn't support subscriptions
+        print("[DSPEngine] SubscribeVuLevels not supported, falling back to polling")
+        subWs.cancel(with: .goingAway, reason: nil)
+        return nil
+      }
+    } catch {
+      subWs.cancel(with: .goingAway, reason: nil)
+      return nil
+    }
+
+    print(
+      "[DSPEngine] VU subscription active (rate=\(maxRate) attack=\(attack) release=\(release))")
+
+    // Return a stream that reads pushed VuLevelsEvent messages
+    return AsyncStream { continuation in
+      continuation.onTermination = { _ in
+        // Try to send StopSubscription before closing
+        Task {
+          try? await subWs.send(.string("\"StopSubscription\""))
+          subWs.cancel(with: .goingAway, reason: nil)
+        }
+      }
+
+      Task.detached {
+        while true {
+          do {
+            let msg = try await subWs.receive()
+            let msgData: Data
+            switch msg {
+            case .string(let s): msgData = s.data(using: .utf8) ?? Data()
+            case .data(let d): msgData = d
+            @unknown default: continue
+            }
+
+            guard
+              let dict = try? JSONSerialization.jsonObject(with: msgData) as? [String: Any],
+              let event = dict["VuLevelsEvent"] as? [String: Any],
+              let value = event["value"] as? [String: Any],
+              let pbRms = value["playback_rms"] as? [Double],
+              let pbPeak = value["playback_peak"] as? [Double],
+              let capRms = value["capture_rms"] as? [Double],
+              let capPeak = value["capture_peak"] as? [Double]
+            else { continue }
+
+            continuation.yield(
+              VuLevels(
+                playback_rms: pbRms.map { Float($0) },
+                playback_peak: pbPeak.map { Float($0) },
+                capture_rms: capRms.map { Float($0) },
+                capture_peak: capPeak.map { Float($0) }
+              ))
+          } catch {
+            let nsError = error as NSError
+            // Suppress expected disconnection/cancellation errors
+            if nsError.code != -999 && nsError.code != 57 {
+              print("[DSPEngine] VU subscription ended: \(error)")
+            }
+            continuation.finish()
+            return
+          }
+        }
+      }
+    }
+  }
+
+  // MARK: - State Subscription
+
+  /// Opens a separate WebSocket connection and subscribes to state change events.
+  /// Returns an AsyncStream that yields StateUpdate pushed by CamillaDSP.
+  /// Returns nil if the server doesn't support subscriptions.
+  public func subscribeState() async -> AsyncStream<StateUpdate>? {
+    guard isConnected else { return nil }
+
+    let subWs = session.webSocketTask(with: url)
+    subWs.resume()
+
+    do {
+      try await subWs.send(.string("\"SubscribeState\""))
+      let response = try await subWs.receive()
+
+      let responseData: Data
+      switch response {
+      case .string(let s): responseData = s.data(using: .utf8)!
+      case .data(let d): responseData = d
+      @unknown default:
+        subWs.cancel(with: .goingAway, reason: nil)
+        return nil
+      }
+
+      guard let dict = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+        let reply = dict["SubscribeState"] as? [String: Any],
+        let result = reply["result"] as? String, result == "Ok"
+      else {
+        print("[DSPEngine] SubscribeState not supported, falling back to polling")
+        subWs.cancel(with: .goingAway, reason: nil)
+        return nil
+      }
+    } catch {
+      subWs.cancel(with: .goingAway, reason: nil)
+      return nil
+    }
+
+    print("[DSPEngine] State subscription active")
+
+    return AsyncStream { continuation in
+      continuation.onTermination = { _ in
+        Task {
+          try? await subWs.send(.string("\"StopSubscription\""))
+          subWs.cancel(with: .goingAway, reason: nil)
+        }
+      }
+
+      Task.detached {
+        while true {
+          do {
+            let msg = try await subWs.receive()
+            let msgData: Data
+            switch msg {
+            case .string(let s): msgData = s.data(using: .utf8) ?? Data()
+            case .data(let d): msgData = d
+            @unknown default: continue
+            }
+
+            guard
+              let dict = try? JSONSerialization.jsonObject(with: msgData) as? [String: Any],
+              let event = dict["StateEvent"] as? [String: Any],
+              let value = event["value"] as? [String: Any],
+              let state = value["state"] as? String
+            else { continue }
+
+            let stopReason = value["stop_reason"] as? String
+            continuation.yield(StateUpdate(state: state, stopReason: stopReason))
+          } catch {
+            let nsError = error as NSError
+            if nsError.code != -999 && nsError.code != 57 {
+              print("[DSPEngine] State subscription ended: \(error)")
+            }
+            continuation.finish()
+            return
+          }
+        }
+      }
     }
   }
 }

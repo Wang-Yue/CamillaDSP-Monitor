@@ -32,16 +32,19 @@ func findCoreAudioDeviceID(name: String) -> AudioDeviceID? {
   return nil
 }
 
-final class CoreAudioTap {
+/// Actor-isolated audio tap. Methods run on a background executor, so synchronous
+/// CoreAudio calls (removeTap, engine.stop, engine.start) that can block for seconds
+/// during exclusive/hog mode device transitions never freeze the main thread.
+actor CoreAudioTap {
   private let engine = AVAudioEngine()
-  private let onAudio: ([Float]) -> Void
+  private let onAudio: @Sendable ([Float]) -> Void
 
-  init(onAudio: @escaping ([Float]) -> Void) {
+  init(onAudio: @escaping @Sendable ([Float]) -> Void) {
     self.onAudio = onAudio
   }
 
   func start(deviceName: String?) {
-    stop()
+    stopSync()
 
     let inputNode = engine.inputNode
 
@@ -65,8 +68,9 @@ final class CoreAudioTap {
       return
     }
 
-    inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
-      guard let self = self else { return }
+    // Capture onAudio in a local so the tap callback doesn't need actor isolation.
+    let callback = self.onAudio
+    inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { buffer, _ in
       let frameCount = Int(buffer.frameLength)
       guard frameCount > 0, let channels = buffer.floatChannelData else { return }
 
@@ -80,18 +84,31 @@ final class CoreAudioTap {
       } else {
         memcpy(&mono, left, frameCount * MemoryLayout<Float>.size)
       }
-      self.onAudio(mono)
+      callback(mono)
     }
 
-    do {
-      try engine.start()
-    } catch {
-      print("[Tap] AVAudioEngine failed to start: \(error)")
-      inputNode.removeTap(onBus: 0)
+    // Retry engine.start() — during device transitions with hog mode,
+    // CoreAudio may reject start requests for several seconds.
+    for attempt in 1...5 {
+      do {
+        try engine.start()
+        return
+      } catch {
+        print("[Tap] AVAudioEngine start attempt \(attempt)/5 failed: \(error)")
+        if attempt < 5 {
+          Thread.sleep(forTimeInterval: 1.0)
+        }
+      }
     }
+    print("[Tap] AVAudioEngine failed to start after 5 attempts, giving up")
+    inputNode.removeTap(onBus: 0)
   }
 
   func stop() {
+    stopSync()
+  }
+
+  private func stopSync() {
     engine.inputNode.removeTap(onBus: 0)
     if engine.isRunning {
       engine.stop()

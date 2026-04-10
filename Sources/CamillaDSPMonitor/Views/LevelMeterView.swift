@@ -2,11 +2,6 @@
 
 import SwiftUI
 
-/// Normalize a dB value (-60..0) to 0..1 range for meter display.
-func normalizedDB(_ db: Double) -> Double {
-  max(0, min(1, (db + 60) / 60))
-}
-
 // MARK: - Dual Peak/RMS Level Meter
 
 struct DualLevelMeterView: View {
@@ -14,7 +9,7 @@ struct DualLevelMeterView: View {
   let peak: Double  // dB
   let rms: Double  // dB
 
-  private let meterGradient = Gradient(stops: [
+  private static let meterGradient = Gradient(stops: [
     .init(color: .green, location: 0.0),
     .init(color: .green, location: 0.35),
     .init(color: .yellow, location: 0.55),
@@ -44,7 +39,7 @@ struct DualLevelMeterView: View {
 
         // SHARED SHADING: This defines the absolute color mapping for the entire canvas.
         let unifiedShading = GraphicsContext.Shading.linearGradient(
-          meterGradient,
+          Self.meterGradient,
           startPoint: .zero,
           endPoint: CGPoint(x: w, y: 0)
         )
@@ -99,8 +94,7 @@ struct DualLevelMeterView: View {
 // MARK: - Compact Level Meter Bar
 
 struct CompactLevelMeterBar: View {
-  @EnvironmentObject var meters: MeterState
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var levels: LevelState
 
   var body: some View {
     HStack(spacing: 16) {
@@ -108,30 +102,42 @@ struct CompactLevelMeterBar: View {
         Image(systemName: "mic")
           .font(.caption2)
           .foregroundStyle(.secondary)
-        CompactMeterBar(level: meters.capturePeak.left)
-        CompactMeterBar(level: meters.capturePeak.right)
+        CompactMeterBar(level: levels.capturePeak.left)
+        CompactMeterBar(level: levels.capturePeak.right)
       }
 
       HStack(spacing: 6) {
         Image(systemName: "hifispeaker")
           .font(.caption2)
           .foregroundStyle(.secondary)
-        CompactMeterBar(level: meters.playbackPeak.left)
-        CompactMeterBar(level: meters.playbackPeak.right)
+        CompactMeterBar(level: levels.playbackPeak.left)
+        CompactMeterBar(level: levels.playbackPeak.right)
       }
 
       Spacer()
 
-      HStack(spacing: 6) {
-        Circle()
-          .fill(statusColor)
-          .frame(width: 8, height: 8)
-        Text(statusLabel)
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-      }
-      .help(appState.lastError ?? "")
+      // Status indicator is a separate view so it only redraws when appState
+      // changes, not on every 10 Hz meter update.
+      CompactStatusIndicator()
     }
+  }
+}
+
+/// Separated from CompactLevelMeterBar so meter bar redraws (driven by MeterState
+/// at 10 Hz) don't also re-evaluate the status indicator (driven by AppState).
+private struct CompactStatusIndicator: View {
+  @EnvironmentObject var appState: AppState
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Circle()
+        .fill(statusColor)
+        .frame(width: 8, height: 8)
+      Text(statusLabel)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .help(appState.lastError ?? "")
   }
 
   private var statusColor: Color {

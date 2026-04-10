@@ -21,7 +21,6 @@ struct EQPresetDetailView: View {
   @EnvironmentObject var appState: AppState
   @State private var editMode: EQEditMode = .diagram
   @State private var selectedBandID: UUID?
-  @State private var lastApplyTime: Date = .distantPast
 
   var body: some View {
     VStack(spacing: 0) {
@@ -52,12 +51,11 @@ struct EQPresetDetailView: View {
     }
     .background(Color(nsColor: .controlBackgroundColor))
     .onChange(of: preset.bands.count) { _, _ in appState.saveEQPresets() }
-    .onReceive(preset.objectWillChange) { _ in
-      let now = Date()
-      if now.timeIntervalSince(lastApplyTime) >= 0.2 {
-        lastApplyTime = now
-        appState.applyConfig()
-      }
+    .onReceive(
+      preset.objectWillChange
+        .debounce(for: .seconds(0.2), scheduler: RunLoop.main)
+    ) { _ in
+      appState.applyConfig()
     }
   }
 }

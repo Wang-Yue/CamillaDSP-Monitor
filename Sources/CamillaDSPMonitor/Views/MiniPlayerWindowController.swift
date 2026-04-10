@@ -29,7 +29,8 @@ final class MiniPlayerWindowController {
     // Create the SwiftUI content
     let miniView = MiniPlayerView()
       .environmentObject(appState)
-      .environmentObject(appState.meters)
+      .environmentObject(appState.levels)
+      .environmentObject(appState.spectrum)
 
     let hostingView = NSHostingView(rootView: miniView)
     hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: 90)

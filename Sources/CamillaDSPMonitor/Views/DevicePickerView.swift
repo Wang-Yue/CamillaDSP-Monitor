@@ -3,12 +3,6 @@
 import CamillaDSPLib
 import SwiftUI
 
-func formatRate(_ rate: Int) -> String {
-  let formatter = NumberFormatter()
-  formatter.numberStyle = .decimal
-  return (formatter.string(from: NSNumber(value: rate)) ?? "\(rate)") + " Hz"
-}
-
 struct DevicePickerView: View {
   @EnvironmentObject var appState: AppState
   @State private var showRestartAlert = false
@@ -53,42 +47,41 @@ struct DevicePickerView: View {
           iconColor: .blue,
           devices: appState.captureDevices,
           selectedDevice: $appState.selectedCaptureDevice,
-          channels: $appState.captureChannels,
-          extraContent: AnyView(
-            VStack(alignment: .leading, spacing: 8) {
-              HStack {
-                Text("Sample Rate")
-                  .frame(width: 100, alignment: .leading)
-                if appState.resamplerEnabled {
-                  Picker("", selection: $appState.captureSampleRate) {
-                    ForEach(appState.captureSupportedRates, id: \.self) { rate in
-                      Text(formatRate(rate)).tag(rate)
-                    }
+          channels: $appState.captureChannels
+        ) {
+          VStack(alignment: .leading, spacing: 8) {
+            HStack {
+              Text("Sample Rate")
+                .frame(width: 100, alignment: .leading)
+              if appState.resamplerEnabled {
+                Picker("", selection: $appState.captureSampleRate) {
+                  ForEach(appState.captureSupportedRates, id: \.self) { rate in
+                    Text(formatRate(rate)).tag(rate)
                   }
-                  .labelsHidden()
-                } else {
-                  Text(formatRate(appState.captureSampleRate))
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.secondary)
                 }
-              }
-
-              HStack {
-                Text("Format")
-                  .frame(width: 100, alignment: .leading)
-                Text(appState.captureFormat)
+                .labelsHidden()
+              } else {
+                Text(formatRate(appState.captureSampleRate))
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               }
-
-              if !appState.resamplerEnabled {
-                Text("Follows the playback sample rate (enable Resampler for independent rates)")
-                  .font(.caption)
-                  .foregroundStyle(.tertiary)
-              }
             }
-          )
-        )
+
+            HStack {
+              Text("Format")
+                .frame(width: 100, alignment: .leading)
+              Text(appState.captureFormat)
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.secondary)
+            }
+
+            if !appState.resamplerEnabled {
+              Text("Follows the playback sample rate (enable Resampler for independent rates)")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            }
+          }
+        }
 
         // Playback device
         DeviceSection(
@@ -97,40 +90,39 @@ struct DevicePickerView: View {
           iconColor: .green,
           devices: appState.playbackDevices,
           selectedDevice: $appState.selectedPlaybackDevice,
-          channels: $appState.playbackChannels,
-          extraContent: AnyView(
-            VStack(alignment: .leading, spacing: 8) {
-              HStack {
-                Text("Sample Rate")
-                  .frame(width: 100, alignment: .leading)
-                Picker(
-                  "",
-                  selection: $appState.playbackSampleRate
-                ) {
-                  ForEach(appState.combinedSupportedRates, id: \.self) { rate in
-                    Text(formatRate(rate)).tag(rate)
-                  }
+          channels: $appState.playbackChannels
+        ) {
+          VStack(alignment: .leading, spacing: 8) {
+            HStack {
+              Text("Sample Rate")
+                .frame(width: 100, alignment: .leading)
+              Picker(
+                "",
+                selection: $appState.playbackSampleRate
+              ) {
+                ForEach(appState.combinedSupportedRates, id: \.self) { rate in
+                  Text(formatRate(rate)).tag(rate)
                 }
-                .labelsHidden()
               }
-
-              HStack {
-                Text("Format")
-                  .frame(width: 100, alignment: .leading)
-                Text(appState.playbackFormat)
-                  .font(.system(.body, design: .monospaced))
-                  .foregroundStyle(.secondary)
-              }
-
-              Toggle("Exclusive Mode (Hog)", isOn: $appState.exclusiveMode)
-              Text(
-                "Takes exclusive access to the output device, preventing other apps from using it"
-              )
-              .font(.caption)
-              .foregroundStyle(.secondary)
+              .labelsHidden()
             }
-          )
-        )
+
+            HStack {
+              Text("Format")
+                .frame(width: 100, alignment: .leading)
+              Text(appState.playbackFormat)
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.secondary)
+            }
+
+            Toggle("Exclusive Mode (Hog)", isOn: $appState.exclusiveMode)
+            Text(
+              "Takes exclusive access to the output device, preventing other apps from using it"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          }
+        }
 
         // Processing settings
         GroupBox {
@@ -195,14 +187,28 @@ struct DevicePickerView: View {
 
 // MARK: - Device Section
 
-struct DeviceSection: View {
+struct DeviceSection<ExtraContent: View>: View {
   let title: String
   let icon: String
   let iconColor: Color
   let devices: [AudioDevice]
   @Binding var selectedDevice: String?
   @Binding var channels: Int
-  var extraContent: AnyView? = nil
+  let extraContent: ExtraContent
+
+  init(
+    title: String, icon: String, iconColor: Color, devices: [AudioDevice],
+    selectedDevice: Binding<String?>, channels: Binding<Int>,
+    @ViewBuilder extraContent: () -> ExtraContent
+  ) {
+    self.title = title
+    self.icon = icon
+    self.iconColor = iconColor
+    self.devices = devices
+    self._selectedDevice = selectedDevice
+    self._channels = channels
+    self.extraContent = extraContent()
+  }
 
   var body: some View {
     GroupBox {
@@ -245,9 +251,7 @@ struct DeviceSection: View {
             .frame(width: 120)
         }
 
-        if let extra = extraContent {
-          extra
-        }
+        extraContent
       }
       .padding(4)
       .frame(maxWidth: .infinity, alignment: .leading)

@@ -16,7 +16,11 @@ struct ContentView: View {
               MiniPlayerWindowController.shared.showMiniPlayer(appState: appState)
             } label: {
               Image(systemName: "pip")
+                .imageScale(.large)
+                .fontWeight(.medium)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.borderless)
             .help("Mini Player")
           }
         }
@@ -93,7 +97,7 @@ struct ToolbarView: ToolbarContent {
         .foregroundStyle(.secondary)
 
       // Observed wrapper to ensure updates
-      CPUUsageView(meters: appState.meters)
+      CPUUsageView(load: appState.load)
 
       VolumeControlView()
     }
@@ -101,11 +105,11 @@ struct ToolbarView: ToolbarContent {
 }
 
 struct CPUUsageView: View {
-  @ObservedObject var meters: MeterState
+  @ObservedObject var load: LoadState
   var body: some View {
-    Text(String(format: "%.0f%%", meters.processingLoad))
+    Text(String(format: "%.0f%%", load.processingLoad))
       .font(.system(.caption, design: .monospaced))
-      .foregroundStyle(meters.processingLoad > 80 ? .red : .secondary)
+      .foregroundStyle(load.processingLoad > 80 ? .red : .secondary)
   }
 }
 

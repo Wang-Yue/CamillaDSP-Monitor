@@ -128,6 +128,9 @@ struct EQFrequencyResponseView: View {
         combinedCurve(w: w, h: h).stroke(Color.accentColor, lineWidth: 2.5)
         ForEach(preset.bands) { band in bandHandle(band: band, w: w, h: h) }
       }
+      .onTapGesture {
+        selectedBandID = nil
+      }
       .onScrollGesture { delta in
         adjustSelectedBandQ(delta: delta)
       }
