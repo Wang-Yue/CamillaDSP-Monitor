@@ -102,11 +102,21 @@ extension AppState {
         let newRate = Int(rate)
         Task { @MainActor in
           guard let self = weakSelf.value else { return }
-          print("[AppState] Hardware sample rate changed to \(newRate) Hz")
+          let label = isCapture ? "capture" : "playback"
+          let currentRate = isCapture ? self.captureSampleRate : self.playbackSampleRate
+          guard newRate != currentRate else { return }
+
+          let supportedRates = isCapture ? self.captureSupportedRates : self.playbackSupportedRates
+          guard supportedRates.isEmpty || supportedRates.contains(newRate) else {
+            print("[AppState] Ignoring unsupported \(label) rate \(newRate) Hz")
+            return
+          }
+
+          print("[AppState] Hardware \(label) sample rate changed to \(newRate) Hz")
           if isCapture {
-            if self.captureSampleRate != newRate { self.captureSampleRate = newRate }
+            self.captureSampleRate = newRate
           } else {
-            if self.playbackSampleRate != newRate { self.playbackSampleRate = newRate }
+            self.playbackSampleRate = newRate
           }
         }
       }
@@ -135,81 +145,12 @@ extension AppState {
     return true
   }
 
-  func updateDetectedFormats() {
-    if let captureName = selectedCaptureDevice, let id = findCoreAudioDeviceID(name: captureName) {
-      captureFormat = getCoreAudioDeviceFormat(deviceID: id, isCapture: true)
-      print("[AppState] Detected capture format for \(captureName): \(captureFormat)")
-    }
-    if let playbackName = selectedPlaybackDevice, let id = findCoreAudioDeviceID(name: playbackName)
-    {
-      playbackFormat = getCoreAudioDeviceFormat(deviceID: id, isCapture: false)
-      print("[AppState] Detected playback format for \(playbackName): \(playbackFormat)")
-    }
-  }
-
-  private func getCoreAudioDeviceFormat(deviceID: AudioDeviceID, isCapture: Bool) -> String {
-    // 1. Try to get streams for the device
-    var streamsAddr = AudioObjectPropertyAddress(
-      mSelector: kAudioDevicePropertyStreams,
-      mScope: isCapture ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
-      mElement: kAudioObjectPropertyElementMain)
-
-    var streamsSize: UInt32 = 0
-    AudioObjectGetPropertyDataSize(deviceID, &streamsAddr, 0, nil, &streamsSize)
-    let streamCount = Int(streamsSize) / MemoryLayout<AudioStreamID>.size
-
-    var asbd = AudioStreamBasicDescription()
-    var asbdSize = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
-    var found = false
-
-    if streamCount > 0 {
-      var streams = [AudioStreamID](repeating: 0, count: streamCount)
-      let status = AudioObjectGetPropertyData(
-        deviceID, &streamsAddr, 0, nil, &streamsSize, &streams)
-      if status == noErr {
-        // Query the Physical Format of the first stream
-        var physicalAddr = AudioObjectPropertyAddress(
-          mSelector: kAudioStreamPropertyPhysicalFormat,
-          mScope: kAudioObjectPropertyScopeGlobal,
-          mElement: kAudioObjectPropertyElementMain)
-
-        let pStatus = AudioObjectGetPropertyData(
-          streams[0], &physicalAddr, 0, nil, &asbdSize, &asbd)
-        if pStatus == noErr {
-          found = true
-        }
-      }
-    }
-
-    // 2. Fallback to device stream format if stream query failed
-    if !found {
-      var addr = AudioObjectPropertyAddress(
-        mSelector: kAudioDevicePropertyStreamFormat,
-        mScope: isCapture ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
-        mElement: kAudioObjectPropertyElementMain)
-      let status = AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &asbdSize, &asbd)
-      if status != noErr { return "F32" }
-    }
-
-    let isFloat = (asbd.mFormatFlags & kAudioFormatFlagIsFloat) != 0
-    let bitDepth = asbd.mBitsPerChannel
-
-    if isFloat {
-      return bitDepth == 64 ? "F64" : "F32"
-    } else {
-      if bitDepth == 16 { return "S16" }
-      if bitDepth == 24 { return "S24" }
-      if bitDepth == 32 { return "S32" }
-    }
-
-    return "F32"
-  }
 }
 
 extension AppState {
   func refreshSupportedRates() {
     if let captureName = selectedCaptureDevice, let id = findCoreAudioDeviceID(name: captureName) {
-      captureSupportedRates = getSupportedSampleRates(deviceID: id)
+      captureSupportedRates = getSupportedSampleRates(deviceID: id, isCapture: true)
       print("[AppState] Supported capture rates for \(captureName): \(captureSupportedRates)")
     } else {
       captureSupportedRates = []
@@ -217,17 +158,45 @@ extension AppState {
 
     if let playbackName = selectedPlaybackDevice, let id = findCoreAudioDeviceID(name: playbackName)
     {
-      playbackSupportedRates = getSupportedSampleRates(deviceID: id)
+      playbackSupportedRates = getSupportedSampleRates(deviceID: id, isCapture: false)
       print("[AppState] Supported playback rates for \(playbackName): \(playbackSupportedRates)")
     } else {
       playbackSupportedRates = []
     }
   }
 
-  private func getSupportedSampleRates(deviceID: AudioDeviceID) -> [Int] {
+  func refreshSupportedFormats() {
+    if let captureName = selectedCaptureDevice, let id = findCoreAudioDeviceID(name: captureName) {
+      captureFormat = getBestFormat(deviceID: id, isCapture: true, atRate: captureSampleRate)
+      print("[AppState] Best capture format at \(captureSampleRate) Hz for \(captureName): \(captureFormat)")
+    }
+
+    if let playbackName = selectedPlaybackDevice, let id = findCoreAudioDeviceID(name: playbackName)
+    {
+      playbackFormat = getBestFormat(deviceID: id, isCapture: false, atRate: playbackSampleRate)
+      print("[AppState] Best playback format at \(playbackSampleRate) Hz for \(playbackName): \(playbackFormat)")
+    }
+  }
+
+  private func getSupportedSampleRates(deviceID: AudioDeviceID, isCapture: Bool) -> [Int] {
+    let scope =
+      isCapture ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput
+
+    // First try per-direction scope for devices that report different rates per direction
+    var rates = querySampleRates(deviceID: deviceID, scope: scope)
+
+    // Fallback to global scope if per-direction returns nothing (some devices only report globally)
+    if rates.isEmpty {
+      rates = querySampleRates(deviceID: deviceID, scope: kAudioObjectPropertyScopeGlobal)
+    }
+
+    return rates
+  }
+
+  private func querySampleRates(deviceID: AudioDeviceID, scope: AudioObjectPropertyScope) -> [Int] {
     var addr = AudioObjectPropertyAddress(
       mSelector: kAudioDevicePropertyAvailableNominalSampleRates,
-      mScope: kAudioObjectPropertyScopeGlobal,
+      mScope: scope,
       mElement: kAudioObjectPropertyElementMain)
 
     var size: UInt32 = 0
@@ -240,7 +209,6 @@ extension AppState {
 
     if dataStatus != noErr { return [] }
 
-    // Extract unique discrete sample rates
     var rates = Set<Int>()
     for range in ranges {
       rates.insert(Int(range.mMinimum))
@@ -250,5 +218,81 @@ extension AppState {
     }
 
     return rates.sorted()
+  }
+
+  private func getBestFormat(deviceID: AudioDeviceID, isCapture: Bool, atRate: Int) -> String {
+    let scope =
+      isCapture ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput
+
+    var streamsAddr = AudioObjectPropertyAddress(
+      mSelector: kAudioDevicePropertyStreams,
+      mScope: scope,
+      mElement: kAudioObjectPropertyElementMain)
+
+    var streamsSize: UInt32 = 0
+    AudioObjectGetPropertyDataSize(deviceID, &streamsAddr, 0, nil, &streamsSize)
+    let streamCount = Int(streamsSize) / MemoryLayout<AudioStreamID>.size
+    guard streamCount > 0 else { return "F32" }
+
+    var streams = [AudioStreamID](repeating: 0, count: streamCount)
+    let status = AudioObjectGetPropertyData(
+      deviceID, &streamsAddr, 0, nil, &streamsSize, &streams)
+    guard status == noErr else { return "F32" }
+
+    var formatsAddr = AudioObjectPropertyAddress(
+      mSelector: kAudioStreamPropertyAvailablePhysicalFormats,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain)
+
+    var formatsSize: UInt32 = 0
+    AudioObjectGetPropertyDataSize(streams[0], &formatsAddr, 0, nil, &formatsSize)
+    let formatCount = Int(formatsSize) / MemoryLayout<AudioStreamRangedDescription>.size
+    guard formatCount > 0 else { return "F32" }
+
+    var rangedDescs = [AudioStreamRangedDescription](
+      repeating: AudioStreamRangedDescription(), count: formatCount)
+    let fStatus = AudioObjectGetPropertyData(
+      streams[0], &formatsAddr, 0, nil, &formatsSize, &rangedDescs)
+    guard fStatus == noErr else { return "F32" }
+
+    // Find the highest bit-depth format available at the requested sample rate
+    let targetRate = Float64(atRate)
+    var bestBits: UInt32 = 0
+    var bestIsFloat = false
+    var bestLabel = "F32"
+
+    for desc in rangedDescs {
+      let range = desc.mSampleRateRange
+      guard targetRate >= range.mMinimum && targetRate <= range.mMaximum else { continue }
+
+      let asbd = desc.mFormat
+      guard asbd.mFormatID == kAudioFormatLinearPCM else { continue }
+
+      let isFloat = (asbd.mFormatFlags & kAudioFormatFlagIsFloat) != 0
+      let bits = asbd.mBitsPerChannel
+
+      // Prefer higher bit depth; among equal bit depths prefer integer over float
+      if bits > bestBits || (bits == bestBits && !isFloat && bestIsFloat) {
+        bestBits = bits
+        bestIsFloat = isFloat
+        bestLabel = formatLabel(asbd: asbd)
+      }
+    }
+
+    return bestLabel
+  }
+
+  private func formatLabel(asbd: AudioStreamBasicDescription) -> String {
+    let isFloat = (asbd.mFormatFlags & kAudioFormatFlagIsFloat) != 0
+    let bitDepth = asbd.mBitsPerChannel
+
+    if isFloat {
+      return bitDepth == 64 ? "F64" : "F32"
+    } else {
+      if bitDepth == 16 { return "S16" }
+      if bitDepth == 24 { return "S24" }
+      if bitDepth == 32 { return "S32" }
+    }
+    return "F32"
   }
 }

@@ -60,13 +60,22 @@ final class AppState: ObservableObject {
   @Published var captureSupportedRates: [Int] = []
   @Published var playbackSupportedRates: [Int] = []
 
-  var combinedSupportedRates: [Int] {
+  var captureRateOptions: [Int] {
+    if resamplerEnabled {
+      return captureSupportedRates
+    } else {
+      if captureSupportedRates.isEmpty { return playbackSupportedRates }
+      if playbackSupportedRates.isEmpty { return captureSupportedRates }
+      let common = Set(captureSupportedRates).intersection(Set(playbackSupportedRates)).sorted()
+      return common.isEmpty ? playbackSupportedRates : common
+    }
+  }
+
+  var playbackRateOptions: [Int] {
     if resamplerEnabled {
       return playbackSupportedRates
     } else {
-      let capSet = Set(captureSupportedRates)
-      let pbSet = Set(playbackSupportedRates)
-      return capSet.intersection(pbSet).sorted()
+      return captureRateOptions
     }
   }
 
@@ -74,7 +83,8 @@ final class AppState: ObservableObject {
     didSet {
       defaults.set(selectedCaptureDevice, forKey: Keys.captureDevice)
       self.refreshSupportedRates()
-      self.updateDetectedFormats()
+      self.validateSampleRates()
+      self.refreshSupportedFormats()
       if !isLoadingPreferences { startSampleRateListeners() }
       applyConfig()
     }
@@ -83,7 +93,8 @@ final class AppState: ObservableObject {
     didSet {
       defaults.set(selectedPlaybackDevice, forKey: Keys.playbackDevice)
       self.refreshSupportedRates()
-      self.updateDetectedFormats()
+      self.validateSampleRates()
+      self.refreshSupportedFormats()
       if !isLoadingPreferences { startSampleRateListeners() }
       applyConfig()
     }
@@ -110,13 +121,19 @@ final class AppState: ObservableObject {
   @Published var captureSampleRate: Int = 48000 {
     didSet {
       defaults.set(captureSampleRate, forKey: Keys.captureSampleRate)
+      if !isLoadingPreferences {
+        refreshSupportedFormats()
+      }
       applyConfig()
     }
   }
   @Published var playbackSampleRate: Int = 48000 {
     didSet {
       defaults.set(playbackSampleRate, forKey: Keys.playbackSampleRate)
-      syncCaptureRateIfNeeded()
+      if !isLoadingPreferences {
+        syncCaptureRateIfNeeded()
+        refreshSupportedFormats()
+      }
       applyConfig()
     }
   }
@@ -147,7 +164,8 @@ final class AppState: ObservableObject {
   @Published var resamplerEnabled: Bool = false {
     didSet {
       defaults.set(resamplerEnabled, forKey: Keys.resamplerEnabled)
-      syncCaptureRateIfNeeded()
+      validateSampleRates()
+      refreshSupportedFormats()
       applyConfig()
     }
   }
@@ -268,11 +286,36 @@ final class AppState: ObservableObject {
         try await engine.connect(binaryPath: camillaDSPPath)
         await fetchDevices()
         self.refreshSupportedRates()
-        self.updateDetectedFormats()
+        self.validateSampleRates()
+        self.refreshSupportedFormats()
       } catch {
         print("[AppState] Initial connection failed: \(error)")
       }
     }
+  }
+
+  func validateSampleRates() {
+    guard !isLoadingPreferences else { return }
+    let pbOptions = playbackRateOptions
+    if !pbOptions.isEmpty && !pbOptions.contains(playbackSampleRate) {
+      playbackSampleRate = Self.bestRate(from: pbOptions, preferring: playbackSampleRate)
+    }
+    let capOptions = captureRateOptions
+    if !capOptions.isEmpty && !capOptions.contains(captureSampleRate) {
+      captureSampleRate = Self.bestRate(from: capOptions, preferring: captureSampleRate)
+    }
+    if !resamplerEnabled && captureSampleRate != playbackSampleRate {
+      captureSampleRate = playbackSampleRate
+    }
+  }
+
+  private static func bestRate(from rates: [Int], preferring current: Int) -> Int {
+    if rates.contains(current) { return current }
+    // Prefer common audiophile rates, then nearest
+    for preferred in [48000, 44100, 96000, 192000] {
+      if rates.contains(preferred) { return preferred }
+    }
+    return rates.min(by: { abs($0 - current) < abs($1 - current) }) ?? 48000
   }
 
   private func syncCaptureRateIfNeeded() {

@@ -55,7 +55,7 @@ struct DevicePickerView: View {
                 .frame(width: 100, alignment: .leading)
               if appState.resamplerEnabled {
                 Picker("", selection: $appState.captureSampleRate) {
-                  ForEach(appState.captureSupportedRates, id: \.self) { rate in
+                  ForEach(appState.captureRateOptions, id: \.self) { rate in
                     Text(formatRate(rate)).tag(rate)
                   }
                 }
@@ -100,7 +100,7 @@ struct DevicePickerView: View {
                 "",
                 selection: $appState.playbackSampleRate
               ) {
-                ForEach(appState.combinedSupportedRates, id: \.self) { rate in
+                ForEach(appState.playbackRateOptions, id: \.self) { rate in
                   Text(formatRate(rate)).tag(rate)
                 }
               }
