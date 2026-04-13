@@ -76,24 +76,25 @@ extension PipelineStage {
       let w = widthAmount
       let ll = (1.0 + w) / 2.0
       let lr = (1.0 - w) / 2.0
-      let llDB = ll > 0 ? 20.0 * log10(ll) : -100.0
-      let lrDB = abs(lr) > 0 ? 20.0 * log10(abs(lr)) : -100.0
+      let threshold = 1e-6
+
+      func makeSources(ch0: Double, ch1: Double) -> [[String: Any]] {
+        var sources: [[String: Any]] = []
+        if abs(ch0) > threshold {
+          sources.append(["channel": 0, "gain": 20.0 * log10(abs(ch0)), "inverted": ch0 < 0])
+        }
+        if abs(ch1) > threshold {
+          sources.append(["channel": 1, "gain": 20.0 * log10(abs(ch1)), "inverted": ch1 < 0])
+        }
+        return sources
+      }
+
       return [
         "width": [
           "channels": ["in": 2, "out": 2],
           "mapping": [
-            [
-              "dest": 0,
-              "sources": [
-                ["channel": 0, "gain": llDB], ["channel": 1, "gain": lrDB, "inverted": lr < 0],
-              ],
-            ],
-            [
-              "dest": 1,
-              "sources": [
-                ["channel": 0, "gain": lrDB, "inverted": lr < 0], ["channel": 1, "gain": llDB],
-              ],
-            ],
+            ["dest": 0, "sources": makeSources(ch0: ll, ch1: lr)],
+            ["dest": 1, "sources": makeSources(ch0: lr, ch1: ll)],
           ],
         ]
       ]
