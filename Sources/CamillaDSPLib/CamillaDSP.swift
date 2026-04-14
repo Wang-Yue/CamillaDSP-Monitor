@@ -53,6 +53,52 @@ public struct AudioDevice: Identifiable, Sendable {
   public let name: String
 }
 
+// MARK: - Device Capabilities (from GetCaptureDeviceCapabilities / GetPlaybackDeviceCapabilities)
+
+public struct SamplerateCapability: Codable, Sendable {
+  public let samplerate: Int
+  public let formats: [String]
+}
+
+public struct ChannelCapability: Codable, Sendable {
+  public let channels: Int
+  public let samplerates: [SamplerateCapability]
+}
+
+public struct AudioDeviceDescriptor: Codable, Sendable {
+  public let name: String
+  public let description: String
+  public let capabilities: [ChannelCapability]
+
+  /// Supported sample rates for a given channel count.
+  /// Falls back to the union across all channel counts if the count is not found.
+  public func sampleRates(forChannels channels: Int) -> [Int] {
+    let cap = capabilities.first(where: { $0.channels == channels }) ?? capabilities.first
+    let rates: [Int]
+    if let cap = cap {
+      rates = cap.samplerates.map(\.samplerate)
+    } else {
+      rates = capabilities.flatMap { $0.samplerates.map(\.samplerate) }
+    }
+    return Set(rates).sorted()
+  }
+
+  /// Available sample formats for a given channel count and sample rate, sorted best-first.
+  /// Preference order: S32 > S24 > S16 > F32 > F64.
+  public func availableFormats(channels: Int, sampleRate: Int) -> [String] {
+    let cap = capabilities.first(where: { $0.channels == channels }) ?? capabilities.first
+    let formats = cap?.samplerates.first(where: { $0.samplerate == sampleRate })?.formats ?? []
+    return formats.sorted { (Self.formatPriority[$0] ?? -1) > (Self.formatPriority[$1] ?? -1) }
+  }
+
+  /// Best sample format for a given channel count and sample rate.
+  public func bestFormat(channels: Int, sampleRate: Int) -> String {
+    availableFormats(channels: channels, sampleRate: sampleRate).first ?? "F32"
+  }
+
+  private static let formatPriority: [String: Int] = ["S32": 4, "S24": 3, "S16": 2, "F32": 1, "F64": 0]
+}
+
 public actor DSPEngine {
   private let url: URL
   private var webSocket: URLSessionWebSocketTask?
@@ -360,6 +406,24 @@ public actor DSPEngine {
       return value.map { AudioDevice(name: $0[0]) }
     } catch {
       return []
+    }
+  }
+
+  /// Fetches the sample rates and formats supported by a specific device via
+  /// GetCaptureDeviceCapabilities / GetPlaybackDeviceCapabilities.
+  public func getDeviceCapabilities(
+    backend: String, device: String, isCapture: Bool
+  ) async -> AudioDeviceDescriptor? {
+    let cmd = isCapture ? "GetCaptureDeviceCapabilities" : "GetPlaybackDeviceCapabilities"
+    let params: [any Sendable] = [backend, device]
+    do {
+      guard let valueDict: [String: any Sendable] = try await sendCommand(cmd, value: params)
+      else { return nil }
+      let data = try JSONSerialization.data(withJSONObject: valueDict)
+      return try JSONDecoder().decode(AudioDeviceDescriptor.self, from: data)
+    } catch {
+      print("[DSPEngine] \(cmd) failed: \(error)")
+      return nil
     }
   }
 

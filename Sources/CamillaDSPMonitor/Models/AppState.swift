@@ -2,7 +2,6 @@
 
 import CamillaDSPLib
 import Combine
-import CoreAudio
 import SwiftUI
 
 public enum ResamplerType: String, Codable, Sendable, CaseIterable, Identifiable {
@@ -82,32 +81,40 @@ final class AppState: ObservableObject {
   @Published var selectedCaptureDevice: String? = nil {
     didSet {
       defaults.set(selectedCaptureDevice, forKey: Keys.captureDevice)
-      self.refreshSupportedRates()
-      self.validateSampleRates()
-      self.refreshSupportedFormats()
-      if !isLoadingPreferences { startSampleRateListeners() }
-      applyConfig()
+      guard !isLoadingPreferences else { return }
+      Task {
+        await refreshDeviceCapabilities()
+        validateSampleRates()
+        applyConfig()
+      }
     }
   }
   @Published var selectedPlaybackDevice: String? = nil {
     didSet {
       defaults.set(selectedPlaybackDevice, forKey: Keys.playbackDevice)
-      self.refreshSupportedRates()
-      self.validateSampleRates()
-      self.refreshSupportedFormats()
-      if !isLoadingPreferences { startSampleRateListeners() }
-      applyConfig()
+      guard !isLoadingPreferences else { return }
+      Task {
+        await refreshDeviceCapabilities()
+        validateSampleRates()
+        applyConfig()
+      }
     }
   }
   @Published var captureChannels: Int = 2 {
     didSet {
       defaults.set(captureChannels, forKey: Keys.captureChannels)
+      refreshRatesFromCapabilities()
+      validateSampleRates()
+      refreshFormatsFromCapabilities()
       applyConfig()
     }
   }
   @Published var playbackChannels: Int = 2 {
     didSet {
       defaults.set(playbackChannels, forKey: Keys.playbackChannels)
+      refreshRatesFromCapabilities()
+      validateSampleRates()
+      refreshFormatsFromCapabilities()
       applyConfig()
     }
   }
@@ -122,7 +129,7 @@ final class AppState: ObservableObject {
     didSet {
       defaults.set(captureSampleRate, forKey: Keys.captureSampleRate)
       if !isLoadingPreferences {
-        refreshSupportedFormats()
+        refreshFormatsFromCapabilities()
       }
       applyConfig()
     }
@@ -132,14 +139,29 @@ final class AppState: ObservableObject {
       defaults.set(playbackSampleRate, forKey: Keys.playbackSampleRate)
       if !isLoadingPreferences {
         syncCaptureRateIfNeeded()
-        refreshSupportedFormats()
+        refreshFormatsFromCapabilities()
       }
       applyConfig()
     }
   }
 
-  @Published var captureFormat: String = "F32"
-  @Published var playbackFormat: String = "F32"
+  @Published var captureSupportedFormats: [String] = []
+  @Published var playbackSupportedFormats: [String] = []
+
+  @Published var captureFormat: String = "F32" {
+    didSet {
+      defaults.set(captureFormat, forKey: Keys.captureFormat)
+      guard !isLoadingPreferences else { return }
+      applyConfig()
+    }
+  }
+  @Published var playbackFormat: String = "F32" {
+    didSet {
+      defaults.set(playbackFormat, forKey: Keys.playbackFormat)
+      guard !isLoadingPreferences else { return }
+      applyConfig()
+    }
+  }
 
   @Published var camillaDSPPath: String = "" {
     didSet {
@@ -165,7 +187,7 @@ final class AppState: ObservableObject {
     didSet {
       defaults.set(resamplerEnabled, forKey: Keys.resamplerEnabled)
       validateSampleRates()
-      refreshSupportedFormats()
+      refreshFormatsFromCapabilities()
       applyConfig()
     }
   }
@@ -225,10 +247,10 @@ final class AppState: ObservableObject {
   /// Reference count of visible spectrum views. FFT is paused when this reaches zero.
   var spectrumViewCount = 0
 
-  var monitoredCaptureDeviceID: AudioDeviceID?
-  var monitoredPlaybackDeviceID: AudioDeviceID?
-  var captureRateListenerBlock: AudioObjectPropertyListenerBlock?
-  var playbackRateListenerBlock: AudioObjectPropertyListenerBlock?
+  /// Cached capabilities for the currently selected devices, used for synchronous
+  /// rate/format derivation when sample rate or channel count changes.
+  var captureCapabilities: AudioDeviceDescriptor?
+  var playbackCapabilities: AudioDeviceDescriptor?
 
   // Recovery Throttling
   var lastRecoveryTime: Date?
@@ -249,6 +271,8 @@ final class AppState: ObservableObject {
     static let resamplerType = "resamplerType"
     static let resamplerProfile = "resamplerProfile"
     static let resamplerInterpolation = "resamplerInterpolation"
+    static let captureFormat = "captureFormat"
+    static let playbackFormat = "playbackFormat"
     static let camillaDSPPath = "camillaDSPPath"
   }
 
@@ -290,9 +314,7 @@ final class AppState: ObservableObject {
 
         try await engine.connect(binaryPath: camillaDSPPath)
         await fetchDevices()
-        self.refreshSupportedRates()
         self.validateSampleRates()
-        self.refreshSupportedFormats()
       } catch {
         print("[AppState] Initial connection failed: \(error)")
       }
@@ -373,6 +395,8 @@ final class AppState: ObservableObject {
     {
       resamplerInterpolation = interpolation
     }
+    if let f = defaults.string(forKey: Keys.captureFormat) { captureFormat = f }
+    if let f = defaults.string(forKey: Keys.playbackFormat) { playbackFormat = f }
     camillaDSPPath = defaults.string(forKey: Keys.camillaDSPPath) ?? ""
   }
 }

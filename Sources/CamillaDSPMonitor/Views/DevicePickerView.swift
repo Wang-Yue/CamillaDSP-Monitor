@@ -70,9 +70,18 @@ struct DevicePickerView: View {
             HStack {
               Text("Format")
                 .frame(width: 100, alignment: .leading)
-              Text(appState.captureFormat)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
+              if appState.captureSupportedFormats.isEmpty {
+                Text(appState.captureFormat)
+                  .font(.system(.body, design: .monospaced))
+                  .foregroundStyle(.secondary)
+              } else {
+                Picker("", selection: $appState.captureFormat) {
+                  ForEach(appState.captureSupportedFormats, id: \.self) { fmt in
+                    Text(fmt).tag(fmt)
+                  }
+                }
+                .labelsHidden()
+              }
             }
 
             if !appState.resamplerEnabled {
@@ -110,9 +119,18 @@ struct DevicePickerView: View {
             HStack {
               Text("Format")
                 .frame(width: 100, alignment: .leading)
-              Text(appState.playbackFormat)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
+              if appState.playbackSupportedFormats.isEmpty {
+                Text(appState.playbackFormat)
+                  .font(.system(.body, design: .monospaced))
+                  .foregroundStyle(.secondary)
+              } else {
+                Picker("", selection: $appState.playbackFormat) {
+                  ForEach(appState.playbackSupportedFormats, id: \.self) { fmt in
+                    Text(fmt).tag(fmt)
+                  }
+                }
+                .labelsHidden()
+              }
             }
 
             Toggle("Exclusive Mode (Hog)", isOn: $appState.exclusiveMode)
