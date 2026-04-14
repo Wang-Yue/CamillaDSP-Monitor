@@ -211,7 +211,6 @@ final class AppState: ObservableObject {
   let analyzerRef = AnalyzerRef()
   var audioTap: CoreAudioTap?
   var lastAppliedConfigYAML: String?
-  var isPollingLevels = false
   var startEngineTask: Task<Void, Never>?
   var spectrumRestartTask: Task<Void, Never>?
   var monitoringTask: Task<Void, Never>?
@@ -226,7 +225,6 @@ final class AppState: ObservableObject {
 
   // Recovery Throttling
   var lastRecoveryTime: Date?
-  var pollCounter: Int = 0
 
   enum Keys {
     static let captureDevice = "captureDevice"

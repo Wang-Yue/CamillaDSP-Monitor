@@ -34,49 +34,30 @@ extension AppState {
     isVuSubscriptionActive = false
     isStateSubscriptionActive = false
 
-    // Try to start VU subscription. Will be managed (started/stopped) by the
-    // polling loop based on whether the app is active.
-    startVuSubscription()
+    // Start VU subscription at the rate appropriate for the current active state.
+    // Rate is adjusted (by restarting the subscription) whenever active state changes.
+    let initiallyActive = NSApp?.isActive ?? true
+    startVuSubscription(maxRate: initiallyActive ? 10.0 : 2.0)
 
     // Try state subscription (server-push) — lightweight, always on
     startStateSubscription()
 
     // Polling loop — adapts based on which subscriptions are active.
-    // When the app goes to background, stops VU subscription to save CPU.
-    // When it comes back to foreground, restarts VU subscription.
+    // VU subscription stays active in both foreground and background; only the
+    // max_rate differs (20 Hz active, 2 Hz background).
     monitoringTask = Task {
       try? await Task.sleep(nanoseconds: 300_000_000)
-      var wasActive = true
+      var wasActive = initiallyActive
       while !Task.isCancelled {
         let isActive = NSApp?.isActive ?? false
 
-        // Manage VU subscription lifecycle based on app active state
-        if isActive && !wasActive && !isVuSubscriptionActive {
-          startVuSubscription()
-        } else if !isActive && wasActive && isVuSubscriptionActive {
-          vuSubscriptionTask?.cancel()
-          vuSubscriptionTask = nil
-          isVuSubscriptionActive = false
-          print("[AppState] VU subscription paused (app inactive)")
+        // Restart VU subscription with the appropriate rate on active-state transitions
+        if isActive != wasActive {
+          startVuSubscription(maxRate: isActive ? 10.0 : 2.0)
+          wasActive = isActive
         }
-        wasActive = isActive
 
-        if status == .running {
-          if isVuSubscriptionActive && isStateSubscriptionActive {
-            await pollLoadOnly()
-          } else if isVuSubscriptionActive {
-            await pollStateAndLoad()
-          } else {
-            await pollLevels()
-          }
-        }
-        if isVuSubscriptionActive {
-          let interval: UInt64 = isActive ? 500_000_000 : 1_000_000_000
-          try? await Task.sleep(nanoseconds: interval)
-        } else {
-          let interval: UInt64 = isActive ? 100_000_000 : 500_000_000
-          try? await Task.sleep(nanoseconds: interval)
-        }
+        try? await Task.sleep(nanoseconds: isActive ? 500_000_000 : 1_000_000_000)
       }
     }
   }
@@ -98,19 +79,19 @@ extension AppState {
     }
   }
 
-  func startVuSubscription() {
+  func startVuSubscription(maxRate: Float = 10.0) {
     vuSubscriptionTask?.cancel()
     vuSubscriptionTask = Task {
       guard
         let stream = await engine.subscribeVuLevels(
-          maxRate: 10.0, attack: 5.0, release: 100.0
+          maxRate: maxRate, attack: 5.0, release: 100.0
         )
       else {
         print("[AppState] VU subscription not available, using polling")
         return
       }
       isVuSubscriptionActive = true
-      print("[AppState] VU subscription started")
+      print("[AppState] VU subscription started (maxRate: \(maxRate))")
       for await vu in stream {
         guard !Task.isCancelled else { break }
         levels.update(
@@ -137,7 +118,6 @@ extension AppState {
     isStateSubscriptionActive = false
     spectrumRestartTask?.cancel()
     spectrumRestartTask = nil
-    isPollingLevels = false
     stopAudioCapture()
     spectrumAnalyzer = nil
   }
@@ -162,91 +142,6 @@ extension AppState {
     // Use applyConfig() instead of applyConfigAsync() so that if status is .error,
     // it takes the startEngine() path for full recovery.
     applyConfig()
-  }
-
-  // MARK: - Polling Variants
-
-  /// Minimal poll: only processing load. Used when both subscriptions are active.
-  private func pollLoadOnly() async {
-    pollCounter += 1
-    if pollCounter % 2 == 0 {
-      let pLoad = await engine.fetchProcessingLoad()
-      load.update(load: Double(pLoad))
-    }
-  }
-
-  /// State + load poll. Used when VU subscription is active but state subscription isn't.
-  private func pollStateAndLoad() async {
-    do {
-      let state: String? = try await engine.sendCommand("GetState")
-
-      if state != "Running" && state != "Starting" && state != "Stalled" {
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        let secondCheck: String? = try? await engine.sendCommand("GetState")
-        if secondCheck == "Running" || secondCheck == "Starting" || secondCheck == "Stalled" {
-          return
-        }
-        let stopReason = await engine.getStopReason() ?? "None"
-        handleStateUpdate(state: state ?? "Unknown", stopReason: stopReason)
-        return
-      }
-
-      pollCounter += 1
-      if pollCounter % 2 == 0 {
-        let pLoad = await engine.fetchProcessingLoad()
-        load.update(load: Double(pLoad))
-      }
-    } catch {
-      if !(await engine.ping()) {
-        status = .error("Connection lost: \(error.localizedDescription)")
-        stopMonitoring()
-      }
-    }
-  }
-
-  /// Full polling. Used when no subscriptions are available.
-  private func pollLevels() async {
-    guard status == .running && !isPollingLevels else { return }
-    isPollingLevels = true
-    defer { isPollingLevels = false }
-
-    do {
-      let state: String? = try await engine.sendCommand("GetState")
-
-      if state != "Running" && state != "Starting" && state != "Stalled" {
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        let secondCheck: String? = try? await engine.sendCommand("GetState")
-        if secondCheck == "Running" || secondCheck == "Starting" || secondCheck == "Stalled" {
-          return
-        }
-        let stopReason = await engine.getStopReason() ?? "None"
-        handleStateUpdate(state: state ?? "Unknown", stopReason: stopReason)
-        return
-      }
-
-      if state == "Starting" { return }
-      pollCounter += 1
-      let includeLoad = pollCounter % 5 == 0
-      guard let sigLevels = await engine.getSignalLevels(includeLoad: includeLoad) else { return }
-
-      levels.update(
-        capturePeak: StereoLevel(from: sigLevels.capture_peak),
-        captureRms: StereoLevel(from: sigLevels.capture_rms),
-        playbackPeak: StereoLevel(from: sigLevels.playback_peak),
-        playbackRms: StereoLevel(from: sigLevels.playback_rms)
-      )
-      let bands = spectrumAnalyzer?.readBands() ?? spectrum.bands
-      spectrum.update(bands: bands)
-      if includeLoad {
-        load.update(load: Double(sigLevels.processing_load ?? 0))
-      }
-
-    } catch {
-      if !(await engine.ping()) {
-        status = .error("Connection lost: \(error.localizedDescription)")
-        stopMonitoring()
-      }
-    }
   }
 
   func startAudioCapture() {
