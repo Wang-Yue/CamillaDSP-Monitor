@@ -23,8 +23,6 @@ enum MiniPlayerMode: Int, CaseIterable {
 // MARK: - Mini Player SwiftUI Content
 
 struct MiniPlayerView: View {
-  @EnvironmentObject var appState: AppState
-  @EnvironmentObject var spectrum: SpectrumState
   @State private var mode: MiniPlayerMode = .spectrum
   @State private var isHovering = false
 
@@ -68,7 +66,7 @@ struct MiniPlayerView: View {
       Group {
         switch mode {
         case .spectrum:
-          MiniSpectrumView(bands: spectrum.bands)
+          MiniSpectrumView()
         case .pipeline:
           MiniPipelineView()
         case .meters:

@@ -2,14 +2,12 @@
 
 import SwiftUI
 
-// MARK: - Dual Peak/RMS Level Meter
+// MARK: - Shared Visual Constants
 
-struct DualLevelMeterView: View {
-  let label: String
-  let peak: Double  // dB
-  let rms: Double  // dB
-
-  private static let meterGradient = Gradient(stops: [
+extension Gradient {
+  /// Standard audio level gradient: green → yellow → orange → red.
+  /// Used identically by level meters and spectrum bars.
+  static let audioLevel = Gradient(stops: [
     .init(color: .green, location: 0.0),
     .init(color: .green, location: 0.35),
     .init(color: .yellow, location: 0.55),
@@ -17,54 +15,91 @@ struct DualLevelMeterView: View {
     .init(color: .red, location: 0.95),
     .init(color: .red, location: 1.0),
   ])
+}
+
+// MARK: - Shared Canvas Helpers
+
+/// Draw spectrum bars into a Canvas context.
+/// - Parameters:
+///   - maxHeight: drawable height (size.height minus any label gutter)
+///   - totalWidth: drawable width (size.width minus any left gutter)
+///   - xOffset: left gutter offset (e.g. 20 for dB label column)
+func drawSpectrumBars(
+  context: inout GraphicsContext,
+  bands: [Double],
+  maxHeight: CGFloat,
+  totalWidth: CGFloat,
+  xOffset: CGFloat = 0,
+  spacing: CGFloat = 2,
+  minBarWidth: CGFloat = 4,
+  minBarHeight: CGFloat = 2,
+  cornerRadius: CGFloat = 2
+) {
+  let count = min(bands.count, 30)
+  guard count > 0 else { return }
+  let totalSpacing = spacing * CGFloat(count - 1)
+  let barWidth = max(minBarWidth, (totalWidth - totalSpacing) / CGFloat(count))
+  for i in 0..<count {
+    let x = xOffset + CGFloat(i) * (barWidth + spacing)
+    let barHeight = max(minBarHeight, maxHeight * normalizedDB(bands[i]))
+    let barRect = CGRect(x: x, y: maxHeight - barHeight, width: barWidth, height: barHeight)
+    context.fill(
+      Path(roundedRect: barRect, cornerRadius: cornerRadius),
+      with: .linearGradient(
+        .audioLevel,
+        startPoint: CGPoint(x: x, y: maxHeight),
+        endPoint: CGPoint(x: x, y: 0)))
+  }
+}
+
+// MARK: - Shared Level Meter Canvas
+
+/// Shared Canvas for drawing dual RMS+Peak level bars.
+/// Used by DualLevelMeterView (dashboard) and MiniMeterRow (mini player).
+struct LevelMeterCanvas: View {
+  let peak: Double
+  let rms: Double
+  /// compact = mini player style: smaller radii, white-based colors, no scale marks
+  var compact: Bool = false
 
   var body: some View {
-    HStack(spacing: 8) {
-      Text(label)
-        .font(.system(.caption, design: .monospaced))
-        .foregroundStyle(.secondary)
-        .frame(width: 14)
+    Canvas { context, size in
+      let w = size.width
+      let h = size.height
+      let halfH = h / 2
 
-      Canvas { context, size in
-        let w = size.width
-        let h = size.height
-        let halfH = h / 2
+      context.fill(
+        Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: compact ? 2 : 3),
+        with: .color(compact ? Color.white.opacity(0.08) : Color.primary.opacity(0.06)))
 
-        // Background
-        let bgRect = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 3)
-        context.fill(bgRect, with: .color(Color.primary.opacity(0.06)))
+      let rmsW = w * normalizedDB(rms)
+      let peakW = w * normalizedDB(peak)
 
-        let rmsW = w * normalizedDB(rms)
-        let peakW = w * normalizedDB(peak)
+      // Shared shading — same color at the same horizontal position for both bars
+      let shading = GraphicsContext.Shading.linearGradient(
+        .audioLevel, startPoint: .zero, endPoint: CGPoint(x: w, y: 0))
+      let r: CGFloat = compact ? 1.5 : 2
 
-        // SHARED SHADING: This defines the absolute color mapping for the entire canvas.
-        let unifiedShading = GraphicsContext.Shading.linearGradient(
-          Self.meterGradient,
-          startPoint: .zero,
-          endPoint: CGPoint(x: w, y: 0)
-        )
+      if rmsW > 0 {
+        context.fill(
+          Path(roundedRect: CGRect(x: 0, y: 0.5, width: rmsW, height: halfH - 1), cornerRadius: r),
+          with: shading)
+      }
+      if peakW > 0 {
+        context.fill(
+          Path(roundedRect: CGRect(x: 0, y: halfH + 0.5, width: peakW, height: halfH - 1), cornerRadius: r),
+          with: shading)
+      }
 
-        // RMS bar (top half)
-        if rmsW > 0 {
-          let rmsRect = CGRect(x: 0, y: 0.5, width: rmsW, height: halfH - 1)
-          context.fill(Path(roundedRect: rmsRect, cornerRadius: 2), with: unifiedShading)
-        }
+      var divider = Path()
+      divider.move(to: CGPoint(x: 0, y: halfH))
+      divider.addLine(to: CGPoint(x: w, y: halfH))
+      context.stroke(
+        divider,
+        with: .color(compact ? Color.white.opacity(0.1) : Color.primary.opacity(0.08)),
+        lineWidth: 0.5)
 
-        // Peak bar (bottom half)
-        if peakW > 0 {
-          let peakRect = CGRect(x: 0, y: halfH + 0.5, width: peakW, height: halfH - 1)
-          // NO OPACITY DIFFERENCE: Use the exact same shading and opacity as the RMS bar
-          // to ensure colors are identical at the same horizontal position.
-          context.fill(Path(roundedRect: peakRect, cornerRadius: 2), with: unifiedShading)
-        }
-
-        // Divider line
-        var divider = Path()
-        divider.move(to: CGPoint(x: 0, y: halfH))
-        divider.addLine(to: CGPoint(x: w, y: halfH))
-        context.stroke(divider, with: .color(Color.primary.opacity(0.08)), lineWidth: 0.5)
-
-        // Scale marks
+      if !compact {
         for dbMark in [-48, -36, -24, -12, -6, -3, 0] {
           let pos = w * normalizedDB(Double(dbMark))
           let markH = dbMark == 0 ? h : h * 0.5
@@ -75,7 +110,26 @@ struct DualLevelMeterView: View {
           context.stroke(markPath, with: .color(Color.primary.opacity(0.2)), lineWidth: 1)
         }
       }
-      .frame(height: 18)
+    }
+  }
+}
+
+// MARK: - Dual Peak/RMS Level Meter
+
+struct DualLevelMeterView: View {
+  let label: String
+  let peak: Double  // dB
+  let rms: Double  // dB
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Text(label)
+        .font(.system(.caption, design: .monospaced))
+        .foregroundStyle(.secondary)
+        .frame(width: 14)
+
+      LevelMeterCanvas(peak: peak, rms: rms)
+        .frame(height: 18)
 
       // dB values: RMS on top, Peak below
       VStack(alignment: .trailing, spacing: 0) {

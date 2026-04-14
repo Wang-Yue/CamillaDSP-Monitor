@@ -38,7 +38,7 @@ final class MiniPlayerWindowController {
     // Create NSPanel — floating, non-activating, visible on all spaces
     let panel = NSPanel(
       contentRect: NSRect(x: 0, y: 0, width: 320, height: 90),
-      styleMask: [.nonactivatingPanel, .hudWindow, .utilityWindow, .resizable],
+      styleMask: [.hudWindow, .utilityWindow, .resizable],
       backing: .buffered,
       defer: false
     )

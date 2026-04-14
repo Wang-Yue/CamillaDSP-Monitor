@@ -95,7 +95,7 @@ struct PipelineOverview: View {
           }.buttonStyle(.plain)
           Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           ForEach(appState.stages) { stage in
-            DashboardStageChipButton(stage: stage)
+            StageChipButton(stage: stage)
             Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           }
           StageChip(
@@ -112,23 +112,54 @@ struct StageChip: View {
   let label: String
   let color: Color
   let isActive: Bool
+  /// compact = mini player style: smaller padding, solid fill, dark-context foreground
+  var compact: Bool = false
+
   var body: some View {
-    HStack(spacing: 6) {
-      Image(systemName: icon).font(.caption)
-      Text(label).font(.caption).lineLimit(1)
+    HStack(spacing: compact ? 3 : 6) {
+      Image(systemName: icon)
+        .font(compact ? .system(size: 8) : .caption)
+      Text(label)
+        .font(compact ? .system(size: 9, weight: isActive ? .semibold : .regular) : .caption)
+        .lineLimit(1)
     }
-    .padding(.horizontal, 10).padding(.vertical, 6).background(
-      isActive ? color.opacity(0.15) : Color.gray.opacity(0.08)
-    ).foregroundStyle(isActive ? color : .secondary)
-    .onHover { h in if h { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
-    .clipShape(Capsule()).overlay(
-      Capsule().stroke(isActive ? color.opacity(0.3) : Color.clear, lineWidth: 1))
+    .padding(.horizontal, compact ? 6 : 10)
+    .padding(.vertical, compact ? 4 : 6)
+    .background(
+      compact
+        ? (isActive ? color : Color.gray.opacity(0.3))
+        : (isActive ? color.opacity(0.15) : Color.gray.opacity(0.08))
+    )
+    .foregroundStyle(
+      compact
+        ? (isActive ? AnyShapeStyle(.black) : AnyShapeStyle(.white.opacity(0.6)))
+        : (isActive ? AnyShapeStyle(color) : AnyShapeStyle(.secondary))
+    )
+    .clipShape(Capsule())
+    .modifier(StageChipBorderModifier(color: color, isActive: isActive, compact: compact))
   }
 }
 
-private struct DashboardStageChipButton: View {
+private struct StageChipBorderModifier: ViewModifier {
+  let color: Color
+  let isActive: Bool
+  let compact: Bool
+  func body(content: Content) -> some View {
+    if compact {
+      content
+    } else {
+      content
+        .onHover { h in if h { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
+        .overlay(Capsule().stroke(isActive ? color.opacity(0.3) : Color.clear, lineWidth: 1))
+    }
+  }
+}
+
+struct StageChipButton: View {
   @ObservedObject var stage: PipelineStage
   @EnvironmentObject var appState: AppState
+  var compact: Bool = false
+
   var body: some View {
     Button {
       stage.isEnabled.toggle()
@@ -136,7 +167,8 @@ private struct DashboardStageChipButton: View {
     } label: {
       StageChip(
         icon: stage.type.icon, label: stage.name,
-        color: stage.isEnabled ? Color.accentColor : .gray, isActive: stage.isEnabled)
+        color: stage.isEnabled ? Color.accentColor : .gray,
+        isActive: stage.isEnabled, compact: compact)
     }.buttonStyle(.plain)
   }
 }

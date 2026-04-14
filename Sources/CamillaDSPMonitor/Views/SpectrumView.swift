@@ -11,15 +11,6 @@ struct SpectrumView: View {
     "2.5k", "", "4k", "", "6.3k", "", "10k", "", "16k", "20k",
   ]
 
-  private static let barGradient = Gradient(stops: [
-    .init(color: .green, location: 0.0),
-    .init(color: .green, location: 0.35),
-    .init(color: .yellow, location: 0.55),
-    .init(color: .orange, location: 0.75),
-    .init(color: .red, location: 0.95),
-    .init(color: .red, location: 1.0),
-  ])
-
   private static let dbMarks = [0, -12, -24, -36, -48, -60]
 
   var body: some View {
@@ -30,25 +21,10 @@ struct SpectrumView: View {
 
       // Dynamic bars layer — redraws at 10 Hz with band data
       Canvas { context, size in
-        let maxHeight = size.height - 20
-        let barSpacing: CGFloat = 2
-        let totalSpacing = barSpacing * CGFloat(max(0, bands.count - 1))
-        let barWidth = max(4, (size.width - 20 - totalSpacing) / CGFloat(max(1, bands.count)))
-
-        for i in 0..<min(bands.count, 30) {
-          let x = CGFloat(i) * (barWidth + barSpacing) + 20
-          let normalized = normalizedDB(bands[i])
-          let barHeight = max(2, Double(maxHeight) * normalized)
-
-          let barRect = CGRect(
-            x: x, y: CGFloat(Double(maxHeight) - barHeight), width: barWidth,
-            height: CGFloat(barHeight))
-          context.fill(
-            Path(roundedRect: barRect, cornerRadius: 2),
-            with: .linearGradient(
-              Self.barGradient, startPoint: CGPoint(x: x, y: maxHeight),
-              endPoint: CGPoint(x: x, y: 0)))
-        }
+        drawSpectrumBars(
+          context: &context, bands: bands,
+          maxHeight: size.height - 20, totalWidth: size.width - 20,
+          xOffset: 20)
       }
     }
   }

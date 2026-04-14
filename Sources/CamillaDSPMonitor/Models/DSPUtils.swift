@@ -8,6 +8,7 @@ func normalizedDB(_ db: Double) -> Double {
   max(0, min(1, (db + 60) / 60))
 }
 
+
 private let _rateFormatter: NumberFormatter = {
   let f = NumberFormatter()
   f.numberStyle = .decimal
