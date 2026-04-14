@@ -8,6 +8,10 @@ extension AppState {
 
   func recreateSpectrumAnalyzer() {
     spectrumAnalyzer = FFTSpectrumAnalyzer(sampleRate: sampleRate, chunkSize: chunkSize)
+    // Pause immediately if no spectrum view is currently visible — avoids wasted FFT
+    // computation in the background when the user is on a non-spectrum tab or the
+    // mini player is in pipeline/meters mode.
+    if spectrumViewCount == 0 { spectrumAnalyzer?.pause() }
   }
 
   func scheduleSpectrumRestart() {
@@ -16,14 +20,27 @@ extension AppState {
     spectrumRestartTask = Task {
       try? await Task.sleep(nanoseconds: 500_000_000)
       guard !Task.isCancelled else { return }
-      recreateSpectrumAnalyzer()
+
+      if spectrumAnalyzer == nil {
+        recreateSpectrumAnalyzer()
+      }
+
       if audioTap == nil {
         let ref = analyzerRef
         audioTap = CoreAudioTap(onAudio: { waveform in
           ref.analyzer?.enqueueAudio(waveform)
         })
       }
-      await audioTap?.start(deviceName: selectedCaptureDevice)
+
+      // Only restart the audio tap when the capture device changed or the tap stopped.
+      // Restarting AVAudioEngine (stopSync + start) for every config change (e.g. stage
+      // toggle) causes a CoreAudio reconfiguration spike even when the device is the same.
+      let device = selectedCaptureDevice
+      let tapRunning = await audioTap?.isRunning ?? false
+      if !tapRunning || device != audioTapDeviceName {
+        audioTapDeviceName = device
+        await audioTap?.start(deviceName: device)
+      }
     }
   }
 
@@ -153,11 +170,13 @@ extension AppState {
     }
     let tap = audioTap
     let deviceName = selectedCaptureDevice
+    audioTapDeviceName = deviceName
     Task { await tap?.start(deviceName: deviceName) }
   }
 
   func stopAudioCapture() {
     let tap = audioTap
+    audioTapDeviceName = nil
     Task { await tap?.stop() }
   }
 }

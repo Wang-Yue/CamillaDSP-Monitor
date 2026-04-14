@@ -38,6 +38,7 @@ final class FFTSpectrumAnalyzer {
   private var bandPeaks: [Double]
   private let spectrumQueue = DispatchQueue(label: "camilladsp.spectrum.fft", qos: .utility)
   private var spectrumTimer: DispatchSourceTimer?
+  private var timerPaused = false
 
   // Pre-allocated Float buffers
   private var windowed: [Float]
@@ -90,8 +91,25 @@ final class FFTSpectrumAnalyzer {
   }
 
   deinit {
+    // Must resume before cancel to avoid crash on dealloc of a suspended DispatchSource.
+    if timerPaused { spectrumTimer?.resume() }
     spectrumTimer?.cancel()
     vDSP_destroy_fftsetup(fftSetup)
+  }
+
+  /// Pause FFT computation. readBands() still returns the last computed result.
+  /// Each pause() must be balanced by exactly one resume().
+  func pause() {
+    guard !timerPaused else { return }
+    timerPaused = true
+    spectrumTimer?.suspend()
+  }
+
+  /// Resume FFT computation after a pause().
+  func resume() {
+    guard timerPaused else { return }
+    timerPaused = false
+    spectrumTimer?.resume()
   }
 
   func enqueueAudio(_ waveform: [Float]) {

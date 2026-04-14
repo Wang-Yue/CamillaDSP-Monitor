@@ -9,14 +9,20 @@ final class MiniPlayerWindowController {
 
   private var panel: NSPanel?
   private var mainWindow: NSWindow?
+  private weak var appState: AppState?
 
   func showMiniPlayer(appState: AppState) {
+    self.appState = appState
+
     // Remember the main window
     mainWindow =
       NSApplication.shared.mainWindow
       ?? NSApplication.shared.windows.first {
         $0.contentViewController != nil && !$0.isMiniaturized
       }
+
+    // Suppress hidden window re-renders before hiding it
+    appState.isMiniPlayerActive = true
 
     // Hide main window (don't minimize to dock)
     mainWindow?.orderOut(nil)
@@ -72,12 +78,18 @@ final class MiniPlayerWindowController {
     panel?.orderOut(nil)
     panel = nil
 
-    // Restore main window
-    if let main = mainWindow {
-      main.makeKeyAndOrderFront(nil)
+    // Re-enable main window re-renders before showing it so SwiftUI can rebuild the
+    // view hierarchy while the window is still off-screen.
+    appState?.isMiniPlayerActive = false
+
+    // Restore main window on the next run-loop tick so SwiftUI has processed the
+    // isMiniPlayerActive change and rebuilt ContentView before the window appears.
+    let windowToRestore = mainWindow
+    mainWindow = nil
+    DispatchQueue.main.async {
+      windowToRestore?.makeKeyAndOrderFront(nil)
       NSApplication.shared.activate(ignoringOtherApps: true)
     }
-    mainWindow = nil
   }
 
   var isMiniPlayerVisible: Bool {

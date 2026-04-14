@@ -104,6 +104,8 @@ actor CoreAudioTap {
     inputNode.removeTap(onBus: 0)
   }
 
+  var isRunning: Bool { engine.isRunning }
+
   func stop() {
     stopSync()
   }

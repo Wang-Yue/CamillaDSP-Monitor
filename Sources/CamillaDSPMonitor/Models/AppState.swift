@@ -218,6 +218,13 @@ final class AppState: ObservableObject {
   var stateSubscriptionTask: Task<Void, Never>?
   var isVuSubscriptionActive = false
   var isStateSubscriptionActive = false
+  /// True while the mini player is the active UI — suppresses hidden main window re-renders.
+  @Published var isMiniPlayerActive = false
+  /// The capture device name the audio tap is currently configured for.
+  var audioTapDeviceName: String?
+  /// Reference count of visible spectrum views. FFT is paused when this reaches zero.
+  var spectrumViewCount = 0
+
   var monitoredCaptureDeviceID: AudioDeviceID?
   var monitoredPlaybackDeviceID: AudioDeviceID?
   var captureRateListenerBlock: AudioObjectPropertyListenerBlock?
@@ -305,6 +312,18 @@ final class AppState: ObservableObject {
     if !resamplerEnabled && captureSampleRate != playbackSampleRate {
       captureSampleRate = playbackSampleRate
     }
+  }
+
+  /// Call from a spectrum view's onAppear to keep the FFT running while visible.
+  func registerSpectrumView() {
+    spectrumViewCount += 1
+    if spectrumViewCount == 1 { spectrumAnalyzer?.resume() }
+  }
+
+  /// Call from a spectrum view's onDisappear to allow the FFT to pause when idle.
+  func unregisterSpectrumView() {
+    spectrumViewCount = max(0, spectrumViewCount - 1)
+    if spectrumViewCount == 0 { spectrumAnalyzer?.pause() }
   }
 
   private static func bestRate(from rates: [Int], preferring current: Int) -> Int {

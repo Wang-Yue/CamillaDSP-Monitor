@@ -204,6 +204,7 @@ struct LevelMetersCard: View {
 
 struct SpectrumCard: View {
   @EnvironmentObject var spectrum: SpectrumState
+  @EnvironmentObject var appState: AppState
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
@@ -212,6 +213,10 @@ struct SpectrumCard: View {
         Text("FFT Pre-Processing").font(.caption).foregroundStyle(.tertiary)
       }
       SpectrumView(bands: spectrum.bands).frame(height: 160)
-    }.padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+    .padding()
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    .onAppear { appState.registerSpectrumView() }
+    .onDisappear { appState.unregisterSpectrumView() }
   }
 }

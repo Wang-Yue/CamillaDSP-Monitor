@@ -8,33 +8,41 @@ struct ContentView: View {
   @State private var showAutoEqSearch = false
 
   var body: some View {
-    NavigationSplitView {
-      SidebarView(selection: $selection, showAutoEqSearch: $showAutoEqSearch)
-        .toolbar {
-          ToolbarItem(placement: .primaryAction) {
-            Button {
-              MiniPlayerWindowController.shared.showMiniPlayer(appState: appState)
-            } label: {
-              Image(systemName: "pip")
-                .imageScale(.large)
-                .fontWeight(.medium)
-                .contentShape(Rectangle())
+    // When the mini player is active the main window is hidden. Rendering nothing
+    // here removes all level/spectrum subscriptions from the hidden window, stopping
+    // SwiftUI from evaluating view bodies and running Canvas closures at 10 Hz for
+    // content the user cannot see.
+    if appState.isMiniPlayerActive {
+      Color.clear
+    } else {
+      NavigationSplitView {
+        SidebarView(selection: $selection, showAutoEqSearch: $showAutoEqSearch)
+          .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+              Button {
+                MiniPlayerWindowController.shared.showMiniPlayer(appState: appState)
+              } label: {
+                Image(systemName: "pip")
+                  .imageScale(.large)
+                  .fontWeight(.medium)
+                  .contentShape(Rectangle())
+              }
+              .buttonStyle(.borderless)
+              .help("Mini Player")
             }
-            .buttonStyle(.borderless)
-            .help("Mini Player")
           }
-        }
-    } detail: {
-      DetailPanel(selection: selection)
-        .environmentObject(appState)
-    }
-    .toolbar {
-      ToolbarView()
-    }
-    .navigationTitle("CamillaDSP Monitor")
-    .sheet(isPresented: $showAutoEqSearch) {
-      AutoEqPickerView()
-        .environmentObject(appState)
+      } detail: {
+        DetailPanel(selection: selection)
+          .environmentObject(appState)
+      }
+      .toolbar {
+        ToolbarView()
+      }
+      .navigationTitle("CamillaDSP Monitor")
+      .sheet(isPresented: $showAutoEqSearch) {
+        AutoEqPickerView()
+          .environmentObject(appState)
+      }
     }
   }
 }

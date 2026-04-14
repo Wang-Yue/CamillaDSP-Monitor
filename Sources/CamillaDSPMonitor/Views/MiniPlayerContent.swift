@@ -6,6 +6,7 @@ import SwiftUI
 
 struct MiniSpectrumView: View {
   @EnvironmentObject var spectrum: SpectrumState
+  @EnvironmentObject var appState: AppState
 
   var body: some View {
     Canvas { context, size in
@@ -15,6 +16,8 @@ struct MiniSpectrumView: View {
         spacing: 1.5, minBarWidth: 2, minBarHeight: 1, cornerRadius: 1)
     }
     .frame(height: 60)
+    .onAppear { appState.registerSpectrumView() }
+    .onDisappear { appState.unregisterSpectrumView() }
   }
 }
 
