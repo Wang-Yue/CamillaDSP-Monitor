@@ -222,6 +222,7 @@ final class AppState: ObservableObject {
   let levels = LevelState()
   let spectrum = SpectrumState()
   let load = LoadState()
+  let logManager = LogManager()
 
   let engine = DSPEngine()
   var isLoadingPreferences = false

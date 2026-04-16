@@ -53,6 +53,7 @@ enum SidebarItem: Hashable {
   case devices
   case levels
   case spectrum
+  case logs
   case dashboard
   case resampler
   case stage(Int)
@@ -142,6 +143,8 @@ struct SidebarView: View {
           .tag(SidebarItem.levels)
         Label("Spectrum", systemImage: "waveform.path.ecg.rectangle")
           .tag(SidebarItem.spectrum)
+        Label("Console Logs", systemImage: "terminal")
+          .tag(SidebarItem.logs)
       }
 
       Section("Pipeline") {
@@ -224,6 +227,9 @@ struct DetailPanel: View {
           .padding()
           .frame(maxHeight: .infinity, alignment: .top)
           .background(Color(nsColor: .controlBackgroundColor))
+      case .logs:
+        ConsoleLogsView()
+          .environmentObject(appState.logManager)
       case .resampler:
         ResamplerDetailView()
           .padding()
