@@ -55,6 +55,12 @@ public struct AudioDevice: Identifiable, Sendable {
 
 // MARK: - Device Capabilities (from GetCaptureDeviceCapabilities / GetPlaybackDeviceCapabilities)
 
+public enum CapabilityMode: String, Codable, Sendable {
+  case unified = "Unified"
+  case shared = "Shared"
+  case exclusive = "Exclusive"
+}
+
 public struct SamplerateCapability: Codable, Sendable {
   public let samplerate: Int
   public let formats: [String]
@@ -65,20 +71,26 @@ public struct ChannelCapability: Codable, Sendable {
   public let samplerates: [SamplerateCapability]
 }
 
+public struct DeviceCapabilitySet: Codable, Sendable {
+  public let mode: CapabilityMode
+  public let capabilities: [ChannelCapability]
+}
+
 public struct AudioDeviceDescriptor: Codable, Sendable {
   public let name: String
   public let description: String
-  public let capabilities: [ChannelCapability]
+  public let capability_sets: [DeviceCapabilitySet]
 
   /// Supported sample rates for a given channel count.
   /// Falls back to the union across all channel counts if the count is not found.
   public func sampleRates(forChannels channels: Int) -> [Int] {
-    let cap = capabilities.first(where: { $0.channels == channels }) ?? capabilities.first
+    guard let set = capability_sets.first else { return [] }
+    let cap = set.capabilities.first(where: { $0.channels == channels }) ?? set.capabilities.first
     let rates: [Int]
     if let cap = cap {
       rates = cap.samplerates.map(\.samplerate)
     } else {
-      rates = capabilities.flatMap { $0.samplerates.map(\.samplerate) }
+      rates = set.capabilities.flatMap { $0.samplerates.map(\.samplerate) }
     }
     return Set(rates).sorted()
   }
@@ -86,7 +98,8 @@ public struct AudioDeviceDescriptor: Codable, Sendable {
   /// Available sample formats for a given channel count and sample rate, sorted best-first.
   /// Preference order: S32 > S24 > S16 > F32 > F64.
   public func availableFormats(channels: Int, sampleRate: Int) -> [String] {
-    let cap = capabilities.first(where: { $0.channels == channels }) ?? capabilities.first
+    guard let set = capability_sets.first else { return [] }
+    let cap = set.capabilities.first(where: { $0.channels == channels }) ?? set.capabilities.first
     let formats = cap?.samplerates.first(where: { $0.samplerate == sampleRate })?.formats ?? []
     return formats.sorted { (Self.formatPriority[$0] ?? -1) > (Self.formatPriority[$1] ?? -1) }
   }
