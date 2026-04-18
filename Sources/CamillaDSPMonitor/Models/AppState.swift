@@ -104,8 +104,9 @@ final class AppState: ObservableObject {
     didSet {
       defaults.set(captureChannels, forKey: Keys.captureChannels)
       refreshRatesFromCapabilities()
-      validateSampleRates()
       refreshFormatsFromCapabilities()
+      guard !isLoadingPreferences else { return }
+      validateSampleRates()
       applyConfig()
     }
   }
@@ -113,8 +114,9 @@ final class AppState: ObservableObject {
     didSet {
       defaults.set(playbackChannels, forKey: Keys.playbackChannels)
       refreshRatesFromCapabilities()
-      validateSampleRates()
       refreshFormatsFromCapabilities()
+      guard !isLoadingPreferences else { return }
+      validateSampleRates()
       applyConfig()
     }
   }
@@ -236,6 +238,7 @@ final class AppState: ObservableObject {
   var lastAppliedConfigYAML: String?
   var startEngineTask: Task<Void, Never>?
   var spectrumRestartTask: Task<Void, Never>?
+  var applyConfigTask: Task<Void, Never>?
   var monitoringTask: Task<Void, Never>?
   var vuSubscriptionTask: Task<Void, Never>?
   var stateSubscriptionTask: Task<Void, Never>?

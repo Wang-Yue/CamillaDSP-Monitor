@@ -146,8 +146,17 @@ public actor DSPEngine {
   public func connect(binaryPath: String) async throws {
     if isConnected { return }
     if isConnecting {
-      while isConnecting { try? await Task.sleep(nanoseconds: 100_000_000) }
+      // Wait up to 10 seconds for an in-progress connection attempt to complete
+      var waitAttempts = 0
+      while isConnecting && waitAttempts < 100 {
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        waitAttempts += 1
+      }
       if isConnected { return }
+      if isConnecting {
+        // Timed out waiting for previous connection — force reset and try fresh
+        isConnecting = false
+      }
     }
 
     isConnecting = true
@@ -613,7 +622,15 @@ public actor DSPEngine {
               let state = value["state"] as? String
             else { continue }
 
-            let stopReason = value["stop_reason"] as? String
+            // stop_reason can be a String (e.g. "None") or a Dict (e.g. {"CaptureFormatChange": 44100})
+            let stopReason: String?
+            if let reasonStr = value["stop_reason"] as? String {
+              stopReason = reasonStr
+            } else if let reasonDict = value["stop_reason"] as? [String: Any] {
+              stopReason = reasonDict.keys.first
+            } else {
+              stopReason = nil
+            }
             continuation.yield(StateUpdate(state: state, stopReason: stopReason))
           } catch {
             let nsError = error as NSError

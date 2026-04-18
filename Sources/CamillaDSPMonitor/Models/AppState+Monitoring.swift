@@ -64,6 +64,7 @@ extension AppState {
     // max_rate differs (20 Hz active, 2 Hz background).
     monitoringTask = Task {
       try? await Task.sleep(nanoseconds: 300_000_000)
+      guard !Task.isCancelled else { return }
       var wasActive = initiallyActive
       while !Task.isCancelled {
         let isActive = NSApp?.isActive ?? false
@@ -75,12 +76,14 @@ extension AppState {
         }
 
         try? await Task.sleep(nanoseconds: isActive ? 500_000_000 : 1_000_000_000)
+        guard !Task.isCancelled else { return }
       }
     }
   }
 
   func startStateSubscription() {
     stateSubscriptionTask?.cancel()
+    isStateSubscriptionActive = false
     stateSubscriptionTask = Task {
       guard let stream = await engine.subscribeState() else {
         print("[AppState] State subscription not available, using polling")
@@ -98,6 +101,7 @@ extension AppState {
 
   func startVuSubscription(maxRate: Float = 10.0) {
     vuSubscriptionTask?.cancel()
+    isVuSubscriptionActive = false
     vuSubscriptionTask = Task {
       guard
         let stream = await engine.subscribeVuLevels(

@@ -18,7 +18,6 @@ extension AppState {
     status = .starting
     lastError = nil
     lastAppliedConfigYAML = nil
-    lastRecoveryTime = nil
 
     guard devicesAvailable() else {
       status = .error("Audio devices not available")
@@ -63,8 +62,13 @@ extension AppState {
   }
 
   func stopEngine() {
+    // Cancel any in-progress start/apply tasks and wait for them to acknowledge cancellation
     startEngineTask?.cancel()
+    applyConfigTask?.cancel()
+    let startTask = startEngineTask
+    let applyTask = applyConfigTask
     startEngineTask = nil
+    applyConfigTask = nil
     status = .inactive
     stopMonitoring()
     levels.reset()
@@ -72,7 +76,12 @@ extension AppState {
     load.reset()
     lastAppliedConfigYAML = nil
     lastRecoveryTime = nil
-    Task { await engine.stop() }
+    Task {
+      // Await cancelled tasks to ensure they've stopped before we stop the engine
+      await startTask?.value
+      await applyTask?.value
+      await engine.stop()
+    }
   }
 
   // MARK: - Configuration Management
@@ -83,7 +92,14 @@ extension AppState {
       startEngine()
       return
     }
-    Task { await applyConfigAsync() }
+    // Cancel any pending apply and debounce by scheduling a new one
+    applyConfigTask?.cancel()
+    applyConfigTask = Task {
+      // Small debounce delay to coalesce rapid property changes
+      try? await Task.sleep(nanoseconds: 50_000_000)
+      guard !Task.isCancelled else { return }
+      await applyConfigAsync()
+    }
   }
 
   func applyConfigAsync() async {
@@ -139,11 +155,13 @@ extension AppState {
   @discardableResult
   private func verifyEngineRunning(config: [String: Any]) async -> Bool {
     for _ in 0..<25 {
+      guard !Task.isCancelled else { return false }
       let state: String? = try? await engine.sendCommand("GetState")
       if state == "Running" || state == "Starting" || state == "Stalled" { return true }
       try? await Task.sleep(nanoseconds: 20_000_000)
     }
 
+    guard !Task.isCancelled else { return false }
     print("[AppState] Engine state after config still not Running/Starting, retrying...")
     if let reason = await engine.getStopReason() {
       print("[AppState] Stop reason: \(reason)")
@@ -152,6 +170,7 @@ extension AppState {
     do {
       try await startEngineWithConfig(config)
       for _ in 0..<10 {
+        guard !Task.isCancelled else { return false }
         try? await Task.sleep(nanoseconds: 100_000_000)
         let newState: String? = try? await engine.sendCommand("GetState")
         if newState == "Running" || newState == "Starting" || newState == "Stalled" { return true }
