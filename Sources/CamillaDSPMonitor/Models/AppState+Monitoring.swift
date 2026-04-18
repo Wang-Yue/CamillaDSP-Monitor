@@ -93,7 +93,11 @@ extension AppState {
       print("[AppState] State subscription started")
       for await update in stream {
         guard !Task.isCancelled else { break }
-        handleStateUpdate(state: update.state, stopReason: update.stopReason)
+        handleStateUpdate(
+          state: update.state,
+          stopReason: update.stopReason,
+          stopReasonRate: update.stopReasonRate
+        )
       }
       isStateSubscriptionActive = false
     }
@@ -146,7 +150,7 @@ extension AppState {
   // MARK: - State Change Handling
 
   /// Handle a state update from either subscription or polling.
-  private func handleStateUpdate(state: String, stopReason: String?) {
+  private func handleStateUpdate(state: String, stopReason: String?, stopReasonRate: Int? = nil) {
     if state == "Running" || state == "Starting" || state == "Stalled" {
       return  // Healthy states — nothing to do
     }
@@ -156,6 +160,19 @@ extension AppState {
     // Engine stopped unexpectedly — attempt recovery
     let reason = stopReason ?? "None"
     if reason == "None" { return }
+
+    if reason == "CaptureFormatChange", let newRate = stopReasonRate {
+      print("[AppState] Capture format change detected, switching to \(newRate) Hz")
+      if resamplerEnabled {
+        captureSampleRate = newRate
+      } else {
+        // When resampler is disabled, capture and playback rates must match.
+        // Updating playbackSampleRate will sync captureSampleRate via its didSet.
+        playbackSampleRate = newRate
+      }
+      return
+    }
+
     let now = Date()
     if let last = lastRecoveryTime, now.timeIntervalSince(last) < 5.0 { return }
     lastRecoveryTime = now

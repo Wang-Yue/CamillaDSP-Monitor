@@ -46,6 +46,7 @@ public struct VuLevels: Sendable {
 public struct StateUpdate: Sendable {
   public let state: String
   public let stopReason: String?
+  public let stopReasonRate: Int?
 }
 
 public struct AudioDevice: Identifiable, Sendable {
@@ -624,14 +625,23 @@ public actor DSPEngine {
 
             // stop_reason can be a String (e.g. "None") or a Dict (e.g. {"CaptureFormatChange": 44100})
             let stopReason: String?
+            var stopReasonRate: Int? = nil
             if let reasonStr = value["stop_reason"] as? String {
               stopReason = reasonStr
             } else if let reasonDict = value["stop_reason"] as? [String: Any] {
               stopReason = reasonDict.keys.first
+              if stopReason == "CaptureFormatChange" {
+                if let rate = reasonDict[stopReason!] as? Int {
+                  stopReasonRate = rate
+                } else if let rate = reasonDict[stopReason!] as? Double {
+                  stopReasonRate = Int(rate)
+                }
+              }
             } else {
               stopReason = nil
             }
-            continuation.yield(StateUpdate(state: state, stopReason: stopReason))
+            continuation.yield(
+              StateUpdate(state: state, stopReason: stopReason, stopReasonRate: stopReasonRate))
           } catch {
             let nsError = error as NSError
             if nsError.code != -999 && nsError.code != 57 {
