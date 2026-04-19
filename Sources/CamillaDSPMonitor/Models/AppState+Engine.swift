@@ -163,9 +163,6 @@ extension AppState {
 
     guard !Task.isCancelled else { return false }
     print("[AppState] Engine state after config still not Running/Starting, retrying...")
-    if let reason = await engine.getStopReason() {
-      print("[AppState] Stop reason: \(reason)")
-    }
 
     do {
       try await startEngineWithConfig(config)

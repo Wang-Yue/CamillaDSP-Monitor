@@ -330,45 +330,6 @@ public actor DSPEngine {
     let _: String? = try? await sendCommand("Stop")
   }
 
-  /// Returns the stop reason as a string. For enum variants with associated data
-  /// (e.g. CaptureFormatChange(44100)), returns just the variant name.
-  public func getStopReason() async -> String? {
-    // Try plain string first (e.g. "None", "Done")
-    if let reason: String = try? await sendCommand("GetStopReason") {
-      return reason
-    }
-    // Variants with data serialize as {"VariantName": value} — extract the key.
-    // Use sendRawCommand to avoid Sendable constraint on [String: Any].
-    return await getStopReasonFromDict()
-  }
-
-  /// Internal helper: parses GetStopReason as a dictionary and extracts the variant name.
-  private func getStopReasonFromDict() async -> String? {
-    guard isConnected, let webSocket = webSocket else { return nil }
-    do {
-      try await webSocket.send(.string("\"GetStopReason\""))
-      let response = try await webSocket.receive()
-      let responseData: Data
-      switch response {
-      case .data(let data): responseData = data
-      case .string(let string): responseData = string.data(using: .utf8)!
-      @unknown default: return nil
-      }
-      guard
-        let responseDict = try JSONSerialization.jsonObject(with: responseData)
-          as? [String: Any],
-        let cmdResult = responseDict["GetStopReason"] as? [String: Any],
-        let value = cmdResult["value"]
-      else { return nil }
-      // value is either a String or a Dict like {"CaptureFormatChange": 44100}
-      if let str = value as? String { return str }
-      if let dict = value as? [String: Any] { return dict.keys.first }
-      return nil
-    } catch {
-      return nil
-    }
-  }
-
   public func setVolume(_ db: Double) async {
     let _: String? = try? await sendCommand("SetVolume", value: Float(db))
   }
@@ -385,24 +346,6 @@ public actor DSPEngine {
   public func setFaderMute(fader: Int, mute: Bool) async {
     let value: [any Sendable] = [fader, mute]
     let _: String? = try? await sendCommand("SetFaderMute", value: value)
-  }
-
-  public func getSignalLevels(includeLoad: Bool = true) async -> SignalLevels? {
-    do {
-      guard let levelsValue: [String: any Sendable] = try await sendCommand("GetSignalLevels")
-      else { return nil }
-      let data = try JSONSerialization.data(withJSONObject: levelsValue)
-      var levels = try JSONDecoder().decode(SignalLevels.self, from: data)
-
-      if includeLoad {
-        let pLoad = await fetchLoad("GetProcessingLoad")
-        let rLoad = await fetchLoad("GetResamplerLoad")
-        levels.processing_load = pLoad + rLoad
-      }
-      return levels
-    } catch {
-      return nil
-    }
   }
 
   public func fetchProcessingLoad() async -> Float {
