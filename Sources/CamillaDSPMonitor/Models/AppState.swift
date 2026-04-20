@@ -56,15 +56,30 @@ final class AppState: ObservableObject {
   @Published var captureDevices: [AudioDevice] = []
   @Published var playbackDevices: [AudioDevice] = []
 
-  @Published var captureSupportedRates: [Int] = []
-  @Published var playbackSupportedRates: [Int] = []
+  /// Capabilities for the selected devices, fetched on device change.
+  /// @Published so views re-render and all computed derived lists update on arrival.
+  @Published var captureCapabilities: AudioDeviceDescriptor?
+  @Published var playbackCapabilities: AudioDeviceDescriptor?
+
+  // MARK: - Derived device state (computed — always in sync, can never drift)
 
   var captureSupportedChannels: [Int] {
     captureCapabilities?.availableChannels() ?? []
   }
-
   var playbackSupportedChannels: [Int] {
     playbackCapabilities?.availableChannels() ?? []
+  }
+  var captureSupportedRates: [Int] {
+    captureCapabilities?.sampleRates(forChannels: captureChannels) ?? []
+  }
+  var playbackSupportedRates: [Int] {
+    playbackCapabilities?.sampleRates(forChannels: playbackChannels) ?? []
+  }
+  var captureSupportedFormats: [String] {
+    captureCapabilities?.availableFormats(channels: captureChannels, sampleRate: captureSampleRate) ?? []
+  }
+  var playbackSupportedFormats: [String] {
+    playbackCapabilities?.availableFormats(channels: playbackChannels, sampleRate: playbackSampleRate) ?? []
   }
 
   var captureRateOptions: [Int] {
@@ -77,7 +92,6 @@ final class AppState: ObservableObject {
       return common.isEmpty ? playbackSupportedRates : common
     }
   }
-
   var playbackRateOptions: [Int] {
     if resamplerEnabled {
       return playbackSupportedRates
@@ -111,8 +125,7 @@ final class AppState: ObservableObject {
   @Published var captureChannels: Int = 2 {
     didSet {
       defaults.set(captureChannels, forKey: Keys.captureChannels)
-      refreshRatesFromCapabilities()
-      refreshFormatsFromCapabilities()
+      snapCaptureRateAndFormat()
       guard !isLoadingPreferences else { return }
       validateSampleRates()
       applyConfig()
@@ -121,8 +134,7 @@ final class AppState: ObservableObject {
   @Published var playbackChannels: Int = 2 {
     didSet {
       defaults.set(playbackChannels, forKey: Keys.playbackChannels)
-      refreshRatesFromCapabilities()
-      refreshFormatsFromCapabilities()
+      snapPlaybackRateAndFormat()
       guard !isLoadingPreferences else { return }
       validateSampleRates()
       applyConfig()
@@ -138,25 +150,18 @@ final class AppState: ObservableObject {
   @Published var captureSampleRate: Int = 48000 {
     didSet {
       defaults.set(captureSampleRate, forKey: Keys.captureSampleRate)
-      if !isLoadingPreferences {
-        refreshFormatsFromCapabilities()
-      }
+      snapCaptureFormat()
       applyConfig()
     }
   }
   @Published var playbackSampleRate: Int = 48000 {
     didSet {
       defaults.set(playbackSampleRate, forKey: Keys.playbackSampleRate)
-      if !isLoadingPreferences {
-        syncCaptureRateIfNeeded()
-        refreshFormatsFromCapabilities()
-      }
+      snapPlaybackFormat()
+      if !isLoadingPreferences { syncCaptureRateIfNeeded() }
       applyConfig()
     }
   }
-
-  @Published var captureSupportedFormats: [String] = []
-  @Published var playbackSupportedFormats: [String] = []
 
   @Published var captureFormat: String = "F32" {
     didSet {
@@ -197,7 +202,8 @@ final class AppState: ObservableObject {
     didSet {
       defaults.set(resamplerEnabled, forKey: Keys.resamplerEnabled)
       validateSampleRates()
-      refreshFormatsFromCapabilities()
+      // validateSampleRates may update captureSampleRate/playbackSampleRate, whose
+      // didSets call snapCaptureFormat/snapPlaybackFormat — no explicit call needed.
       applyConfig()
     }
   }
@@ -258,11 +264,6 @@ final class AppState: ObservableObject {
   var audioTapDeviceName: String?
   /// Reference count of visible spectrum views. FFT is paused when this reaches zero.
   var spectrumViewCount = 0
-
-  /// Cached capabilities for the currently selected devices, used for synchronous
-  /// rate/format derivation when sample rate or channel count changes.
-  var captureCapabilities: AudioDeviceDescriptor?
-  var playbackCapabilities: AudioDeviceDescriptor?
 
   // Recovery Throttling
   var lastRecoveryTime: Date?
@@ -331,6 +332,45 @@ final class AppState: ObservableObject {
         print("[AppState] Initial connection failed: \(error)")
       }
     }
+  }
+
+  // MARK: - Cascade Snap Helpers
+
+  /// Snaps captureSampleRate to a valid rate for the current channels, then format.
+  /// Called from captureChannels.didSet so the cascade fires top-down in one pass.
+  private func snapCaptureRateAndFormat() {
+    let rates = captureSupportedRates
+    if !rates.isEmpty && !rates.contains(captureSampleRate) {
+      captureSampleRate = Self.bestRate(from: rates, preferring: captureSampleRate)
+      // captureSampleRate.didSet calls snapCaptureFormat()
+    } else {
+      snapCaptureFormat()
+    }
+  }
+
+  private func snapPlaybackRateAndFormat() {
+    let rates = playbackSupportedRates
+    if !rates.isEmpty && !rates.contains(playbackSampleRate) {
+      playbackSampleRate = Self.bestRate(from: rates, preferring: playbackSampleRate)
+      // playbackSampleRate.didSet calls snapPlaybackFormat()
+    } else {
+      snapPlaybackFormat()
+    }
+  }
+
+  /// Snaps captureFormat if it is no longer in the supported list for the current
+  /// channel count and sample rate. Called from captureSampleRate.didSet and
+  /// snapCaptureRateAndFormat (when the rate is already valid).
+  private func snapCaptureFormat() {
+    let formats = captureSupportedFormats
+    guard !formats.isEmpty, !formats.contains(captureFormat) else { return }
+    captureFormat = formats.first ?? "F32"
+  }
+
+  private func snapPlaybackFormat() {
+    let formats = playbackSupportedFormats
+    guard !formats.isEmpty, !formats.contains(playbackFormat) else { return }
+    playbackFormat = formats.first ?? "F32"
   }
 
   func validateSampleRates() {

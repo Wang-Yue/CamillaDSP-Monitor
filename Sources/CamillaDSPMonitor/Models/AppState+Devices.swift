@@ -61,8 +61,9 @@ extension AppState {
 
     // Phase 2: Write all state in one suppressed batch so intermediate didSet
     // chains (validateSampleRates, applyConfig) don't fire against half-written state.
-    // Capabilities are plain vars (no didSet), so they're set first so that the
-    // channels didSet's call to refreshRatesFromCapabilities reads correct data.
+    // Capabilities are set first: channels.didSet's snapCaptureRateAndFormat() reads
+    // captureSupportedRates (computed from capabilities + channels), so capabilities
+    // must already be set when channels fires.
     isLoadingPreferences = true
     captureCapabilities = newCapDesc
     playbackCapabilities = newPbDesc
@@ -70,9 +71,9 @@ extension AppState {
     playbackChannels = newPbChannels
     isLoadingPreferences = false
 
-    // Phase 3: Single cascade from a fully consistent state.
-    refreshRatesFromCapabilities()
-    refreshFormatsFromCapabilities()
+    // Phase 3: Derived lists (supportedRates, supportedFormats) recompute automatically
+    // as they are now computed properties. The channels.didSet cascade already snapped
+    // rates and formats during Phase 2. Cross-device rate sync is the caller's responsibility.
   }
 
   /// Returns `current` if it is in `supported`, otherwise snaps to 2 (preferred)
@@ -81,35 +82,6 @@ extension AppState {
     guard !supported.isEmpty else { return current }
     if supported.contains(current) { return current }
     return supported.contains(2) ? 2 : supported[0]
-  }
-
-  /// Re-derives supported rates from cached capabilities when channel count changes.
-  /// Synchronous — no network call needed.
-  func refreshRatesFromCapabilities() {
-    captureSupportedRates = captureCapabilities?.sampleRates(forChannels: captureChannels) ?? []
-    playbackSupportedRates =
-      playbackCapabilities?.sampleRates(forChannels: playbackChannels) ?? []
-  }
-
-  /// Re-derives the available format lists from cached capabilities when sample rate or
-  /// channel count changes. Only resets the user's format choice if it is no longer supported.
-  /// Synchronous — no network call needed.
-  func refreshFormatsFromCapabilities() {
-    let capFormats =
-      captureCapabilities?.availableFormats(
-        channels: captureChannels, sampleRate: captureSampleRate) ?? []
-    captureSupportedFormats = capFormats
-    if !capFormats.isEmpty && !capFormats.contains(captureFormat) {
-      captureFormat = capFormats.first ?? "F32"
-    }
-
-    let pbFormats =
-      playbackCapabilities?.availableFormats(
-        channels: playbackChannels, sampleRate: playbackSampleRate) ?? []
-    playbackSupportedFormats = pbFormats
-    if !pbFormats.isEmpty && !pbFormats.contains(playbackFormat) {
-      playbackFormat = pbFormats.first ?? "F32"
-    }
   }
 
   // MARK: - System Device Change Listener
