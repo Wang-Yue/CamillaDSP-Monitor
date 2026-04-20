@@ -110,6 +110,11 @@ public struct AudioDeviceDescriptor: Codable, Sendable {
     availableFormats(channels: channels, sampleRate: sampleRate).first ?? "F32"
   }
 
+  /// Channel counts this device supports, sorted ascending.
+  public func availableChannels() -> [Int] {
+    capability_sets.first?.capabilities.map(\.channels).sorted() ?? []
+  }
+
   private static let formatPriority: [String: Int] = ["S32": 4, "S24": 3, "S16": 2, "F32": 1, "F64": 0]
 }
 

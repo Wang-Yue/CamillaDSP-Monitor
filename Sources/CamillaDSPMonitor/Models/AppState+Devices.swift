@@ -33,8 +33,12 @@ extension AppState {
       let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: true)
       captureCapabilities = desc
+      let capChannels = desc?.availableChannels() ?? []
+      if !capChannels.isEmpty && !capChannels.contains(captureChannels) {
+        captureChannels = capChannels.contains(2) ? 2 : capChannels[0]
+      }
       captureSupportedRates = desc?.sampleRates(forChannels: captureChannels) ?? []
-      print("[AppState] Capture \(name): rates \(captureSupportedRates)")
+      print("[AppState] Capture \(name): channels \(capChannels) rates \(captureSupportedRates)")
     } else {
       captureCapabilities = nil
       captureSupportedRates = []
@@ -45,8 +49,12 @@ extension AppState {
       let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: false)
       playbackCapabilities = desc
+      let pbChannels = desc?.availableChannels() ?? []
+      if !pbChannels.isEmpty && !pbChannels.contains(playbackChannels) {
+        playbackChannels = pbChannels.contains(2) ? 2 : pbChannels[0]
+      }
       playbackSupportedRates = desc?.sampleRates(forChannels: playbackChannels) ?? []
-      print("[AppState] Playback \(name): rates \(playbackSupportedRates)")
+      print("[AppState] Playback \(name): channels \(pbChannels) rates \(playbackSupportedRates)")
     } else {
       playbackCapabilities = nil
       playbackSupportedRates = []

@@ -59,6 +59,14 @@ final class AppState: ObservableObject {
   @Published var captureSupportedRates: [Int] = []
   @Published var playbackSupportedRates: [Int] = []
 
+  var captureSupportedChannels: [Int] {
+    captureCapabilities?.availableChannels() ?? []
+  }
+
+  var playbackSupportedChannels: [Int] {
+    playbackCapabilities?.availableChannels() ?? []
+  }
+
   var captureRateOptions: [Int] {
     if resamplerEnabled {
       return captureSupportedRates

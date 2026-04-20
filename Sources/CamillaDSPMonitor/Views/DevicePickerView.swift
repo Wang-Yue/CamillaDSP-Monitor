@@ -47,7 +47,8 @@ struct DevicePickerView: View {
           iconColor: .blue,
           devices: appState.captureDevices,
           selectedDevice: $appState.selectedCaptureDevice,
-          channels: $appState.captureChannels
+          channels: $appState.captureChannels,
+          supportedChannels: appState.captureSupportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -99,7 +100,8 @@ struct DevicePickerView: View {
           iconColor: .green,
           devices: appState.playbackDevices,
           selectedDevice: $appState.selectedPlaybackDevice,
-          channels: $appState.playbackChannels
+          channels: $appState.playbackChannels,
+          supportedChannels: appState.playbackSupportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -212,11 +214,13 @@ struct DeviceSection<ExtraContent: View>: View {
   let devices: [AudioDevice]
   @Binding var selectedDevice: String?
   @Binding var channels: Int
+  let supportedChannels: [Int]
   let extraContent: ExtraContent
 
   init(
     title: String, icon: String, iconColor: Color, devices: [AudioDevice],
     selectedDevice: Binding<String?>, channels: Binding<Int>,
+    supportedChannels: [Int] = [],
     @ViewBuilder extraContent: () -> ExtraContent
   ) {
     self.title = title
@@ -225,6 +229,7 @@ struct DeviceSection<ExtraContent: View>: View {
     self.devices = devices
     self._selectedDevice = selectedDevice
     self._channels = channels
+    self.supportedChannels = supportedChannels
     self.extraContent = extraContent()
   }
 
@@ -264,9 +269,18 @@ struct DeviceSection<ExtraContent: View>: View {
 
         HStack {
           Text("Channels")
-            .foregroundStyle(.secondary)
-          Stepper("\(channels)", value: $channels, in: 1...32)
-            .frame(width: 120)
+            .frame(width: 100, alignment: .leading)
+          if supportedChannels.isEmpty {
+            Stepper("\(channels)", value: $channels, in: 1...32)
+              .frame(width: 120)
+          } else {
+            Picker("", selection: $channels) {
+              ForEach(supportedChannels, id: \.self) { ch in
+                Text("\(ch)").tag(ch)
+              }
+            }
+            .labelsHidden()
+          }
         }
 
         extraContent
