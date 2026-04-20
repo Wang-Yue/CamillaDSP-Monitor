@@ -73,7 +73,9 @@ final class AppState: ObservableObject {
       if let data = try? JSONEncoder().encode(captureConfig) {
         defaults.set(data, forKey: Keys.captureConfig)
       }
-      guard !isLoadingPreferences else { return }
+      // Suppress the device-change task during batch updates — startup handles capabilities.
+      // (applyConfig/validateSampleRates self-guard, so simple properties need no guard.)
+      guard !_suppressingSideEffects else { _sideEffectsPending = true; return }
       if captureConfig.deviceName != oldValue.deviceName {
         // Device changed — fetch new capabilities; applyConfig fires via the didSet cascade
         Task { await refreshDeviceCapabilities() }
@@ -96,7 +98,7 @@ final class AppState: ObservableObject {
       if let data = try? JSONEncoder().encode(playbackConfig) {
         defaults.set(data, forKey: Keys.playbackConfig)
       }
-      guard !isLoadingPreferences else { return }
+      guard !_suppressingSideEffects else { _sideEffectsPending = true; return }
       if playbackConfig.deviceName != oldValue.deviceName {
         Task { await refreshDeviceCapabilities() }
       } else {
@@ -189,7 +191,12 @@ final class AppState: ObservableObject {
   let logManager = LogManager()
 
   let engine = DSPEngine()
-  var isLoadingPreferences = false
+  /// True while a batch update is in progress. `applyConfig()` and `validateSampleRates()`
+  /// both self-guard against this flag, so no per-property guard is needed on new properties.
+  var _suppressingSideEffects = false
+  /// Set by `applyConfig()` when called during suppression — causes one final
+  /// `validateSampleRates() + applyConfig()` when the batch completes.
+  var _sideEffectsPending = false
   var spectrumAnalyzer: FFTSpectrumAnalyzer? {
     didSet { analyzerRef.analyzer = spectrumAnalyzer }
   }
@@ -244,12 +251,12 @@ final class AppState: ObservableObject {
     print("[AppState] Initializing...")
     DSPEngine.killStaleCamillaDSP()
 
-    isLoadingPreferences = true
-    loadPreferences()
-    eqPresets = loadEQPresets()
-    createDefaultEQPresetsIfNeeded()
-    loadPipelineStages()
-    isLoadingPreferences = false
+    withSuppressedSideEffects {
+      loadPreferences()
+      eqPresets = loadEQPresets()
+      createDefaultEQPresetsIfNeeded()
+      loadPipelineStages()
+    }
 
     startDeviceChangeListener()
 
@@ -285,8 +292,21 @@ final class AppState: ObservableObject {
     }
   }
 
+  /// Runs `body` with side effects suppressed, then fires one combined
+  /// `validateSampleRates() + applyConfig()` if any property triggered either during the batch.
+  func withSuppressedSideEffects(_ body: () -> Void) {
+    _suppressingSideEffects = true
+    _sideEffectsPending = false
+    body()
+    _suppressingSideEffects = false
+    if _sideEffectsPending {
+      validateSampleRates()
+      applyConfig()
+    }
+  }
+
   func validateSampleRates() {
-    guard !isLoadingPreferences else { return }
+    guard !_suppressingSideEffects else { return }
     let pbOptions = playbackRateOptions
     if !pbOptions.isEmpty && !pbOptions.contains(playbackConfig.sampleRate) {
       playbackConfig.sampleRate = DeviceConfig.bestRate(from: pbOptions, preferring: playbackConfig.sampleRate)

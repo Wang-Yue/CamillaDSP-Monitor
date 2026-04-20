@@ -87,7 +87,7 @@ extension AppState {
   // MARK: - Configuration Management
 
   func applyConfig() {
-    guard !isLoadingPreferences else { return }
+    if _suppressingSideEffects { _sideEffectsPending = true; return }
     if case .error = status {
       // Cancel any pending apply before restarting — it would run against a just-restarted
       // engine and is already superseded by the full startEngine sequence.
@@ -107,7 +107,7 @@ extension AppState {
   }
 
   func applyConfigAsync() async {
-    guard isRunning && !isBusy && !isLoadingPreferences else { return }
+    guard isRunning && !isBusy else { return }
     savePipelineStages()
 
     let config = buildConfigDict()

@@ -51,12 +51,11 @@ extension AppState {
       print("[AppState] Playback \(name): channels \(newPlayback.supportedChannels)")
     }
 
-    // Atomic struct assignment — enforced() cascades channels→rate→format in each didSet.
-    // Suppress applyConfig during the first assignment so we only fire once after both are set.
-    isLoadingPreferences = true
-    captureConfig = newCapture.enforced()
-    isLoadingPreferences = false
-    playbackConfig = newPlayback.enforced()
+    // Batch-assign both configs: one combined validateSampleRates+applyConfig fires at the end.
+    withSuppressedSideEffects {
+      captureConfig = newCapture.enforced()
+      playbackConfig = newPlayback.enforced()
+    }
   }
 
   // MARK: - System Device Change Listener
