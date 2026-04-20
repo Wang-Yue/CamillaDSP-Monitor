@@ -46,7 +46,9 @@ struct DevicePickerView: View {
           icon: "mic.fill",
           iconColor: .blue,
           devices: appState.captureDevices,
-          selectedDevice: $appState.selectedCaptureDevice,
+          selectedDevice: Binding(
+            get: { appState.captureConfig.deviceName },
+            set: { appState.captureConfig.deviceName = $0 }),
           channels: $appState.captureConfig.channels,
           supportedChannels: appState.captureConfig.supportedChannels
         ) {
@@ -99,7 +101,9 @@ struct DevicePickerView: View {
           icon: "hifispeaker.2.fill",
           iconColor: .green,
           devices: appState.playbackDevices,
-          selectedDevice: $appState.selectedPlaybackDevice,
+          selectedDevice: Binding(
+            get: { appState.playbackConfig.deviceName },
+            set: { appState.playbackConfig.deviceName = $0 }),
           channels: $appState.playbackConfig.channels,
           supportedChannels: appState.playbackConfig.supportedChannels
         ) {

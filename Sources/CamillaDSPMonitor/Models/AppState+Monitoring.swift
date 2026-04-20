@@ -35,7 +35,7 @@ extension AppState {
       // Only restart the audio tap when the capture device changed or the tap stopped.
       // Restarting AVAudioEngine (stopSync + start) for every config change (e.g. stage
       // toggle) causes a CoreAudio reconfiguration spike even when the device is the same.
-      let device = selectedCaptureDevice
+      let device = captureConfig.deviceName
       let tapRunning = await audioTap?.isRunning ?? false
       if !tapRunning || device != audioTapDeviceName {
         audioTapDeviceName = device
@@ -190,7 +190,7 @@ extension AppState {
       })
     }
     let tap = audioTap
-    let deviceName = selectedCaptureDevice
+    let deviceName = captureConfig.deviceName
     audioTapDeviceName = deviceName
     Task { await tap?.start(deviceName: deviceName) }
   }

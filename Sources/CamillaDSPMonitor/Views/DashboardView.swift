@@ -82,7 +82,7 @@ struct PipelineOverview: View {
       HorizontalScrollWithVerticalWheel {
         HStack(spacing: 4) {
           StageChip(
-            icon: "mic", label: appState.selectedCaptureDevice ?? "Input", color: .blue,
+            icon: "mic", label: appState.captureConfig.deviceName ?? "Input", color: .blue,
             isActive: appState.isRunning)
           Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           Button {
@@ -99,7 +99,7 @@ struct PipelineOverview: View {
             Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           }
           StageChip(
-            icon: "hifispeaker", label: appState.selectedPlaybackDevice ?? "Output", color: .green,
+            icon: "hifispeaker", label: appState.playbackConfig.deviceName ?? "Output", color: .green,
             isActive: appState.isRunning)
         }.padding(.vertical, 4)
       }

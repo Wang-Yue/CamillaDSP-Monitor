@@ -70,12 +70,17 @@ final class AppState: ObservableObject {
         captureConfig = enforced
         _applyingCapture = false
       }
-      defaults.set(captureConfig.channels, forKey: Keys.captureChannels)
-      defaults.set(captureConfig.sampleRate, forKey: Keys.captureSampleRate)
-      defaults.set(captureConfig.format, forKey: Keys.captureFormat)
+      if let data = try? JSONEncoder().encode(captureConfig) {
+        defaults.set(data, forKey: Keys.captureConfig)
+      }
       guard !isLoadingPreferences else { return }
-      validateSampleRates()
-      applyConfig()
+      if captureConfig.deviceName != oldValue.deviceName {
+        // Device changed — fetch new capabilities; applyConfig fires via the didSet cascade
+        Task { await refreshDeviceCapabilities() }
+      } else {
+        validateSampleRates()
+        applyConfig()
+      }
     }
   }
 
@@ -88,12 +93,16 @@ final class AppState: ObservableObject {
         playbackConfig = enforced
         _applyingPlayback = false
       }
-      defaults.set(playbackConfig.channels, forKey: Keys.playbackChannels)
-      defaults.set(playbackConfig.sampleRate, forKey: Keys.playbackSampleRate)
-      defaults.set(playbackConfig.format, forKey: Keys.playbackFormat)
+      if let data = try? JSONEncoder().encode(playbackConfig) {
+        defaults.set(data, forKey: Keys.playbackConfig)
+      }
       guard !isLoadingPreferences else { return }
-      validateSampleRates()
-      applyConfig()
+      if playbackConfig.deviceName != oldValue.deviceName {
+        Task { await refreshDeviceCapabilities() }
+      } else {
+        validateSampleRates()
+        applyConfig()
+      }
     }
   }
 
@@ -110,27 +119,6 @@ final class AppState: ObservableObject {
   }
   var playbackRateOptions: [Int] {
     resamplerEnabled ? playbackConfig.supportedRates : captureRateOptions
-  }
-
-  @Published var selectedCaptureDevice: String? = nil {
-    didSet {
-      defaults.set(selectedCaptureDevice, forKey: Keys.captureDevice)
-      guard !isLoadingPreferences else { return }
-      Task {
-        await refreshDeviceCapabilities()
-        applyConfig()
-      }
-    }
-  }
-  @Published var selectedPlaybackDevice: String? = nil {
-    didSet {
-      defaults.set(selectedPlaybackDevice, forKey: Keys.playbackDevice)
-      guard !isLoadingPreferences else { return }
-      Task {
-        await refreshDeviceCapabilities()
-        applyConfig()
-      }
-    }
   }
 
   @Published var exclusiveMode: Bool = false {
@@ -229,12 +217,8 @@ final class AppState: ObservableObject {
   var lastRecoveryTime: Date?
 
   enum Keys {
-    static let captureDevice = "captureDevice"
-    static let playbackDevice = "playbackDevice"
-    static let captureChannels = "captureChannels"
-    static let playbackChannels = "playbackChannels"
-    static let captureSampleRate = "captureSampleRate"
-    static let playbackSampleRate = "playbackSampleRate"
+    static let captureConfig = "captureConfig"
+    static let playbackConfig = "playbackConfig"
     static let chunkSize = "chunksize"
     static let volume = "volume"
     static let isMuted = "isMuted"
@@ -244,9 +228,16 @@ final class AppState: ObservableObject {
     static let resamplerType = "resamplerType"
     static let resamplerProfile = "resamplerProfile"
     static let resamplerInterpolation = "resamplerInterpolation"
-    static let captureFormat = "captureFormat"
-    static let playbackFormat = "playbackFormat"
     static let camillaDSPPath = "camillaDSPPath"
+    // Legacy keys — used only for one-time migration from builds before DeviceConfig
+    fileprivate static let legacyCaptureDevice = "captureDevice"
+    fileprivate static let legacyPlaybackDevice = "playbackDevice"
+    fileprivate static let legacyCaptureChannels = "captureChannels"
+    fileprivate static let legacyPlaybackChannels = "playbackChannels"
+    fileprivate static let legacyCaptureSampleRate = "captureSampleRate"
+    fileprivate static let legacyPlaybackSampleRate = "playbackSampleRate"
+    fileprivate static let legacyCaptureFormat = "captureFormat"
+    fileprivate static let legacyPlaybackFormat = "playbackFormat"
   }
 
   init() {
@@ -322,24 +313,12 @@ final class AppState: ObservableObject {
   }
 
   private func loadPreferences() {
-    selectedCaptureDevice = defaults.string(forKey: Keys.captureDevice)
-    selectedPlaybackDevice = defaults.string(forKey: Keys.playbackDevice)
-
-    var cap = DeviceConfig()
-    let savedCapChannels = defaults.integer(forKey: Keys.captureChannels)
-    cap.channels = savedCapChannels > 0 ? savedCapChannels : 2
-    let savedCapRate = defaults.integer(forKey: Keys.captureSampleRate)
-    if savedCapRate > 0 { cap.sampleRate = savedCapRate }
-    if let f = defaults.string(forKey: Keys.captureFormat) { cap.format = f }
-    captureConfig = cap
-
-    var pb = DeviceConfig()
-    let savedPbChannels = defaults.integer(forKey: Keys.playbackChannels)
-    pb.channels = savedPbChannels > 0 ? savedPbChannels : 2
-    let savedPbRate = defaults.integer(forKey: Keys.playbackSampleRate)
-    if savedPbRate > 0 { pb.sampleRate = savedPbRate }
-    if let f = defaults.string(forKey: Keys.playbackFormat) { pb.format = f }
-    playbackConfig = pb
+    captureConfig = loadDeviceConfig(key: Keys.captureConfig, legacyDeviceKey: Keys.legacyCaptureDevice,
+      legacyChannelsKey: Keys.legacyCaptureChannels, legacyRateKey: Keys.legacyCaptureSampleRate,
+      legacyFormatKey: Keys.legacyCaptureFormat)
+    playbackConfig = loadDeviceConfig(key: Keys.playbackConfig, legacyDeviceKey: Keys.legacyPlaybackDevice,
+      legacyChannelsKey: Keys.legacyPlaybackChannels, legacyRateKey: Keys.legacyPlaybackSampleRate,
+      legacyFormatKey: Keys.legacyPlaybackFormat)
 
     let savedChunkSize = defaults.integer(forKey: Keys.chunkSize)
     chunkSize = savedChunkSize > 0 ? savedChunkSize : 1024
@@ -362,5 +341,24 @@ final class AppState: ObservableObject {
       resamplerInterpolation = interpolation
     }
     camillaDSPPath = defaults.string(forKey: Keys.camillaDSPPath) ?? ""
+  }
+
+  private func loadDeviceConfig(
+    key: String, legacyDeviceKey: String, legacyChannelsKey: String,
+    legacyRateKey: String, legacyFormatKey: String
+  ) -> DeviceConfig {
+    if let data = defaults.data(forKey: key),
+      let saved = try? JSONDecoder().decode(DeviceConfig.self, from: data)
+    {
+      return saved
+    }
+    // Migrate from pre-DeviceConfig separate keys
+    var config = DeviceConfig(deviceName: defaults.string(forKey: legacyDeviceKey))
+    let savedChannels = defaults.integer(forKey: legacyChannelsKey)
+    if savedChannels > 0 { config.channels = savedChannels }
+    let savedRate = defaults.integer(forKey: legacyRateKey)
+    if savedRate > 0 { config.sampleRate = savedRate }
+    if let f = defaults.string(forKey: legacyFormatKey) { config.format = f }
+    return config
   }
 }

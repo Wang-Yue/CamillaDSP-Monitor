@@ -33,22 +33,22 @@ extension AppState {
     var newCapture = captureConfig
     var newPlayback = playbackConfig
 
-    if let name = selectedCaptureDevice {
-      let desc = await engine.getDeviceCapabilities(
+    if let name = newCapture.deviceName {
+      if let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: true)
-      newCapture.capabilities = desc
+      {
+        newCapture.capabilities = desc
+      }
       print("[AppState] Capture \(name): channels \(newCapture.supportedChannels)")
-    } else {
-      newCapture.capabilities = nil
     }
 
-    if let name = selectedPlaybackDevice {
-      let desc = await engine.getDeviceCapabilities(
+    if let name = newPlayback.deviceName {
+      if let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: false)
-      newPlayback.capabilities = desc
+      {
+        newPlayback.capabilities = desc
+      }
       print("[AppState] Playback \(name): channels \(newPlayback.supportedChannels)")
-    } else {
-      newPlayback.capabilities = nil
     }
 
     // Atomic struct assignment — enforced() cascades channels→rate→format in each didSet.
@@ -84,10 +84,10 @@ extension AppState {
   // MARK: - Helpers
 
   func devicesAvailable() -> Bool {
-    if let name = selectedCaptureDevice {
+    if let name = captureConfig.deviceName {
       if !captureDevices.contains(where: { $0.name == name }) { return false }
     }
-    if let name = selectedPlaybackDevice {
+    if let name = playbackConfig.deviceName {
       if !playbackDevices.contains(where: { $0.name == name }) { return false }
     }
     return true

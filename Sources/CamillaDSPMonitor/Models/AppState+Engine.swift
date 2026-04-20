@@ -214,12 +214,12 @@ extension AppState {
       "volume_ramp_time": 200.0,  // ms
       "capture": [
         "type": "CoreAudio", "channels": captureConfig.channels,
-        "device": selectedCaptureDevice as Any,
+        "device": captureConfig.deviceName as Any,
         "format": captureConfig.format,
       ],
       "playback": [
         "type": "CoreAudio", "channels": playbackConfig.channels,
-        "device": selectedPlaybackDevice as Any,
+        "device": playbackConfig.deviceName as Any,
         "format": playbackConfig.format, "exclusive": exclusiveMode,
       ],
     ]

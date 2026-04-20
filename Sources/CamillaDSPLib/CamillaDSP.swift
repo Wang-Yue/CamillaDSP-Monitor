@@ -118,25 +118,41 @@ public struct AudioDeviceDescriptor: Codable, Sendable, Equatable {
   private static let formatPriority: [String: Int] = ["S32": 4, "S24": 3, "S16": 2, "F32": 1, "F64": 0]
 }
 
-/// Combined device config: selected channel/rate/format plus the device's capabilities.
+/// Combined device config: selected device name, channel/rate/format, and fetched capabilities.
+/// `capabilities.name == ""` means system default (no specific device selected).
 /// `enforced()` cascades any out-of-range selection down to the nearest valid value.
-public struct DeviceConfig: Equatable, Sendable {
-  public var capabilities: AudioDeviceDescriptor?
+public struct DeviceConfig: Equatable, Sendable, Codable {
+  /// Full capabilities as reported by the device. `name` field doubles as the selected device name;
+  /// empty name means "system default". `capability_sets` may be empty before capabilities are fetched.
+  public var capabilities: AudioDeviceDescriptor
+
   public var channels: Int
   public var sampleRate: Int
   public var format: String
 
-  public init(channels: Int = 2, sampleRate: Int = 48000, format: String = "F32") {
+  /// `nil` → system default (capabilities.name is "").
+  /// Setting this replaces capabilities with a bare descriptor (capability_sets cleared),
+  /// signalling that a fetch is needed.
+  public var deviceName: String? {
+    get { capabilities.name.isEmpty ? nil : capabilities.name }
+    set {
+      capabilities = AudioDeviceDescriptor(
+        name: newValue ?? "", description: "", capability_sets: [])
+    }
+  }
+
+  public init(deviceName: String? = nil, channels: Int = 2, sampleRate: Int = 48000, format: String = "F32") {
+    self.capabilities = AudioDeviceDescriptor(
+      name: deviceName ?? "", description: "", capability_sets: [])
     self.channels = channels
     self.sampleRate = sampleRate
     self.format = format
-    self.capabilities = nil
   }
 
-  public var supportedChannels: [Int] { capabilities?.availableChannels() ?? [] }
-  public var supportedRates: [Int] { capabilities?.sampleRates(forChannels: channels) ?? [] }
+  public var supportedChannels: [Int] { capabilities.availableChannels() }
+  public var supportedRates: [Int] { capabilities.sampleRates(forChannels: channels) }
   public var supportedFormats: [String] {
-    capabilities?.availableFormats(channels: channels, sampleRate: sampleRate) ?? []
+    capabilities.availableFormats(channels: channels, sampleRate: sampleRate)
   }
 
   /// Returns a copy with channels/rate/format snapped to supported values.
