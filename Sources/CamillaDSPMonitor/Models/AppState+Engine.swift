@@ -89,6 +89,10 @@ extension AppState {
   func applyConfig() {
     guard !isLoadingPreferences else { return }
     if case .error = status {
+      // Cancel any pending apply before restarting — it would run against a just-restarted
+      // engine and is already superseded by the full startEngine sequence.
+      applyConfigTask?.cancel()
+      applyConfigTask = nil
       startEngine()
       return
     }
@@ -107,7 +111,9 @@ extension AppState {
     savePipelineStages()
 
     let config = buildConfigDict()
-    let data = try? JSONSerialization.data(withJSONObject: config)
+    // .sortedKeys ensures the serialized string is deterministic regardless of
+    // Swift dictionary iteration order, so identical configs produce identical strings.
+    let data = try? JSONSerialization.data(withJSONObject: config, options: .sortedKeys)
     let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
     if json == lastAppliedConfigYAML { return }
 

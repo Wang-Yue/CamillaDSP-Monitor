@@ -29,39 +29,58 @@ extension AppState {
   /// Fetches capabilities for the currently selected devices from CamillaDSP, then
   /// updates supported sample rates and available formats for both capture and playback.
   func refreshDeviceCapabilities() async {
+    // Phase 1: Fetch capabilities and compute derived values into locals.
+    // No state is written here, so no didSet chains fire against partial data.
+    let newCapDesc: AudioDeviceDescriptor?
+    let newCapChannels: Int
     if let name = selectedCaptureDevice {
       let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: true)
-      captureCapabilities = desc
-      let capChannels = desc?.availableChannels() ?? []
-      if !capChannels.isEmpty && !capChannels.contains(captureChannels) {
-        captureChannels = capChannels.contains(2) ? 2 : capChannels[0]
-      }
-      captureSupportedRates = desc?.sampleRates(forChannels: captureChannels) ?? []
-      print("[AppState] Capture \(name): channels \(capChannels) rates \(captureSupportedRates)")
+      let supported = desc?.availableChannels() ?? []
+      newCapDesc = desc
+      newCapChannels = snappedChannels(current: captureChannels, supported: supported)
+      print("[AppState] Capture \(name): channels \(supported)")
     } else {
-      captureCapabilities = nil
-      captureSupportedRates = []
-      captureSupportedFormats = []
+      newCapDesc = nil
+      newCapChannels = captureChannels
     }
 
+    let newPbDesc: AudioDeviceDescriptor?
+    let newPbChannels: Int
     if let name = selectedPlaybackDevice {
       let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: false)
-      playbackCapabilities = desc
-      let pbChannels = desc?.availableChannels() ?? []
-      if !pbChannels.isEmpty && !pbChannels.contains(playbackChannels) {
-        playbackChannels = pbChannels.contains(2) ? 2 : pbChannels[0]
-      }
-      playbackSupportedRates = desc?.sampleRates(forChannels: playbackChannels) ?? []
-      print("[AppState] Playback \(name): channels \(pbChannels) rates \(playbackSupportedRates)")
+      let supported = desc?.availableChannels() ?? []
+      newPbDesc = desc
+      newPbChannels = snappedChannels(current: playbackChannels, supported: supported)
+      print("[AppState] Playback \(name): channels \(supported)")
     } else {
-      playbackCapabilities = nil
-      playbackSupportedRates = []
-      playbackSupportedFormats = []
+      newPbDesc = nil
+      newPbChannels = playbackChannels
     }
 
+    // Phase 2: Write all state in one suppressed batch so intermediate didSet
+    // chains (validateSampleRates, applyConfig) don't fire against half-written state.
+    // Capabilities are plain vars (no didSet), so they're set first so that the
+    // channels didSet's call to refreshRatesFromCapabilities reads correct data.
+    isLoadingPreferences = true
+    captureCapabilities = newCapDesc
+    playbackCapabilities = newPbDesc
+    captureChannels = newCapChannels
+    playbackChannels = newPbChannels
+    isLoadingPreferences = false
+
+    // Phase 3: Single cascade from a fully consistent state.
+    refreshRatesFromCapabilities()
     refreshFormatsFromCapabilities()
+  }
+
+  /// Returns `current` if it is in `supported`, otherwise snaps to 2 (preferred)
+  /// or the first available channel count.
+  private func snappedChannels(current: Int, supported: [Int]) -> Int {
+    guard !supported.isEmpty else { return current }
+    if supported.contains(current) { return current }
+    return supported.contains(2) ? 2 : supported[0]
   }
 
   /// Re-derives supported rates from cached capabilities when channel count changes.
