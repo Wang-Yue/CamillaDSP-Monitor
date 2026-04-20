@@ -691,17 +691,17 @@ struct ResamplerDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
               HStack(spacing: 16) {
                 Text("Capture").foregroundStyle(.secondary).fixedSize()
-                Text("\(formatRate(appState.captureSampleRate))").font(
+                Text("\(formatRate(appState.captureConfig.sampleRate))").font(
                   .system(.body, design: .monospaced))
                 Spacer()
               }
               HStack(spacing: 16) {
                 Text("Playback").foregroundStyle(.secondary).fixedSize()
-                Text("\(formatRate(appState.playbackSampleRate))").font(
+                Text("\(formatRate(appState.playbackConfig.sampleRate))").font(
                   .system(.body, design: .monospaced))
                 Spacer()
               }
-              let ratio = Double(appState.playbackSampleRate) / Double(appState.captureSampleRate)
+              let ratio = Double(appState.playbackConfig.sampleRate) / Double(appState.captureConfig.sampleRate)
               Text("Conversion ratio: \(String(format: "%.4f", ratio))").font(.caption)
                 .foregroundStyle(
                   .tertiary)

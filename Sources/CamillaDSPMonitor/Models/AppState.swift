@@ -56,48 +56,60 @@ final class AppState: ObservableObject {
   @Published var captureDevices: [AudioDevice] = []
   @Published var playbackDevices: [AudioDevice] = []
 
-  /// Capabilities for the selected devices, fetched on device change.
-  /// @Published so views re-render and all computed derived lists update on arrival.
-  @Published var captureCapabilities: AudioDeviceDescriptor?
-  @Published var playbackCapabilities: AudioDeviceDescriptor?
+  // MARK: - Per-device config (capabilities + selection — one notification per device)
 
-  // MARK: - Derived device state (computed — always in sync, can never drift)
+  private var _applyingCapture = false
+  private var _applyingPlayback = false
 
-  var captureSupportedChannels: [Int] {
-    captureCapabilities?.availableChannels() ?? []
+  @Published var captureConfig: DeviceConfig = DeviceConfig() {
+    didSet {
+      guard !_applyingCapture else { return }
+      let enforced = captureConfig.enforced()
+      if enforced != captureConfig {
+        _applyingCapture = true
+        captureConfig = enforced
+        _applyingCapture = false
+      }
+      defaults.set(captureConfig.channels, forKey: Keys.captureChannels)
+      defaults.set(captureConfig.sampleRate, forKey: Keys.captureSampleRate)
+      defaults.set(captureConfig.format, forKey: Keys.captureFormat)
+      guard !isLoadingPreferences else { return }
+      validateSampleRates()
+      applyConfig()
+    }
   }
-  var playbackSupportedChannels: [Int] {
-    playbackCapabilities?.availableChannels() ?? []
+
+  @Published var playbackConfig: DeviceConfig = DeviceConfig() {
+    didSet {
+      guard !_applyingPlayback else { return }
+      let enforced = playbackConfig.enforced()
+      if enforced != playbackConfig {
+        _applyingPlayback = true
+        playbackConfig = enforced
+        _applyingPlayback = false
+      }
+      defaults.set(playbackConfig.channels, forKey: Keys.playbackChannels)
+      defaults.set(playbackConfig.sampleRate, forKey: Keys.playbackSampleRate)
+      defaults.set(playbackConfig.format, forKey: Keys.playbackFormat)
+      guard !isLoadingPreferences else { return }
+      validateSampleRates()
+      applyConfig()
+    }
   }
-  var captureSupportedRates: [Int] {
-    captureCapabilities?.sampleRates(forChannels: captureChannels) ?? []
-  }
-  var playbackSupportedRates: [Int] {
-    playbackCapabilities?.sampleRates(forChannels: playbackChannels) ?? []
-  }
-  var captureSupportedFormats: [String] {
-    captureCapabilities?.availableFormats(channels: captureChannels, sampleRate: captureSampleRate) ?? []
-  }
-  var playbackSupportedFormats: [String] {
-    playbackCapabilities?.availableFormats(channels: playbackChannels, sampleRate: playbackSampleRate) ?? []
-  }
+
+  // MARK: - Cross-device rate options (requires both configs — stays at AppState level)
 
   var captureRateOptions: [Int] {
-    if resamplerEnabled {
-      return captureSupportedRates
-    } else {
-      if captureSupportedRates.isEmpty { return playbackSupportedRates }
-      if playbackSupportedRates.isEmpty { return captureSupportedRates }
-      let common = Set(captureSupportedRates).intersection(Set(playbackSupportedRates)).sorted()
-      return common.isEmpty ? playbackSupportedRates : common
-    }
+    if resamplerEnabled { return captureConfig.supportedRates }
+    let cap = captureConfig.supportedRates
+    let pb = playbackConfig.supportedRates
+    if cap.isEmpty { return pb }
+    if pb.isEmpty { return cap }
+    let common = Set(cap).intersection(Set(pb)).sorted()
+    return common.isEmpty ? pb : common
   }
   var playbackRateOptions: [Int] {
-    if resamplerEnabled {
-      return playbackSupportedRates
-    } else {
-      return captureRateOptions
-    }
+    resamplerEnabled ? playbackConfig.supportedRates : captureRateOptions
   }
 
   @Published var selectedCaptureDevice: String? = nil {
@@ -106,7 +118,6 @@ final class AppState: ObservableObject {
       guard !isLoadingPreferences else { return }
       Task {
         await refreshDeviceCapabilities()
-        validateSampleRates()
         applyConfig()
       }
     }
@@ -117,63 +128,14 @@ final class AppState: ObservableObject {
       guard !isLoadingPreferences else { return }
       Task {
         await refreshDeviceCapabilities()
-        validateSampleRates()
         applyConfig()
       }
     }
   }
-  @Published var captureChannels: Int = 2 {
-    didSet {
-      defaults.set(captureChannels, forKey: Keys.captureChannels)
-      snapCaptureRateAndFormat()
-      guard !isLoadingPreferences else { return }
-      validateSampleRates()
-      applyConfig()
-    }
-  }
-  @Published var playbackChannels: Int = 2 {
-    didSet {
-      defaults.set(playbackChannels, forKey: Keys.playbackChannels)
-      snapPlaybackRateAndFormat()
-      guard !isLoadingPreferences else { return }
-      validateSampleRates()
-      applyConfig()
-    }
-  }
+
   @Published var exclusiveMode: Bool = false {
     didSet {
       defaults.set(exclusiveMode, forKey: Keys.exclusiveMode)
-      applyConfig()
-    }
-  }
-
-  @Published var captureSampleRate: Int = 48000 {
-    didSet {
-      defaults.set(captureSampleRate, forKey: Keys.captureSampleRate)
-      snapCaptureFormat()
-      applyConfig()
-    }
-  }
-  @Published var playbackSampleRate: Int = 48000 {
-    didSet {
-      defaults.set(playbackSampleRate, forKey: Keys.playbackSampleRate)
-      snapPlaybackFormat()
-      if !isLoadingPreferences { syncCaptureRateIfNeeded() }
-      applyConfig()
-    }
-  }
-
-  @Published var captureFormat: String = "F32" {
-    didSet {
-      defaults.set(captureFormat, forKey: Keys.captureFormat)
-      guard !isLoadingPreferences else { return }
-      applyConfig()
-    }
-  }
-  @Published var playbackFormat: String = "F32" {
-    didSet {
-      defaults.set(playbackFormat, forKey: Keys.playbackFormat)
-      guard !isLoadingPreferences else { return }
       applyConfig()
     }
   }
@@ -184,8 +146,8 @@ final class AppState: ObservableObject {
     }
   }
 
-  var sampleRate: Int { captureSampleRate }
-  var latencyMs: Double { Double(chunkSize) / Double(captureSampleRate) * 1000.0 }
+  var sampleRate: Int { captureConfig.sampleRate }
+  var latencyMs: Double { Double(chunkSize) / Double(captureConfig.sampleRate) * 1000.0 }
   @Published var chunkSize: Int = 1024 {
     didSet {
       defaults.set(chunkSize, forKey: Keys.chunkSize)
@@ -202,8 +164,6 @@ final class AppState: ObservableObject {
     didSet {
       defaults.set(resamplerEnabled, forKey: Keys.resamplerEnabled)
       validateSampleRates()
-      // validateSampleRates may update captureSampleRate/playbackSampleRate, whose
-      // didSets call snapCaptureFormat/snapPlaybackFormat — no explicit call needed.
       applyConfig()
     }
   }
@@ -334,57 +294,18 @@ final class AppState: ObservableObject {
     }
   }
 
-  // MARK: - Cascade Snap Helpers
-
-  /// Snaps captureSampleRate to a valid rate for the current channels, then format.
-  /// Called from captureChannels.didSet so the cascade fires top-down in one pass.
-  private func snapCaptureRateAndFormat() {
-    let rates = captureSupportedRates
-    if !rates.isEmpty && !rates.contains(captureSampleRate) {
-      captureSampleRate = Self.bestRate(from: rates, preferring: captureSampleRate)
-      // captureSampleRate.didSet calls snapCaptureFormat()
-    } else {
-      snapCaptureFormat()
-    }
-  }
-
-  private func snapPlaybackRateAndFormat() {
-    let rates = playbackSupportedRates
-    if !rates.isEmpty && !rates.contains(playbackSampleRate) {
-      playbackSampleRate = Self.bestRate(from: rates, preferring: playbackSampleRate)
-      // playbackSampleRate.didSet calls snapPlaybackFormat()
-    } else {
-      snapPlaybackFormat()
-    }
-  }
-
-  /// Snaps captureFormat if it is no longer in the supported list for the current
-  /// channel count and sample rate. Called from captureSampleRate.didSet and
-  /// snapCaptureRateAndFormat (when the rate is already valid).
-  private func snapCaptureFormat() {
-    let formats = captureSupportedFormats
-    guard !formats.isEmpty, !formats.contains(captureFormat) else { return }
-    captureFormat = formats.first ?? "F32"
-  }
-
-  private func snapPlaybackFormat() {
-    let formats = playbackSupportedFormats
-    guard !formats.isEmpty, !formats.contains(playbackFormat) else { return }
-    playbackFormat = formats.first ?? "F32"
-  }
-
   func validateSampleRates() {
     guard !isLoadingPreferences else { return }
     let pbOptions = playbackRateOptions
-    if !pbOptions.isEmpty && !pbOptions.contains(playbackSampleRate) {
-      playbackSampleRate = Self.bestRate(from: pbOptions, preferring: playbackSampleRate)
+    if !pbOptions.isEmpty && !pbOptions.contains(playbackConfig.sampleRate) {
+      playbackConfig.sampleRate = DeviceConfig.bestRate(from: pbOptions, preferring: playbackConfig.sampleRate)
     }
     let capOptions = captureRateOptions
-    if !capOptions.isEmpty && !capOptions.contains(captureSampleRate) {
-      captureSampleRate = Self.bestRate(from: capOptions, preferring: captureSampleRate)
+    if !capOptions.isEmpty && !capOptions.contains(captureConfig.sampleRate) {
+      captureConfig.sampleRate = DeviceConfig.bestRate(from: capOptions, preferring: captureConfig.sampleRate)
     }
-    if !resamplerEnabled && captureSampleRate != playbackSampleRate {
-      captureSampleRate = playbackSampleRate
+    if !resamplerEnabled && captureConfig.sampleRate != playbackConfig.sampleRate {
+      captureConfig.sampleRate = playbackConfig.sampleRate
     }
   }
 
@@ -400,33 +321,26 @@ final class AppState: ObservableObject {
     if spectrumViewCount == 0 { spectrumAnalyzer?.pause() }
   }
 
-  private static func bestRate(from rates: [Int], preferring current: Int) -> Int {
-    if rates.contains(current) { return current }
-    // Prefer common audiophile rates, then nearest
-    for preferred in [48000, 44100, 96000, 192000] {
-      if rates.contains(preferred) { return preferred }
-    }
-    return rates.min(by: { abs($0 - current) < abs($1 - current) }) ?? 48000
-  }
-
-  private func syncCaptureRateIfNeeded() {
-    guard !resamplerEnabled && !isLoadingPreferences else { return }
-    if captureSampleRate != playbackSampleRate {
-      captureSampleRate = playbackSampleRate
-    }
-  }
-
   private func loadPreferences() {
     selectedCaptureDevice = defaults.string(forKey: Keys.captureDevice)
     selectedPlaybackDevice = defaults.string(forKey: Keys.playbackDevice)
-    let savedCaptureChannels = defaults.integer(forKey: Keys.captureChannels)
-    captureChannels = savedCaptureChannels > 0 ? savedCaptureChannels : 2
-    let savedPlaybackChannels = defaults.integer(forKey: Keys.playbackChannels)
-    playbackChannels = savedPlaybackChannels > 0 ? savedPlaybackChannels : 2
+
+    var cap = DeviceConfig()
+    let savedCapChannels = defaults.integer(forKey: Keys.captureChannels)
+    cap.channels = savedCapChannels > 0 ? savedCapChannels : 2
     let savedCapRate = defaults.integer(forKey: Keys.captureSampleRate)
-    if savedCapRate > 0 { captureSampleRate = savedCapRate }
+    if savedCapRate > 0 { cap.sampleRate = savedCapRate }
+    if let f = defaults.string(forKey: Keys.captureFormat) { cap.format = f }
+    captureConfig = cap
+
+    var pb = DeviceConfig()
+    let savedPbChannels = defaults.integer(forKey: Keys.playbackChannels)
+    pb.channels = savedPbChannels > 0 ? savedPbChannels : 2
     let savedPbRate = defaults.integer(forKey: Keys.playbackSampleRate)
-    if savedPbRate > 0 { playbackSampleRate = savedPbRate }
+    if savedPbRate > 0 { pb.sampleRate = savedPbRate }
+    if let f = defaults.string(forKey: Keys.playbackFormat) { pb.format = f }
+    playbackConfig = pb
+
     let savedChunkSize = defaults.integer(forKey: Keys.chunkSize)
     chunkSize = savedChunkSize > 0 ? savedChunkSize : 1024
     volume = defaults.double(forKey: Keys.volume)
@@ -447,8 +361,6 @@ final class AppState: ObservableObject {
     {
       resamplerInterpolation = interpolation
     }
-    if let f = defaults.string(forKey: Keys.captureFormat) { captureFormat = f }
-    if let f = defaults.string(forKey: Keys.playbackFormat) { playbackFormat = f }
     camillaDSPPath = defaults.string(forKey: Keys.camillaDSPPath) ?? ""
   }
 }

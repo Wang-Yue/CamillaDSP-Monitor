@@ -164,11 +164,11 @@ extension AppState {
     if reason == "CaptureFormatChange", let newRate = stopReasonRate {
       print("[AppState] Capture format change detected, switching to \(newRate) Hz")
       if resamplerEnabled {
-        captureSampleRate = newRate
+        captureConfig.sampleRate = newRate
       } else {
         // When resampler is disabled, capture and playback rates must match.
-        // Updating playbackSampleRate will sync captureSampleRate via its didSet.
-        playbackSampleRate = newRate
+        // Update playbackConfig so validateSampleRates() syncs capture via its didSet.
+        playbackConfig.sampleRate = newRate
       }
       return
     }

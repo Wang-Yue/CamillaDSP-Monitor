@@ -26,62 +26,37 @@ extension AppState {
 
   // MARK: - Device Capabilities
 
-  /// Fetches capabilities for the currently selected devices from CamillaDSP, then
-  /// updates supported sample rates and available formats for both capture and playback.
+  /// Fetches capabilities for the selected devices, then atomically updates both
+  /// DeviceConfig structs. Each assignment triggers one `didSet` which enforces
+  /// cascade constraints and fires `applyConfig()` exactly once.
   func refreshDeviceCapabilities() async {
-    // Phase 1: Fetch capabilities and compute derived values into locals.
-    // No state is written here, so no didSet chains fire against partial data.
-    let newCapDesc: AudioDeviceDescriptor?
-    let newCapChannels: Int
+    var newCapture = captureConfig
+    var newPlayback = playbackConfig
+
     if let name = selectedCaptureDevice {
       let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: true)
-      let supported = desc?.availableChannels() ?? []
-      newCapDesc = desc
-      newCapChannels = snappedChannels(current: captureChannels, supported: supported)
-      print("[AppState] Capture \(name): channels \(supported)")
+      newCapture.capabilities = desc
+      print("[AppState] Capture \(name): channels \(newCapture.supportedChannels)")
     } else {
-      newCapDesc = nil
-      newCapChannels = captureChannels
+      newCapture.capabilities = nil
     }
 
-    let newPbDesc: AudioDeviceDescriptor?
-    let newPbChannels: Int
     if let name = selectedPlaybackDevice {
       let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: false)
-      let supported = desc?.availableChannels() ?? []
-      newPbDesc = desc
-      newPbChannels = snappedChannels(current: playbackChannels, supported: supported)
-      print("[AppState] Playback \(name): channels \(supported)")
+      newPlayback.capabilities = desc
+      print("[AppState] Playback \(name): channels \(newPlayback.supportedChannels)")
     } else {
-      newPbDesc = nil
-      newPbChannels = playbackChannels
+      newPlayback.capabilities = nil
     }
 
-    // Phase 2: Write all state in one suppressed batch so intermediate didSet
-    // chains (validateSampleRates, applyConfig) don't fire against half-written state.
-    // Capabilities are set first: channels.didSet's snapCaptureRateAndFormat() reads
-    // captureSupportedRates (computed from capabilities + channels), so capabilities
-    // must already be set when channels fires.
+    // Atomic struct assignment — enforced() cascades channels→rate→format in each didSet.
+    // Suppress applyConfig during the first assignment so we only fire once after both are set.
     isLoadingPreferences = true
-    captureCapabilities = newCapDesc
-    playbackCapabilities = newPbDesc
-    captureChannels = newCapChannels
-    playbackChannels = newPbChannels
+    captureConfig = newCapture.enforced()
     isLoadingPreferences = false
-
-    // Phase 3: Derived lists (supportedRates, supportedFormats) recompute automatically
-    // as they are now computed properties. The channels.didSet cascade already snapped
-    // rates and formats during Phase 2. Cross-device rate sync is the caller's responsibility.
-  }
-
-  /// Returns `current` if it is in `supported`, otherwise snaps to 2 (preferred)
-  /// or the first available channel count.
-  private func snappedChannels(current: Int, supported: [Int]) -> Int {
-    guard !supported.isEmpty else { return current }
-    if supported.contains(current) { return current }
-    return supported.contains(2) ? 2 : supported[0]
+    playbackConfig = newPlayback.enforced()
   }
 
   // MARK: - System Device Change Listener

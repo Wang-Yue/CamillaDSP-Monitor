@@ -47,22 +47,22 @@ struct DevicePickerView: View {
           iconColor: .blue,
           devices: appState.captureDevices,
           selectedDevice: $appState.selectedCaptureDevice,
-          channels: $appState.captureChannels,
-          supportedChannels: appState.captureSupportedChannels
+          channels: $appState.captureConfig.channels,
+          supportedChannels: appState.captureConfig.supportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Text("Sample Rate")
                 .frame(width: 100, alignment: .leading)
               if appState.resamplerEnabled {
-                Picker("", selection: $appState.captureSampleRate) {
+                Picker("", selection: $appState.captureConfig.sampleRate) {
                   ForEach(appState.captureRateOptions, id: \.self) { rate in
                     Text(formatRate(rate)).tag(rate)
                   }
                 }
                 .labelsHidden()
               } else {
-                Text(formatRate(appState.captureSampleRate))
+                Text(formatRate(appState.captureConfig.sampleRate))
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               }
@@ -71,13 +71,13 @@ struct DevicePickerView: View {
             HStack {
               Text("Format")
                 .frame(width: 100, alignment: .leading)
-              if appState.captureSupportedFormats.isEmpty {
-                Text(appState.captureFormat)
+              if appState.captureConfig.supportedFormats.isEmpty {
+                Text(appState.captureConfig.format)
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               } else {
-                Picker("", selection: $appState.captureFormat) {
-                  ForEach(appState.captureSupportedFormats, id: \.self) { fmt in
+                Picker("", selection: $appState.captureConfig.format) {
+                  ForEach(appState.captureConfig.supportedFormats, id: \.self) { fmt in
                     Text(fmt).tag(fmt)
                   }
                 }
@@ -100,17 +100,14 @@ struct DevicePickerView: View {
           iconColor: .green,
           devices: appState.playbackDevices,
           selectedDevice: $appState.selectedPlaybackDevice,
-          channels: $appState.playbackChannels,
-          supportedChannels: appState.playbackSupportedChannels
+          channels: $appState.playbackConfig.channels,
+          supportedChannels: appState.playbackConfig.supportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Text("Sample Rate")
                 .frame(width: 100, alignment: .leading)
-              Picker(
-                "",
-                selection: $appState.playbackSampleRate
-              ) {
+              Picker("", selection: $appState.playbackConfig.sampleRate) {
                 ForEach(appState.playbackRateOptions, id: \.self) { rate in
                   Text(formatRate(rate)).tag(rate)
                 }
@@ -121,13 +118,13 @@ struct DevicePickerView: View {
             HStack {
               Text("Format")
                 .frame(width: 100, alignment: .leading)
-              if appState.playbackSupportedFormats.isEmpty {
-                Text(appState.playbackFormat)
+              if appState.playbackConfig.supportedFormats.isEmpty {
+                Text(appState.playbackConfig.format)
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               } else {
-                Picker("", selection: $appState.playbackFormat) {
-                  ForEach(appState.playbackSupportedFormats, id: \.self) { fmt in
+                Picker("", selection: $appState.playbackConfig.format) {
+                  ForEach(appState.playbackConfig.supportedFormats, id: \.self) { fmt in
                     Text(fmt).tag(fmt)
                   }
                 }

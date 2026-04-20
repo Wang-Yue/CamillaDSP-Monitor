@@ -209,21 +209,23 @@ extension AppState {
 
   func buildConfigDict() -> [String: Any] {
     var devices: [String: Any] = [
-      "samplerate": playbackSampleRate,
+      "samplerate": playbackConfig.sampleRate,
       "chunksize": chunkSize,
       "volume_ramp_time": 200.0,  // ms
       "capture": [
-        "type": "CoreAudio", "channels": captureChannels, "device": selectedCaptureDevice as Any,
-        "format": captureFormat,
+        "type": "CoreAudio", "channels": captureConfig.channels,
+        "device": selectedCaptureDevice as Any,
+        "format": captureConfig.format,
       ],
       "playback": [
-        "type": "CoreAudio", "channels": playbackChannels, "device": selectedPlaybackDevice as Any,
-        "format": playbackFormat, "exclusive": exclusiveMode,
+        "type": "CoreAudio", "channels": playbackConfig.channels,
+        "device": selectedPlaybackDevice as Any,
+        "format": playbackConfig.format, "exclusive": exclusiveMode,
       ],
     ]
 
     if resamplerEnabled {
-      devices["capture_samplerate"] = captureSampleRate
+      devices["capture_samplerate"] = captureConfig.sampleRate
       switch resamplerType {
       case .asyncSinc:
         devices["resampler"] = ["type": "AsyncSinc", "profile": resamplerProfile.rawValue]

@@ -62,22 +62,22 @@ public enum CapabilityMode: String, Codable, Sendable {
   case exclusive = "Exclusive"
 }
 
-public struct SamplerateCapability: Codable, Sendable {
+public struct SamplerateCapability: Codable, Sendable, Equatable {
   public let samplerate: Int
   public let formats: [String]
 }
 
-public struct ChannelCapability: Codable, Sendable {
+public struct ChannelCapability: Codable, Sendable, Equatable {
   public let channels: Int
   public let samplerates: [SamplerateCapability]
 }
 
-public struct DeviceCapabilitySet: Codable, Sendable {
+public struct DeviceCapabilitySet: Codable, Sendable, Equatable {
   public let mode: CapabilityMode
   public let capabilities: [ChannelCapability]
 }
 
-public struct AudioDeviceDescriptor: Codable, Sendable {
+public struct AudioDeviceDescriptor: Codable, Sendable, Equatable {
   public let name: String
   public let description: String
   public let capability_sets: [DeviceCapabilitySet]
@@ -116,6 +116,55 @@ public struct AudioDeviceDescriptor: Codable, Sendable {
   }
 
   private static let formatPriority: [String: Int] = ["S32": 4, "S24": 3, "S16": 2, "F32": 1, "F64": 0]
+}
+
+/// Combined device config: selected channel/rate/format plus the device's capabilities.
+/// `enforced()` cascades any out-of-range selection down to the nearest valid value.
+public struct DeviceConfig: Equatable, Sendable {
+  public var capabilities: AudioDeviceDescriptor?
+  public var channels: Int
+  public var sampleRate: Int
+  public var format: String
+
+  public init(channels: Int = 2, sampleRate: Int = 48000, format: String = "F32") {
+    self.channels = channels
+    self.sampleRate = sampleRate
+    self.format = format
+    self.capabilities = nil
+  }
+
+  public var supportedChannels: [Int] { capabilities?.availableChannels() ?? [] }
+  public var supportedRates: [Int] { capabilities?.sampleRates(forChannels: channels) ?? [] }
+  public var supportedFormats: [String] {
+    capabilities?.availableFormats(channels: channels, sampleRate: sampleRate) ?? []
+  }
+
+  /// Returns a copy with channels/rate/format snapped to supported values.
+  /// Pure function — no side effects.
+  public func enforced() -> DeviceConfig {
+    var result = self
+    let ch = result.supportedChannels
+    if !ch.isEmpty && !ch.contains(result.channels) {
+      result.channels = ch.contains(2) ? 2 : ch[0]
+    }
+    let rates = result.supportedRates
+    if !rates.isEmpty && !rates.contains(result.sampleRate) {
+      result.sampleRate = Self.bestRate(from: rates, preferring: result.sampleRate)
+    }
+    let fmts = result.supportedFormats
+    if !fmts.isEmpty && !fmts.contains(result.format) {
+      result.format = fmts.first ?? "F32"
+    }
+    return result
+  }
+
+  public static func bestRate(from rates: [Int], preferring current: Int) -> Int {
+    if rates.contains(current) { return current }
+    for preferred in [48000, 44100, 96000, 192000] {
+      if rates.contains(preferred) { return preferred }
+    }
+    return rates.min(by: { abs($0 - current) < abs($1 - current) }) ?? 48000
+  }
 }
 
 public actor DSPEngine {
