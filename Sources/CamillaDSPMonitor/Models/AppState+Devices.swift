@@ -51,11 +51,10 @@ extension AppState {
       print("[AppState] Playback \(name): channels \(newPlayback.supportedChannels)")
     }
 
-    // Batch-assign both configs: one combined validateSampleRates+applyConfig fires at the end.
-    withSuppressedSideEffects {
-      captureConfig = newCapture.enforced()
-      playbackConfig = newPlayback.enforced()
-    }
+    // Assign both configs: each assignment triggers its didSet.
+    // Redundant applyConfig calls are debounced in applyConfig().
+    captureConfig = newCapture.enforced()
+    playbackConfig = newPlayback.enforced()
   }
 
   // MARK: - System Device Change Listener

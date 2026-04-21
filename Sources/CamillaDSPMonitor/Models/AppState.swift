@@ -31,8 +31,8 @@ public enum AppStatus: Equatable, Sendable {
   case inactive
   case starting
   case running
-  case applyingConfig
-  case error(String)
+  case paused
+  case stalled
 }
 
 @MainActor
@@ -40,18 +40,6 @@ final class AppState: ObservableObject {
   let defaults = UserDefaults.standard
 
   @Published var status: AppStatus = .inactive
-
-  var isRunning: Bool {
-    if case .running = status { return true }
-    if case .applyingConfig = status { return true }
-    return false
-  }
-
-  var isBusy: Bool {
-    status == .starting || status == .applyingConfig
-  }
-
-  @Published var lastError: String?
 
   @Published var captureDevices: [AudioDevice] = []
   @Published var playbackDevices: [AudioDevice] = []
@@ -73,9 +61,6 @@ final class AppState: ObservableObject {
       if let data = try? JSONEncoder().encode(captureConfig) {
         defaults.set(data, forKey: Keys.captureConfig)
       }
-      // Suppress the device-change task during batch updates — startup handles capabilities.
-      // (applyConfig/validateSampleRates self-guard, so simple properties need no guard.)
-      guard !_suppressingSideEffects else { _sideEffectsPending = true; return }
       if captureConfig.deviceName != oldValue.deviceName {
         // Device changed — fetch new capabilities; applyConfig fires via the didSet cascade
         Task { await refreshDeviceCapabilities() }
@@ -98,7 +83,6 @@ final class AppState: ObservableObject {
       if let data = try? JSONEncoder().encode(playbackConfig) {
         defaults.set(data, forKey: Keys.playbackConfig)
       }
-      guard !_suppressingSideEffects else { _sideEffectsPending = true; return }
       if playbackConfig.deviceName != oldValue.deviceName {
         Task { await refreshDeviceCapabilities() }
       } else {
@@ -191,12 +175,6 @@ final class AppState: ObservableObject {
   let logManager = LogManager()
 
   let engine = DSPEngine()
-  /// True while a batch update is in progress. `applyConfig()` and `validateSampleRates()`
-  /// both self-guard against this flag, so no per-property guard is needed on new properties.
-  var _suppressingSideEffects = false
-  /// Set by `applyConfig()` when called during suppression — causes one final
-  /// `validateSampleRates() + applyConfig()` when the batch completes.
-  var _sideEffectsPending = false
   var spectrumAnalyzer: FFTSpectrumAnalyzer? {
     didSet { analyzerRef.analyzer = spectrumAnalyzer }
   }
@@ -204,7 +182,6 @@ final class AppState: ObservableObject {
   /// to avoid accessing @MainActor-isolated properties from the audio render thread.
   let analyzerRef = AnalyzerRef()
   var audioTap: CoreAudioTap?
-  var lastAppliedConfigYAML: String?
   var startEngineTask: Task<Void, Never>?
   var spectrumRestartTask: Task<Void, Never>?
   var applyConfigTask: Task<Void, Never>?
@@ -212,16 +189,12 @@ final class AppState: ObservableObject {
   var vuSubscriptionTask: Task<Void, Never>?
   var stateSubscriptionTask: Task<Void, Never>?
   var isVuSubscriptionActive = false
-  var isStateSubscriptionActive = false
   /// True while the mini player is the active UI — suppresses hidden main window re-renders.
   @Published var isMiniPlayerActive = false
   /// The capture device name the audio tap is currently configured for.
   var audioTapDeviceName: String?
   /// Reference count of visible spectrum views. FFT is paused when this reaches zero.
   var spectrumViewCount = 0
-
-  // Recovery Throttling
-  var lastRecoveryTime: Date?
 
   enum Keys {
     static let captureConfig = "captureConfig"
@@ -236,27 +209,16 @@ final class AppState: ObservableObject {
     static let resamplerProfile = "resamplerProfile"
     static let resamplerInterpolation = "resamplerInterpolation"
     static let camillaDSPPath = "camillaDSPPath"
-    // Legacy keys — used only for one-time migration from builds before DeviceConfig
-    fileprivate static let legacyCaptureDevice = "captureDevice"
-    fileprivate static let legacyPlaybackDevice = "playbackDevice"
-    fileprivate static let legacyCaptureChannels = "captureChannels"
-    fileprivate static let legacyPlaybackChannels = "playbackChannels"
-    fileprivate static let legacyCaptureSampleRate = "captureSampleRate"
-    fileprivate static let legacyPlaybackSampleRate = "playbackSampleRate"
-    fileprivate static let legacyCaptureFormat = "captureFormat"
-    fileprivate static let legacyPlaybackFormat = "playbackFormat"
   }
 
   init() {
     print("[AppState] Initializing...")
     DSPEngine.killStaleCamillaDSP()
 
-    withSuppressedSideEffects {
-      loadPreferences()
-      eqPresets = loadEQPresets()
-      createDefaultEQPresetsIfNeeded()
-      loadPipelineStages()
-    }
+    loadPreferences()
+    eqPresets = loadEQPresets()
+    createDefaultEQPresetsIfNeeded()
+    loadPipelineStages()
 
     startDeviceChangeListener()
 
@@ -284,6 +246,8 @@ final class AppState: ObservableObject {
         }
 
         try await engine.connect(binaryPath: camillaDSPPath)
+        startStateSubscription()
+        await refreshDeviceCapabilities()
         await fetchDevices()
         self.validateSampleRates()
       } catch {
@@ -292,21 +256,7 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Runs `body` with side effects suppressed, then fires one combined
-  /// `validateSampleRates() + applyConfig()` if any property triggered either during the batch.
-  func withSuppressedSideEffects(_ body: () -> Void) {
-    _suppressingSideEffects = true
-    _sideEffectsPending = false
-    body()
-    _suppressingSideEffects = false
-    if _sideEffectsPending {
-      validateSampleRates()
-      applyConfig()
-    }
-  }
-
   func validateSampleRates() {
-    guard !_suppressingSideEffects else { return }
     let pbOptions = playbackRateOptions
     if !pbOptions.isEmpty && !pbOptions.contains(playbackConfig.sampleRate) {
       playbackConfig.sampleRate = DeviceConfig.bestRate(from: pbOptions, preferring: playbackConfig.sampleRate)
@@ -333,12 +283,8 @@ final class AppState: ObservableObject {
   }
 
   private func loadPreferences() {
-    captureConfig = loadDeviceConfig(key: Keys.captureConfig, legacyDeviceKey: Keys.legacyCaptureDevice,
-      legacyChannelsKey: Keys.legacyCaptureChannels, legacyRateKey: Keys.legacyCaptureSampleRate,
-      legacyFormatKey: Keys.legacyCaptureFormat)
-    playbackConfig = loadDeviceConfig(key: Keys.playbackConfig, legacyDeviceKey: Keys.legacyPlaybackDevice,
-      legacyChannelsKey: Keys.legacyPlaybackChannels, legacyRateKey: Keys.legacyPlaybackSampleRate,
-      legacyFormatKey: Keys.legacyPlaybackFormat)
+    captureConfig = loadDeviceConfig(key: Keys.captureConfig)
+    playbackConfig = loadDeviceConfig(key: Keys.playbackConfig)
 
     let savedChunkSize = defaults.integer(forKey: Keys.chunkSize)
     chunkSize = savedChunkSize > 0 ? savedChunkSize : 1024
@@ -363,22 +309,12 @@ final class AppState: ObservableObject {
     camillaDSPPath = defaults.string(forKey: Keys.camillaDSPPath) ?? ""
   }
 
-  private func loadDeviceConfig(
-    key: String, legacyDeviceKey: String, legacyChannelsKey: String,
-    legacyRateKey: String, legacyFormatKey: String
-  ) -> DeviceConfig {
+  private func loadDeviceConfig(key: String) -> DeviceConfig {
     if let data = defaults.data(forKey: key),
       let saved = try? JSONDecoder().decode(DeviceConfig.self, from: data)
     {
       return saved
     }
-    // Migrate from pre-DeviceConfig separate keys
-    var config = DeviceConfig(deviceName: defaults.string(forKey: legacyDeviceKey))
-    let savedChannels = defaults.integer(forKey: legacyChannelsKey)
-    if savedChannels > 0 { config.channels = savedChannels }
-    let savedRate = defaults.integer(forKey: legacyRateKey)
-    if savedRate > 0 { config.sampleRate = savedRate }
-    if let f = defaults.string(forKey: legacyFormatKey) { config.format = f }
-    return config
+    return DeviceConfig()
   }
 }

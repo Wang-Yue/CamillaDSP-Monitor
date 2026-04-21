@@ -326,11 +326,7 @@ public actor DSPEngine {
       jsonString = "\"\(type)\""
     }
 
-    let isPolling = ["GetSignalLevels", "GetProcessingLoad", "GetResamplerLoad", "GetState"]
-      .contains(type)
-    if !isPolling {
-      print("[DSPEngine] SEND: \(jsonString)")
-    }
+    print("[DSPEngine] SEND: \(jsonString)")
 
     do {
       try await webSocket.send(.string(jsonString))
@@ -345,6 +341,8 @@ public actor DSPEngine {
 
       let responseDict =
         try JSONSerialization.jsonObject(with: responseData) as? [String: any Sendable]
+      let responseString = String(data: responseData, encoding: .utf8)
+      print("[DSPEngine] RECV: \(responseString ?? "")")
 
       if let invalid = responseDict?["Invalid"] as? [String: any Sendable],
         let errorMsg = invalid["error"] as? String
@@ -381,16 +379,6 @@ public actor DSPEngine {
   }
 
   // MARK: - Commands
-
-  public func ping() async -> Bool {
-    guard isConnected else { return false }
-    do {
-      let _: String? = try await sendCommand("GetVersion")
-      return true
-    } catch {
-      return false
-    }
-  }
 
   public func start(configJson: String) async throws {
     let _: String? = try await sendCommand("SetConfigJson", value: configJson)

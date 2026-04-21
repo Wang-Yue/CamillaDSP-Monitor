@@ -8,19 +8,11 @@ extension AppState {
   // MARK: - Engine Lifecycle
 
   func startEngine() {
-    switch status {
-    case .inactive, .error:
-      break
-    default:
+    if status == .running {
       return
     }
 
-    status = .starting
-    lastError = nil
-    lastAppliedConfigYAML = nil
-
     guard devicesAvailable() else {
-      status = .error("Audio devices not available")
       return
     }
 
@@ -43,18 +35,15 @@ extension AppState {
         guard !Task.isCancelled else { return }
 
         // 3. Apply the configuration
-        lastAppliedConfigYAML = nil
         let config = buildConfigDict()
         try await startEngineWithConfig(config)
         guard !Task.isCancelled else { return }
 
-        status = .running
+        // Status will be updated by handleStateUpdate via state subscription.
         startMonitoringTimer()
         scheduleSpectrumRestart()
       } catch {
         guard !Task.isCancelled else { return }
-        lastError = "\(error)"
-        status = .error("\(error)")
         stopMonitoring()
         await engine.disconnect()
       }
@@ -69,13 +58,11 @@ extension AppState {
     let applyTask = applyConfigTask
     startEngineTask = nil
     applyConfigTask = nil
-    status = .inactive
+    
     stopMonitoring()
     levels.reset()
     spectrum.reset()
     load.reset()
-    lastAppliedConfigYAML = nil
-    lastRecoveryTime = nil
     Task {
       // Await cancelled tasks to ensure they've stopped before we stop the engine
       await startTask?.value
@@ -87,13 +74,7 @@ extension AppState {
   // MARK: - Configuration Management
 
   func applyConfig() {
-    if _suppressingSideEffects { _sideEffectsPending = true; return }
-    if case .error = status {
-      // Cancel any pending apply before restarting — it would run against a just-restarted
-      // engine and is already superseded by the full startEngine sequence.
-      applyConfigTask?.cancel()
-      applyConfigTask = nil
-      startEngine()
+    if status != .running {
       return
     }
     // Cancel any pending apply and debounce by scheduling a new one
@@ -107,44 +88,21 @@ extension AppState {
   }
 
   func applyConfigAsync() async {
-    guard isRunning && !isBusy else { return }
     savePipelineStages()
-
-    let config = buildConfigDict()
-    // .sortedKeys ensures the serialized string is deterministic regardless of
-    // Swift dictionary iteration order, so identical configs produce identical strings.
-    let data = try? JSONSerialization.data(withJSONObject: config, options: .sortedKeys)
-    let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-    if json == lastAppliedConfigYAML { return }
-
-    // Capture a safe fallback status — never restore .applyingConfig (would be a stuck state)
-    let fallbackStatus: AppStatus = (status == .applyingConfig) ? .running : status
-    status = .applyingConfig
 
     // Remember what subscriptions were active so we can restart them after.
     let hadVuSubscription = isVuSubscriptionActive || vuSubscriptionTask != nil
-    let hadStateSubscription = isStateSubscriptionActive || stateSubscriptionTask != nil
 
     do {
       // Prime faders before config change to avoid transition spikes
       await engine.setFaderMute(fader: 0, mute: isMuted)
       await engine.setFaderExternalVolume(fader: 0, db: volume)
 
+      let config = buildConfigDict()
       try await startEngineWithConfig(config)
-      lastAppliedConfigYAML = json
-
-      if await verifyEngineRunning(config: config) {
-        status = .running
-      } else {
-        let msg = "Engine failed to reach running state"
-        lastError = msg
-        status = .error(msg)
-      }
+      // Success — state subscription will move status accordingly.
     } catch {
       print("[AppState] Config apply failed: \(error)")
-      lastError = "Config error: \(error.localizedDescription)"
-      lastAppliedConfigYAML = nil
-      status = fallbackStatus
     }
 
     scheduleSpectrumRestart()
@@ -152,36 +110,7 @@ extension AppState {
     // Restart subscriptions after config change. CamillaDSP disconnects all
     // WebSocket connections when it restarts the pipeline, so old subscription
     // tasks will have ended by now. Starting fresh avoids the error/restart race.
-    if status == .running {
-      if hadVuSubscription { startVuSubscription() }
-      if hadStateSubscription { startStateSubscription() }
-    }
-  }
-
-  @discardableResult
-  private func verifyEngineRunning(config: [String: Any]) async -> Bool {
-    for _ in 0..<25 {
-      guard !Task.isCancelled else { return false }
-      let state: String? = try? await engine.sendCommand("GetState")
-      if state == "Running" || state == "Starting" || state == "Stalled" { return true }
-      try? await Task.sleep(nanoseconds: 20_000_000)
-    }
-
-    guard !Task.isCancelled else { return false }
-    print("[AppState] Engine state after config still not Running/Starting, retrying...")
-
-    do {
-      try await startEngineWithConfig(config)
-      for _ in 0..<10 {
-        guard !Task.isCancelled else { return false }
-        try? await Task.sleep(nanoseconds: 100_000_000)
-        let newState: String? = try? await engine.sendCommand("GetState")
-        if newState == "Running" || newState == "Starting" || newState == "Stalled" { return true }
-      }
-      return false
-    } catch {
-      return false
-    }
+    if hadVuSubscription { startVuSubscription() }
   }
 
   // MARK: - Controls

@@ -191,15 +191,15 @@ private struct CompactStatusIndicator: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
     }
-    .help(appState.lastError ?? "")
   }
 
   private var statusColor: Color {
     switch appState.status {
     case .inactive: return .gray
-    case .starting, .applyingConfig: return .yellow
+    case .starting: return .yellow
     case .running: return .green
-    case .error: return .red
+    case .paused: return .blue
+    case .stalled: return .orange
     }
   }
 
@@ -208,8 +208,8 @@ private struct CompactStatusIndicator: View {
     case .inactive: return "Inactive"
     case .starting: return "Starting..."
     case .running: return "Running"
-    case .applyingConfig: return "Updating..."
-    case .error: return "Error"
+    case .paused: return "Paused"
+    case .stalled: return "Stalled"
     }
   }
 }

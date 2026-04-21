@@ -83,7 +83,7 @@ struct PipelineOverview: View {
         HStack(spacing: 4) {
           StageChip(
             icon: "mic", label: appState.captureConfig.deviceName ?? "Input", color: .blue,
-            isActive: appState.isRunning)
+            isActive: appState.status == .running)
           Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           Button {
             appState.resamplerEnabled.toggle()
@@ -100,7 +100,7 @@ struct PipelineOverview: View {
           }
           StageChip(
             icon: "hifispeaker", label: appState.playbackConfig.deviceName ?? "Output", color: .green,
-            isActive: appState.isRunning)
+            isActive: appState.status == .running)
         }.padding(.vertical, 4)
       }
     }.padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))

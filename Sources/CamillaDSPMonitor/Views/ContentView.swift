@@ -70,11 +70,11 @@ struct ToolbarView: ToolbarContent {
 
       Group {
         switch appState.status {
-        case .starting, .applyingConfig:
+        case .starting:
           ProgressView()
             .controlSize(.small)
             .padding(.trailing, 4)
-        case .running:
+        case .running, .paused, .stalled:
           Button {
             appState.stopEngine()
           } label: {
@@ -90,14 +90,6 @@ struct ToolbarView: ToolbarContent {
               .foregroundStyle(.green)
           }
           .help("Start Engine")
-        case .error(let msg):
-          Button {
-            appState.startEngine()
-          } label: {
-            Label("Error", systemImage: "exclamationmark.circle.fill")
-              .foregroundStyle(.orange)
-          }
-          .help(msg)
         }
       }
 

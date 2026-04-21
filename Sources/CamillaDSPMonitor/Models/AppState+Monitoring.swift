@@ -15,7 +15,7 @@ extension AppState {
   }
 
   func scheduleSpectrumRestart() {
-    guard isRunning else { return }
+    guard status == .running else { return }
     spectrumRestartTask?.cancel()
     spectrumRestartTask = Task {
       try? await Task.sleep(nanoseconds: 500_000_000)
@@ -47,17 +47,12 @@ extension AppState {
   func startMonitoringTimer() {
     monitoringTask?.cancel()
     vuSubscriptionTask?.cancel()
-    stateSubscriptionTask?.cancel()
     isVuSubscriptionActive = false
-    isStateSubscriptionActive = false
 
     // Start VU subscription at the rate appropriate for the current active state.
     // Rate is adjusted (by restarting the subscription) whenever active state changes.
     let initiallyActive = NSApp?.isActive ?? true
     startVuSubscription(maxRate: initiallyActive ? 10.0 : 2.0)
-
-    // Try state subscription (server-push) — lightweight, always on
-    startStateSubscription()
 
     // Polling loop — adapts based on which subscriptions are active.
     // VU subscription stays active in both foreground and background; only the
@@ -83,13 +78,11 @@ extension AppState {
 
   func startStateSubscription() {
     stateSubscriptionTask?.cancel()
-    isStateSubscriptionActive = false
     stateSubscriptionTask = Task {
       guard let stream = await engine.subscribeState() else {
         print("[AppState] State subscription not available, using polling")
         return
       }
-      isStateSubscriptionActive = true
       print("[AppState] State subscription started")
       for await update in stream {
         guard !Task.isCancelled else { break }
@@ -99,7 +92,8 @@ extension AppState {
           stopReasonRate: update.stopReasonRate
         )
       }
-      isStateSubscriptionActive = false
+      // If the loop ends, we likely lost connection
+      print("[AppState] State subscription ended")
     }
   }
 
@@ -137,10 +131,7 @@ extension AppState {
     monitoringTask = nil
     vuSubscriptionTask?.cancel()
     vuSubscriptionTask = nil
-    stateSubscriptionTask?.cancel()
-    stateSubscriptionTask = nil
     isVuSubscriptionActive = false
-    isStateSubscriptionActive = false
     spectrumRestartTask?.cancel()
     spectrumRestartTask = nil
     stopAudioCapture()
@@ -151,16 +142,30 @@ extension AppState {
 
   /// Handle a state update from either subscription or polling.
   private func handleStateUpdate(state: String, stopReason: String?, stopReasonRate: Int? = nil) {
-    if state == "Running" || state == "Starting" || state == "Stalled" {
-      return  // Healthy states — nothing to do
+    // Map CamillaDSP states to AppStatus
+    let newStatus: AppStatus
+    switch state {
+    case "Running":
+      newStatus = .running
+    case "Paused":
+      newStatus = .paused
+    case "Starting":
+      newStatus = .starting
+    case "Stalled":
+      newStatus = .stalled
+    case "Inactive":
+      newStatus = .inactive
+    default:
+      newStatus = status // Keep current if unknown
     }
-    // Don't trigger recovery while we're already busy (starting or applying config).
-    // CamillaDSP briefly reports Inactive during config transitions.
-    guard !isBusy else { return }
-    // Engine stopped unexpectedly — attempt recovery
-    let reason = stopReason ?? "None"
-    if reason == "None" { return }
 
+    if newStatus != status {
+      status = newStatus
+    }
+
+    let reason = stopReason ?? "None"
+    
+    // Handle format changes by updating config first.
     if reason == "CaptureFormatChange", let newRate = stopReasonRate {
       print("[AppState] Capture format change detected, switching to \(newRate) Hz")
       if resamplerEnabled {
@@ -170,16 +175,8 @@ extension AppState {
         // Update playbackConfig so validateSampleRates() syncs capture via its didSet.
         playbackConfig.sampleRate = newRate
       }
-      return
+      startEngine()
     }
-
-    let now = Date()
-    if let last = lastRecoveryTime, now.timeIntervalSince(last) < 5.0 { return }
-    lastRecoveryTime = now
-    lastAppliedConfigYAML = nil
-    // Use applyConfig() instead of applyConfigAsync() so that if status is .error,
-    // it takes the startEngine() path for full recovery.
-    applyConfig()
   }
 
   func startAudioCapture() {
