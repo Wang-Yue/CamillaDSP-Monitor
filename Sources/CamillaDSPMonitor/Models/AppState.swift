@@ -44,19 +44,11 @@ final class AppState: ObservableObject {
   @Published var captureDevices: [AudioDevice] = []
   @Published var playbackDevices: [AudioDevice] = []
 
-  // MARK: - Per-device config (capabilities + selection — one notification per device)
-
-  private var _applyingCapture = false
-  private var _applyingPlayback = false
-
   @Published var captureConfig: DeviceConfig = DeviceConfig() {
     didSet {
-      guard !_applyingCapture else { return }
       let enforced = captureConfig.enforced()
       if enforced != captureConfig {
-        _applyingCapture = true
         captureConfig = enforced
-        _applyingCapture = false
       }
       if let data = try? JSONEncoder().encode(captureConfig) {
         defaults.set(data, forKey: Keys.captureConfig)
@@ -73,12 +65,9 @@ final class AppState: ObservableObject {
 
   @Published var playbackConfig: DeviceConfig = DeviceConfig() {
     didSet {
-      guard !_applyingPlayback else { return }
       let enforced = playbackConfig.enforced()
       if enforced != playbackConfig {
-        _applyingPlayback = true
         playbackConfig = enforced
-        _applyingPlayback = false
       }
       if let data = try? JSONEncoder().encode(playbackConfig) {
         defaults.set(data, forKey: Keys.playbackConfig)

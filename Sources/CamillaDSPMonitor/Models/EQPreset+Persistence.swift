@@ -31,8 +31,18 @@ extension AppState {
 
   func deleteEQPreset(at index: Int) {
     guard eqPresets.indices.contains(index) else { return }
+    let presetToDelete = eqPresets[index]
+    
+    // Nullify references in all pipeline stages
+    for stage in stages {
+      if stage.eqPresetID == presetToDelete.id { stage.eqPresetID = nil }
+      if stage.eqLeftPresetID == presetToDelete.id { stage.eqLeftPresetID = nil }
+      if stage.eqRightPresetID == presetToDelete.id { stage.eqRightPresetID = nil }
+    }
+    
     eqPresets.remove(at: index)
     saveEQPresets()
+    applyConfig()
   }
 
   /// Create default presets on first launch (headphone + room L + room R)
