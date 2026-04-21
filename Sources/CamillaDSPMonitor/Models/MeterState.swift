@@ -1,9 +1,8 @@
 // MeterState - Split observable state for UI binding
 //
-// Split into three independent ObservableObjects so that level changes
-// don't cause spectrum views to redraw, spectrum changes don't cause
-// meter views to redraw, and processing load changes don't cause either
-// to redraw. This reduces SwiftUI's AttributeGraph updates significantly.
+// Split into two independent ObservableObjects so that level changes
+// don't cause load views to redraw, and processing load changes don't
+// cause meter views to redraw. This reduces SwiftUI's AttributeGraph updates.
 
 import Foundation
 
@@ -50,22 +49,6 @@ final class LevelState: ObservableObject {
     update(
       capturePeak: .silent, captureRms: .silent,
       playbackPeak: .silent, playbackRms: .silent)
-  }
-}
-
-/// FFT spectrum bands — observed by spectrum views.
-@MainActor
-final class SpectrumState: ObservableObject {
-  var bands: [Double] = Array(repeating: -100, count: 30)
-
-  func update(bands: [Double]) {
-    guard self.bands != bands else { return }
-    self.bands = bands
-    objectWillChange.send()
-  }
-
-  func reset() {
-    update(bands: Array(repeating: -100, count: 30))
   }
 }
 

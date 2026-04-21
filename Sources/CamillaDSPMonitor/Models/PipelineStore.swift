@@ -1,8 +1,39 @@
-// EQPreset+Persistence - AppState extension for EQ preset persistence
+// PipelineStore - Pipeline stage and EQ preset management with persistence
 
 import Foundation
 
-extension AppState {
+@MainActor
+final class PipelineStore: ObservableObject {
+  let defaults = UserDefaults.standard
+
+  @Published var stages: [PipelineStage] = PipelineStage.defaultStages()
+  @Published var eqPresets: [EQPreset] = []
+
+  /// Fired after any change that requires a DSP config rebuild (currently only preset deletion).
+  var onChanged: (() -> Void)?
+
+  // MARK: - Pipeline Stage Persistence
+
+  func savePipelineStages() {
+    let snapshots = stages.map { $0.toSnapshot() }
+    if let data = try? JSONEncoder().encode(snapshots) {
+      defaults.set(data, forKey: "pipelineStages")
+    }
+  }
+
+  func loadPipelineStages() {
+    guard let data = defaults.data(forKey: "pipelineStages"),
+      let snapshots = try? JSONDecoder().decode([PipelineStage.Snapshot].self, from: data)
+    else { return }
+    for stage in stages {
+      if let snap = snapshots.first(where: { $0.stageType == stage.type.rawValue }) {
+        stage.restore(from: snap)
+      }
+    }
+  }
+
+  // MARK: - EQ Preset Persistence
+
   func saveEQPresets() {
     if let data = try? JSONEncoder().encode(eqPresets) {
       defaults.set(data, forKey: "eqPresets")
@@ -32,24 +63,19 @@ extension AppState {
   func deleteEQPreset(at index: Int) {
     guard eqPresets.indices.contains(index) else { return }
     let presetToDelete = eqPresets[index]
-    
-    // Nullify references in all pipeline stages
     for stage in stages {
       if stage.eqPresetID == presetToDelete.id { stage.eqPresetID = nil }
       if stage.eqLeftPresetID == presetToDelete.id { stage.eqLeftPresetID = nil }
       if stage.eqRightPresetID == presetToDelete.id { stage.eqRightPresetID = nil }
     }
-    
     eqPresets.remove(at: index)
     saveEQPresets()
-    applyConfig()
+    onChanged?()
   }
 
-  /// Create default presets on first launch (headphone + room L + room R)
   func createDefaultEQPresetsIfNeeded() {
     guard eqPresets.isEmpty else { return }
 
-    // Headphone EQ (10 bands)
     let headphone = EQPreset(
       name: "Headphone EQ",
       preampGain: -6.0,
@@ -66,7 +92,6 @@ extension AppState {
         EQBand(type: .highshelf, freq: 11000, gain: -3.0, q: 0.71),
       ])
 
-    // Room EQ Left (17 bands)
     let roomLeft = EQPreset(
       name: "Room EQ (Left)",
       preampGain: 0.0,
@@ -90,7 +115,6 @@ extension AppState {
         EQBand(type: .peaking, freq: 58.88, gain: -6.6, q: 38.64),
       ])
 
-    // Room EQ Right (17 bands)
     let roomRight = EQPreset(
       name: "Room EQ (Right)",
       preampGain: 0.0,

@@ -42,7 +42,6 @@ private class VerticalToHorizontalScrollView: NSScrollView {
     if abs(event.deltaX) >= abs(event.deltaY) {
       super.scrollWheel(with: event)
     } else {
-      // Convert vertical scroll to horizontal
       let converted = NSEvent.init(
         cgEvent: {
           let cg = event.cgEvent!
@@ -58,8 +57,6 @@ private class VerticalToHorizontalScrollView: NSScrollView {
 }
 
 struct DashboardView: View {
-  @EnvironmentObject var appState: AppState
-
   var body: some View {
     ScrollView {
       VStack(spacing: 20) {
@@ -74,7 +71,10 @@ struct DashboardView: View {
 }
 
 struct PipelineOverview: View {
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var dsp: DSPEngineController
+  @EnvironmentObject var devices: AudioDeviceManager
+  @EnvironmentObject var settings: AudioSettings
+  @EnvironmentObject var pipeline: PipelineStore
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -82,25 +82,25 @@ struct PipelineOverview: View {
       HorizontalScrollWithVerticalWheel {
         HStack(spacing: 4) {
           StageChip(
-            icon: "mic", label: appState.captureConfig.deviceName ?? "Input", color: .blue,
-            isActive: appState.status == .running)
+            icon: "mic", label: devices.captureConfig.deviceName ?? "Input", color: .blue,
+            isActive: dsp.status == .running)
           Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           Button {
-            appState.resamplerEnabled.toggle()
+            settings.resamplerEnabled.toggle()
           } label: {
             StageChip(
               icon: "arrow.triangle.2.circlepath", label: "Resampler",
-              color: appState.resamplerEnabled ? Color.accentColor : .gray,
-              isActive: appState.resamplerEnabled)
+              color: settings.resamplerEnabled ? Color.accentColor : .gray,
+              isActive: settings.resamplerEnabled)
           }.buttonStyle(.plain)
           Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
-          ForEach(appState.stages) { stage in
+          ForEach(pipeline.stages) { stage in
             StageChipButton(stage: stage)
             Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           }
           StageChip(
-            icon: "hifispeaker", label: appState.playbackConfig.deviceName ?? "Output", color: .green,
-            isActive: appState.status == .running)
+            icon: "hifispeaker", label: devices.playbackConfig.deviceName ?? "Output",
+            color: .green, isActive: dsp.status == .running)
         }.padding(.vertical, 4)
       }
     }.padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -112,7 +112,6 @@ struct StageChip: View {
   let label: String
   let color: Color
   let isActive: Bool
-  /// compact = mini player style: smaller padding, solid fill, dark-context foreground
   var compact: Bool = false
 
   var body: some View {
@@ -157,13 +156,13 @@ private struct StageChipBorderModifier: ViewModifier {
 
 struct StageChipButton: View {
   @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var dsp: DSPEngineController
   var compact: Bool = false
 
   var body: some View {
     Button {
       stage.isEnabled.toggle()
-      appState.applyConfig()
+      dsp.applyConfig()
     } label: {
       StageChip(
         icon: stage.type.icon, label: stage.name,
@@ -203,8 +202,11 @@ struct LevelMetersCard: View {
 }
 
 struct SpectrumCard: View {
-  @EnvironmentObject var spectrum: SpectrumState
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var dsp: DSPEngineController
+  @EnvironmentObject var devices: AudioDeviceManager
+  @EnvironmentObject var settings: AudioSettings
+  @StateObject private var engine = SpectrumEngine()
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
@@ -212,11 +214,23 @@ struct SpectrumCard: View {
         Spacer()
         Text("FFT Pre-Processing").font(.caption).foregroundStyle(.tertiary)
       }
-      SpectrumView(bands: spectrum.bands).frame(height: 160)
+      SpectrumView(bands: engine.bands).frame(height: 160)
     }
     .padding()
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-    .onAppear { appState.registerSpectrumView() }
-    .onDisappear { appState.unregisterSpectrumView() }
+    .onAppear { updateEngine() }
+    .onDisappear { engine.deactivate() }
+    .onChange(of: dsp.status) { updateEngine() }
+  }
+
+  private func updateEngine() {
+    if dsp.status == .running {
+      engine.activate(
+        sampleRate: devices.captureConfig.sampleRate,
+        chunkSize: settings.chunkSize,
+        deviceName: devices.captureConfig.deviceName)
+    } else {
+      engine.deactivate()
+    }
   }
 }

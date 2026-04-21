@@ -2,6 +2,53 @@
 
 import SwiftUI
 
+// MARK: - SpectrumEngine
+
+/// Owns CoreAudioTap + FFTSpectrumAnalyzer for one on-screen spectrum view.
+/// Activated when the view appears AND the DSP engine is running; deactivated otherwise.
+@MainActor
+final class SpectrumEngine: ObservableObject {
+  @Published private(set) var bands: [Double] = Array(repeating: -100, count: 30)
+
+  private var analyzer: FFTSpectrumAnalyzer?
+  private var tap: CoreAudioTap?
+  private let analyzerRef = AnalyzerRef()
+  private var updateTask: Task<Void, Never>?
+
+  func activate(sampleRate: Int, chunkSize: Int, deviceName: String?) {
+    guard analyzer == nil else { return }
+    let a = FFTSpectrumAnalyzer(sampleRate: sampleRate, chunkSize: chunkSize)
+    analyzer = a
+    analyzerRef.analyzer = a
+    let ref = analyzerRef
+    let t = CoreAudioTap(onAudio: { waveform in ref.analyzer?.enqueueAudio(waveform) })
+    tap = t
+    Task { await t.start(deviceName: deviceName) }
+    updateTask = Task {
+      while !Task.isCancelled {
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        guard !Task.isCancelled, let a = self.analyzer else { break }
+        self.bands = a.readBands()
+      }
+    }
+  }
+
+  func deactivate() {
+    updateTask?.cancel()
+    updateTask = nil
+    analyzerRef.analyzer = nil
+    analyzer = nil
+    let t = tap
+    tap = nil
+    if t != nil {
+      Task { await t?.stop() }
+    }
+    bands = Array(repeating: -100, count: 30)
+  }
+}
+
+// MARK: - SpectrumView
+
 struct SpectrumView: View {
   let bands: [Double]  // dB values for each band
 

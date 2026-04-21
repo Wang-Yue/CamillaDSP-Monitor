@@ -14,7 +14,6 @@ final class MiniPlayerWindowController {
   func showMiniPlayer(appState: AppState) {
     self.appState = appState
 
-    // Remember the main window
     mainWindow =
       NSApplication.shared.mainWindow
       ?? NSApplication.shared.windows.first {
@@ -23,8 +22,6 @@ final class MiniPlayerWindowController {
 
     // Suppress hidden window re-renders before hiding it
     appState.isMiniPlayerActive = true
-
-    // Hide main window (don't minimize to dock)
     mainWindow?.orderOut(nil)
 
     if let existing = panel {
@@ -32,16 +29,18 @@ final class MiniPlayerWindowController {
       return
     }
 
-    // Create the SwiftUI content
     let miniView = MiniPlayerView()
       .environmentObject(appState)
       .environmentObject(appState.levels)
-      .environmentObject(appState.spectrum)
+      .environmentObject(appState.settings)
+      .environmentObject(appState.devices)
+      .environmentObject(appState.pipeline)
+      .environmentObject(appState.monitoring)
+      .environmentObject(appState.dsp)
 
     let hostingView = NSHostingView(rootView: miniView)
     hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: 90)
 
-    // Create NSPanel — floating, non-activating, visible on all spaces
     let panel = NSPanel(
       contentRect: NSRect(x: 0, y: 0, width: 320, height: 90),
       styleMask: [.hudWindow, .utilityWindow, .resizable],
@@ -52,7 +51,7 @@ final class MiniPlayerWindowController {
     panel.isOpaque = false
     panel.backgroundColor = .clear
     panel.hasShadow = true
-    panel.level = .screenSaver  // Above fullscreen video
+    panel.level = .screenSaver
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     panel.isMovableByWindowBackground = true
     panel.hidesOnDeactivate = false
@@ -62,7 +61,6 @@ final class MiniPlayerWindowController {
     panel.minSize = NSSize(width: 200, height: 80)
     panel.maxSize = NSSize(width: 600, height: 120)
 
-    // Position: lower-right corner of the screen
     if let screen = NSScreen.main {
       let screenFrame = screen.visibleFrame
       let x = screenFrame.maxX - 330
@@ -82,8 +80,6 @@ final class MiniPlayerWindowController {
     // view hierarchy while the window is still off-screen.
     appState?.isMiniPlayerActive = false
 
-    // Restore main window on the next run-loop tick so SwiftUI has processed the
-    // isMiniPlayerActive change and rebuilt ContentView before the window appears.
     let windowToRestore = mainWindow
     mainWindow = nil
     DispatchQueue.main.async {

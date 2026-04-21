@@ -81,7 +81,8 @@ struct EQDiagramMode: View {
 
 struct EQFrequencyResponseView: View {
   @ObservedObject var preset: EQPreset
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var dsp: DSPEngineController
+  @EnvironmentObject var pipeline: PipelineStore
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
   static let bandColors: [Color] = [
@@ -229,8 +230,8 @@ struct EQFrequencyResponseView: View {
           band.objectWillChange.send()
           preset.objectWillChange.send()
         }.onEnded { _ in
-          appState.applyConfig()
-          appState.saveEQPresets()
+          dsp.applyConfig()
+          pipeline.saveEQPresets()
         }
       )
       .onTapGesture { selectedBandID = band.id }

@@ -12,8 +12,12 @@ struct CamillaDSPMonitorApp: App {
       ContentView()
         .environmentObject(appState)
         .environmentObject(appState.levels)
-        .environmentObject(appState.spectrum)
         .environmentObject(appState.load)
+        .environmentObject(appState.dsp)
+        .environmentObject(appState.settings)
+        .environmentObject(appState.devices)
+        .environmentObject(appState.pipeline)
+        .environmentObject(appState.monitoring)
         .frame(minWidth: 960, minHeight: 680)
         .onAppear {
           appDelegate.appState = appState
@@ -24,7 +28,8 @@ struct CamillaDSPMonitorApp: App {
 
     Settings {
       DevicePickerView()
-        .environmentObject(appState)
+        .environmentObject(appState.devices)
+        .environmentObject(appState.settings)
         .frame(width: 450, height: 350)
     }
   }
@@ -41,8 +46,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApplication.shared.activate(ignoringOtherApps: true)
 
-    // Kill camilladsp on SIGINT (ctrl+c) and SIGTERM (kill).
-    // applicationWillTerminate only fires on graceful quit (cmd+q).
     for sig in [SIGINT, SIGTERM] {
       signal(sig) { _ in
         DSPEngine.killStaleCamillaDSP()
@@ -52,7 +55,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    // Don't terminate when the main window is hidden for mini player mode.
     return false
   }
 
@@ -69,9 +71,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     print("[AppDelegate] applicationWillTerminate")
     appState?.savePipelineStages()
     appState?.saveEQPresets()
-    appState?.stopMonitoring()
-
-    // Kill camilladsp synchronously — can't await the actor during termination
     DSPEngine.killStaleCamillaDSP()
   }
 }

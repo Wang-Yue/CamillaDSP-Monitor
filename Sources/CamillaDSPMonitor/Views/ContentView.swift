@@ -8,10 +8,6 @@ struct ContentView: View {
   @State private var showAutoEqSearch = false
 
   var body: some View {
-    // When the mini player is active the main window is hidden. Rendering nothing
-    // here removes all level/spectrum subscriptions from the hidden window, stopping
-    // SwiftUI from evaluating view bodies and running Canvas closures at 10 Hz for
-    // content the user cannot see.
     if appState.isMiniPlayerActive {
       Color.clear
     } else {
@@ -33,7 +29,6 @@ struct ContentView: View {
           }
       } detail: {
         DetailPanel(selection: selection)
-          .environmentObject(appState)
       }
       .toolbar {
         ToolbarView()
@@ -41,7 +36,7 @@ struct ContentView: View {
       .navigationTitle("CamillaDSP Monitor")
       .sheet(isPresented: $showAutoEqSearch) {
         AutoEqPickerView()
-          .environmentObject(appState)
+          .environmentObject(appState.pipeline)
       }
     }
   }
@@ -63,20 +58,21 @@ enum SidebarItem: Hashable {
 // MARK: - Toolbar
 
 struct ToolbarView: ToolbarContent {
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var dsp: DSPEngineController
+  @EnvironmentObject var devices: AudioDeviceManager
+  @EnvironmentObject var load: LoadState
 
   var body: some ToolbarContent {
     ToolbarItemGroup(placement: .primaryAction) {
-
       Group {
-        switch appState.status {
+        switch dsp.status {
         case .starting:
           ProgressView()
             .controlSize(.small)
             .padding(.trailing, 4)
         case .running, .paused, .stalled:
           Button {
-            appState.stopEngine()
+            dsp.stopEngine()
           } label: {
             Label("Stop", systemImage: "stop.circle.fill")
               .foregroundStyle(.red)
@@ -84,7 +80,7 @@ struct ToolbarView: ToolbarContent {
           .help("Stop Engine")
         case .inactive:
           Button {
-            appState.startEngine()
+            dsp.startEngine()
           } label: {
             Label("Start", systemImage: "play.circle.fill")
               .foregroundStyle(.green)
@@ -93,12 +89,11 @@ struct ToolbarView: ToolbarContent {
         }
       }
 
-      Text("\(appState.sampleRate) Hz")
+      Text("\(devices.captureConfig.sampleRate) Hz")
         .font(.system(.body, design: .monospaced))
         .foregroundStyle(.secondary)
 
-      // Observed wrapper to ensure updates
-      CPUUsageView(load: appState.load)
+      CPUUsageView(load: load)
 
       VolumeControlView()
     }
@@ -117,7 +112,8 @@ struct CPUUsageView: View {
 // MARK: - Sidebar
 
 struct SidebarView: View {
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var settings: AudioSettings
+  @EnvironmentObject var pipeline: PipelineStore
   @Binding var selection: SidebarItem?
   @Binding var showAutoEqSearch: Bool
 
@@ -143,19 +139,19 @@ struct SidebarView: View {
         ResamplerSidebarRow()
           .tag(SidebarItem.resampler)
 
-        ForEach(appState.stages.indices, id: \.self) { index in
-          PipelineSidebarRow(stage: appState.stages[index])
+        ForEach(pipeline.stages.indices, id: \.self) { index in
+          PipelineSidebarRow(stage: pipeline.stages[index])
             .tag(SidebarItem.stage(index))
         }
       }
 
       Section("EQ Presets") {
-        ForEach(appState.eqPresets.indices, id: \.self) { index in
-          EQPresetSidebarRow(preset: appState.eqPresets[index])
+        ForEach(pipeline.eqPresets.indices, id: \.self) { index in
+          EQPresetSidebarRow(preset: pipeline.eqPresets[index])
             .tag(SidebarItem.eqPreset(index))
             .contextMenu {
               Button(role: .destructive) {
-                appState.deleteEQPreset(at: index)
+                pipeline.deleteEQPreset(at: index)
               } label: {
                 Label("Delete", systemImage: "trash")
               }
@@ -164,7 +160,7 @@ struct SidebarView: View {
 
         HStack {
           Button {
-            appState.addEQPreset()
+            pipeline.addEQPreset()
           } label: {
             Label("Add", systemImage: "plus")
               .foregroundStyle(.secondary)
@@ -193,17 +189,16 @@ struct SidebarView: View {
 struct DetailPanel: View {
   let selection: SidebarItem?
   @EnvironmentObject var appState: AppState
+  @EnvironmentObject var pipeline: PipelineStore
 
   var body: some View {
     VStack(spacing: 0) {
-      // Always-visible compact level bar
       CompactLevelMeterBar()
         .padding(.horizontal)
         .padding(.vertical, 8)
 
       Divider()
 
-      // Routed content
       switch selection {
       case .devices:
         DevicePickerView()
@@ -228,8 +223,8 @@ struct DetailPanel: View {
           .frame(maxHeight: .infinity, alignment: .top)
           .background(Color(nsColor: .controlBackgroundColor))
       case .eqPreset(let index):
-        if index < appState.eqPresets.count {
-          EQPresetDetailView(preset: appState.eqPresets[index])
+        if index < pipeline.eqPresets.count {
+          EQPresetDetailView(preset: pipeline.eqPresets[index])
         }
       case .stage(let index):
         StageDetailView(stageIndex: index)
@@ -238,20 +233,20 @@ struct DetailPanel: View {
   }
 }
 
-// MARK: - Pipeline Sidebar Row
+// MARK: - Pipeline Sidebar Rows
 
 struct ResamplerSidebarRow: View {
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var settings: AudioSettings
 
   var body: some View {
     HStack {
       Image(systemName: "arrow.triangle.2.circlepath")
         .frame(width: 20)
-        .foregroundStyle(appState.resamplerEnabled ? Color.accentColor : Color.secondary)
+        .foregroundStyle(settings.resamplerEnabled ? Color.accentColor : Color.secondary)
       Text("Resampler")
-        .foregroundStyle(appState.resamplerEnabled ? .primary : .secondary)
+        .foregroundStyle(settings.resamplerEnabled ? .primary : .secondary)
       Spacer()
-      Toggle("", isOn: $appState.resamplerEnabled)
+      Toggle("", isOn: $settings.resamplerEnabled)
         .labelsHidden()
         .toggleStyle(.switch)
         .controlSize(.mini)
@@ -269,7 +264,7 @@ struct EQPresetSidebarRow: View {
 
 struct PipelineSidebarRow: View {
   @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var dsp: DSPEngineController
 
   var body: some View {
     HStack {
@@ -284,7 +279,7 @@ struct PipelineSidebarRow: View {
         .toggleStyle(.switch)
         .controlSize(.mini)
         .onChange(of: stage.isEnabled) { _, _ in
-          appState.applyConfig()
+          dsp.applyConfig()
         }
     }
   }

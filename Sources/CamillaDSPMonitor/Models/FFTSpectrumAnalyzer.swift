@@ -6,25 +6,21 @@ import Foundation
 
 /// Thread-safe reference holder for FFTSpectrumAnalyzer.
 /// Used by the audio tap callback to call enqueueAudio() without going through
-/// @MainActor-isolated AppState properties (which would crash on the audio thread).
-final class AnalyzerRef: @unchecked Sendable {
-  private let lock = NSLock()
-  private var _analyzer: FFTSpectrumAnalyzer?
+/// @MainActor-isolated stored properties (which would crash on the audio thread).
+///
+/// OSAllocatedUnfairLock is itself Sendable, so all stored properties are `let`
+/// and Sendable — no @unchecked needed.
+final class AnalyzerRef: Sendable {
+  private let storage = OSAllocatedUnfairLock<FFTSpectrumAnalyzer?>(initialState: nil)
   var analyzer: FFTSpectrumAnalyzer? {
-    get {
-      lock.lock()
-      defer { lock.unlock() }
-      return _analyzer
-    }
-    set {
-      lock.lock()
-      defer { lock.unlock() }
-      _analyzer = newValue
-    }
+    get { storage.withLock { $0 } }
+    set { storage.withLock { $0 = newValue } }
   }
 }
 
-final class FFTSpectrumAnalyzer {
+/// All mutable state is protected by NSLock (pendingBuffer, bandPeaks) or
+/// confined to the spectrumQueue (FFT processing), satisfying Sendable.
+final class FFTSpectrumAnalyzer: @unchecked Sendable {
   private let sampleRate: Int
   private let fftSize: Int
   private let log2n: vDSP_Length
@@ -38,7 +34,6 @@ final class FFTSpectrumAnalyzer {
   private var bandPeaks: [Double]
   private let spectrumQueue = DispatchQueue(label: "camilladsp.spectrum.fft", qos: .utility)
   private var spectrumTimer: DispatchSourceTimer?
-  private var timerPaused = false
 
   // Pre-allocated Float buffers
   private var windowed: [Float]
@@ -83,6 +78,7 @@ final class FFTSpectrumAnalyzer {
     }
     self.bandBins = bins
     self.bandPeaks = Array(repeating: -100, count: bandCount)
+
     let timer = DispatchSource.makeTimerSource(queue: spectrumQueue)
     timer.schedule(deadline: .now(), repeating: .milliseconds(100))
     timer.setEventHandler { [weak self] in self?.processLatestBuffer() }
@@ -91,25 +87,8 @@ final class FFTSpectrumAnalyzer {
   }
 
   deinit {
-    // Must resume before cancel to avoid crash on dealloc of a suspended DispatchSource.
-    if timerPaused { spectrumTimer?.resume() }
     spectrumTimer?.cancel()
     vDSP_destroy_fftsetup(fftSetup)
-  }
-
-  /// Pause FFT computation. readBands() still returns the last computed result.
-  /// Each pause() must be balanced by exactly one resume().
-  func pause() {
-    guard !timerPaused else { return }
-    timerPaused = true
-    spectrumTimer?.suspend()
-  }
-
-  /// Resume FFT computation after a pause().
-  func resume() {
-    guard timerPaused else { return }
-    timerPaused = false
-    spectrumTimer?.resume()
   }
 
   func enqueueAudio(_ waveform: [Float]) {

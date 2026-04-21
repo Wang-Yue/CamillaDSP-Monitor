@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AutoEqPickerView: View {
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var pipeline: PipelineStore
   @Environment(\.dismiss) var dismiss
 
   @State private var headphones: [AutoEqHeadphone] = []
@@ -23,7 +23,6 @@ struct AutoEqPickerView: View {
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
-        // Custom Header with Title and Search Box on the same line
         HStack(spacing: 16) {
           Text("AutoEQ Database")
             .font(.headline)
@@ -77,9 +76,7 @@ struct AutoEqPickerView: View {
       }
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") {
-            dismiss()
-          }
+          Button("Cancel") { dismiss() }
         }
         ToolbarItem(placement: .primaryAction) {
           Button {
@@ -92,9 +89,7 @@ struct AutoEqPickerView: View {
         }
       }
     }
-    .task {
-      await loadDatabase()
-    }
+    .task { await loadDatabase() }
     .frame(width: 500, height: 600)
   }
 
@@ -133,7 +128,7 @@ struct AutoEqPickerView: View {
       do {
         let text = try await AutoEqService.shared.fetchParametricEQ(for: headphone)
         if let result = EQPreset.fromCSV(text) {
-          appState.addEQPreset(name: headphone.name, preamp: result.preamp, bands: result.bands)
+          pipeline.addEQPreset(name: headphone.name, preamp: result.preamp, bands: result.bands)
           dismiss()
         } else {
           errorMessage = "Could not parse EQ data. File format might have changed."

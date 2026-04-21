@@ -4,7 +4,8 @@ import CamillaDSPLib
 import SwiftUI
 
 struct DevicePickerView: View {
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var devices: AudioDeviceManager
+  @EnvironmentObject var settings: AudioSettings
   @State private var showRestartAlert = false
 
   var body: some View {
@@ -17,9 +18,9 @@ struct DevicePickerView: View {
               .font(.headline)
 
             HStack {
-              Text(appState.camillaDSPPath.isEmpty ? "Not selected" : appState.camillaDSPPath)
+              Text(settings.camillaDSPPath.isEmpty ? "Not selected" : settings.camillaDSPPath)
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(appState.camillaDSPPath.isEmpty ? .red : .secondary)
+                .foregroundStyle(settings.camillaDSPPath.isEmpty ? .red : .secondary)
                 .lineLimit(1)
                 .truncationMode(.head)
 
@@ -30,7 +31,7 @@ struct DevicePickerView: View {
               }
             }
 
-            if appState.camillaDSPPath.isEmpty {
+            if settings.camillaDSPPath.isEmpty {
               Text("Please select the camilladsp executable to start the engine.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -45,26 +46,26 @@ struct DevicePickerView: View {
           title: "Capture (Input)",
           icon: "mic.fill",
           iconColor: .blue,
-          devices: appState.captureDevices,
+          devices: devices.captureDevices,
           selectedDevice: Binding(
-            get: { appState.captureConfig.deviceName },
-            set: { appState.captureConfig.deviceName = $0 }),
-          channels: $appState.captureConfig.channels,
-          supportedChannels: appState.captureConfig.supportedChannels
+            get: { devices.captureConfig.deviceName },
+            set: { devices.captureConfig.deviceName = $0 }),
+          channels: $devices.captureConfig.channels,
+          supportedChannels: devices.captureConfig.supportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Text("Sample Rate")
                 .frame(width: 100, alignment: .leading)
-              if appState.resamplerEnabled {
-                Picker("", selection: $appState.captureConfig.sampleRate) {
-                  ForEach(appState.captureRateOptions, id: \.self) { rate in
+              if settings.resamplerEnabled {
+                Picker("", selection: $devices.captureConfig.sampleRate) {
+                  ForEach(devices.captureRateOptions, id: \.self) { rate in
                     Text(formatRate(rate)).tag(rate)
                   }
                 }
                 .labelsHidden()
               } else {
-                Text(formatRate(appState.captureConfig.sampleRate))
+                Text(formatRate(devices.captureConfig.sampleRate))
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               }
@@ -73,13 +74,13 @@ struct DevicePickerView: View {
             HStack {
               Text("Format")
                 .frame(width: 100, alignment: .leading)
-              if appState.captureConfig.supportedFormats.isEmpty {
-                Text(appState.captureConfig.format)
+              if devices.captureConfig.supportedFormats.isEmpty {
+                Text(devices.captureConfig.format)
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               } else {
-                Picker("", selection: $appState.captureConfig.format) {
-                  ForEach(appState.captureConfig.supportedFormats, id: \.self) { fmt in
+                Picker("", selection: $devices.captureConfig.format) {
+                  ForEach(devices.captureConfig.supportedFormats, id: \.self) { fmt in
                     Text(fmt).tag(fmt)
                   }
                 }
@@ -87,7 +88,7 @@ struct DevicePickerView: View {
               }
             }
 
-            if !appState.resamplerEnabled {
+            if !settings.resamplerEnabled {
               Text("Follows the playback sample rate (enable Resampler for independent rates)")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -100,19 +101,19 @@ struct DevicePickerView: View {
           title: "Playback (Output)",
           icon: "hifispeaker.2.fill",
           iconColor: .green,
-          devices: appState.playbackDevices,
+          devices: devices.playbackDevices,
           selectedDevice: Binding(
-            get: { appState.playbackConfig.deviceName },
-            set: { appState.playbackConfig.deviceName = $0 }),
-          channels: $appState.playbackConfig.channels,
-          supportedChannels: appState.playbackConfig.supportedChannels
+            get: { devices.playbackConfig.deviceName },
+            set: { devices.playbackConfig.deviceName = $0 }),
+          channels: $devices.playbackConfig.channels,
+          supportedChannels: devices.playbackConfig.supportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Text("Sample Rate")
                 .frame(width: 100, alignment: .leading)
-              Picker("", selection: $appState.playbackConfig.sampleRate) {
-                ForEach(appState.playbackRateOptions, id: \.self) { rate in
+              Picker("", selection: $devices.playbackConfig.sampleRate) {
+                ForEach(devices.playbackRateOptions, id: \.self) { rate in
                   Text(formatRate(rate)).tag(rate)
                 }
               }
@@ -122,13 +123,13 @@ struct DevicePickerView: View {
             HStack {
               Text("Format")
                 .frame(width: 100, alignment: .leading)
-              if appState.playbackConfig.supportedFormats.isEmpty {
-                Text(appState.playbackConfig.format)
+              if devices.playbackConfig.supportedFormats.isEmpty {
+                Text(devices.playbackConfig.format)
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               } else {
-                Picker("", selection: $appState.playbackConfig.format) {
-                  ForEach(appState.playbackConfig.supportedFormats, id: \.self) { fmt in
+                Picker("", selection: $devices.playbackConfig.format) {
+                  ForEach(devices.playbackConfig.supportedFormats, id: \.self) { fmt in
                     Text(fmt).tag(fmt)
                   }
                 }
@@ -136,7 +137,7 @@ struct DevicePickerView: View {
               }
             }
 
-            Toggle("Exclusive Mode (Hog)", isOn: $appState.exclusiveMode)
+            Toggle("Exclusive Mode (Hog)", isOn: $devices.exclusiveMode)
             Text(
               "Takes exclusive access to the output device, preventing other apps from using it"
             )
@@ -154,7 +155,7 @@ struct DevicePickerView: View {
             HStack {
               Text("Chunk Size")
                 .frame(width: 100, alignment: .leading)
-              Picker("", selection: $appState.chunkSize) {
+              Picker("", selection: $settings.chunkSize) {
                 Text("256 samples").tag(256)
                 Text("512 samples").tag(512)
                 Text("1024 samples").tag(1024)
@@ -168,7 +169,7 @@ struct DevicePickerView: View {
                 .foregroundStyle(.secondary)
             }
 
-            Toggle("Enable Rate Adjust", isOn: $appState.enableRateAdjust)
+            Toggle("Enable Rate Adjust", isOn: $settings.enableRateAdjust)
             Text("Compensate for clock drift between capture and playback devices")
               .font(.caption)
               .foregroundStyle(.secondary)
@@ -188,7 +189,7 @@ struct DevicePickerView: View {
   }
 
   private var latencyText: String {
-    String(format: "(%.1f ms latency)", appState.latencyMs)
+    String(format: "(%.1f ms latency)", devices.latencyMs)
   }
 
   private func selectBinary() {
@@ -199,11 +200,10 @@ struct DevicePickerView: View {
     panel.message = "Select camilladsp executable"
 
     if panel.runModal() == .OK, let url = panel.url {
-      appState.camillaDSPPath = url.path
+      settings.camillaDSPPath = url.path
       showRestartAlert = true
     }
   }
-
 }
 
 // MARK: - Device Section

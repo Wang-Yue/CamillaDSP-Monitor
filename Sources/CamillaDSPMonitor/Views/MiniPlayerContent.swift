@@ -5,43 +5,56 @@ import SwiftUI
 // MARK: - Mini Spectrum
 
 struct MiniSpectrumView: View {
-  @EnvironmentObject var spectrum: SpectrumState
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var dsp: DSPEngineController
+  @EnvironmentObject var devices: AudioDeviceManager
+  @EnvironmentObject var settings: AudioSettings
+  @StateObject private var engine = SpectrumEngine()
 
   var body: some View {
     Canvas { context, size in
       drawSpectrumBars(
-        context: &context, bands: spectrum.bands,
+        context: &context, bands: engine.bands,
         maxHeight: size.height, totalWidth: size.width,
         spacing: 1.5, minBarWidth: 2, minBarHeight: 1, cornerRadius: 1)
     }
     .frame(height: 60)
-    .onAppear { appState.registerSpectrumView() }
-    .onDisappear { appState.unregisterSpectrumView() }
+    .onAppear { updateEngine() }
+    .onDisappear { engine.deactivate() }
+    .onChange(of: dsp.status) { updateEngine() }
+  }
+
+  private func updateEngine() {
+    if dsp.status == .running {
+      engine.activate(
+        sampleRate: devices.captureConfig.sampleRate,
+        chunkSize: settings.chunkSize,
+        deviceName: devices.captureConfig.deviceName)
+    } else {
+      engine.deactivate()
+    }
   }
 }
 
 // MARK: - Mini Pipeline
 
 struct MiniPipelineView: View {
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var settings: AudioSettings
+  @EnvironmentObject var pipeline: PipelineStore
 
   var body: some View {
     HorizontalScrollWithVerticalWheel {
       HStack(spacing: 3) {
-        // Resampler chip
         Button {
-          appState.resamplerEnabled.toggle()
+          settings.resamplerEnabled.toggle()
         } label: {
           StageChip(
             icon: "arrow.triangle.2.circlepath", label: "Resampler",
-            color: .green, isActive: appState.resamplerEnabled, compact: true)
+            color: .green, isActive: settings.resamplerEnabled, compact: true)
         }
         .buttonStyle(.plain)
 
-        // Pipeline stages — each in its own view so @ObservedObject triggers redraws
-        ForEach(appState.stages.indices, id: \.self) { index in
-          StageChipButton(stage: appState.stages[index], compact: true)
+        ForEach(pipeline.stages.indices, id: \.self) { index in
+          StageChipButton(stage: pipeline.stages[index], compact: true)
         }
       }
     }
@@ -77,7 +90,6 @@ struct MiniMeterRow: View {
 
       LevelMeterCanvas(peak: peak, rms: rms, compact: true)
 
-      // dB values
       VStack(alignment: .trailing, spacing: 0) {
         Text(String(format: "%5.1f", rms))
           .font(.system(size: 9, design: .monospaced))

@@ -180,7 +180,7 @@ struct CompactLevelMeterBar: View {
 /// Separated from CompactLevelMeterBar so meter bar redraws (driven by MeterState
 /// at 10 Hz) don't also re-evaluate the status indicator (driven by AppState).
 private struct CompactStatusIndicator: View {
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var dsp: DSPEngineController
 
   var body: some View {
     HStack(spacing: 6) {
@@ -194,7 +194,7 @@ private struct CompactStatusIndicator: View {
   }
 
   private var statusColor: Color {
-    switch appState.status {
+    switch dsp.status {
     case .inactive: return .gray
     case .starting: return .yellow
     case .running: return .green
@@ -204,7 +204,7 @@ private struct CompactStatusIndicator: View {
   }
 
   private var statusLabel: String {
-    switch appState.status {
+    switch dsp.status {
     case .inactive: return "Inactive"
     case .starting: return "Starting..."
     case .running: return "Running"

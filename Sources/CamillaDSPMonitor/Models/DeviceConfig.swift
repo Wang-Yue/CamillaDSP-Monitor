@@ -21,8 +21,10 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
       capabilities.name.isEmpty ? nil : capabilities.name
     }
     set {
+      let newName = newValue ?? ""
+      guard capabilities.name != newName else { return }
       capabilities = AudioDeviceDescriptor(
-        name: newValue ?? "", description: "", capability_sets: [])
+        name: newName, description: "", capability_sets: [])
     }
   }
 

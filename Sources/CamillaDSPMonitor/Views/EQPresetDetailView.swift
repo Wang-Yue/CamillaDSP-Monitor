@@ -18,7 +18,9 @@ enum EQEditMode: String, CaseIterable {
 
 struct EQPresetDetailView: View {
   @ObservedObject var preset: EQPreset
-  @EnvironmentObject var appState: AppState
+  @EnvironmentObject var dsp: DSPEngineController
+  @EnvironmentObject var pipeline: PipelineStore
+  @EnvironmentObject var devices: AudioDeviceManager
   @State private var editMode: EQEditMode = .diagram
   @State private var selectedBandID: UUID?
 
@@ -30,7 +32,7 @@ struct EQPresetDetailView: View {
           .roundedBorder
         ).frame(maxWidth: 300).onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }.onChange(
           of: preset.name
-        ) { _, _ in appState.saveEQPresets() }
+        ) { _, _ in pipeline.saveEQPresets() }
         Spacer()
         Picker("", selection: $editMode) {
           ForEach(EQEditMode.allCases, id: \.rawValue) { mode in
@@ -44,18 +46,19 @@ struct EQPresetDetailView: View {
       switch editMode {
       case .diagram:
         EQDiagramMode(
-          preset: preset, selectedBandID: $selectedBandID, sampleRate: appState.sampleRate)
+          preset: preset, selectedBandID: $selectedBandID,
+          sampleRate: devices.captureConfig.sampleRate)
       case .form: EQFormMode(preset: preset, selectedBandID: $selectedBandID)
       case .csv: EQCSVMode(preset: preset)
       }
     }
     .background(Color(nsColor: .controlBackgroundColor))
-    .onChange(of: preset.bands.count) { _, _ in appState.saveEQPresets() }
+    .onChange(of: preset.bands.count) { _, _ in pipeline.saveEQPresets() }
     .onReceive(
       preset.objectWillChange
         .debounce(for: .seconds(0.2), scheduler: RunLoop.main)
     ) { _ in
-      appState.applyConfig()
+      dsp.applyConfig()
     }
   }
 }
