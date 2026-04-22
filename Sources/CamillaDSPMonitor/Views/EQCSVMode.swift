@@ -6,6 +6,7 @@ import SwiftUI
 struct EQCSVMode: View {
   @Bindable var preset: EQPreset
   @Environment(PipelineStore.self) var pipeline
+  @Environment(DSPEngineController.self) var dsp
   @State private var csvText: String = ""
   @State private var parseError: String?
   @State private var copyFeedback: Bool = false
@@ -39,7 +40,7 @@ struct EQCSVMode: View {
           if let result = EQPreset.fromCSV(csvText) {
             preset.preampGain = result.preamp
             preset.bands = result.bands
-            pipeline.saveEQPresets()
+            dsp.applyConfig()
             parseError = nil
           } else {
             parseError = "Failed to parse — check format (expecting 'Filter 1: ON PK Fc...')"

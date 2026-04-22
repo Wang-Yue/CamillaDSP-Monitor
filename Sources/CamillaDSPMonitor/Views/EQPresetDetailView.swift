@@ -31,9 +31,7 @@ struct EQPresetDetailView: View {
         Image(systemName: "slider.horizontal.3").font(.title2).foregroundStyle(Color.accentColor)
         TextField("Preset Name", text: $preset.name).font(.title2.bold()).textFieldStyle(
           .roundedBorder
-        ).frame(maxWidth: 300).onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }.onChange(
-          of: preset.name
-        ) { _, _ in pipeline.saveEQPresets() }
+        ).frame(maxWidth: 300).onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }
         Spacer()
         Picker("", selection: $editMode) {
           ForEach(EQEditMode.allCases, id: \.rawValue) { mode in
@@ -55,11 +53,12 @@ struct EQPresetDetailView: View {
     }
     .background(Color(nsColor: .controlBackgroundColor))
     .onChange(of: preset.bands.count) { _, _ in
-      pipeline.saveEQPresets()
       dsp.applyConfig()
     }
-    .onChange(of: preset) { _, _ in
+    .onChange(of: preset.preampGain) { _, _ in
       dsp.applyConfig()
+    }
+    .onChange(of: preset.name) { _, _ in
       pipeline.saveEQPresets()
     }
   }

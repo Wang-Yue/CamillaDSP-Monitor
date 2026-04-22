@@ -6,6 +6,7 @@ import SwiftUI
 struct EQFormMode: View {
   @Bindable var preset: EQPreset
   @Binding var selectedBandID: UUID?
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     VStack(spacing: 0) {
@@ -32,6 +33,7 @@ struct EQFormMode: View {
                 if let idx = preset.bands.firstIndex(where: { $0.id == band.id }) {
                   preset.bands.remove(at: idx)
                   if selectedBandID == band.id { selectedBandID = nil }
+                  dsp.applyConfig()
                 }
               }
             )
@@ -44,6 +46,7 @@ struct EQFormMode: View {
             let newBand = EQBand()
             preset.bands.append(newBand)
             selectedBandID = newBand.id
+            dsp.applyConfig()
           } label: {
             Label("Add Band", systemImage: "plus.circle")
           }
@@ -59,9 +62,19 @@ struct EQFormMode: View {
 private struct BandRow: View {
   @Bindable var band: EQBand
   let onDelete: () -> Void
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
     HStack(spacing: 12) {
+      // Enabled toggle
+      Toggle("", isOn: $band.isEnabled)
+        .labelsHidden()
+        .toggleStyle(.checkbox)
+        .onChange(of: band.isEnabled) { _, _ in
+          dsp.applyConfig()
+        }
+
       // Type Picker
       Picker("", selection: $band.type) {
         ForEach(EQBandType.allCases) { type in
@@ -71,6 +84,9 @@ private struct BandRow: View {
       .labelsHidden()
       .controlSize(.small)
       .frame(width: 100)
+      .onChange(of: band.type) { _, _ in
+        dsp.applyConfig()
+      }
 
       // Freq
       HStack(spacing: 4) {
@@ -79,6 +95,9 @@ private struct BandRow: View {
           .multilineTextAlignment(.trailing)
           .font(.system(.body, design: .monospaced))
           .frame(width: 60)
+          .onChange(of: band.freq) { _, _ in
+            dsp.applyConfig()
+          }
         Text("Hz").font(.caption2).foregroundStyle(.secondary)
       }
 
@@ -90,6 +109,9 @@ private struct BandRow: View {
             .multilineTextAlignment(.trailing)
             .font(.system(.body, design: .monospaced))
             .frame(width: 50)
+            .onChange(of: band.gain) { _, _ in
+              dsp.applyConfig()
+            }
           Text("dB").font(.caption2).foregroundStyle(.secondary)
         }
       } else {
@@ -104,6 +126,9 @@ private struct BandRow: View {
             .multilineTextAlignment(.trailing)
             .font(.system(.body, design: .monospaced))
             .frame(width: 50)
+            .onChange(of: band.q) { _, _ in
+              dsp.applyConfig()
+            }
           Text("Q").font(.caption2).foregroundStyle(.secondary)
         }
       } else {
