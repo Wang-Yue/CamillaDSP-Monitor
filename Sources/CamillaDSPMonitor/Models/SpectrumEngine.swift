@@ -5,7 +5,7 @@ import Foundation
 
 @MainActor
 final class SpectrumEngine: ObservableObject {
-  @Published private(set) var bands: [Double] = Array(repeating: -100, count: 30)
+  @Published private(set) var bands: [Double] = Array(repeating: -100, count: SPECTRUM_BAND_COUNT)
 
   private let dsp: DSPEngineController
   private let devices: AudioDeviceManager
@@ -13,7 +13,6 @@ final class SpectrumEngine: ObservableObject {
 
   private var analyzer: FFTSpectrumAnalyzer?
   private var tap: CoreAudioTap?
-  private let analyzerRef = AnalyzerRef()
   private var updateTask: Task<Void, Never>?
   private var lifecycleCancellable: AnyCancellable?
   private var currentTapConfig: TapConfig?
@@ -54,22 +53,24 @@ final class SpectrumEngine: ObservableObject {
   private func activate(with config: TapConfig) {
     guard analyzer == nil else { return }
 
-    let nextAnalyzer = FFTSpectrumAnalyzer(sampleRate: config.sampleRate, chunkSize: config.chunkSize)
-    analyzer = nextAnalyzer
-    analyzerRef.analyzer = nextAnalyzer
-
-    let ref = analyzerRef
-    let nextTap = CoreAudioTap(onAudio: { waveform in ref.analyzer?.enqueueAudio(waveform) })
-    tap = nextTap
+    let ringBuffer = AudioRingBuffer(capacity: max(config.sampleRate, 16384))
+    
+    let newAnalyzer = FFTSpectrumAnalyzer(
+      sampleRate: config.sampleRate, 
+      chunkSize: config.chunkSize, 
+      ringBuffer: ringBuffer
+    )
+    analyzer = newAnalyzer
+    
+    tap = CoreAudioTap(deviceName: config.deviceName, ringBuffer: ringBuffer)
     currentTapConfig = config
 
-    Task { await nextTap.start(deviceName: config.deviceName) }
-
+    // Subscribe to analyzer results via AsyncStream
     updateTask = Task {
-      while !Task.isCancelled {
-        try? await Task.sleep(nanoseconds: 100_000_000)
-        guard !Task.isCancelled, let analyzer else { break }
-        bands = analyzer.readBands()
+      for await newBands in newAnalyzer.results {
+        if !Task.isCancelled {
+          bands = newBands
+        }
       }
     }
   }
@@ -78,17 +79,11 @@ final class SpectrumEngine: ObservableObject {
     updateTask?.cancel()
     updateTask = nil
 
-    analyzerRef.analyzer = nil
     analyzer = nil
+    tap = nil
     currentTapConfig = nil
 
-    let currentTap = tap
-    tap = nil
-    if let currentTap {
-      Task { await currentTap.stop() }
-    }
-
-    bands = Array(repeating: -100, count: 30)
+    bands = Array(repeating: -100, count: SPECTRUM_BAND_COUNT)
   }
 }
 

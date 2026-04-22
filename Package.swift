@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
   name: "CamillaDSP",
-  platforms: [.macOS(.v14)],
+  platforms: [.macOS(.v15)],
   products: [
     .executable(name: "CamillaDSPMonitor", targets: ["CamillaDSPMonitor"]),
     .library(name: "CamillaDSPLib", targets: ["CamillaDSPLib"]),

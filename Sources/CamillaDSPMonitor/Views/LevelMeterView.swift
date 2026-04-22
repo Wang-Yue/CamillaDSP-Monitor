@@ -35,7 +35,7 @@ func drawSpectrumBars(
   minBarHeight: CGFloat = 2,
   cornerRadius: CGFloat = 2
 ) {
-  let count = min(bands.count, 30)
+  let count = min(bands.count, SPECTRUM_BAND_COUNT)
   guard count > 0 else { return }
   let totalSpacing = spacing * CGFloat(count - 1)
   let barWidth = max(minBarWidth, (totalWidth - totalSpacing) / CGFloat(count))

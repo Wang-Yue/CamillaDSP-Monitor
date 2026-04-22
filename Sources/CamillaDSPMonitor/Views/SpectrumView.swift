@@ -1,4 +1,4 @@
-// SpectrumView - 30-band spectrum analyzer display with gradient bars
+// SpectrumView - spectrum analyzer display with gradient bars
 
 import SwiftUI
 
@@ -39,7 +39,7 @@ private struct SpectrumGridView: View {
     Canvas { context, size in
       let maxHeight = size.height - 20
       let barSpacing: CGFloat = 2
-      let bandCount = 30
+      let bandCount = SPECTRUM_BAND_COUNT
       let totalSpacing = barSpacing * CGFloat(bandCount - 1)
       let barWidth = max(4, (size.width - 20 - totalSpacing) / CGFloat(bandCount))
 
@@ -58,7 +58,7 @@ private struct SpectrumGridView: View {
       }
 
       // Frequency labels
-      for i in 0..<bandCount {
+      for i in 0..<min(bandCount, Self.labels.count) {
         if !Self.labels[i].isEmpty {
           let x = CGFloat(i) * (barWidth + barSpacing) + 20
           context.draw(

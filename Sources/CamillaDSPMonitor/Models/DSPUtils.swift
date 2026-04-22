@@ -1,6 +1,11 @@
 import CamillaDSPLib
 import Foundation
 
+// MARK: - Shared Audio Constants
+
+/// Total number of bands in the 1/3 octave spectrum analyzer.
+let SPECTRUM_BAND_COUNT = 30
+
 // MARK: - Shared Audio Utilities
 
 /// Normalize a dB value (-60..0) to 0..1 range for meter/spectrum display.

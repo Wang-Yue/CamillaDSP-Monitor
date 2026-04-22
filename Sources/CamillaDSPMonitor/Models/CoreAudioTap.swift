@@ -32,92 +32,89 @@ func findCoreAudioDeviceID(name: String) -> AudioDeviceID? {
   return nil
 }
 
-/// Actor-isolated audio tap. Methods run on a background executor, so synchronous
-/// CoreAudio calls (removeTap, engine.stop, engine.start) that can block for seconds
-/// during exclusive/hog mode device transitions never freeze the main thread.
-actor CoreAudioTap {
-  private let engine = AVAudioEngine()
-  private let onAudio: @Sendable ([Float]) -> Void
+/// A Swift 6 thread-safe audio tap.
+/// All hardware management and engine lifecycle logic is confined to a private Task.
+final class CoreAudioTap: Sendable {
+  private let processingTask: Task<Void, Never>
 
-  init(onAudio: @escaping @Sendable ([Float]) -> Void) {
-    self.onAudio = onAudio
-  }
+  init(deviceName: String?, ringBuffer: AudioRingBuffer) {
+    self.processingTask = Task.detached(priority: .high) {
+      let engine = AVAudioEngine()
+      let inputNode = engine.inputNode
 
-  func start(deviceName: String?) {
-    stopSync()
-
-    let inputNode = engine.inputNode
-
-    if let name = deviceName {
-      if let deviceID = findCoreAudioDeviceID(name: name) {
-        var id = deviceID
-        let status = AudioUnitSetProperty(
-          inputNode.audioUnit!,
-          kAudioOutputUnitProperty_CurrentDevice,
-          kAudioUnitScope_Global,
-          0,
-          &id,
-          UInt32(MemoryLayout<AudioDeviceID>.size))
-        if status != noErr {
-          print("[Tap] Failed to set input device: \(status)")
+      // 1. Setup Input Device
+      if let name = deviceName {
+        if let deviceID = findCoreAudioDeviceID(name: name) {
+          var id = deviceID
+          let status = AudioUnitSetProperty(
+            inputNode.audioUnit!,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &id,
+            UInt32(MemoryLayout<AudioDeviceID>.size))
+          if status != noErr {
+            print("[Tap] Failed to set input device: \(status)")
+          }
+        } else {
+          print("[Tap] Could not resolve input device '\(name)'")
         }
-      } else {
-        print("[Tap] Could not resolve input device '\(name)'")
       }
-    }
 
-    let inputFormat = inputNode.inputFormat(forBus: 0)
-    guard inputFormat.sampleRate > 0 else {
-      print("[Tap] Invalid input format, skipping tap")
-      return
-    }
-
-    // Capture onAudio in a local so the tap callback doesn't need actor isolation.
-    let callback = self.onAudio
-    inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { buffer, _ in
-      let frameCount = Int(buffer.frameLength)
-      guard frameCount > 0, let channels = buffer.floatChannelData else { return }
-
-      var mono = [Float](repeating: 0, count: frameCount)
-      let left = channels[0]
-      if buffer.format.channelCount >= 2 {
-        let right = channels[1]
-        var scale: Float = 0.5
-        vDSP_vadd(left, 1, right, 1, &mono, 1, vDSP_Length(frameCount))
-        vDSP_vsmul(mono, 1, &scale, &mono, 1, vDSP_Length(frameCount))
-      } else {
-        memcpy(&mono, left, frameCount * MemoryLayout<Float>.size)
-      }
-      callback(mono)
-    }
-
-    // Retry engine.start() — during device transitions with hog mode,
-    // CoreAudio may reject start requests for several seconds.
-    for attempt in 1...5 {
-      do {
-        try engine.start()
+      // 2. Validate Format
+      let inputFormat = inputNode.inputFormat(forBus: 0)
+      guard inputFormat.sampleRate > 0 else {
+        print("[Tap] Invalid input format, skipping tap")
         return
-      } catch {
-        print("[Tap] AVAudioEngine start attempt \(attempt)/5 failed: \(error)")
-        if attempt < 5 {
-          Thread.sleep(forTimeInterval: 1.0)
+      }
+
+      // 3. Install Tap (Zero-Allocation Write)
+      inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { buffer, _ in
+        let frameCount = Int(buffer.frameLength)
+        guard frameCount > 0, let channels = buffer.floatChannelData else { return }
+        ringBuffer.writeSumming(
+          left: channels[0],
+          right: buffer.format.channelCount >= 2 ? channels[1] : nil,
+          count: frameCount
+        )
+      }
+
+      // 4. Start Engine with Retries
+      var started = false
+      for attempt in 1...5 {
+        if Task.isCancelled { break }
+        do {
+          try engine.start()
+          started = true
+          break
+        } catch {
+          print("[Tap] AVAudioEngine start attempt \(attempt)/5 failed: \(error)")
+          if attempt < 5 {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+          }
         }
       }
+
+      // 5. Wait for Cancellation
+      if started {
+        while !Task.isCancelled {
+          try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+      }
+
+      // 6. Cleanup
+      inputNode.removeTap(onBus: 0)
+      if engine.isRunning {
+        engine.stop()
+      }
     }
-    print("[Tap] AVAudioEngine failed to start after 5 attempts, giving up")
-    inputNode.removeTap(onBus: 0)
   }
 
-  var isRunning: Bool { engine.isRunning }
+  deinit {
+    processingTask.cancel()
+  }
 
   func stop() {
-    stopSync()
-  }
-
-  private func stopSync() {
-    engine.inputNode.removeTap(onBus: 0)
-    if engine.isRunning {
-      engine.stop()
-    }
+    processingTask.cancel()
   }
 }
