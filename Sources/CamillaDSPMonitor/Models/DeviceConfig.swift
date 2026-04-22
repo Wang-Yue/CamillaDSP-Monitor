@@ -24,7 +24,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
       let newName = newValue ?? ""
       guard capabilities.name != newName else { return }
       capabilities = AudioDeviceDescriptor(
-        name: newName, description: "", capability_sets: [])
+        name: newName, capability_sets: [])
     }
   }
 
@@ -66,11 +66,6 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     let cap = set.capabilities.first(where: { $0.channels == channels }) ?? set.capabilities.first
     let formats = cap?.samplerates.first(where: { $0.samplerate == sampleRate })?.formats ?? []
     return formats.sorted { (Self.formatPriority[$0] ?? -1) > (Self.formatPriority[$1] ?? -1) }
-  }
-
-  /// Best sample format for a given channel count and sample rate.
-  public func bestFormat(channels: Int, sampleRate: Int) -> String {
-    supportedFormats.first ?? "F32"
   }
 
   /// Returns a copy with channels/rate/format snapped to supported values.

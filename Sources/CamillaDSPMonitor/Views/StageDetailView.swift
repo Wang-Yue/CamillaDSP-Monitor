@@ -392,7 +392,7 @@ struct EQOptions: View {
 
               if let preset = pipeline.eqPresets.first(where: { $0.id == stage.eqPresetID }) {
                 EQSummaryCard(
-                  title: "Combined L/R", preset: preset,
+                  preset: preset,
                   sampleRate: devices.captureConfig.sampleRate)
               }
             }
@@ -417,7 +417,7 @@ struct EQOptions: View {
                 if let lPreset = pipeline.eqPresets.first(where: { $0.id == stage.eqLeftPresetID })
                 {
                   EQSummaryCard(
-                    title: "Left", preset: lPreset,
+                    preset: lPreset,
                     sampleRate: devices.captureConfig.sampleRate)
                 }
               }
@@ -444,7 +444,7 @@ struct EQOptions: View {
                   $0.id == stage.eqRightPresetID
                 }) {
                   EQSummaryCard(
-                    title: "Right", preset: rPreset,
+                    preset: rPreset,
                     sampleRate: devices.captureConfig.sampleRate)
                 }
               }
@@ -459,7 +459,6 @@ struct EQOptions: View {
 }
 
 struct EQSummaryCard: View {
-  let title: String
   @Bindable var preset: EQPreset
   let sampleRate: Int
 

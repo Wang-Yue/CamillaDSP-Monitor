@@ -11,7 +11,6 @@ final class DSPEngineController {
   let devices: AudioDeviceManager
   let settings: AudioSettings
   let pipeline: PipelineStore
-  let monitoring: MonitoringController
   let levels: LevelState
 
   var status: AppStatus = .inactive
@@ -30,7 +29,6 @@ final class DSPEngineController {
     self.devices = devices
     self.settings = settings
     self.pipeline = pipeline
-    self.monitoring = monitoring
     self.levels = levels
 
     // Wire monitoring → controller callbacks, breaking the circular reference.

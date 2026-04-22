@@ -1,6 +1,5 @@
 import AVFoundation
 import Accelerate
-import CamillaDSPLib
 import CoreAudio
 import Foundation
 

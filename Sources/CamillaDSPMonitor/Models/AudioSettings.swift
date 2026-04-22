@@ -3,27 +3,27 @@
 import Foundation
 import Observation
 
-public enum ResamplerType: String, Codable, Sendable, CaseIterable, Identifiable {
+enum ResamplerType: String, Codable, Sendable, CaseIterable, Identifiable {
   case asyncSinc = "AsyncSinc"
   case asyncPoly = "AsyncPoly"
   case synchronous = "Synchronous"
-  public var id: String { rawValue }
+  var id: String { rawValue }
 }
 
-public enum ResamplerProfile: String, Codable, Sendable, CaseIterable, Identifiable {
+enum ResamplerProfile: String, Codable, Sendable, CaseIterable, Identifiable {
   case veryFast = "VeryFast"
   case fast = "Fast"
   case balanced = "Balanced"
   case accurate = "Accurate"
-  public var id: String { rawValue }
+  var id: String { rawValue }
 }
 
-public enum ResamplerInterpolation: String, Codable, Sendable, CaseIterable, Identifiable {
+enum ResamplerInterpolation: String, Codable, Sendable, CaseIterable, Identifiable {
   case linear = "Linear"
   case quadratic = "Quadratic"
   case cubic = "Cubic"
   case sinc = "Sinc"
-  public var id: String { rawValue }
+  var id: String { rawValue }
 }
 
 @MainActor

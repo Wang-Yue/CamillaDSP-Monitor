@@ -5,7 +5,7 @@ import Foundation
 import Observation
 import SwiftUI
 
-public enum AppStatus: Equatable, Sendable {
+enum AppStatus: Equatable, Sendable {
   case inactive
   case starting
   case running
@@ -18,7 +18,6 @@ public enum AppStatus: Equatable, Sendable {
 final class AppState {
   var isMiniPlayerActive = false
 
-  let engine: DSPEngine
   let settings: AudioSettings
   let pipeline: PipelineStore
   let devices: AudioDeviceManager
@@ -46,7 +45,6 @@ final class AppState {
       monitoring: monitoring, levels: levels)
     let spectrum = SpectrumEngine(dsp: dsp, devices: devices, settings: settings)
 
-    self.engine = engine
     self.settings = settings
     self.pipeline = pipeline
     self.devices = devices

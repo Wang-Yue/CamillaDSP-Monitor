@@ -48,12 +48,6 @@ public struct AudioDevice: Identifiable, Sendable {
 
 // MARK: - Device Capabilities (from GetCaptureDeviceCapabilities / GetPlaybackDeviceCapabilities)
 
-public enum CapabilityMode: String, Codable, Sendable {
-  case unified = "Unified"
-  case shared = "Shared"
-  case exclusive = "Exclusive"
-}
-
 public struct SamplerateCapability: Codable, Sendable, Equatable {
   public let samplerate: Int
   public let formats: [String]
@@ -65,20 +59,17 @@ public struct ChannelCapability: Codable, Sendable, Equatable {
 }
 
 public struct DeviceCapabilitySet: Codable, Sendable, Equatable {
-  public let mode: CapabilityMode
   public let capabilities: [ChannelCapability]
 }
 
 public struct AudioDeviceDescriptor: Codable, Sendable, Equatable {
   public let name: String
-  public let description: String
   public let capability_sets: [DeviceCapabilitySet]
 
   public init(
-    name: String = "", description: String = "", capability_sets: [DeviceCapabilitySet] = []
+    name: String = "", capability_sets: [DeviceCapabilitySet] = []
   ) {
     self.name = name
-    self.description = description
     self.capability_sets = capability_sets
   }
 }

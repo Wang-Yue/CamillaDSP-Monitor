@@ -96,7 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   // MARK: - Custom Actions
 
-  @objc func customMinimizeAction(_ sender: Any?) {
+  @objc func customMinimizeAction(_: Any?) {
     if let appState = appState {
       MiniPlayerWindowController.shared.showMiniPlayer(appState: appState)
     }
