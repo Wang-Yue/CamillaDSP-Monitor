@@ -45,6 +45,7 @@ final class AppState: ObservableObject {
   let devices: AudioDeviceManager
   let monitoring: MonitoringController
   let dsp: DSPEngineController
+  let spectrum: SpectrumEngine
   let levels: LevelState
   let load: LoadState
   let logManager = LogManager()
@@ -65,6 +66,7 @@ final class AppState: ObservableObject {
     let dsp = DSPEngineController(
       engine: engine, devices: devices, settings: settings, pipeline: pipeline,
       monitoring: monitoring, levels: levels, load: load)
+    let spectrum = SpectrumEngine(dsp: dsp, devices: devices, settings: settings)
 
     self.engine = engine
     self.settings = settings
@@ -72,6 +74,7 @@ final class AppState: ObservableObject {
     self.devices = devices
     self.monitoring = monitoring
     self.dsp = dsp
+    self.spectrum = spectrum
     // Assign the same instances that monitoring/dsp received — NOT new default-value instances.
     // Without these assignments the stored-property slots would hold different LevelState /
     // LoadState objects than the sub-controllers update, so views would never observe changes.

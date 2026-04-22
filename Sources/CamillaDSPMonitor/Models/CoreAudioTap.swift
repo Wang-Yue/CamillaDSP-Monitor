@@ -48,17 +48,21 @@ actor CoreAudioTap {
 
     let inputNode = engine.inputNode
 
-    if let name = deviceName, let deviceID = findCoreAudioDeviceID(name: name) {
-      var id = deviceID
-      let status = AudioUnitSetProperty(
-        inputNode.audioUnit!,
-        kAudioOutputUnitProperty_CurrentDevice,
-        kAudioUnitScope_Global,
-        0,
-        &id,
-        UInt32(MemoryLayout<AudioDeviceID>.size))
-      if status != noErr {
-        print("[Tap] Failed to set input device: \(status)")
+    if let name = deviceName {
+      if let deviceID = findCoreAudioDeviceID(name: name) {
+        var id = deviceID
+        let status = AudioUnitSetProperty(
+          inputNode.audioUnit!,
+          kAudioOutputUnitProperty_CurrentDevice,
+          kAudioUnitScope_Global,
+          0,
+          &id,
+          UInt32(MemoryLayout<AudioDeviceID>.size))
+        if status != noErr {
+          print("[Tap] Failed to set input device: \(status)")
+        }
+      } else {
+        print("[Tap] Could not resolve input device '\(name)'")
       }
     }
 

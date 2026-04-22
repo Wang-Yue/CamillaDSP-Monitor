@@ -202,10 +202,7 @@ struct LevelMetersCard: View {
 }
 
 struct SpectrumCard: View {
-  @EnvironmentObject var dsp: DSPEngineController
-  @EnvironmentObject var devices: AudioDeviceManager
-  @EnvironmentObject var settings: AudioSettings
-  @StateObject private var engine = SpectrumEngine()
+  @EnvironmentObject var spectrum: SpectrumEngine
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -214,23 +211,9 @@ struct SpectrumCard: View {
         Spacer()
         Text("FFT Pre-Processing").font(.caption).foregroundStyle(.tertiary)
       }
-      SpectrumView(bands: engine.bands).frame(height: 160)
+      SpectrumView(bands: spectrum.bands).frame(height: 160)
     }
     .padding()
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-    .onAppear { updateEngine() }
-    .onDisappear { engine.deactivate() }
-    .onChange(of: dsp.status) { updateEngine() }
-  }
-
-  private func updateEngine() {
-    if dsp.status == .running {
-      engine.activate(
-        sampleRate: devices.captureConfig.sampleRate,
-        chunkSize: settings.chunkSize,
-        deviceName: devices.captureConfig.deviceName)
-    } else {
-      engine.deactivate()
-    }
   }
 }

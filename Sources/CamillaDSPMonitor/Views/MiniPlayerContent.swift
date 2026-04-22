@@ -5,33 +5,16 @@ import SwiftUI
 // MARK: - Mini Spectrum
 
 struct MiniSpectrumView: View {
-  @EnvironmentObject var dsp: DSPEngineController
-  @EnvironmentObject var devices: AudioDeviceManager
-  @EnvironmentObject var settings: AudioSettings
-  @StateObject private var engine = SpectrumEngine()
+  @EnvironmentObject var spectrum: SpectrumEngine
 
   var body: some View {
     Canvas { context, size in
       drawSpectrumBars(
-        context: &context, bands: engine.bands,
+        context: &context, bands: spectrum.bands,
         maxHeight: size.height, totalWidth: size.width,
         spacing: 1.5, minBarWidth: 2, minBarHeight: 1, cornerRadius: 1)
     }
     .frame(height: 60)
-    .onAppear { updateEngine() }
-    .onDisappear { engine.deactivate() }
-    .onChange(of: dsp.status) { updateEngine() }
-  }
-
-  private func updateEngine() {
-    if dsp.status == .running {
-      engine.activate(
-        sampleRate: devices.captureConfig.sampleRate,
-        chunkSize: settings.chunkSize,
-        deviceName: devices.captureConfig.deviceName)
-    } else {
-      engine.deactivate()
-    }
   }
 }
 

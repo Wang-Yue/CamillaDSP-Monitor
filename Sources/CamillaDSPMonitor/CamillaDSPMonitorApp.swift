@@ -18,6 +18,7 @@ struct CamillaDSPMonitorApp: App {
         .environmentObject(appState.devices)
         .environmentObject(appState.pipeline)
         .environmentObject(appState.monitoring)
+        .environmentObject(appState.spectrum)
         .frame(minWidth: 960, minHeight: 680)
         .onAppear {
           appDelegate.appState = appState

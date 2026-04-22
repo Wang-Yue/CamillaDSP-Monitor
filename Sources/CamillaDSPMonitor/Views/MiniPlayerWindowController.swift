@@ -37,6 +37,7 @@ final class MiniPlayerWindowController {
       .environmentObject(appState.pipeline)
       .environmentObject(appState.monitoring)
       .environmentObject(appState.dsp)
+      .environmentObject(appState.spectrum)
 
     let hostingView = NSHostingView(rootView: miniView)
     hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: 90)
