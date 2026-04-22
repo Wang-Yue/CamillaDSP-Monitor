@@ -66,6 +66,7 @@ struct DashboardView: View {
       VStack(spacing: 20) {
         PipelineOverview()
         LevelMetersCard()
+        AnalogVUCard() // Added Analog VU Card
         SpectrumCard()
       }
       .padding()

@@ -34,6 +34,7 @@ enum SidebarItem: Hashable {
   case devices
   case levels
   case spectrum
+  case analogVU
   case logs
   case dashboard
   case resampler
@@ -106,6 +107,8 @@ struct SidebarView: View {
           .tag(SidebarItem.levels)
         Label("Spectrum", systemImage: "waveform.path.ecg.rectangle")
           .tag(SidebarItem.spectrum)
+        Label("Analog VU", systemImage: "gauge.with.needle")
+          .tag(SidebarItem.analogVU)
         Label("Console Logs", systemImage: "terminal")
           .tag(SidebarItem.logs)
       }
@@ -186,6 +189,11 @@ struct DetailPanel: View {
           .background(Color(nsColor: .controlBackgroundColor))
       case .spectrum:
         SpectrumCard()
+          .padding()
+          .frame(maxHeight: .infinity, alignment: .top)
+          .background(Color(nsColor: .controlBackgroundColor))
+      case .analogVU:
+        AnalogVUCard()
           .padding()
           .frame(maxHeight: .infinity, alignment: .top)
           .background(Color(nsColor: .controlBackgroundColor))

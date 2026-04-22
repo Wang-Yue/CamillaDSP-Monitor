@@ -1,4 +1,4 @@
-// MiniPlayerView - Compact floating overlay with three display modes
+// MiniPlayerView - Compact floating overlay with four display modes
 // Appears when user clicks minimize, floats above all windows including fullscreen video
 
 import AppKit
@@ -10,12 +10,14 @@ enum MiniPlayerMode: Int, CaseIterable {
   case spectrum = 0
   case pipeline = 1
   case meters = 2
+  case analogVU = 3
 
   var icon: String {
     switch self {
     case .spectrum: return "waveform.path.ecg.rectangle"
     case .pipeline: return "point.3.connected.trianglepath.dotted"
     case .meters: return "chart.bar"
+    case .analogVU: return "gauge.with.needle"
     }
   }
 }
@@ -87,6 +89,8 @@ struct MiniPlayerView: View {
           MiniPipelineView()
         case .meters:
           MiniMetersView()
+        case .analogVU:
+          MiniAnalogVUView()
         }
       }
       .padding(.horizontal, 8)

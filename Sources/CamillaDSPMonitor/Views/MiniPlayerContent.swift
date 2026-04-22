@@ -85,3 +85,17 @@ struct MiniMeterRow: View {
     }
   }
 }
+
+// MARK: - Mini Analog VU
+
+struct MiniAnalogVUView: View {
+  @EnvironmentObject var levels: LevelState
+  
+  var body: some View {
+    HStack(spacing: 8) {
+      AnalogVUMeter(level: levels.playbackRms.left, label: "L", height: 50)
+      AnalogVUMeter(level: levels.playbackRms.right, label: "R", height: 50)
+    }
+    .frame(height: 60)
+  }
+}
