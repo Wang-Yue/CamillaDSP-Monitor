@@ -1,6 +1,7 @@
 // EQPresetDetailView - Biquad EQ preset editor with three modes
 
 import CamillaDSPLib
+import Observation
 import SwiftUI
 
 enum EQEditMode: String, CaseIterable {
@@ -17,10 +18,10 @@ enum EQEditMode: String, CaseIterable {
 }
 
 struct EQPresetDetailView: View {
-  @ObservedObject var preset: EQPreset
-  @EnvironmentObject var dsp: DSPEngineController
-  @EnvironmentObject var pipeline: PipelineStore
-  @EnvironmentObject var devices: AudioDeviceManager
+  @Bindable var preset: EQPreset
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(PipelineStore.self) var pipeline
+  @Environment(AudioDeviceManager.self) var devices
   @State private var editMode: EQEditMode = .diagram
   @State private var selectedBandID: UUID?
 
@@ -53,12 +54,13 @@ struct EQPresetDetailView: View {
       }
     }
     .background(Color(nsColor: .controlBackgroundColor))
-    .onChange(of: preset.bands.count) { _, _ in pipeline.saveEQPresets() }
-    .onReceive(
-      preset.objectWillChange
-        .debounce(for: .seconds(0.2), scheduler: RunLoop.main)
-    ) { _ in
+    .onChange(of: preset.bands.count) { _, _ in
+      pipeline.saveEQPresets()
       dsp.applyConfig()
+    }
+    .onChange(of: preset) { _, _ in
+      dsp.applyConfig()
+      pipeline.saveEQPresets()
     }
   }
 }

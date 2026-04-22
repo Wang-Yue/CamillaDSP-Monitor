@@ -1,11 +1,12 @@
 // StageDetailView - Configuration UI for each pipeline stage
 
 import CamillaDSPLib
+import Observation
 import SwiftUI
 
 struct StageDetailView: View {
   let stageIndex: Int
-  @EnvironmentObject var pipeline: PipelineStore
+  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
     if stageIndex < pipeline.stages.count {
@@ -20,10 +21,11 @@ struct StageDetailView: View {
 }
 
 private struct StageDetailContent: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var dsp: DSPEngineController
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
+    @Bindable var stage = stage
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         HStack {
@@ -67,8 +69,8 @@ private struct StageDetailContent: View {
 // MARK: - Balance
 
 struct BalanceOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var dsp: DSPEngineController
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Balance") {
@@ -108,8 +110,8 @@ struct BalanceOptions: View {
 // MARK: - Width
 
 struct WidthOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var dsp: DSPEngineController
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Stereo Width") {
@@ -175,8 +177,8 @@ struct MSProcDescription: View {
 // MARK: - Phase Invert
 
 struct PhaseInvertOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var dsp: DSPEngineController
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Phase Inversion") {
@@ -214,8 +216,8 @@ struct PhaseInvertOptions: View {
 // MARK: - Crossfeed
 
 struct CrossfeedOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var dsp: DSPEngineController
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -345,10 +347,10 @@ struct CrossfeedOptions: View {
 // MARK: - EQ
 
 struct EQOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var dsp: DSPEngineController
-  @EnvironmentObject var pipeline: PipelineStore
-  @EnvironmentObject var devices: AudioDeviceManager
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(PipelineStore.self) var pipeline
+  @Environment(AudioDeviceManager.self) var devices
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -431,9 +433,10 @@ struct EQOptions: View {
                     .foregroundStyle(.secondary)
                     .fixedSize()
                   EQPresetPicker(
-                    selectedID: $stage.eqRightPresetID, presets: pipeline.eqPresets)
-                    .frame(maxWidth: 400)
-                    .onChange(of: stage.eqRightPresetID) { _, _ in dsp.applyConfig() }
+                    selectedID: $stage.eqRightPresetID, presets: pipeline.eqPresets
+                  )
+                  .frame(maxWidth: 400)
+                  .onChange(of: stage.eqRightPresetID) { _, _ in dsp.applyConfig() }
                   Spacer()
                 }
 
@@ -457,7 +460,7 @@ struct EQOptions: View {
 
 struct EQSummaryCard: View {
   let title: String
-  @ObservedObject var preset: EQPreset
+  @Bindable var preset: EQPreset
   let sampleRate: Int
 
   var body: some View {
@@ -494,8 +497,8 @@ struct EQPresetPicker: View {
 // MARK: - Loudness
 
 struct LoudnessOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var dsp: DSPEngineController
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Loudness Compensation") {
@@ -552,8 +555,8 @@ struct LoudnessOptions: View {
 // MARK: - Emphasis
 
 struct EmphasisOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var dsp: DSPEngineController
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Emphasis") {
@@ -604,11 +607,12 @@ struct DCProtectionDescription: View {
 // MARK: - Resampler Detail View
 
 struct ResamplerDetailView: View {
-  @EnvironmentObject var settings: AudioSettings
-  @EnvironmentObject var dsp: DSPEngineController
-  @EnvironmentObject var devices: AudioDeviceManager
+  @Environment(AudioSettings.self) var settings
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioDeviceManager.self) var devices
 
   var body: some View {
+    @Bindable var settings = settings
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         HStack {

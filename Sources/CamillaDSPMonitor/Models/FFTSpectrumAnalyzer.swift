@@ -10,7 +10,7 @@ import Foundation
 final class FFTSpectrumAnalyzer: Sendable {
   /// A stream of frequency band results.
   let results: AsyncStream<[Double]>
-  
+
   private let processingTask: Task<Void, Never>
 
   static let centerFrequencies: [Double] = [
@@ -21,7 +21,7 @@ final class FFTSpectrumAnalyzer: Sendable {
   init(sampleRate: Int, chunkSize: Int, ringBuffer: AudioRingBuffer) {
     let (stream, continuation) = AsyncStream.makeStream(of: [Double].self)
     self.results = stream
-    
+
     self.processingTask = Task.detached(priority: .utility) {
       guard sampleRate > 0 else {
         print("[FFT] Invalid sample rate 0, aborting analyzer")
@@ -33,7 +33,7 @@ final class FFTSpectrumAnalyzer: Sendable {
       if sampleRate > 48000 { fftN = 8192 }
       if sampleRate > 96000 { fftN = 16384 }
       while fftN < chunkSize { fftN *= 2 }
-      
+
       let log2n = vDSP_Length(log2(Double(fftN)))
       let fftSetup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2))!
       defer { vDSP_destroy_fftsetup(fftSetup) }
@@ -57,14 +57,14 @@ final class FFTSpectrumAnalyzer: Sendable {
         let binHi = min(fftN / 2 - 1, Int(fHi / binWidth))
         bandBins.append((lo: binLo, hi: max(binLo, binHi)))
       }
-      
+
       while !Task.isCancelled {
-        try? await Task.sleep(nanoseconds: 100_000_000) // 10Hz
-        
+        try? await Task.sleep(nanoseconds: 100_000_000)  // 10Hz
+
         let readCount = windowed.withUnsafeMutableBufferPointer { ptr in
           ringBuffer.readLatest(count: fftN, into: ptr)
         }
-        
+
         guard readCount == fftN else { continue }
 
         vDSP_vmul(windowed, 1, window, 1, &windowed, 1, vDSP_Length(fftN))
@@ -102,10 +102,10 @@ final class FFTSpectrumAnalyzer: Sendable {
           }
           newPeaks[i] = PrcFmt.toDB(peakMag)
         }
-        
+
         continuation.yield(newPeaks)
       }
-      
+
       continuation.finish()
     }
   }

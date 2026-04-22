@@ -1,6 +1,7 @@
 // EQDiagramMode - Interactive frequency response diagram with draggable band handles
 
 import AppKit
+import Observation
 import SwiftUI
 
 // MARK: - Scroll Wheel Monitor (for Q adjustment)
@@ -46,7 +47,7 @@ extension View {
 }
 
 struct EQDiagramMode: View {
-  @ObservedObject var preset: EQPreset
+  @Bindable var preset: EQPreset
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
 
@@ -80,9 +81,9 @@ struct EQDiagramMode: View {
 }
 
 struct EQFrequencyResponseView: View {
-  @ObservedObject var preset: EQPreset
-  @EnvironmentObject var dsp: DSPEngineController
-  @EnvironmentObject var pipeline: PipelineStore
+  @Bindable var preset: EQPreset
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(PipelineStore.self) var pipeline
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
   static let bandColors: [Color] = [
@@ -147,8 +148,6 @@ struct EQFrequencyResponseView: View {
     // Multiplicative scaling so it feels natural at all Q values
     let factor = delta > 0 ? 1.05 : 0.95
     band.q = max(0.1, min(20.0, band.q * factor))
-    band.objectWillChange.send()
-    preset.objectWillChange.send()
   }
 
   private func drawGrid(w: Double, h: Double) -> some View {
@@ -227,8 +226,6 @@ struct EQFrequencyResponseView: View {
             let newDB = yToDB(value.location.y, height: h)
             band.gain = max(-20, min(20, (newDB * 2).rounded() / 2))
           }
-          band.objectWillChange.send()
-          preset.objectWillChange.send()
         }.onEnded { _ in
           dsp.applyConfig()
           pipeline.saveEQPresets()
@@ -239,7 +236,7 @@ struct EQFrequencyResponseView: View {
 }
 
 struct EQBandListBar: View {
-  @ObservedObject var preset: EQPreset
+  @Bindable var preset: EQPreset
   @Binding var selectedBandID: UUID?
   var body: some View {
     HStack {
@@ -277,7 +274,7 @@ struct EQBandListBar: View {
 }
 
 struct EQBandChip: View {
-  @ObservedObject var band: EQBand
+  @Bindable var band: EQBand
   let index: Int
   let isSelected: Bool
   let color: Color

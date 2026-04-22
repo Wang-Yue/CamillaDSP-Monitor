@@ -13,7 +13,6 @@ func normalizedDB(_ db: Double) -> Double {
   max(0, min(1, (db + 60) / 60))
 }
 
-
 private let _rateFormatter: NumberFormatter = {
   let f = NumberFormatter()
   f.numberStyle = .decimal
@@ -144,7 +143,7 @@ public struct BiquadCoefficients: Sendable {
       a2 = 0.0
     default: return nil
     }
-    
+
     return BiquadCoefficients(b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0)
   }
 }

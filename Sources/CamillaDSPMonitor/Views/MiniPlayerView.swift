@@ -2,6 +2,7 @@
 // Appears when user clicks minimize, floats above all windows including fullscreen video
 
 import AppKit
+import Observation
 import SwiftUI
 
 // MARK: - Mini Player Mode
@@ -25,7 +26,7 @@ enum MiniPlayerMode: Int, CaseIterable {
 // MARK: - Mini Player SwiftUI Content
 
 struct MiniPlayerView: View {
-  @EnvironmentObject var dsp: DSPEngineController
+  @Environment(DSPEngineController.self) var dsp
   @State private var mode: MiniPlayerMode = .spectrum
   @State private var isHovering = false
 

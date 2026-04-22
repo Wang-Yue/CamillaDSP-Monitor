@@ -1,10 +1,12 @@
 // DSPEngineController - DSP engine lifecycle and config building
 
 import CamillaDSPLib
+import Observation
 import SwiftUI
 
 @MainActor
-final class DSPEngineController: ObservableObject {
+@Observable
+final class DSPEngineController {
   let engine: DSPEngine
   let devices: AudioDeviceManager
   let settings: AudioSettings
@@ -12,7 +14,7 @@ final class DSPEngineController: ObservableObject {
   let monitoring: MonitoringController
   let levels: LevelState
 
-  @Published var status: AppStatus = .inactive
+  var status: AppStatus = .inactive
 
   var startEngineTask: Task<Void, Never>?
   var applyConfigTask: Task<Void, Never>?

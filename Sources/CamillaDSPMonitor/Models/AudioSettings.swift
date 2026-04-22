@@ -1,6 +1,7 @@
 // AudioSettings - Processing parameters and user preferences
 
 import Foundation
+import Observation
 
 public enum ResamplerType: String, Codable, Sendable, CaseIterable, Identifiable {
   case asyncSinc = "AsyncSinc"
@@ -26,52 +27,53 @@ public enum ResamplerInterpolation: String, Codable, Sendable, CaseIterable, Ide
 }
 
 @MainActor
-final class AudioSettings: ObservableObject {
+@Observable
+final class AudioSettings {
   let defaults = UserDefaults.standard
 
-  @Published var chunkSize: Int = 1024 {
+  var chunkSize: Int = 1024 {
     didSet {
       defaults.set(chunkSize, forKey: "chunksize")
       onChanged?()
     }
   }
-  @Published var enableRateAdjust: Bool = false {
+  var enableRateAdjust: Bool = false {
     didSet {
       defaults.set(enableRateAdjust, forKey: "enableRateAdjust")
       onChanged?()
     }
   }
-  @Published var resamplerEnabled: Bool = false {
+  var resamplerEnabled: Bool = false {
     didSet {
       defaults.set(resamplerEnabled, forKey: "resamplerEnabled")
       onChanged?()
     }
   }
-  @Published var resamplerType: ResamplerType = .asyncSinc {
+  var resamplerType: ResamplerType = .asyncSinc {
     didSet {
       defaults.set(resamplerType.rawValue, forKey: "resamplerType")
       onChanged?()
     }
   }
-  @Published var resamplerProfile: ResamplerProfile = .balanced {
+  var resamplerProfile: ResamplerProfile = .balanced {
     didSet {
       defaults.set(resamplerProfile.rawValue, forKey: "resamplerProfile")
       onChanged?()
     }
   }
-  @Published var resamplerInterpolation: ResamplerInterpolation = .cubic {
+  var resamplerInterpolation: ResamplerInterpolation = .cubic {
     didSet {
       defaults.set(resamplerInterpolation.rawValue, forKey: "resamplerInterpolation")
       onChanged?()
     }
   }
-  @Published var volume: Double = 0.0 {
+  var volume: Double = 0.0 {
     didSet { defaults.set(volume, forKey: "volume") }
   }
-  @Published var isMuted: Bool = false {
+  var isMuted: Bool = false {
     didSet { defaults.set(isMuted, forKey: "isMuted") }
   }
-  @Published var camillaDSPPath: String = "" {
+  var camillaDSPPath: String = "" {
     didSet { defaults.set(camillaDSPPath, forKey: "camillaDSPPath") }
   }
 

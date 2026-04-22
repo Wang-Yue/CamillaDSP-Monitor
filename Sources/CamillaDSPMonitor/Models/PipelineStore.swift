@@ -1,13 +1,15 @@
 // PipelineStore - Pipeline stage and EQ preset management with persistence
 
 import Foundation
+import Observation
 
 @MainActor
-final class PipelineStore: ObservableObject {
+@Observable
+final class PipelineStore {
   let defaults = UserDefaults.standard
 
-  @Published var stages: [PipelineStage] = PipelineStage.defaultStages()
-  @Published var eqPresets: [EQPreset] = []
+  var stages: [PipelineStage] = PipelineStage.defaultStages()
+  var eqPresets: [EQPreset] = []
 
   /// Fired after any change that requires a DSP config rebuild (currently only preset deletion).
   var onChanged: (() -> Void)?

@@ -3,6 +3,7 @@
 import CamillaDSPLib
 import CoreAudio
 import Foundation
+import Observation
 
 /// Sendable wrapper for a weak reference to a MainActor-isolated object.
 final class WeakRef<T: AnyObject>: @unchecked Sendable {
@@ -11,7 +12,8 @@ final class WeakRef<T: AnyObject>: @unchecked Sendable {
 }
 
 @MainActor
-final class AudioDeviceManager: ObservableObject {
+@Observable
+final class AudioDeviceManager {
   let defaults = UserDefaults.standard
   let engine: DSPEngine
   let settings: AudioSettings
@@ -19,16 +21,16 @@ final class AudioDeviceManager: ObservableObject {
   /// Fired after device config changes that require a DSP config rebuild.
   var onConfigChanged: (() -> Void)?
 
-  @Published var captureDevices: [AudioDevice] = []
-  @Published var playbackDevices: [AudioDevice] = []
+  var captureDevices: [AudioDevice] = []
+  var playbackDevices: [AudioDevice] = []
 
   // Suppresses side-effects (capability refresh, persistence, callbacks) while init()
-  // is loading persisted values. Without this guard, @Published didSet fires for every
+  // is loading persisted values. Without this guard, setters fire for every
   // assignment inside init(), spawning refreshDeviceCapabilities() Tasks before the engine
   // is connected and printing spurious "notConnected" errors on every launch.
   private var isInitializing = true
 
-  @Published var captureConfig: DeviceConfig = DeviceConfig() {
+  var captureConfig: DeviceConfig = DeviceConfig() {
     didSet {
       guard !isInitializing else { return }
       let enforced = captureConfig.enforced()
@@ -48,7 +50,7 @@ final class AudioDeviceManager: ObservableObject {
     }
   }
 
-  @Published var playbackConfig: DeviceConfig = DeviceConfig() {
+  var playbackConfig: DeviceConfig = DeviceConfig() {
     didSet {
       guard !isInitializing else { return }
       let enforced = playbackConfig.enforced()
@@ -68,7 +70,7 @@ final class AudioDeviceManager: ObservableObject {
     }
   }
 
-  @Published var exclusiveMode: Bool = false {
+  var exclusiveMode: Bool = false {
     didSet {
       guard !isInitializing else { return }
       defaults.set(exclusiveMode, forKey: "exclusiveMode")

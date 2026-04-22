@@ -1,5 +1,6 @@
 // LevelMeterView - VU-style level meters with peak and RMS
 
+import Observation
 import SwiftUI
 
 // MARK: - Shared Visual Constants
@@ -83,7 +84,9 @@ struct LevelMeterCanvas: View {
       }
       if peakW > 0 {
         context.fill(
-          Path(roundedRect: CGRect(x: 0, y: halfH + 0.5, width: peakW, height: halfH - 1), cornerRadius: r),
+          Path(
+            roundedRect: CGRect(x: 0, y: halfH + 0.5, width: peakW, height: halfH - 1),
+            cornerRadius: r),
           with: shading)
       }
 
@@ -144,7 +147,7 @@ struct DualLevelMeterView: View {
 // MARK: - Compact Level Meter Bar
 
 struct CompactLevelMeterBar: View {
-  @EnvironmentObject var levels: LevelState
+  @Environment(LevelState.self) var levels
 
   var body: some View {
     HStack(spacing: 16) {
@@ -178,25 +181,30 @@ struct CompactStereoMeter: View {
       let barW: CGFloat = 80
       let barH: CGFloat = 6
       let spacing: CGFloat = 6
-      
-      drawSingleBar(context: &context, rect: CGRect(x: 0, y: 0, width: barW, height: barH), level: left)
-      drawSingleBar(context: &context, rect: CGRect(x: barW + spacing, y: 0, width: barW, height: barH), level: right)
+
+      drawSingleBar(
+        context: &context, rect: CGRect(x: 0, y: 0, width: barW, height: barH), level: left)
+      drawSingleBar(
+        context: &context, rect: CGRect(x: barW + spacing, y: 0, width: barW, height: barH),
+        level: right)
     }
     .frame(width: 80 * 2 + 6, height: 6)
   }
-  
+
   private func drawSingleBar(context: inout GraphicsContext, rect: CGRect, level: Double) {
-    context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(Color.primary.opacity(0.06)))
+    context.fill(
+      Path(roundedRect: rect, cornerRadius: 2), with: .color(Color.primary.opacity(0.06)))
     let fillW = rect.width * normalizedDB(level)
     if fillW > 0 {
       let fillRect = CGRect(x: rect.minX, y: rect.minY, width: fillW, height: rect.height)
-      context.fill(Path(roundedRect: fillRect, cornerRadius: 2), with: .color(level > -6 ? .orange : .green))
+      context.fill(
+        Path(roundedRect: fillRect, cornerRadius: 2), with: .color(level > -6 ? .orange : .green))
     }
   }
 }
 
 private struct CompactStatusIndicator: View {
-  @EnvironmentObject var dsp: DSPEngineController
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     HStack(spacing: 6) {

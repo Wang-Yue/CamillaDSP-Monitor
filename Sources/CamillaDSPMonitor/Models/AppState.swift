@@ -2,6 +2,7 @@
 
 import CamillaDSPLib
 import Foundation
+import Observation
 import SwiftUI
 
 public enum AppStatus: Equatable, Sendable {
@@ -13,8 +14,9 @@ public enum AppStatus: Equatable, Sendable {
 }
 
 @MainActor
-final class AppState: ObservableObject {
-  @Published var isMiniPlayerActive = false
+@Observable
+final class AppState {
+  var isMiniPlayerActive = false
 
   let engine: DSPEngine
   let settings: AudioSettings
@@ -24,7 +26,7 @@ final class AppState: ObservableObject {
   let dsp: DSPEngineController
   let spectrum: SpectrumEngine
   let levels: LevelState
-  let vuSettings = VUSettings() // Added persistent VU settings
+  let vuSettings = VUSettings()  // Added persistent VU settings
   let logManager = LogManager()
 
   init() {
@@ -51,27 +53,32 @@ final class AppState: ObservableObject {
     self.monitoring = monitoring
     self.dsp = dsp
     self.spectrum = spectrum
-    // Assign the same instances that monitoring/dsp received — NOT new default-value instances.
-    // Without these assignments the stored-property slots would hold different LevelState
-    // objects than the sub-controllers update, so views would never observe changes.
     self.levels = levels
 
-    // Wire callbacks after all objects exist. onChanged is nil during loadPreferences()
-    // and the initial captureConfig/playbackConfig assignments, so no premature applyConfig
-    // fires during startup (the status == .running guard in applyConfig() provides a
-    // secondary backstop).
-    settings.onChanged = { [weak devices, weak dsp] in
+    // Wire callbacks after all objects exist.
+    settings.onChanged = { [weak devices, weak dsp, weak spectrum] in
       devices?.validateSampleRates()
       dsp?.applyConfig()
+      spectrum?.refresh()
     }
-    devices.onConfigChanged = { [weak dsp] in
+    devices.onConfigChanged = { [weak dsp, weak spectrum] in
       dsp?.applyConfig()
+      spectrum?.refresh()
     }
     pipeline.onChanged = { [weak dsp] in
       dsp?.applyConfig()
     }
 
-    // Load persisted preferences (callbacks are now wired but engine isn't running yet).
+    monitoring.onStatusChange = { [weak dsp, weak spectrum] newStatus in
+      guard let dsp, newStatus != dsp.status else { return }
+      dsp.status = newStatus
+      spectrum?.refresh()
+    }
+    monitoring.onRestartEngine = { [weak dsp] in
+      dsp?.startEngine()
+    }
+
+    // Load persisted preferences.
     settings.loadPreferences()
     pipeline.eqPresets = pipeline.loadEQPresets()
     pipeline.createDefaultEQPresetsIfNeeded()

@@ -3,9 +3,11 @@
 import AppKit
 import CamillaDSPLib
 import Foundation
+import Observation
 
 @MainActor
-final class MonitoringController: ObservableObject {
+@Observable
+final class MonitoringController {
   let engine: DSPEngine
   let levels: LevelState
   let devices: AudioDeviceManager
@@ -62,7 +64,7 @@ final class MonitoringController: ObservableObject {
       for await vu in stream {
         if currentStatus == .inactive {
           levels.reset()
-          continue 
+          continue
         }
         levels.update(
           capturePeak: StereoLevel(from: vu.capture_peak),

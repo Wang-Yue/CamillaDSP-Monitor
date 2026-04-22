@@ -1,8 +1,9 @@
-import SwiftUI
 import AppKit
+import Observation
+import SwiftUI
 
 struct ConsoleLogsView: View {
-  @EnvironmentObject var logManager: LogManager
+  @Environment(LogManager.self) var logManager
   @State private var autoScroll = true
 
   var body: some View {
@@ -11,7 +12,7 @@ struct ConsoleLogsView: View {
         Text("Console Logs")
           .font(.headline)
         Spacer()
-        
+
         Button {
           let allLogs = logManager.entries.map { entry in
             "[\(entry.timestamp.description)] \(entry.message)"
@@ -23,14 +24,14 @@ struct ConsoleLogsView: View {
           Label("Copy", systemImage: "doc.on.doc")
         }
         .buttonStyle(.borderless)
-        
+
         Button {
           logManager.entries.removeAll()
         } label: {
           Label("Clear", systemImage: "trash")
         }
         .buttonStyle(.borderless)
-        
+
         Toggle("Auto-scroll", isOn: $autoScroll)
           .toggleStyle(.checkbox)
       }
@@ -47,7 +48,7 @@ struct ConsoleLogsView: View {
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .frame(width: 70, alignment: .leading)
-              
+
               Text(entry.message)
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)

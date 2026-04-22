@@ -1,7 +1,8 @@
+import Observation
 import SwiftUI
 
 struct AutoEqPickerView: View {
-  @EnvironmentObject var pipeline: PipelineStore
+  @Environment(PipelineStore.self) var pipeline
   @Environment(\.dismiss) var dismiss
 
   @State private var headphones: [AutoEqHeadphone] = []

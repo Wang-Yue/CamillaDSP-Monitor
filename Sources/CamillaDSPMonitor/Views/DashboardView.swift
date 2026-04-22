@@ -1,6 +1,7 @@
 // DashboardView - Main dashboard showing pipeline overview and monitoring
 
 import AppKit
+import Observation
 import SwiftUI
 
 /// Horizontal ScrollView that also scrolls with vertical mouse wheel.
@@ -20,7 +21,7 @@ struct HorizontalScrollWithVerticalWheel<Content: View>: NSViewRepresentable {
     scrollView.hasHorizontalScroller = false
     scrollView.hasVerticalScroller = false
     scrollView.drawsBackground = false
-    
+
     // Disable all bouncing to prevent tiny up/down "wiggles"
     scrollView.horizontalScrollElasticity = .none
     scrollView.verticalScrollElasticity = .none
@@ -66,7 +67,7 @@ struct DashboardView: View {
       VStack(spacing: 20) {
         PipelineOverview()
         LevelMetersCard()
-        AnalogVUCard() // Added Analog VU Card
+        AnalogVUCard()  // Added Analog VU Card
         SpectrumCard()
       }
       .padding()
@@ -76,10 +77,10 @@ struct DashboardView: View {
 }
 
 struct PipelineOverview: View {
-  @EnvironmentObject var dsp: DSPEngineController
-  @EnvironmentObject var devices: AudioDeviceManager
-  @EnvironmentObject var settings: AudioSettings
-  @EnvironmentObject var pipeline: PipelineStore
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioDeviceManager.self) var devices
+  @Environment(AudioSettings.self) var settings
+  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -160,8 +161,8 @@ private struct StageChipBorderModifier: ViewModifier {
 }
 
 struct StageChipButton: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var dsp: DSPEngineController
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
   var compact: Bool = false
 
   var body: some View {
@@ -178,7 +179,7 @@ struct StageChipButton: View {
 }
 
 struct LevelMetersCard: View {
-  @EnvironmentObject var levels: LevelState
+  @Environment(LevelState.self) var levels
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .firstTextBaseline) {
@@ -207,7 +208,7 @@ struct LevelMetersCard: View {
 }
 
 struct SpectrumCard: View {
-  @EnvironmentObject var spectrum: SpectrumEngine
+  @Environment(SpectrumEngine.self) var spectrum
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {

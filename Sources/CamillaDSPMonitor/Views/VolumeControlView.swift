@@ -1,10 +1,11 @@
 // VolumeControlView - Volume slider with mute button
 
+import Observation
 import SwiftUI
 
 struct VolumeControlView: View {
-  @EnvironmentObject var dsp: DSPEngineController
-  @EnvironmentObject var settings: AudioSettings
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioSettings.self) var settings
 
   var body: some View {
     HStack(spacing: 8) {

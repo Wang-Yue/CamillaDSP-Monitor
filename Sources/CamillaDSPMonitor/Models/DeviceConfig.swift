@@ -37,7 +37,9 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
 
   // MARK: - Capabilities Logic
 
-  private static let formatPriority: [String: Int] = ["S32": 4, "S24": 3, "S16": 2, "F32": 1, "F64": 0]
+  private static let formatPriority: [String: Int] = [
+    "S32": 4, "S24": 3, "S16": 2, "F32": 1, "F64": 0,
+  ]
 
   /// Channel counts this device supports, sorted ascending.
   public var supportedChannels: [Int] {

@@ -1,14 +1,17 @@
 // DevicePickerView - Audio device selection and configuration
 
 import CamillaDSPLib
+import Observation
 import SwiftUI
 
 struct DevicePickerView: View {
-  @EnvironmentObject var devices: AudioDeviceManager
-  @EnvironmentObject var settings: AudioSettings
+  @Environment(AudioDeviceManager.self) var devices
+  @Environment(AudioSettings.self) var settings
   @State private var showRestartAlert = false
 
   var body: some View {
+    @Bindable var bindableDevices = devices
+    @Bindable var bindableSettings = settings
     ScrollView {
       VStack(spacing: 20) {
         // Engine path
@@ -18,11 +21,14 @@ struct DevicePickerView: View {
               .font(.headline)
 
             HStack {
-              Text(settings.camillaDSPPath.isEmpty ? "Not selected" : settings.camillaDSPPath)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(settings.camillaDSPPath.isEmpty ? .red : .secondary)
-                .lineLimit(1)
-                .truncationMode(.head)
+              Text(
+                bindableSettings.camillaDSPPath.isEmpty
+                  ? "Not selected" : bindableSettings.camillaDSPPath
+              )
+              .font(.system(.caption, design: .monospaced))
+              .foregroundStyle(bindableSettings.camillaDSPPath.isEmpty ? .red : .secondary)
+              .lineLimit(1)
+              .truncationMode(.head)
 
               Spacer()
 
@@ -31,7 +37,7 @@ struct DevicePickerView: View {
               }
             }
 
-            if settings.camillaDSPPath.isEmpty {
+            if bindableSettings.camillaDSPPath.isEmpty {
               Text("Please select the camilladsp executable to start the engine.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -46,26 +52,26 @@ struct DevicePickerView: View {
           title: "Capture (Input)",
           icon: "mic.fill",
           iconColor: .blue,
-          devices: devices.captureDevices,
+          devices: bindableDevices.captureDevices,
           selectedDevice: Binding(
-            get: { devices.captureConfig.deviceName },
-            set: { devices.captureConfig.deviceName = $0 }),
-          channels: $devices.captureConfig.channels,
-          supportedChannels: devices.captureConfig.supportedChannels
+            get: { bindableDevices.captureConfig.deviceName },
+            set: { bindableDevices.captureConfig.deviceName = $0 }),
+          channels: $bindableDevices.captureConfig.channels,
+          supportedChannels: bindableDevices.captureConfig.supportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Text("Sample Rate")
                 .frame(width: 100, alignment: .leading)
-              if settings.resamplerEnabled {
-                Picker("", selection: $devices.captureConfig.sampleRate) {
-                  ForEach(devices.captureRateOptions, id: \.self) { rate in
+              if bindableSettings.resamplerEnabled {
+                Picker("", selection: $bindableDevices.captureConfig.sampleRate) {
+                  ForEach(bindableDevices.captureRateOptions, id: \.self) { rate in
                     Text(formatRate(rate)).tag(rate)
                   }
                 }
                 .labelsHidden()
               } else {
-                Text(formatRate(devices.captureConfig.sampleRate))
+                Text(formatRate(bindableDevices.captureConfig.sampleRate))
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               }
@@ -74,13 +80,13 @@ struct DevicePickerView: View {
             HStack {
               Text("Format")
                 .frame(width: 100, alignment: .leading)
-              if devices.captureConfig.supportedFormats.isEmpty {
-                Text(devices.captureConfig.format)
+              if bindableDevices.captureConfig.supportedFormats.isEmpty {
+                Text(bindableDevices.captureConfig.format)
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               } else {
-                Picker("", selection: $devices.captureConfig.format) {
-                  ForEach(devices.captureConfig.supportedFormats, id: \.self) { fmt in
+                Picker("", selection: $bindableDevices.captureConfig.format) {
+                  ForEach(bindableDevices.captureConfig.supportedFormats, id: \.self) { fmt in
                     Text(fmt).tag(fmt)
                   }
                 }
@@ -88,7 +94,7 @@ struct DevicePickerView: View {
               }
             }
 
-            if !settings.resamplerEnabled {
+            if !bindableSettings.resamplerEnabled {
               Text("Follows the playback sample rate (enable Resampler for independent rates)")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -101,19 +107,19 @@ struct DevicePickerView: View {
           title: "Playback (Output)",
           icon: "hifispeaker.2.fill",
           iconColor: .green,
-          devices: devices.playbackDevices,
+          devices: bindableDevices.playbackDevices,
           selectedDevice: Binding(
-            get: { devices.playbackConfig.deviceName },
-            set: { devices.playbackConfig.deviceName = $0 }),
-          channels: $devices.playbackConfig.channels,
-          supportedChannels: devices.playbackConfig.supportedChannels
+            get: { bindableDevices.playbackConfig.deviceName },
+            set: { bindableDevices.playbackConfig.deviceName = $0 }),
+          channels: $bindableDevices.playbackConfig.channels,
+          supportedChannels: bindableDevices.playbackConfig.supportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
             HStack {
               Text("Sample Rate")
                 .frame(width: 100, alignment: .leading)
-              Picker("", selection: $devices.playbackConfig.sampleRate) {
-                ForEach(devices.playbackRateOptions, id: \.self) { rate in
+              Picker("", selection: $bindableDevices.playbackConfig.sampleRate) {
+                ForEach(bindableDevices.playbackRateOptions, id: \.self) { rate in
                   Text(formatRate(rate)).tag(rate)
                 }
               }
@@ -123,13 +129,13 @@ struct DevicePickerView: View {
             HStack {
               Text("Format")
                 .frame(width: 100, alignment: .leading)
-              if devices.playbackConfig.supportedFormats.isEmpty {
-                Text(devices.playbackConfig.format)
+              if bindableDevices.playbackConfig.supportedFormats.isEmpty {
+                Text(bindableDevices.playbackConfig.format)
                   .font(.system(.body, design: .monospaced))
                   .foregroundStyle(.secondary)
               } else {
-                Picker("", selection: $devices.playbackConfig.format) {
-                  ForEach(devices.playbackConfig.supportedFormats, id: \.self) { fmt in
+                Picker("", selection: $bindableDevices.playbackConfig.format) {
+                  ForEach(bindableDevices.playbackConfig.supportedFormats, id: \.self) { fmt in
                     Text(fmt).tag(fmt)
                   }
                 }
@@ -137,7 +143,7 @@ struct DevicePickerView: View {
               }
             }
 
-            Toggle("Exclusive Mode (Hog)", isOn: $devices.exclusiveMode)
+            Toggle("Exclusive Mode (Hog)", isOn: $bindableDevices.exclusiveMode)
             Text(
               "Takes exclusive access to the output device, preventing other apps from using it"
             )
@@ -155,7 +161,7 @@ struct DevicePickerView: View {
             HStack {
               Text("Chunk Size")
                 .frame(width: 100, alignment: .leading)
-              Picker("", selection: $settings.chunkSize) {
+              Picker("", selection: $bindableSettings.chunkSize) {
                 Text("256 samples").tag(256)
                 Text("512 samples").tag(512)
                 Text("1024 samples").tag(1024)
@@ -169,7 +175,7 @@ struct DevicePickerView: View {
                 .foregroundStyle(.secondary)
             }
 
-            Toggle("Enable Rate Adjust", isOn: $settings.enableRateAdjust)
+            Toggle("Enable Rate Adjust", isOn: $bindableSettings.enableRateAdjust)
             Text("Compensate for clock drift between capture and playback devices")
               .font(.caption)
               .foregroundStyle(.secondary)

@@ -68,7 +68,9 @@ final class CoreAudioTap: Sendable {
       // 2. Validate Format
       let inputFormat = inputNode.inputFormat(forBus: 0)
       guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
-        print("[Tap] Invalid input format (\(inputFormat.sampleRate)Hz, \(inputFormat.channelCount)ch), skipping tap")
+        print(
+          "[Tap] Invalid input format (\(inputFormat.sampleRate)Hz, \(inputFormat.channelCount)ch), skipping tap"
+        )
         return
       }
       print("[Tap] Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount)ch")

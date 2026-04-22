@@ -1,6 +1,7 @@
 // EQPreset - Biquad EQ preset with multiple parametric bands and CSV import/export
 
 import Foundation
+import Observation
 
 enum EQBandType: String, CaseIterable, Codable, Identifiable {
   case peaking = "Peaking"
@@ -40,13 +41,19 @@ enum EQBandType: String, CaseIterable, Codable, Identifiable {
   }
 }
 
-final class EQBand: ObservableObject, Identifiable, Codable {
+@Observable
+final class EQBand: Identifiable, Codable, Equatable {
+  static func == (lhs: EQBand, rhs: EQBand) -> Bool {
+    lhs.id == rhs.id && lhs.type == rhs.type && lhs.freq == rhs.freq && lhs.gain == rhs.gain
+      && lhs.q == rhs.q && lhs.isEnabled == rhs.isEnabled
+  }
+
   let id: UUID
-  @Published var type: EQBandType { didSet { invalidateCache() } }
-  @Published var freq: Double { didSet { invalidateCache() } }
-  @Published var gain: Double { didSet { invalidateCache() } }
-  @Published var q: Double { didSet { invalidateCache() } }
-  @Published var isEnabled: Bool
+  var type: EQBandType { didSet { invalidateCache() } }
+  var freq: Double { didSet { invalidateCache() } }
+  var gain: Double { didSet { invalidateCache() } }
+  var q: Double { didSet { invalidateCache() } }
+  var isEnabled: Bool
   // Cached biquad coefficients — invalidated when band parameters change.
   // Avoids recomputing trig-heavy coefficients on every frequency sample during curve drawing.
   private var cachedCoeffs: BiquadCoefficients?
@@ -113,11 +120,17 @@ final class EQBand: ObservableObject, Identifiable, Codable {
   }
 }
 
-final class EQPreset: ObservableObject, Identifiable, Codable {
+@Observable
+final class EQPreset: Identifiable, Codable, Equatable {
+  static func == (lhs: EQPreset, rhs: EQPreset) -> Bool {
+    lhs.id == rhs.id && lhs.name == rhs.name && lhs.preampGain == rhs.preampGain
+      && lhs.bands == rhs.bands
+  }
+
   let id: UUID
-  @Published var name: String
-  @Published var preampGain: Double
-  @Published var bands: [EQBand]
+  var name: String
+  var preampGain: Double
+  var bands: [EQBand]
   init(name: String, preampGain: Double = -6.0, bands: [EQBand] = []) {
     self.id = UUID()
     self.name = name

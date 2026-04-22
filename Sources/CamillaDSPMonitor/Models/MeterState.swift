@@ -4,6 +4,7 @@
 // don't cause load views to redraw. This reduces SwiftUI's AttributeGraph updates.
 
 import Foundation
+import Observation
 
 struct StereoLevel: Sendable, Equatable {
   var left: Double
@@ -23,7 +24,8 @@ struct StereoLevel: Sendable, Equatable {
 
 /// Peak/RMS levels for capture and playback — observed by meter views.
 @MainActor
-final class LevelState: ObservableObject {
+@Observable
+final class LevelState {
   var capturePeak: StereoLevel = .silent
   var captureRms: StereoLevel = .silent
   var playbackPeak: StereoLevel = .silent
@@ -33,15 +35,10 @@ final class LevelState: ObservableObject {
     capturePeak: StereoLevel, captureRms: StereoLevel,
     playbackPeak: StereoLevel, playbackRms: StereoLevel
   ) {
-    let unchanged =
-      self.capturePeak == capturePeak && self.captureRms == captureRms
-      && self.playbackPeak == playbackPeak && self.playbackRms == playbackRms
-    guard !unchanged else { return }
     self.capturePeak = capturePeak
     self.captureRms = captureRms
     self.playbackPeak = playbackPeak
     self.playbackRms = playbackRms
-    objectWillChange.send()
   }
 
   func reset() {

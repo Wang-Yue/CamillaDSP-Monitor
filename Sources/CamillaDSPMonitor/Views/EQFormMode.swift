@@ -1,9 +1,10 @@
 // EQFormMode - Simplified list view for editing EQ bands
 
+import Observation
 import SwiftUI
 
 struct EQFormMode: View {
-  @ObservedObject var preset: EQPreset
+  @Bindable var preset: EQPreset
   @Binding var selectedBandID: UUID?
 
   var body: some View {
@@ -56,7 +57,7 @@ struct EQFormMode: View {
 }
 
 private struct BandRow: View {
-  @ObservedObject var band: EQBand
+  @Bindable var band: EQBand
   let onDelete: () -> Void
 
   var body: some View {

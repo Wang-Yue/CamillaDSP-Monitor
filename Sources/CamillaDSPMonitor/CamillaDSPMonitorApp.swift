@@ -4,21 +4,21 @@ import SwiftUI
 
 @main
 struct CamillaDSPMonitorApp: App {
-  @StateObject private var appState = AppState()
+  @State private var appState = AppState()
   @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
   var body: some Scene {
     Window("CamillaDSP Monitor", id: "main") {
       ContentView()
-        .environmentObject(appState)
-        .environmentObject(appState.levels)
-        .environmentObject(appState.dsp)
-        .environmentObject(appState.settings)
-        .environmentObject(appState.devices)
-        .environmentObject(appState.pipeline)
-        .environmentObject(appState.monitoring)
-        .environmentObject(appState.spectrum)
-        .environmentObject(appState.vuSettings) // Inject persistent VU settings
+        .environment(appState)
+        .environment(appState.levels)
+        .environment(appState.dsp)
+        .environment(appState.settings)
+        .environment(appState.devices)
+        .environment(appState.pipeline)
+        .environment(appState.monitoring)
+        .environment(appState.spectrum)
+        .environment(appState.vuSettings)  // Inject persistent VU settings
         .frame(minWidth: 960, minHeight: 680)
         .onAppear {
           appDelegate.appState = appState
@@ -30,8 +30,8 @@ struct CamillaDSPMonitorApp: App {
 
     Settings {
       DevicePickerView()
-        .environmentObject(appState.devices)
-        .environmentObject(appState.settings)
+        .environment(appState.devices)
+        .environment(appState.settings)
         .frame(width: 450, height: 350)
     }
   }
@@ -40,7 +40,10 @@ struct CamillaDSPMonitorApp: App {
   private func setupWindowIntercept() {
     // Slight delay to ensure the NSWindow and its titlebar buttons are ready.
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-      guard let window = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "main" }) else {
+      guard
+        let window = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "main" }
+        )
+      else {
         return
       }
 

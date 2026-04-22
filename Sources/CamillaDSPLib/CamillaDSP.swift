@@ -74,7 +74,9 @@ public struct AudioDeviceDescriptor: Codable, Sendable, Equatable {
   public let description: String
   public let capability_sets: [DeviceCapabilitySet]
 
-  public init(name: String = "", description: String = "", capability_sets: [DeviceCapabilitySet] = []) {
+  public init(
+    name: String = "", description: String = "", capability_sets: [DeviceCapabilitySet] = []
+  ) {
     self.name = name
     self.description = description
     self.capability_sets = capability_sets

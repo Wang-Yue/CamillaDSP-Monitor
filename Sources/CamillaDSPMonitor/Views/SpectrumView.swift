@@ -1,5 +1,6 @@
 // SpectrumView - spectrum analyzer display with gradient bars
 
+import Observation
 import SwiftUI
 
 // MARK: - SpectrumView

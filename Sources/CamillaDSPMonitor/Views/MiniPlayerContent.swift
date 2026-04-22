@@ -1,11 +1,12 @@
 // MiniPlayerContent - Mini player content views: spectrum, pipeline, meters
 
+import Observation
 import SwiftUI
 
 // MARK: - Mini Spectrum
 
 struct MiniSpectrumView: View {
-  @EnvironmentObject var spectrum: SpectrumEngine
+  @Environment(SpectrumEngine.self) var spectrum
 
   var body: some View {
     Canvas { context, size in
@@ -21,8 +22,8 @@ struct MiniSpectrumView: View {
 // MARK: - Mini Pipeline
 
 struct MiniPipelineView: View {
-  @EnvironmentObject var settings: AudioSettings
-  @EnvironmentObject var pipeline: PipelineStore
+  @Environment(AudioSettings.self) var settings
+  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
     HorizontalScrollWithVerticalWheel {
@@ -48,7 +49,7 @@ struct MiniPipelineView: View {
 // MARK: - Mini Meters
 
 struct MiniMetersView: View {
-  @EnvironmentObject var levels: LevelState
+  @Environment(LevelState.self) var levels
 
   var body: some View {
     VStack(spacing: 6) {
@@ -89,13 +90,15 @@ struct MiniMeterRow: View {
 // MARK: - Mini Analog VU
 
 struct MiniAnalogVUView: View {
-  @EnvironmentObject var levels: LevelState
-  @EnvironmentObject var vuSettings: VUSettings
-  
+  @Environment(LevelState.self) var levels
+  @Environment(VUSettings.self) var vuSettings
+
   var body: some View {
     HStack(spacing: 8) {
-      AnalogVUMeter(level: levels.playbackRms.left, label: "L", params: vuSettings.params, height: 50)
-      AnalogVUMeter(level: levels.playbackRms.right, label: "R", params: vuSettings.params, height: 50)
+      AnalogVUMeter(
+        level: levels.playbackRms.left, label: "L", params: vuSettings.params, height: 50)
+      AnalogVUMeter(
+        level: levels.playbackRms.right, label: "R", params: vuSettings.params, height: 50)
     }
     .frame(height: 60)
   }

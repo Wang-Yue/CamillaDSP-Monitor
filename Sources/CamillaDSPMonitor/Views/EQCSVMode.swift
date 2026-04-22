@@ -1,10 +1,11 @@
 // EQCSVMode - AutoEq / EqualizerAPO compatible text editor for EQ presets
 
+import Observation
 import SwiftUI
 
 struct EQCSVMode: View {
-  @ObservedObject var preset: EQPreset
-  @EnvironmentObject var pipeline: PipelineStore
+  @Bindable var preset: EQPreset
+  @Environment(PipelineStore.self) var pipeline
   @State private var csvText: String = ""
   @State private var parseError: String?
   @State private var copyFeedback: Bool = false
@@ -38,7 +39,6 @@ struct EQCSVMode: View {
           if let result = EQPreset.fromCSV(csvText) {
             preset.preampGain = result.preamp
             preset.bands = result.bands
-            preset.objectWillChange.send()
             pipeline.saveEQPresets()
             parseError = nil
           } else {

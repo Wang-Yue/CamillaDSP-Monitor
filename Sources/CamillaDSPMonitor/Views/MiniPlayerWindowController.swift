@@ -1,6 +1,7 @@
 // MiniPlayerWindowController - NSPanel-based floating window controller
 
 import AppKit
+import Observation
 import SwiftUI
 
 @MainActor
@@ -30,15 +31,15 @@ final class MiniPlayerWindowController {
     }
 
     let miniView = MiniPlayerView()
-      .environmentObject(appState)
-      .environmentObject(appState.levels)
-      .environmentObject(appState.settings)
-      .environmentObject(appState.devices)
-      .environmentObject(appState.pipeline)
-      .environmentObject(appState.monitoring)
-      .environmentObject(appState.dsp)
-      .environmentObject(appState.spectrum)
-      .environmentObject(appState.vuSettings) // Inject persistent VU settings
+      .environment(appState)
+      .environment(appState.levels)
+      .environment(appState.settings)
+      .environment(appState.devices)
+      .environment(appState.pipeline)
+      .environment(appState.monitoring)
+      .environment(appState.dsp)
+      .environment(appState.spectrum)
+      .environment(appState.vuSettings)  // Inject persistent VU settings
 
     let hostingView = NSHostingView(rootView: miniView)
     hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: 90)
