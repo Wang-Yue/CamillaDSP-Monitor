@@ -23,6 +23,11 @@ final class FFTSpectrumAnalyzer: Sendable {
     self.results = stream
     
     self.processingTask = Task.detached(priority: .utility) {
+      guard sampleRate > 0 else {
+        print("[FFT] Invalid sample rate 0, aborting analyzer")
+        return
+      }
+
       var fftN = 4096
       if sampleRate < 16000 { fftN = 2048 }
       if sampleRate > 48000 { fftN = 8192 }
@@ -107,5 +112,10 @@ final class FFTSpectrumAnalyzer: Sendable {
 
   deinit {
     processingTask.cancel()
+  }
+
+  func stop() async {
+    processingTask.cancel()
+    _ = await processingTask.result
   }
 }

@@ -14,6 +14,7 @@ final class SpectrumEngine: ObservableObject {
   private var analyzer: FFTSpectrumAnalyzer?
   private var tap: CoreAudioTap?
   private var updateTask: Task<Void, Never>?
+  private var transitionTask: Task<Void, Never>?
   private var lifecycleCancellable: AnyCancellable?
   private var currentTapConfig: TapConfig?
 
@@ -33,21 +34,33 @@ final class SpectrumEngine: ObservableObject {
   }
 
   private func refreshLifecycle(status: AppStatus, captureConfig: DeviceConfig, chunkSize: Int) {
-    guard status == .running else {
-      deactivate()
-      return
-    }
-
     let nextConfig = TapConfig(
       sampleRate: captureConfig.sampleRate,
       chunkSize: chunkSize,
       deviceName: captureConfig.deviceName
     )
 
-    guard analyzer == nil || currentTapConfig != nextConfig else { return }
+    let previousTransition = transitionTask
+    previousTransition?.cancel()
+    
+    transitionTask = Task {
+      // Wait for any previous transition to finish its cleanup
+      _ = await previousTransition?.result
 
-    deactivate()
-    activate(with: nextConfig)
+      // Debounce to let rapid changes settle. 
+      // If a newer task comes in during this sleep, this one will be cancelled.
+      try? await Task.sleep(nanoseconds: 100_000_000) // 100ms debounce
+      guard !Task.isCancelled else { return }
+
+      if status != .running {
+        await deactivate()
+      } else if analyzer == nil || currentTapConfig != nextConfig {
+        await deactivate()
+        if !Task.isCancelled {
+          activate(with: nextConfig)
+        }
+      }
+    }
   }
 
   private func activate(with config: TapConfig) {
@@ -75,13 +88,20 @@ final class SpectrumEngine: ObservableObject {
     }
   }
 
-  private func deactivate() {
+  private func deactivate() async {
     updateTask?.cancel()
     updateTask = nil
 
-    analyzer = nil
+    let oldTap = tap
+    let oldAnalyzer = analyzer
+    
     tap = nil
+    analyzer = nil
     currentTapConfig = nil
+
+    // Ensure hardware resources are released before continuing
+    await oldTap?.stop()
+    await oldAnalyzer?.stop()
 
     bands = Array(repeating: -100, count: SPECTRUM_BAND_COUNT)
   }

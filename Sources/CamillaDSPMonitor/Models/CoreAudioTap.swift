@@ -46,15 +46,19 @@ final class CoreAudioTap: Sendable {
       if let name = deviceName {
         if let deviceID = findCoreAudioDeviceID(name: name) {
           var id = deviceID
-          let status = AudioUnitSetProperty(
-            inputNode.audioUnit!,
-            kAudioOutputUnitProperty_CurrentDevice,
-            kAudioUnitScope_Global,
-            0,
-            &id,
-            UInt32(MemoryLayout<AudioDeviceID>.size))
-          if status != noErr {
-            print("[Tap] Failed to set input device: \(status)")
+          if let au = inputNode.audioUnit {
+            let status = AudioUnitSetProperty(
+              au,
+              kAudioOutputUnitProperty_CurrentDevice,
+              kAudioUnitScope_Global,
+              0,
+              &id,
+              UInt32(MemoryLayout<AudioDeviceID>.size))
+            if status != noErr {
+              print("[Tap] Failed to set input device '\(name)': \(status)")
+            } else {
+              print("[Tap] Set input device to '\(name)'")
+            }
           }
         } else {
           print("[Tap] Could not resolve input device '\(name)'")
@@ -63,10 +67,11 @@ final class CoreAudioTap: Sendable {
 
       // 2. Validate Format
       let inputFormat = inputNode.inputFormat(forBus: 0)
-      guard inputFormat.sampleRate > 0 else {
-        print("[Tap] Invalid input format, skipping tap")
+      guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+        print("[Tap] Invalid input format (\(inputFormat.sampleRate)Hz, \(inputFormat.channelCount)ch), skipping tap")
         return
       }
+      print("[Tap] Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount)ch")
 
       // 3. Install Tap (Zero-Allocation Write)
       inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { buffer, _ in
@@ -80,17 +85,20 @@ final class CoreAudioTap: Sendable {
       }
 
       // 4. Start Engine with Retries
+      engine.prepare()
       var started = false
       for attempt in 1...5 {
         if Task.isCancelled { break }
         do {
           try engine.start()
+          print("[Tap] AVAudioEngine started on attempt \(attempt)")
           started = true
           break
         } catch {
           print("[Tap] AVAudioEngine start attempt \(attempt)/5 failed: \(error)")
           if attempt < 5 {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            // Shorter retry delay (250ms)
+            try? await Task.sleep(nanoseconds: 250_000_000)
           }
         }
       }
@@ -98,7 +106,7 @@ final class CoreAudioTap: Sendable {
       // 5. Wait for Cancellation
       if started {
         while !Task.isCancelled {
-          try? await Task.sleep(nanoseconds: 1_000_000_000)
+          try? await Task.sleep(nanoseconds: 100_000_000)
         }
       }
 
@@ -114,7 +122,8 @@ final class CoreAudioTap: Sendable {
     processingTask.cancel()
   }
 
-  func stop() {
+  func stop() async {
     processingTask.cancel()
+    _ = await processingTask.result
   }
 }
