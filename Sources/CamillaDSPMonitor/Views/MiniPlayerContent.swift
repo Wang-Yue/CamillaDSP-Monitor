@@ -90,11 +90,12 @@ struct MiniMeterRow: View {
 
 struct MiniAnalogVUView: View {
   @EnvironmentObject var levels: LevelState
+  @EnvironmentObject var vuSettings: VUSettings
   
   var body: some View {
     HStack(spacing: 8) {
-      AnalogVUMeter(level: levels.playbackRms.left, label: "L", height: 50)
-      AnalogVUMeter(level: levels.playbackRms.right, label: "R", height: 50)
+      AnalogVUMeter(level: levels.playbackRms.left, label: "L", params: vuSettings.params, height: 50)
+      AnalogVUMeter(level: levels.playbackRms.right, label: "R", params: vuSettings.params, height: 50)
     }
     .frame(height: 60)
   }

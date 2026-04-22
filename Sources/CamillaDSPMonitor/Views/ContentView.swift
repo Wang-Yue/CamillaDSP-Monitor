@@ -193,10 +193,7 @@ struct DetailPanel: View {
           .frame(maxHeight: .infinity, alignment: .top)
           .background(Color(nsColor: .controlBackgroundColor))
       case .analogVU:
-        AnalogVUCard()
-          .padding()
-          .frame(maxHeight: .infinity, alignment: .top)
-          .background(Color(nsColor: .controlBackgroundColor))
+        AnalogVUDetailView() // Use a specialized detail view that includes controls
       case .logs:
         ConsoleLogsView()
           .environmentObject(appState.logManager)
@@ -214,6 +211,93 @@ struct DetailPanel: View {
       }
     }
   }
+}
+
+// MARK: - Analog VU Detail (with interactive controls)
+
+struct AnalogVUDetailView: View {
+    @EnvironmentObject var vuSettings: VUSettings
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                AnalogVUCard()
+                    .padding(32)
+            }
+            
+            Divider()
+            
+            // PERSISTENT CALIBRATION CONTROLS
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label("VU Calibration & Lighting", systemImage: "slider.horizontal.3")
+                        .font(.headline)
+                    Spacer()
+                    Button("Reset to Defaults") {
+                        vuSettings.reset()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                
+                Grid(alignment: .leading, horizontalSpacing: 32, verticalSpacing: 16) {
+                    GridRow {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Scale Radius").font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                Slider(value: $vuSettings.radiusScale, in: 1.0...1.5)
+                                Text(String(format: "%.2f", vuSettings.radiusScale)).font(.system(.body, design: .monospaced)).frame(width: 45)
+                            }
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Pivot Position (Y)").font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                Slider(value: $vuSettings.pivotY, in: 1.0...2.0)
+                                Text(String(format: "%.2f", vuSettings.pivotY)).font(.system(.body, design: .monospaced)).frame(width: 45)
+                            }
+                        }
+                    }
+                    
+                    GridRow {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Needle Extension").font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                Slider(value: $vuSettings.needleExtension, in: 0...60)
+                                Text(String(format: "%.1f", vuSettings.needleExtension)).font(.system(.body, design: .monospaced)).frame(width: 45)
+                            }
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Ambient Glow").font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                Slider(value: $vuSettings.ambientGlow, in: 0.0...1.0)
+                                Text(String(format: "%.2f", vuSettings.ambientGlow)).font(.system(.body, design: .monospaced)).frame(width: 45)
+                            }
+                        }
+                    }
+                    
+                    GridRow {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Focused Hot Spot").font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                Slider(value: $vuSettings.hotSpotAlpha, in: 0.0...1.0)
+                                Text(String(format: "%.2f", vuSettings.hotSpotAlpha)).font(.system(.body, design: .monospaced)).frame(width: 45)
+                            }
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Overall Light Wash").font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                Slider(value: $vuSettings.lightWash, in: 0.0...0.4)
+                                Text(String(format: "%.2f", vuSettings.lightWash)).font(.system(.body, design: .monospaced)).frame(width: 45)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(24)
+            .background(.thinMaterial)
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
 }
 
 // MARK: - Pipeline Sidebar Rows

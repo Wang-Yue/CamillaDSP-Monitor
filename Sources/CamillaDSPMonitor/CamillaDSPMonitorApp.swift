@@ -18,6 +18,7 @@ struct CamillaDSPMonitorApp: App {
         .environmentObject(appState.pipeline)
         .environmentObject(appState.monitoring)
         .environmentObject(appState.spectrum)
+        .environmentObject(appState.vuSettings) // Inject persistent VU settings
         .frame(minWidth: 960, minHeight: 680)
         .onAppear {
           appDelegate.appState = appState

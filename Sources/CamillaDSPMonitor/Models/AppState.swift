@@ -24,6 +24,7 @@ final class AppState: ObservableObject {
   let dsp: DSPEngineController
   let spectrum: SpectrumEngine
   let levels: LevelState
+  let vuSettings = VUSettings() // Added persistent VU settings
   let logManager = LogManager()
 
   init() {

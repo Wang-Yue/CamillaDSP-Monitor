@@ -1,13 +1,68 @@
 import SwiftUI
 
-// MARK: - VU Calibration Parameters
+// MARK: - VU Calibration Settings (Persistent via UserDefaults)
+
+class VUSettings: ObservableObject {
+    private let defaults = UserDefaults.standard
+    
+    @Published var radiusScale: Double {
+        didSet { defaults.set(radiusScale, forKey: "vu_radius_scale") }
+    }
+    @Published var pivotY: Double {
+        didSet { defaults.set(pivotY, forKey: "vu_pivot_y") }
+    }
+    @Published var needleExtension: Double {
+        didSet { defaults.set(needleExtension, forKey: "vu_needle_extension") }
+    }
+    @Published var ambientGlow: Double {
+        didSet { defaults.set(ambientGlow, forKey: "vu_ambient_glow") }
+    }
+    @Published var hotSpotAlpha: Double {
+        didSet { defaults.set(hotSpotAlpha, forKey: "vu_hot_spot_alpha") }
+    }
+    @Published var lightWash: Double {
+        didSet { defaults.set(lightWash, forKey: "vu_light_wash") }
+    }
+    
+    init() {
+        // Provide defaults if not already set
+        radiusScale = UserDefaults.standard.object(forKey: "vu_radius_scale") as? Double ?? 1.20
+        pivotY = UserDefaults.standard.object(forKey: "vu_pivot_y") as? Double ?? 1.55
+        needleExtension = UserDefaults.standard.object(forKey: "vu_needle_extension") as? Double ?? 45.0
+        ambientGlow = UserDefaults.standard.object(forKey: "vu_ambient_glow") as? Double ?? 0.5
+        hotSpotAlpha = UserDefaults.standard.object(forKey: "vu_hot_spot_alpha") as? Double ?? 0.5
+        lightWash = UserDefaults.standard.object(forKey: "vu_light_wash") as? Double ?? 0.2
+    }
+    
+    func reset() {
+        radiusScale = 1.20
+        pivotY = 1.55
+        needleExtension = 45.0
+        ambientGlow = 0.5
+        hotSpotAlpha = 0.5
+        lightWash = 0.2
+    }
+    
+    var params: VUParams {
+        VUParams(
+            radiusScale: radiusScale,
+            pivotY: pivotY,
+            needleExtension: needleExtension,
+            ambientGlow: ambientGlow,
+            hotSpotAlpha: hotSpotAlpha,
+            lightWash: lightWash
+        )
+    }
+}
+
+// Internal struct for passing parameters to the renderer
 struct VUParams {
-    var radiusScale: Double = 1.20
-    var pivotY: Double = 1.55
-    var needleExtension: Double = 45.0
-    var ambientGlow: Double = 0.5
-    var hotSpotAlpha: Double = 0.5
-    var lightWash: Double = 0.2
+    var radiusScale: Double
+    var pivotY: Double
+    var needleExtension: Double
+    var ambientGlow: Double
+    var hotSpotAlpha: Double
+    var lightWash: Double
 }
 
 // MARK: - Hyper-Realistic VU Meter
@@ -15,7 +70,7 @@ struct VUParams {
 struct AnalogVUMeter: View {
   let level: Double // dBFS (-60...0)
   let label: String
-  var params: VUParams = VUParams()
+  var params: VUParams
   var height: CGFloat = 160
 
   private let bulbHotSpotColor = Color(red: 1.0, green: 0.98, blue: 0.88)
@@ -162,13 +217,14 @@ struct AnalogVUMeter: View {
 
 struct AnalogVUCard: View {
     @EnvironmentObject var levels: LevelState
+    @EnvironmentObject var vuSettings: VUSettings
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Analog VU").font(.headline)
             HStack(spacing: 24) {
-                AnalogVUMeter(level: levels.playbackRms.left, label: "LEFT")
-                AnalogVUMeter(level: levels.playbackRms.right, label: "RIGHT")
+                AnalogVUMeter(level: levels.playbackRms.left, label: "LEFT", params: vuSettings.params)
+                AnalogVUMeter(level: levels.playbackRms.right, label: "RIGHT", params: vuSettings.params)
             }
         }
         .padding()
