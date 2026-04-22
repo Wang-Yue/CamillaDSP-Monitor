@@ -26,14 +26,6 @@ public enum AudioBackendError: Error, LocalizedError, Sendable {
   }
 }
 
-public struct SignalLevels: Codable, Sendable {
-  public var processing_load: Float?
-  public let capture_rms: [Float]
-  public let capture_peak: [Float]
-  public let playback_rms: [Float]
-  public let playback_peak: [Float]
-}
-
 /// Pushed VU level event from SubscribeVuLevels.
 public struct VuLevels: Sendable {
   public let playback_rms: [Float]
@@ -310,23 +302,6 @@ public actor DSPEngine {
   public func setFaderMute(fader: Int, mute: Bool) async {
     let value: [any Sendable] = [fader, mute]
     let _: String? = try? await sendCommand("SetFaderMute", value: value)
-  }
-
-  public func fetchProcessingLoad() async -> Float {
-    let pLoad = await fetchLoad("GetProcessingLoad")
-    let rLoad = await fetchLoad("GetResamplerLoad")
-    return pLoad + rLoad
-  }
-
-  private func fetchLoad(_ command: String) async -> Float {
-    do {
-      guard let loadValue: any Sendable = try await sendCommand(command) else { return 0.0 }
-      if let d = loadValue as? Double { return Float(d) }
-      if let f = loadValue as? Float { return f }
-      if let i = loadValue as? Int { return Float(i) }
-    } catch {
-    }
-    return 0.0
   }
 
   public func getAvailableDevices(backend: String, input: Bool) async -> [AudioDevice] {

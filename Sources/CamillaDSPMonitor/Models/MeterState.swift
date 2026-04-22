@@ -1,8 +1,7 @@
 // MeterState - Split observable state for UI binding
 //
 // Split into two independent ObservableObjects so that level changes
-// don't cause load views to redraw, and processing load changes don't
-// cause meter views to redraw. This reduces SwiftUI's AttributeGraph updates.
+// don't cause load views to redraw. This reduces SwiftUI's AttributeGraph updates.
 
 import Foundation
 
@@ -49,21 +48,5 @@ final class LevelState: ObservableObject {
     update(
       capturePeak: .silent, captureRms: .silent,
       playbackPeak: .silent, playbackRms: .silent)
-  }
-}
-
-/// Processing load — observed by CPU usage display.
-@MainActor
-final class LoadState: ObservableObject {
-  var processingLoad: Double = 0
-
-  func update(load: Double) {
-    guard self.processingLoad != load else { return }
-    self.processingLoad = load
-    objectWillChange.send()
-  }
-
-  func reset() {
-    update(load: 0)
   }
 }

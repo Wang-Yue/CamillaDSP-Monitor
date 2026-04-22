@@ -11,7 +11,6 @@ final class DSPEngineController: ObservableObject {
   let pipeline: PipelineStore
   let monitoring: MonitoringController
   let levels: LevelState
-  let load: LoadState
 
   @Published var status: AppStatus = .inactive
 
@@ -23,7 +22,7 @@ final class DSPEngineController: ObservableObject {
   init(
     engine: DSPEngine, devices: AudioDeviceManager, settings: AudioSettings,
     pipeline: PipelineStore, monitoring: MonitoringController,
-    levels: LevelState, load: LoadState
+    levels: LevelState
   ) {
     self.engine = engine
     self.devices = devices
@@ -31,7 +30,6 @@ final class DSPEngineController: ObservableObject {
     self.pipeline = pipeline
     self.monitoring = monitoring
     self.levels = levels
-    self.load = load
 
     // Wire monitoring → controller callbacks, breaking the circular reference.
     monitoring.onStatusChange = { [weak self] newStatus in
@@ -79,7 +77,6 @@ final class DSPEngineController: ObservableObject {
     applyConfigTask = nil
 
     levels.reset()
-    load.reset()
     Task {
       await startTask?.value
       await applyTask?.value

@@ -12,7 +12,6 @@ struct CamillaDSPMonitorApp: App {
       ContentView()
         .environmentObject(appState)
         .environmentObject(appState.levels)
-        .environmentObject(appState.load)
         .environmentObject(appState.dsp)
         .environmentObject(appState.settings)
         .environmentObject(appState.devices)

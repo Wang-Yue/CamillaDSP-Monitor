@@ -28,23 +28,21 @@ final class SpectrumEngine: ObservableObject {
       devices.$captureConfig.removeDuplicates(),
       settings.$chunkSize.removeDuplicates()
     )
-    .sink { [weak self] _, _, _ in
-      self?.refreshLifecycle()
+    .sink { [weak self] status, captureConfig, chunkSize in
+      self?.refreshLifecycle(status: status, captureConfig: captureConfig, chunkSize: chunkSize)
     }
-
-    refreshLifecycle()
   }
 
-  private func refreshLifecycle() {
-    guard dsp.status == .running else {
+  private func refreshLifecycle(status: AppStatus, captureConfig: DeviceConfig, chunkSize: Int) {
+    guard status == .running else {
       deactivate()
       return
     }
 
     let nextConfig = TapConfig(
-      sampleRate: devices.captureConfig.sampleRate,
-      chunkSize: settings.chunkSize,
-      deviceName: devices.captureConfig.deviceName
+      sampleRate: captureConfig.sampleRate,
+      chunkSize: chunkSize,
+      deviceName: captureConfig.deviceName
     )
 
     guard analyzer == nil || currentTapConfig != nextConfig else { return }

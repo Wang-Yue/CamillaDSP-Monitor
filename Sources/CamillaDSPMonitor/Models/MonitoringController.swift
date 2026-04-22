@@ -16,6 +16,9 @@ final class MonitoringController: ObservableObject {
   /// Fired when a CaptureFormatChange stop reason requires restarting the engine.
   var onRestartEngine: (() -> Void)?
 
+  /// Current status to avoid late VU updates during inactive state.
+  private var currentStatus: AppStatus = .inactive
+
   // MARK: - Init
 
   init(
@@ -57,6 +60,10 @@ final class MonitoringController: ObservableObject {
       }
       print("[MonitoringController] VU subscription started")
       for await vu in stream {
+        if currentStatus == .inactive {
+          levels.reset()
+          continue 
+        }
         levels.update(
           capturePeak: StereoLevel(from: vu.capture_peak),
           captureRms: StereoLevel(from: vu.capture_rms),
@@ -82,7 +89,11 @@ final class MonitoringController: ObservableObject {
     }
 
     if let newStatus {
+      currentStatus = newStatus
       onStatusChange?(newStatus)
+      if newStatus == .inactive {
+        levels.reset()
+      }
     }
 
     let reason = stopReason ?? "None"

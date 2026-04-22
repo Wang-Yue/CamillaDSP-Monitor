@@ -60,7 +60,6 @@ enum SidebarItem: Hashable {
 struct ToolbarView: ToolbarContent {
   @EnvironmentObject var dsp: DSPEngineController
   @EnvironmentObject var devices: AudioDeviceManager
-  @EnvironmentObject var load: LoadState
 
   var body: some ToolbarContent {
     ToolbarItemGroup(placement: .primaryAction) {
@@ -93,19 +92,8 @@ struct ToolbarView: ToolbarContent {
         .font(.system(.body, design: .monospaced))
         .foregroundStyle(.secondary)
 
-      CPUUsageView(load: load)
-
       VolumeControlView()
     }
-  }
-}
-
-struct CPUUsageView: View {
-  @ObservedObject var load: LoadState
-  var body: some View {
-    Text(String(format: "%.0f%%", load.processingLoad))
-      .font(.system(.caption, design: .monospaced))
-      .foregroundStyle(load.processingLoad > 80 ? .red : .secondary)
   }
 }
 

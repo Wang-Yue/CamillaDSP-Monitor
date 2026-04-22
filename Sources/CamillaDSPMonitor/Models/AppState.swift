@@ -47,7 +47,6 @@ final class AppState: ObservableObject {
   let dsp: DSPEngineController
   let spectrum: SpectrumEngine
   let levels: LevelState
-  let load: LoadState
   let logManager = LogManager()
 
   init() {
@@ -58,14 +57,13 @@ final class AppState: ObservableObject {
     let settings = AudioSettings()
     let pipeline = PipelineStore()
     let levels = LevelState()
-    let load = LoadState()
     let devices = AudioDeviceManager(engine: engine, settings: settings)
     let monitoring = MonitoringController(
       engine: engine, levels: levels,
       devices: devices, settings: settings)
     let dsp = DSPEngineController(
       engine: engine, devices: devices, settings: settings, pipeline: pipeline,
-      monitoring: monitoring, levels: levels, load: load)
+      monitoring: monitoring, levels: levels)
     let spectrum = SpectrumEngine(dsp: dsp, devices: devices, settings: settings)
 
     self.engine = engine
@@ -76,10 +74,9 @@ final class AppState: ObservableObject {
     self.dsp = dsp
     self.spectrum = spectrum
     // Assign the same instances that monitoring/dsp received — NOT new default-value instances.
-    // Without these assignments the stored-property slots would hold different LevelState /
-    // LoadState objects than the sub-controllers update, so views would never observe changes.
+    // Without these assignments the stored-property slots would hold different LevelState
+    // objects than the sub-controllers update, so views would never observe changes.
     self.levels = levels
-    self.load = load
 
     // Wire callbacks after all objects exist. onChanged is nil during loadPreferences()
     // and the initial captureConfig/playbackConfig assignments, so no premature applyConfig
