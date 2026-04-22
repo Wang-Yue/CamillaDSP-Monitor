@@ -44,7 +44,7 @@ final class MiniPlayerWindowController {
 
     let panel = NSPanel(
       contentRect: NSRect(x: 0, y: 0, width: 320, height: 90),
-      styleMask: [.hudWindow, .utilityWindow, .resizable],
+      styleMask: [.hudWindow, .utilityWindow, .resizable, .nonactivatingPanel],
       backing: .buffered,
       defer: false
     )
@@ -52,10 +52,15 @@ final class MiniPlayerWindowController {
     panel.isOpaque = false
     panel.backgroundColor = .clear
     panel.hasShadow = true
+    // screenSaver level is the highest and floats over full screen
     panel.level = .screenSaver
-    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+    // canJoinAllSpaces: stay visible when switching spaces
+    // fullScreenAuxiliary: allows floating over full-screen apps
+    // ignoresCycle: doesn't participate in Cmd-backtick cycling
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
     panel.isMovableByWindowBackground = true
     panel.hidesOnDeactivate = false
+    panel.becomesKeyOnlyIfNeeded = true
     panel.titlebarAppearsTransparent = true
     panel.titleVisibility = .hidden
     panel.isFloatingPanel = true

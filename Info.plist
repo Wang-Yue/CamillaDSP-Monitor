@@ -2,27 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleExecutable</key>
-	<string>CamillaDSPMonitor</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.example.CamillaDSPMonitor</string>
-	<key>CFBundleName</key>
-	<string>CamillaDSPMonitor</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>14.0</string>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>CamillaDSP Monitor needs microphone access to analyze and process audio signals.</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>CamillaDSP Monitor needs Bluetooth access to connect to Bluetooth audio devices.</string>
-	<key>LSUIElement</key>
-	<false/>
+        <key>CFBundleExecutable</key>
+        <string>CamillaDSPMonitor</string>
+        <key>CFBundleIdentifier</key>
+        <string>com.example.CamillaDSPMonitor</string>
+        <key>CFBundleName</key>
+        <string>CamillaDSPMonitor</string>
+        <key>CFBundlePackageType</key>
+        <string>APPL</string>
+        <key>CFBundleShortVersionString</key>
+        <string>1.0</string>
+        <key>LSMinimumSystemVersion</key>
+        <string>14.0</string>
+        <key>NSHighResolutionCapable</key>
+        <true/>
+        <key>CFBundleIconFile</key>
+        <string>AppIcon</string>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>CamillaDSP Monitor needs microphone access to analyze and process audio signals.</string>
+        <key>NSBluetoothAlwaysUsageDescription</key>
+        <string>CamillaDSP Monitor needs Bluetooth access to connect to Bluetooth audio devices.</string>
+        <key>LSUIElement</key>
+        <true/>
 </dict>
 </plist>

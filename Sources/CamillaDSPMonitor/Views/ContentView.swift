@@ -91,6 +91,7 @@ struct ToolbarView: ToolbarContent {
       Text("\(devices.captureConfig.sampleRate) Hz")
         .font(.system(.body, design: .monospaced))
         .foregroundStyle(.secondary)
+        .padding(.trailing, 8)
 
       VolumeControlView()
     }
