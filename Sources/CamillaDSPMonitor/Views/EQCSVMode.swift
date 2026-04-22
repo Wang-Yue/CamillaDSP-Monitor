@@ -5,7 +5,6 @@ import SwiftUI
 
 struct EQCSVMode: View {
   @Bindable var preset: EQPreset
-  @Environment(PipelineStore.self) var pipeline
   @Environment(DSPEngineController.self) var dsp
   @State private var csvText: String = ""
   @State private var parseError: String?

@@ -84,7 +84,6 @@ struct EQDiagramMode: View {
 struct EQFrequencyResponseView: View {
   @Bindable var preset: EQPreset
   @Environment(DSPEngineController.self) var dsp
-  @Environment(PipelineStore.self) var pipeline
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
   static let bandColors: [Color] = [
@@ -285,7 +284,6 @@ struct EQBandChip: View {
   let isSelected: Bool
   let color: Color
   @Environment(DSPEngineController.self) var dsp
-  @Environment(PipelineStore.self) var pipeline
   var body: some View {
     HStack(spacing: 4) {
       Circle().fill(color).frame(width: 6, height: 6)

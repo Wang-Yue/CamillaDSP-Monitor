@@ -63,7 +63,6 @@ private struct BandRow: View {
   @Bindable var band: EQBand
   let onDelete: () -> Void
   @Environment(DSPEngineController.self) var dsp
-  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
     HStack(spacing: 12) {
