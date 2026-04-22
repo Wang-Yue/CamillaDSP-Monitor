@@ -23,13 +23,29 @@ enum MiniPlayerMode: Int, CaseIterable {
 // MARK: - Mini Player SwiftUI Content
 
 struct MiniPlayerView: View {
+  @EnvironmentObject var dsp: DSPEngineController
   @State private var mode: MiniPlayerMode = .spectrum
   @State private var isHovering = false
 
   var body: some View {
     VStack(spacing: 0) {
-      // Drag handle + mode switcher (visible on hover)
+      // Header: Controls + switcher (visible on hover)
       HStack(spacing: 6) {
+        // Play/Pause toggle
+        Button {
+          if dsp.status == .inactive {
+            dsp.startEngine()
+          } else {
+            dsp.stopEngine()
+          }
+        } label: {
+          Image(systemName: dsp.status == .inactive ? "play.fill" : "stop.fill")
+            .font(.system(size: 10))
+            .foregroundStyle(.white.opacity(0.5))
+            .frame(width: 18, height: 18)
+        }
+        .buttonStyle(.plain)
+
         Spacer()
 
         // Mode buttons

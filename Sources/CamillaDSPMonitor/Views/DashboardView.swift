@@ -20,6 +20,10 @@ struct HorizontalScrollWithVerticalWheel<Content: View>: NSViewRepresentable {
     scrollView.hasHorizontalScroller = false
     scrollView.hasVerticalScroller = false
     scrollView.drawsBackground = false
+    
+    // Disable all bouncing to prevent tiny up/down "wiggles"
+    scrollView.horizontalScrollElasticity = .none
+    scrollView.verticalScrollElasticity = .none
 
     NSLayoutConstraint.activate([
       hostingView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
