@@ -83,5 +83,8 @@ struct MiniPlayerView: View {
     .onHover { hovering in
       withAnimation(.easeInOut(duration: 0.2)) { isHovering = hovering }
     }
+    .onTapGesture(count: 2) {
+      MiniPlayerWindowController.shared.closeMiniPlayer()
+    }
   }
 }

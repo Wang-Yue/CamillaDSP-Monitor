@@ -21,6 +21,7 @@ struct CamillaDSPMonitorApp: App {
         .frame(minWidth: 960, minHeight: 680)
         .onAppear {
           appDelegate.appState = appState
+          setupWindowIntercept()
         }
     }
     .windowStyle(.titleBar)
@@ -31,6 +32,21 @@ struct CamillaDSPMonitorApp: App {
         .environmentObject(appState.devices)
         .environmentObject(appState.settings)
         .frame(width: 450, height: 350)
+    }
+  }
+
+  /// Directly overrides the minimize button action to enter PiP mode.
+  private func setupWindowIntercept() {
+    // Slight delay to ensure the NSWindow and its titlebar buttons are ready.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      guard let window = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "main" }) else {
+        return
+      }
+
+      if let minimizeButton = window.standardWindowButton(.miniaturizeButton) {
+        minimizeButton.target = appDelegate
+        minimizeButton.action = #selector(AppDelegate.customMinimizeAction(_:))
+      }
     }
   }
 }
@@ -72,5 +88,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     appState?.savePipelineStages()
     appState?.saveEQPresets()
     DSPEngine.killStaleCamillaDSP()
+  }
+
+  // MARK: - Custom Actions
+
+  @objc func customMinimizeAction(_ sender: Any?) {
+    if let appState = appState {
+      MiniPlayerWindowController.shared.showMiniPlayer(appState: appState)
+    }
   }
 }

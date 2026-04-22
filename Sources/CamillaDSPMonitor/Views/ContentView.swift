@@ -13,20 +13,6 @@ struct ContentView: View {
     } else {
       NavigationSplitView {
         SidebarView(selection: $selection, showAutoEqSearch: $showAutoEqSearch)
-          .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-              Button {
-                MiniPlayerWindowController.shared.showMiniPlayer(appState: appState)
-              } label: {
-                Image(systemName: "pip")
-                  .imageScale(.large)
-                  .fontWeight(.medium)
-                  .contentShape(Rectangle())
-              }
-              .buttonStyle(.borderless)
-              .help("Mini Player")
-            }
-          }
       } detail: {
         DetailPanel(selection: selection)
       }
