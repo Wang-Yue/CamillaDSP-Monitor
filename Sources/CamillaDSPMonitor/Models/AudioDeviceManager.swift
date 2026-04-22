@@ -5,12 +5,6 @@ import CoreAudio
 import Foundation
 import Observation
 
-/// Sendable wrapper for a weak reference to a MainActor-isolated object.
-final class WeakRef<T: AnyObject>: @unchecked Sendable {
-  weak var value: T?
-  init(_ value: T) { self.value = value }
-}
-
 @MainActor
 @Observable
 final class AudioDeviceManager {
@@ -188,11 +182,6 @@ final class AudioDeviceManager {
   // MARK: - System Device Change Listener
 
   func startDeviceChangeListener() {
-    let weakSelf = WeakRef(self)
-    Self.addDeviceChangeListener(weakSelf: weakSelf)
-  }
-
-  private nonisolated static func addDeviceChangeListener(weakSelf: WeakRef<AudioDeviceManager>) {
     var address = AudioObjectPropertyAddress(
       mSelector: kAudioHardwarePropertyDevices,
       mScope: kAudioObjectPropertyScopeGlobal,
@@ -200,9 +189,9 @@ final class AudioDeviceManager {
 
     AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, nil) {
       _, _ in
-      Task { @MainActor in
+      Task { @MainActor [weak self] in
         print("[AudioDeviceManager] Audio devices changed, refreshing list")
-        weakSelf.value?.refreshDevices()
+        self?.refreshDevices()
       }
     }
   }
