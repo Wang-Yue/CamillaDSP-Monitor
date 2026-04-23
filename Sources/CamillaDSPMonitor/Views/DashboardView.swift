@@ -1,6 +1,7 @@
 // DashboardView - Main dashboard showing pipeline overview and monitoring
 
 import AppKit
+import Observation
 import SwiftUI
 
 /// Horizontal ScrollView that also scrolls with vertical mouse wheel.
@@ -20,6 +21,10 @@ struct HorizontalScrollWithVerticalWheel<Content: View>: NSViewRepresentable {
     scrollView.hasHorizontalScroller = false
     scrollView.hasVerticalScroller = false
     scrollView.drawsBackground = false
+
+    // Disable all bouncing to prevent tiny up/down "wiggles"
+    scrollView.horizontalScrollElasticity = .none
+    scrollView.verticalScrollElasticity = .none
 
     NSLayoutConstraint.activate([
       hostingView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
@@ -42,7 +47,6 @@ private class VerticalToHorizontalScrollView: NSScrollView {
     if abs(event.deltaX) >= abs(event.deltaY) {
       super.scrollWheel(with: event)
     } else {
-      // Convert vertical scroll to horizontal
       let converted = NSEvent.init(
         cgEvent: {
           let cg = event.cgEvent!
@@ -58,13 +62,12 @@ private class VerticalToHorizontalScrollView: NSScrollView {
 }
 
 struct DashboardView: View {
-  @EnvironmentObject var appState: AppState
-
   var body: some View {
     ScrollView {
       VStack(spacing: 20) {
         PipelineOverview()
         LevelMetersCard()
+        AnalogVUCard()  // Added Analog VU Card
         SpectrumCard()
       }
       .padding()
@@ -74,7 +77,10 @@ struct DashboardView: View {
 }
 
 struct PipelineOverview: View {
-  @EnvironmentObject var appState: AppState
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioDeviceManager.self) var devices
+  @Environment(AudioSettings.self) var settings
+  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -82,25 +88,25 @@ struct PipelineOverview: View {
       HorizontalScrollWithVerticalWheel {
         HStack(spacing: 4) {
           StageChip(
-            icon: "mic", label: appState.selectedCaptureDevice ?? "Input", color: .blue,
-            isActive: appState.isRunning)
+            icon: "mic", label: devices.captureConfig.deviceName ?? "Input", color: .blue,
+            isActive: dsp.status == .running)
           Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           Button {
-            appState.resamplerEnabled.toggle()
+            settings.resamplerEnabled.toggle()
           } label: {
             StageChip(
               icon: "arrow.triangle.2.circlepath", label: "Resampler",
-              color: appState.resamplerEnabled ? Color.accentColor : .gray,
-              isActive: appState.resamplerEnabled)
+              color: settings.resamplerEnabled ? Color.accentColor : .gray,
+              isActive: settings.resamplerEnabled)
           }.buttonStyle(.plain)
           Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
-          ForEach(appState.stages) { stage in
+          ForEach(pipeline.stages) { stage in
             StageChipButton(stage: stage)
             Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
           }
           StageChip(
-            icon: "hifispeaker", label: appState.selectedPlaybackDevice ?? "Output", color: .green,
-            isActive: appState.isRunning)
+            icon: "hifispeaker", label: devices.playbackConfig.deviceName ?? "Output",
+            color: .green, isActive: dsp.status == .running)
         }.padding(.vertical, 4)
       }
     }.padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -112,7 +118,6 @@ struct StageChip: View {
   let label: String
   let color: Color
   let isActive: Bool
-  /// compact = mini player style: smaller padding, solid fill, dark-context foreground
   var compact: Bool = false
 
   var body: some View {
@@ -156,14 +161,14 @@ private struct StageChipBorderModifier: ViewModifier {
 }
 
 struct StageChipButton: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
   var compact: Bool = false
 
   var body: some View {
     Button {
       stage.isEnabled.toggle()
-      appState.applyConfig()
+      dsp.applyConfig()
     } label: {
       StageChip(
         icon: stage.type.icon, label: stage.name,
@@ -174,7 +179,7 @@ struct StageChipButton: View {
 }
 
 struct LevelMetersCard: View {
-  @EnvironmentObject var levels: LevelState
+  @Environment(LevelState.self) var levels
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .firstTextBaseline) {
@@ -203,8 +208,8 @@ struct LevelMetersCard: View {
 }
 
 struct SpectrumCard: View {
-  @EnvironmentObject var spectrum: SpectrumState
-  @EnvironmentObject var appState: AppState
+  @Environment(SpectrumEngine.self) var spectrum
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
@@ -216,7 +221,5 @@ struct SpectrumCard: View {
     }
     .padding()
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-    .onAppear { appState.registerSpectrumView() }
-    .onDisappear { appState.unregisterSpectrumView() }
   }
 }

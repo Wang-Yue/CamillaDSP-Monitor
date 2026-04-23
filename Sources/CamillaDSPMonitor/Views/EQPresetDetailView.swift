@@ -1,6 +1,7 @@
 // EQPresetDetailView - Biquad EQ preset editor with three modes
 
 import CamillaDSPLib
+import Observation
 import SwiftUI
 
 enum EQEditMode: String, CaseIterable {
@@ -17,8 +18,10 @@ enum EQEditMode: String, CaseIterable {
 }
 
 struct EQPresetDetailView: View {
-  @ObservedObject var preset: EQPreset
-  @EnvironmentObject var appState: AppState
+  @Bindable var preset: EQPreset
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(PipelineStore.self) var pipeline
+  @Environment(AudioDeviceManager.self) var devices
   @State private var editMode: EQEditMode = .diagram
   @State private var selectedBandID: UUID?
 
@@ -28,9 +31,7 @@ struct EQPresetDetailView: View {
         Image(systemName: "slider.horizontal.3").font(.title2).foregroundStyle(Color.accentColor)
         TextField("Preset Name", text: $preset.name).font(.title2.bold()).textFieldStyle(
           .roundedBorder
-        ).frame(maxWidth: 300).onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }.onChange(
-          of: preset.name
-        ) { _, _ in appState.saveEQPresets() }
+        ).frame(maxWidth: 300).onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }
         Spacer()
         Picker("", selection: $editMode) {
           ForEach(EQEditMode.allCases, id: \.rawValue) { mode in
@@ -44,18 +45,21 @@ struct EQPresetDetailView: View {
       switch editMode {
       case .diagram:
         EQDiagramMode(
-          preset: preset, selectedBandID: $selectedBandID, sampleRate: appState.sampleRate)
+          preset: preset, selectedBandID: $selectedBandID,
+          sampleRate: devices.captureConfig.sampleRate)
       case .form: EQFormMode(preset: preset, selectedBandID: $selectedBandID)
       case .csv: EQCSVMode(preset: preset)
       }
     }
     .background(Color(nsColor: .controlBackgroundColor))
-    .onChange(of: preset.bands.count) { _, _ in appState.saveEQPresets() }
-    .onReceive(
-      preset.objectWillChange
-        .debounce(for: .seconds(0.2), scheduler: RunLoop.main)
-    ) { _ in
-      appState.applyConfig()
+    .onChange(of: preset.bands.count) { _, _ in
+      dsp.applyConfig()
+    }
+    .onChange(of: preset.preampGain) { _, _ in
+      dsp.applyConfig()
+    }
+    .onChange(of: preset.name) { _, _ in
+      pipeline.saveEQPresets()
     }
   }
 }

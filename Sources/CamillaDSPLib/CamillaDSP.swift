@@ -26,14 +26,6 @@ public enum AudioBackendError: Error, LocalizedError, Sendable {
   }
 }
 
-public struct SignalLevels: Codable, Sendable {
-  public var processing_load: Float?
-  public let capture_rms: [Float]
-  public let capture_peak: [Float]
-  public let playback_rms: [Float]
-  public let playback_peak: [Float]
-}
-
 /// Pushed VU level event from SubscribeVuLevels.
 public struct VuLevels: Sendable {
   public let playback_rms: [Float]
@@ -46,11 +38,40 @@ public struct VuLevels: Sendable {
 public struct StateUpdate: Sendable {
   public let state: String
   public let stopReason: String?
+  public let stopReasonRate: Int?
 }
 
 public struct AudioDevice: Identifiable, Sendable {
   public var id: String { name }
   public let name: String
+}
+
+// MARK: - Device Capabilities (from GetCaptureDeviceCapabilities / GetPlaybackDeviceCapabilities)
+
+public struct SamplerateCapability: Codable, Sendable, Equatable {
+  public let samplerate: Int
+  public let formats: [String]
+}
+
+public struct ChannelCapability: Codable, Sendable, Equatable {
+  public let channels: Int
+  public let samplerates: [SamplerateCapability]
+}
+
+public struct DeviceCapabilitySet: Codable, Sendable, Equatable {
+  public let capabilities: [ChannelCapability]
+}
+
+public struct AudioDeviceDescriptor: Codable, Sendable, Equatable {
+  public let name: String
+  public let capability_sets: [DeviceCapabilitySet]
+
+  public init(
+    name: String = "", capability_sets: [DeviceCapabilitySet] = []
+  ) {
+    self.name = name
+    self.capability_sets = capability_sets
+  }
 }
 
 public actor DSPEngine {
@@ -87,8 +108,17 @@ public actor DSPEngine {
   public func connect(binaryPath: String) async throws {
     if isConnected { return }
     if isConnecting {
-      while isConnecting { try? await Task.sleep(nanoseconds: 100_000_000) }
+      // Wait up to 10 seconds for an in-progress connection attempt to complete
+      var waitAttempts = 0
+      while isConnecting && waitAttempts < 100 {
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        waitAttempts += 1
+      }
       if isConnected { return }
+      if isConnecting {
+        // Timed out waiting for previous connection — force reset and try fresh
+        isConnecting = false
+      }
     }
 
     isConnecting = true
@@ -187,11 +217,7 @@ public actor DSPEngine {
       jsonString = "\"\(type)\""
     }
 
-    let isPolling = ["GetSignalLevels", "GetProcessingLoad", "GetResamplerLoad", "GetState"]
-      .contains(type)
-    if !isPolling {
-      print("[DSPEngine] SEND: \(jsonString)")
-    }
+    print("[DSPEngine] SEND: \(jsonString)")
 
     do {
       try await webSocket.send(.string(jsonString))
@@ -206,6 +232,8 @@ public actor DSPEngine {
 
       let responseDict =
         try JSONSerialization.jsonObject(with: responseData) as? [String: any Sendable]
+      let responseString = String(data: responseData, encoding: .utf8)
+      print("[DSPEngine] RECV: \(responseString ?? "")")
 
       if let invalid = responseDict?["Invalid"] as? [String: any Sendable],
         let errorMsg = invalid["error"] as? String
@@ -243,61 +271,12 @@ public actor DSPEngine {
 
   // MARK: - Commands
 
-  public func ping() async -> Bool {
-    guard isConnected else { return false }
-    do {
-      let _: String? = try await sendCommand("GetVersion")
-      return true
-    } catch {
-      return false
-    }
-  }
-
   public func start(configJson: String) async throws {
     let _: String? = try await sendCommand("SetConfigJson", value: configJson)
   }
 
   public func stop() async {
     let _: String? = try? await sendCommand("Stop")
-  }
-
-  /// Returns the stop reason as a string. For enum variants with associated data
-  /// (e.g. CaptureFormatChange(44100)), returns just the variant name.
-  public func getStopReason() async -> String? {
-    // Try plain string first (e.g. "None", "Done")
-    if let reason: String = try? await sendCommand("GetStopReason") {
-      return reason
-    }
-    // Variants with data serialize as {"VariantName": value} — extract the key.
-    // Use sendRawCommand to avoid Sendable constraint on [String: Any].
-    return await getStopReasonFromDict()
-  }
-
-  /// Internal helper: parses GetStopReason as a dictionary and extracts the variant name.
-  private func getStopReasonFromDict() async -> String? {
-    guard isConnected, let webSocket = webSocket else { return nil }
-    do {
-      try await webSocket.send(.string("\"GetStopReason\""))
-      let response = try await webSocket.receive()
-      let responseData: Data
-      switch response {
-      case .data(let data): responseData = data
-      case .string(let string): responseData = string.data(using: .utf8)!
-      @unknown default: return nil
-      }
-      guard
-        let responseDict = try JSONSerialization.jsonObject(with: responseData)
-          as? [String: Any],
-        let cmdResult = responseDict["GetStopReason"] as? [String: Any],
-        let value = cmdResult["value"]
-      else { return nil }
-      // value is either a String or a Dict like {"CaptureFormatChange": 44100}
-      if let str = value as? String { return str }
-      if let dict = value as? [String: Any] { return dict.keys.first }
-      return nil
-    } catch {
-      return nil
-    }
   }
 
   public func setVolume(_ db: Double) async {
@@ -318,41 +297,6 @@ public actor DSPEngine {
     let _: String? = try? await sendCommand("SetFaderMute", value: value)
   }
 
-  public func getSignalLevels(includeLoad: Bool = true) async -> SignalLevels? {
-    do {
-      guard let levelsValue: [String: any Sendable] = try await sendCommand("GetSignalLevels")
-      else { return nil }
-      let data = try JSONSerialization.data(withJSONObject: levelsValue)
-      var levels = try JSONDecoder().decode(SignalLevels.self, from: data)
-
-      if includeLoad {
-        let pLoad = await fetchLoad("GetProcessingLoad")
-        let rLoad = await fetchLoad("GetResamplerLoad")
-        levels.processing_load = pLoad + rLoad
-      }
-      return levels
-    } catch {
-      return nil
-    }
-  }
-
-  public func fetchProcessingLoad() async -> Float {
-    let pLoad = await fetchLoad("GetProcessingLoad")
-    let rLoad = await fetchLoad("GetResamplerLoad")
-    return pLoad + rLoad
-  }
-
-  private func fetchLoad(_ command: String) async -> Float {
-    do {
-      guard let loadValue: any Sendable = try await sendCommand(command) else { return 0.0 }
-      if let d = loadValue as? Double { return Float(d) }
-      if let f = loadValue as? Float { return f }
-      if let i = loadValue as? Int { return Float(i) }
-    } catch {
-    }
-    return 0.0
-  }
-
   public func getAvailableDevices(backend: String, input: Bool) async -> [AudioDevice] {
     let cmd = input ? "GetAvailableCaptureDevices" : "GetAvailablePlaybackDevices"
     do {
@@ -360,6 +304,24 @@ public actor DSPEngine {
       return value.map { AudioDevice(name: $0[0]) }
     } catch {
       return []
+    }
+  }
+
+  /// Fetches the sample rates and formats supported by a specific device via
+  /// GetCaptureDeviceCapabilities / GetPlaybackDeviceCapabilities.
+  public func getDeviceCapabilities(
+    backend: String, device: String, isCapture: Bool
+  ) async -> AudioDeviceDescriptor? {
+    let cmd = isCapture ? "GetCaptureDeviceCapabilities" : "GetPlaybackDeviceCapabilities"
+    let params: [any Sendable] = [backend, device]
+    do {
+      guard let valueDict: [String: any Sendable] = try await sendCommand(cmd, value: params)
+      else { return nil }
+      let data = try JSONSerialization.data(withJSONObject: valueDict)
+      return try JSONDecoder().decode(AudioDeviceDescriptor.self, from: data)
+    } catch {
+      print("[DSPEngine] \(cmd) failed: \(error)")
+      return nil
     }
   }
 
@@ -536,8 +498,25 @@ public actor DSPEngine {
               let state = value["state"] as? String
             else { continue }
 
-            let stopReason = value["stop_reason"] as? String
-            continuation.yield(StateUpdate(state: state, stopReason: stopReason))
+            // stop_reason can be a String (e.g. "None") or a Dict (e.g. {"CaptureFormatChange": 44100})
+            let stopReason: String?
+            var stopReasonRate: Int? = nil
+            if let reasonStr = value["stop_reason"] as? String {
+              stopReason = reasonStr
+            } else if let reasonDict = value["stop_reason"] as? [String: Any] {
+              stopReason = reasonDict.keys.first
+              if stopReason == "CaptureFormatChange" {
+                if let rate = reasonDict[stopReason!] as? Int {
+                  stopReasonRate = rate
+                } else if let rate = reasonDict[stopReason!] as? Double {
+                  stopReasonRate = Int(rate)
+                }
+              }
+            } else {
+              stopReason = nil
+            }
+            continuation.yield(
+              StateUpdate(state: state, stopReason: stopReason, stopReasonRate: stopReasonRate))
           } catch {
             let nsError = error as NSError
             if nsError.code != -999 && nsError.code != 57 {

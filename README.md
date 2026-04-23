@@ -12,15 +12,23 @@ The app connects to a CamillaDSP process via WebSocket, providing real-time leve
 
 ## Requirements
 
-- macOS 14+ (Sonoma)
+- macOS 15+ (Sequoia)
 - Swift 6.0+
-- A [CamillaDSP](https://github.com/HEnquist/camilladsp) binary (the app launches and manages the process automatically)
+- A [CamillaDSP](https://github.com/HEnquist/camilladsp) binary, version 4.2.0 or above (the app launches and manages the process automatically)
 
 ## Building
 
+### Simple Build & Run
 ```bash
 swift build
 swift run CamillaDSPMonitor
+```
+
+### Build as macOS Application (.app)
+Use the provided `Makefile` to build a signed app bundle and optionally install it to `/Applications`:
+```bash
+make          # Builds CamillaDSPMonitor.app in the root directory
+make install  # Builds and copies to /Applications/
 ```
 
 The app automatically looks for the CamillaDSP binary in common locations (like `~/camilladsp/target/release/camilladsp`). You can also manually select a custom path in the **Device Settings** screen, which will be saved for future launches.
@@ -35,10 +43,10 @@ The app automatically looks for the CamillaDSP binary in common locations (like 
 - Auto-refresh on device connect/disconnect
 
 ### Monitoring
-- **Level meters** — Dual RMS/Peak bars for capture and playback (L/R) with dB readouts
-- **Spectrum analyzer** — 30-band 1/3-octave FFT display via independent CoreAudio tap
-- **Processing load** — Real-time CPU usage in the toolbar
-- **Compact level bar** — Always-visible status strip across all detail views
+- **Analog VU Meters** — Hyper-realistic, calibrated RMS/Peak needles with warm amber illumination and customizable physics.
+- **Level meters** — Real-time digital RMS/Peak bars for capture and playback (L/R) via persistent WebSocket subscriptions.
+- **Spectrum analyzer** — 30-band 1/3-octave FFT display via independent CoreAudio tap.
+- **Compact level bar** — Always-visible status strip across all detail views.
 
 ### Pipeline Configuration
 
@@ -60,9 +68,9 @@ Drag-to-reorder processing stages, each with a dedicated settings panel:
 
 Three editing modes for parametric EQ presets:
 
-- **Diagram** — Interactive frequency response graph with draggable color-coded band handles
-- **Form** — Table-based editor with type picker, frequency, gain, and Q fields
-- **CSV** — AutoEq / EqualizerAPO compatible text format with import/export
+- **Diagram** — Interactive frequency response graph with draggable color-coded band handles.
+- **Form** — Table-based editor with type picker, frequency, gain, and Q fields.
+- **CSV** — AutoEq / EqualizerAPO compatible text format with import/export.
 
 Supports 13 biquad filter types: Peaking, Lowshelf, Highshelf, Lowpass, Highpass, Notch, Bandpass, Allpass, and first-order variants.
 
@@ -74,13 +82,12 @@ Dedicated configuration panel for sample rate conversion between capture and pla
 - AsyncPoly with cubic interpolation
 - Synchronous (fixed ratio)
 
-### Mini Player
+### Mini Player (PIP Mode)
 
-Floating translucent overlay (via toolbar PiP button) visible above all windows including fullscreen video. Three display modes: spectrum, pipeline chips, and level meters.
+A floating translucent overlay visible above all windows, including full-screen video (e.g., YouTube). It is implemented as a macOS Agent app (`LSUIElement`), meaning it stays out of the Dock and functions as a persistent system utility. Three display modes are available: spectrum, pipeline signal chain, and level meters.
 
 ### Engine Control
 
-- Auto-start on launch with soft volume ramp (-30 dB to target)
 - Start/Stop toggle in the toolbar
 - Auto-recovery when CamillaDSP stalls (e.g., capture format change)
 - Connection retry loop on startup (waits for CamillaDSP to be ready)
@@ -96,12 +103,12 @@ All settings saved to UserDefaults across launches: device selection, sample rat
 CamillaDSPMonitor (SwiftUI)
     |
     |-- AppState (@MainActor, ObservableObject)
-    |       |-- DSPEngine (actor) ---- WebSocket ----> camilladsp process
-    |       |-- CoreAudioTap (AVAudioEngine input tap for FFT)
-    |       |-- FFTSpectrumAnalyzer (Accelerate vDSP, background queue)
-    |       |-- MeterState (ObservableObject, drives UI)
-    |       |-- PipelineStage[] (ObservableObject per stage)
-    |       `-- EQPreset[] (ObservableObject per preset)
+    |       |-- DSPEngine (actor) ---- WebSocket (Subscriptions) ----> camilladsp
+    |       |-- MonitoringController (Manages VU and State subscriptions)
+    |       |-- SpectrumEngine (CoreAudio tap + FFTSpectrumAnalyzer)
+    |       |-- MeterState (LevelState ObservableObject, drives UI)
+    |       |-- PipelineStore (ObservableObject, manages stages and presets)
+    |       `-- DSPEngineController (Engine lifecycle, config building)
     |
     `-- Views (NavigationSplitView)
             |-- Dashboard (signal chain + meters + spectrum)
@@ -111,9 +118,9 @@ CamillaDSPMonitor (SwiftUI)
             `-- MiniPlayer (NSPanel floating overlay)
 ```
 
-The `DSPEngine` is a Swift actor that serializes all WebSocket communication. It manages the CamillaDSP process lifecycle (launch, connect, stop) and exposes async methods for commands like `SetConfigJson`, `GetSignalLevels`, and `SetVolume`.
+The `DSPEngine` is a Swift actor that serializes all WebSocket communication. It manages the CamillaDSP process lifecycle and uses `AsyncStream` to provide real-time updates for engine state and VU levels.
 
-The spectrum analyzer runs independently from CamillaDSP's signal path — it taps the capture device directly via `AVAudioEngine` and performs FFT on a background dispatch queue.
+The spectrum analyzer runs independently from CamillaDSP's signal path — it taps the capture device directly via `CoreAudioTap` and performs FFT using `vDSP`.
 
 ## Project Structure
 
@@ -124,35 +131,44 @@ Sources/
   CamillaDSPMonitor/
     CamillaDSPMonitorApp.swift  # @main app entry, AppDelegate
     Models/
-      AppState.swift            # Central state, preferences, properties
-      AppState+Engine.swift     # Engine control, config building, soft ramp
-      AppState+Devices.swift    # Device enumeration, CoreAudio listeners
-      AppState+Monitoring.swift # Polling, FFT analyzer, CoreAudio tap, MeterState
-      AppState+Pipeline.swift   # Pipeline persistence
-      PipelineStage.swift       # Stage types, enums, active state
-      PipelineStage+Builders.swift  # CamillaDSP config dict generation
-      PipelineStage+Crossfeed.swift # Crossfeed filter computation
-      PipelineStage+Defaults.swift  # Factory defaults, snapshot persistence
-      EQPreset.swift            # EQ band/preset models, biquad response, CSV
-      EQPreset+Persistence.swift    # Preset CRUD and defaults
-      DSPUtils.swift            # BiquadCoefficients (Peaking, Lowshelf, Highshelf)
-      CoreAudioTap.swift        # AVAudioEngine input tap, device lookup
+      AppState.swift            # Central state coordinator
+      MonitoringController.swift # WebSocket state/VU subscription management
+      DSPEngineController.swift # Engine lifecycle and config generation
+      SpectrumEngine.swift      # FFT lifecycle and CoreAudio tap driving
+      MeterState.swift          # LevelState (RMS/Peak)
+      PipelineStore.swift       # Stage and Preset persistence/management
+      PipelineStage.swift       # Stage models and filter builders
+      PipelineStage+Builders.swift  # Pipeline configuration builders
+      PipelineStage+Defaults.swift  # Default stage configurations
+      PipelineStage+Crossfeed.swift # Crossfeed parameter math
+      EQPreset.swift            # EQ band/preset models and response calculation
+      AudioDeviceManager.swift  # Device enumeration and config management
+      AudioSettings.swift       # Processing parameters and preferences
+      FFTSpectrumAnalyzer.swift # Accelerate vDSP FFT implementation
+      CoreAudioTap.swift        # CoreAudio input tap
+      AudioRingBuffer.swift     # High-performance lock-free audio buffer
+      DeviceConfig.swift        # Device/SampleRate/Format models
+      AutoEqService.swift       # AutoEq preset fetching
+      LogManager.swift          # Console log collection
+      DSPUtils.swift            # Math and DSP helpers
     Views/
-      ContentView.swift         # NavigationSplitView, sidebar, detail routing
-      DashboardView.swift       # Signal chain overview + meters + spectrum cards
-      DevicePickerView.swift    # Device/sample rate/chunk size selection
-      StageDetailView.swift     # Per-stage config (balance, width, crossfeed, etc.)
-      EQPresetDetailView.swift  # Tabbed EQ editor (diagram/form/CSV)
-      EQDiagramMode.swift       # Interactive frequency response graph
-      EQFormMode.swift          # Table-based band editor
-      EQCSVMode.swift           # AutoEq/EqualizerAPO text editor
-      LevelMeterView.swift      # Dual RMS/Peak meters, compact bars
-      SpectrumView.swift        # 30-band gradient bar spectrum display
-      VolumeControlView.swift   # Toolbar volume slider + mute button
-      MiniPlayerView.swift      # Floating overlay with mode switcher
-      MiniPlayerContent.swift   # Mini spectrum, pipeline chips, meters
-      MiniPlayerWindowController.swift  # NSPanel lifecycle
-      SettingsView.swift        # App preferences
+      ContentView.swift         # NavigationSplitView and Sidebar
+      DashboardView.swift       # Signal chain overview + monitoring cards
+      DevicePickerView.swift    # Device and sample rate selection
+      StageDetailView.swift     # Per-stage configuration panels
+      EQPresetDetailView.swift  # Parametric EQ editor entry
+      EQDiagramMode.swift       # Interactive EQ response graph
+      EQFormMode.swift          # Table-based EQ band editor
+      EQCSVMode.swift           # Text-based AutoEq/CSV editor
+      AnalogVUMeterView.swift   # Hyper-realistic analog VU meter component
+      LevelMeterView.swift      # Dual RMS/Peak meter components
+      SpectrumView.swift        # FFT visualization
+      VolumeControlView.swift   # Toolbar volume and mute
+      MiniPlayerView.swift      # Floating overlay UI
+      MiniPlayerContent.swift   # View content for mini player
+      MiniPlayerWindowController.swift # NSPanel management
+      AutoEqPickerView.swift    # AutoEq search interface
+      ConsoleLogsView.swift     # Real-time log viewer
 ```
 
 ## Dependencies

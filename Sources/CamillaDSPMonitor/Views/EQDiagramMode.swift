@@ -1,6 +1,7 @@
 // EQDiagramMode - Interactive frequency response diagram with draggable band handles
 
 import AppKit
+import Observation
 import SwiftUI
 
 // MARK: - Scroll Wheel Monitor (for Q adjustment)
@@ -46,9 +47,10 @@ extension View {
 }
 
 struct EQDiagramMode: View {
-  @ObservedObject var preset: EQPreset
+  @Bindable var preset: EQPreset
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     VStack(spacing: 0) {
@@ -80,8 +82,8 @@ struct EQDiagramMode: View {
 }
 
 struct EQFrequencyResponseView: View {
-  @ObservedObject var preset: EQPreset
-  @EnvironmentObject var appState: AppState
+  @Bindable var preset: EQPreset
+  @Environment(DSPEngineController.self) var dsp
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
   static let bandColors: [Color] = [
@@ -146,8 +148,7 @@ struct EQFrequencyResponseView: View {
     // Multiplicative scaling so it feels natural at all Q values
     let factor = delta > 0 ? 1.05 : 0.95
     band.q = max(0.1, min(20.0, band.q * factor))
-    band.objectWillChange.send()
-    preset.objectWillChange.send()
+    dsp.applyConfig()
   }
 
   private func drawGrid(w: Double, h: Double) -> some View {
@@ -226,11 +227,9 @@ struct EQFrequencyResponseView: View {
             let newDB = yToDB(value.location.y, height: h)
             band.gain = max(-20, min(20, (newDB * 2).rounded() / 2))
           }
-          band.objectWillChange.send()
-          preset.objectWillChange.send()
+          dsp.applyConfig()
         }.onEnded { _ in
-          appState.applyConfig()
-          appState.saveEQPresets()
+          dsp.applyConfig()
         }
       )
       .onTapGesture { selectedBandID = band.id }
@@ -238,8 +237,10 @@ struct EQFrequencyResponseView: View {
 }
 
 struct EQBandListBar: View {
-  @ObservedObject var preset: EQPreset
+  @Bindable var preset: EQPreset
   @Binding var selectedBandID: UUID?
+  @Environment(DSPEngineController.self) var dsp
+
   var body: some View {
     HStack {
       ScrollView(.horizontal, showsIndicators: false) {
@@ -258,6 +259,7 @@ struct EQBandListBar: View {
       HStack(spacing: 12) {
         Button {
           preset.addBand()
+          dsp.applyConfig()
         } label: {
           Image(systemName: "plus.circle")
         }.buttonStyle(.plain)
@@ -265,6 +267,7 @@ struct EQBandListBar: View {
           Button {
             preset.removeBand(at: idx)
             selectedBandID = nil
+            dsp.applyConfig()
           } label: {
             Image(systemName: "minus.circle").foregroundStyle(.red)
           }.buttonStyle(.plain)
@@ -276,10 +279,11 @@ struct EQBandListBar: View {
 }
 
 struct EQBandChip: View {
-  @ObservedObject var band: EQBand
+  @Bindable var band: EQBand
   let index: Int
   let isSelected: Bool
   let color: Color
+  @Environment(DSPEngineController.self) var dsp
   var body: some View {
     HStack(spacing: 4) {
       Circle().fill(color).frame(width: 6, height: 6)
@@ -300,5 +304,11 @@ struct EQBandChip: View {
     ).overlay(
       RoundedRectangle(cornerRadius: 6).stroke(isSelected ? color : Color.clear, lineWidth: 1)
     ).foregroundStyle(band.isEnabled ? .primary : .tertiary)
+      .contextMenu {
+        Button(band.isEnabled ? "Disable Band" : "Enable Band") {
+          band.isEnabled.toggle()
+          dsp.applyConfig()
+        }
+      }
   }
 }

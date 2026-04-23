@@ -1,5 +1,6 @@
 // LevelMeterView - VU-style level meters with peak and RMS
 
+import Observation
 import SwiftUI
 
 // MARK: - Shared Visual Constants
@@ -20,10 +21,6 @@ extension Gradient {
 // MARK: - Shared Canvas Helpers
 
 /// Draw spectrum bars into a Canvas context.
-/// - Parameters:
-///   - maxHeight: drawable height (size.height minus any label gutter)
-///   - totalWidth: drawable width (size.width minus any left gutter)
-///   - xOffset: left gutter offset (e.g. 20 for dB label column)
 func drawSpectrumBars(
   context: inout GraphicsContext,
   bands: [Double],
@@ -35,7 +32,7 @@ func drawSpectrumBars(
   minBarHeight: CGFloat = 2,
   cornerRadius: CGFloat = 2
 ) {
-  let count = min(bands.count, 30)
+  let count = min(bands.count, SPECTRUM_BAND_COUNT)
   guard count > 0 else { return }
   let totalSpacing = spacing * CGFloat(count - 1)
   let barWidth = max(minBarWidth, (totalWidth - totalSpacing) / CGFloat(count))
@@ -87,7 +84,9 @@ struct LevelMeterCanvas: View {
       }
       if peakW > 0 {
         context.fill(
-          Path(roundedRect: CGRect(x: 0, y: halfH + 0.5, width: peakW, height: halfH - 1), cornerRadius: r),
+          Path(
+            roundedRect: CGRect(x: 0, y: halfH + 0.5, width: peakW, height: halfH - 1),
+            cornerRadius: r),
           with: shading)
       }
 
@@ -148,7 +147,7 @@ struct DualLevelMeterView: View {
 // MARK: - Compact Level Meter Bar
 
 struct CompactLevelMeterBar: View {
-  @EnvironmentObject var levels: LevelState
+  @Environment(LevelState.self) var levels
 
   var body: some View {
     HStack(spacing: 16) {
@@ -156,31 +155,56 @@ struct CompactLevelMeterBar: View {
         Image(systemName: "mic")
           .font(.caption2)
           .foregroundStyle(.secondary)
-        CompactMeterBar(level: levels.capturePeak.left)
-        CompactMeterBar(level: levels.capturePeak.right)
+        CompactStereoMeter(left: levels.capturePeak.left, right: levels.capturePeak.right)
       }
 
       HStack(spacing: 6) {
         Image(systemName: "hifispeaker")
           .font(.caption2)
           .foregroundStyle(.secondary)
-        CompactMeterBar(level: levels.playbackPeak.left)
-        CompactMeterBar(level: levels.playbackPeak.right)
+        CompactStereoMeter(left: levels.playbackPeak.left, right: levels.playbackPeak.right)
       }
 
       Spacer()
-
-      // Status indicator is a separate view so it only redraws when appState
-      // changes, not on every 10 Hz meter update.
       CompactStatusIndicator()
     }
   }
 }
 
-/// Separated from CompactLevelMeterBar so meter bar redraws (driven by MeterState
-/// at 10 Hz) don't also re-evaluate the status indicator (driven by AppState).
+/// A batched renderer for two horizontal level bars, maintaining the original look.
+struct CompactStereoMeter: View {
+  let left: Double
+  let right: Double
+
+  var body: some View {
+    Canvas { context, size in
+      let barW: CGFloat = 80
+      let barH: CGFloat = 6
+      let spacing: CGFloat = 6
+
+      drawSingleBar(
+        context: &context, rect: CGRect(x: 0, y: 0, width: barW, height: barH), level: left)
+      drawSingleBar(
+        context: &context, rect: CGRect(x: barW + spacing, y: 0, width: barW, height: barH),
+        level: right)
+    }
+    .frame(width: 80 * 2 + 6, height: 6)
+  }
+
+  private func drawSingleBar(context: inout GraphicsContext, rect: CGRect, level: Double) {
+    context.fill(
+      Path(roundedRect: rect, cornerRadius: 2), with: .color(Color.primary.opacity(0.06)))
+    let fillW = rect.width * normalizedDB(level)
+    if fillW > 0 {
+      let fillRect = CGRect(x: rect.minX, y: rect.minY, width: fillW, height: rect.height)
+      context.fill(
+        Path(roundedRect: fillRect, cornerRadius: 2), with: .color(level > -6 ? .orange : .green))
+    }
+  }
+}
+
 private struct CompactStatusIndicator: View {
-  @EnvironmentObject var appState: AppState
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     HStack(spacing: 6) {
@@ -191,44 +215,25 @@ private struct CompactStatusIndicator: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
     }
-    .help(appState.lastError ?? "")
   }
 
   private var statusColor: Color {
-    switch appState.status {
+    switch dsp.status {
     case .inactive: return .gray
-    case .starting, .applyingConfig: return .yellow
+    case .starting: return .yellow
     case .running: return .green
-    case .error: return .red
+    case .paused: return .blue
+    case .stalled: return .orange
     }
   }
 
   private var statusLabel: String {
-    switch appState.status {
+    switch dsp.status {
     case .inactive: return "Inactive"
     case .starting: return "Starting..."
     case .running: return "Running"
-    case .applyingConfig: return "Updating..."
-    case .error: return "Error"
+    case .paused: return "Paused"
+    case .stalled: return "Stalled"
     }
-  }
-}
-
-struct CompactMeterBar: View {
-  let level: Double
-
-  var body: some View {
-    Canvas { context, size in
-      let bgRect = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 2)
-      context.fill(bgRect, with: .color(Color.primary.opacity(0.06)))
-
-      let barW = size.width * normalizedDB(level)
-      if barW > 0 {
-        let barRect = CGRect(x: 0, y: 0, width: barW, height: size.height)
-        context.fill(
-          Path(roundedRect: barRect, cornerRadius: 2), with: .color(level > -6 ? .orange : .green))
-      }
-    }
-    .frame(width: 80, height: 6)
   }
 }

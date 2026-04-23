@@ -1,15 +1,16 @@
 // StageDetailView - Configuration UI for each pipeline stage
 
 import CamillaDSPLib
+import Observation
 import SwiftUI
 
 struct StageDetailView: View {
   let stageIndex: Int
-  @EnvironmentObject var appState: AppState
+  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
-    if stageIndex < appState.stages.count {
-      StageDetailContent(stage: appState.stages[stageIndex])
+    if stageIndex < pipeline.stages.count {
+      StageDetailContent(stage: pipeline.stages[stageIndex])
     } else {
       Text("Stage not found")
         .foregroundStyle(.secondary)
@@ -20,10 +21,11 @@ struct StageDetailView: View {
 }
 
 private struct StageDetailContent: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
+    @Bindable var stage = stage
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         HStack {
@@ -34,7 +36,7 @@ private struct StageDetailContent: View {
             .font(.title2.bold())
           Spacer()
           Toggle("Enabled", isOn: $stage.isEnabled)
-            .onChange(of: stage.isEnabled) { _, _ in appState.applyConfig() }
+            .onChange(of: stage.isEnabled) { _, _ in dsp.applyConfig() }
         }
 
         Divider()
@@ -67,8 +69,8 @@ private struct StageDetailContent: View {
 // MARK: - Balance
 
 struct BalanceOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Balance") {
@@ -78,7 +80,7 @@ struct BalanceOptions: View {
             .font(.system(.body, design: .monospaced).bold())
             .foregroundStyle(.secondary)
           Slider(value: $stage.balancePosition, in: -1.0...1.0, step: 0.01)
-            .onChange(of: stage.balancePosition) { _, _ in appState.applyConfig() }
+            .onChange(of: stage.balancePosition) { _, _ in dsp.applyConfig() }
           Text("R")
             .font(.system(.body, design: .monospaced).bold())
             .foregroundStyle(.secondary)
@@ -91,7 +93,7 @@ struct BalanceOptions: View {
             .frame(maxWidth: .infinity, alignment: .leading)
           Button("Center") {
             stage.balancePosition = 0.0
-            appState.applyConfig()
+            dsp.applyConfig()
           }
           .controlSize(.small)
           Text("Right: \(stage.balanceRightPercent)%")
@@ -105,11 +107,11 @@ struct BalanceOptions: View {
   }
 }
 
-// MARK: - Section 0: Width
+// MARK: - Width
 
 struct WidthOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Stereo Width") {
@@ -119,7 +121,7 @@ struct WidthOptions: View {
             .font(.caption)
             .foregroundStyle(.secondary)
           Slider(value: $stage.widthAmount, in: -1.0...2.0, step: 0.01)
-            .onChange(of: stage.widthAmount) { _, _ in appState.applyConfig() }
+            .onChange(of: stage.widthAmount) { _, _ in dsp.applyConfig() }
           Text("Wide")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -132,17 +134,17 @@ struct WidthOptions: View {
           HStack(spacing: 12) {
             Button("-100%") {
               stage.widthAmount = -1.0
-              appState.applyConfig()
+              dsp.applyConfig()
             }
             .controlSize(.small)
             Button("Mono") {
               stage.widthAmount = 0.0
-              appState.applyConfig()
+              dsp.applyConfig()
             }
             .controlSize(.small)
             Button("100%") {
               stage.widthAmount = 1.0
-              appState.applyConfig()
+              dsp.applyConfig()
             }
             .controlSize(.small)
           }
@@ -158,7 +160,7 @@ struct WidthOptions: View {
   }
 }
 
-// MARK: - Section 1: M/S Proc
+// MARK: - M/S Proc
 
 struct MSProcDescription: View {
   var body: some View {
@@ -172,11 +174,11 @@ struct MSProcDescription: View {
   }
 }
 
-// MARK: - Section 2: Phase Invert
+// MARK: - Phase Invert
 
 struct PhaseInvertOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Phase Inversion") {
@@ -196,7 +198,7 @@ struct PhaseInvertOptions: View {
           .labelsHidden()
           .frame(maxWidth: .infinity, alignment: .leading)
           .frame(minWidth: 300)
-          .onChange(of: stage.phaseInvertMode) { _, _ in appState.applyConfig() }
+          .onChange(of: stage.phaseInvertMode) { _, _ in dsp.applyConfig() }
 
           Spacer()
         }
@@ -211,11 +213,11 @@ struct PhaseInvertOptions: View {
   }
 }
 
-// MARK: - Section 3: Crossfeed
+// MARK: - Crossfeed
 
 struct CrossfeedOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -239,7 +241,7 @@ struct CrossfeedOptions: View {
             .disabled(stage.cxCustomEnabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minWidth: 400)
-            .onChange(of: stage.crossfeedLevel) { _, _ in appState.applyConfig() }
+            .onChange(of: stage.crossfeedLevel) { _, _ in dsp.applyConfig() }
 
             Spacer()
           }
@@ -267,7 +269,7 @@ struct CrossfeedOptions: View {
                   stage.cxDb = preset.db
                 }
               }
-              appState.applyConfig()
+              dsp.applyConfig()
             }
 
           if stage.cxCustomEnabled {
@@ -280,7 +282,7 @@ struct CrossfeedOptions: View {
                 Slider(value: $stage.cxFc, in: 300...1200, step: 10)
                   .frame(maxWidth: .infinity)
                   .frame(minWidth: 300)
-                  .onChange(of: stage.cxFc) { _, _ in appState.applyConfig() }
+                  .onChange(of: stage.cxFc) { _, _ in dsp.applyConfig() }
                 Text("\(String(format: "%.0f", stage.cxFc))")
                   .font(.system(.body, design: .monospaced))
                   .fixedSize()
@@ -294,7 +296,7 @@ struct CrossfeedOptions: View {
                 Slider(value: $stage.cxDb, in: 1...20, step: 0.5)
                   .frame(maxWidth: .infinity)
                   .frame(minWidth: 300)
-                  .onChange(of: stage.cxDb) { _, _ in appState.applyConfig() }
+                  .onChange(of: stage.cxDb) { _, _ in dsp.applyConfig() }
                 Text("\(String(format: "%.1f", stage.cxDb))")
                   .font(.system(.body, design: .monospaced))
                   .fixedSize()
@@ -342,11 +344,13 @@ struct CrossfeedOptions: View {
   }
 }
 
-// MARK: - Section 4: EQ
+// MARK: - EQ
 
 struct EQOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(PipelineStore.self) var pipeline
+  @Environment(AudioDeviceManager.self) var devices
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -362,7 +366,7 @@ struct EQOptions: View {
           .pickerStyle(.segmented)
           .labelsHidden()
           .frame(maxWidth: 400)
-          .onChange(of: stage.eqChannelMode) { _, _ in appState.applyConfig() }
+          .onChange(of: stage.eqChannelMode) { _, _ in dsp.applyConfig() }
 
           Spacer()
         }
@@ -370,7 +374,7 @@ struct EQOptions: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
 
-      if !appState.eqPresets.isEmpty {
+      if !pipeline.eqPresets.isEmpty {
         switch stage.eqChannelMode {
         case .same:
           GroupBox("EQ Preset") {
@@ -380,16 +384,16 @@ struct EQOptions: View {
                   .font(.subheadline)
                   .foregroundStyle(.secondary)
                   .fixedSize()
-                EQPresetPicker(selectedID: $stage.eqPresetID, presets: appState.eqPresets)
+                EQPresetPicker(selectedID: $stage.eqPresetID, presets: pipeline.eqPresets)
                   .frame(maxWidth: 400)
-                  .onChange(of: stage.eqPresetID) { _, _ in appState.applyConfig() }
-
+                  .onChange(of: stage.eqPresetID) { _, _ in dsp.applyConfig() }
                 Spacer()
               }
 
-              if let preset = appState.eqPresets.first(where: { $0.id == stage.eqPresetID }) {
+              if let preset = pipeline.eqPresets.first(where: { $0.id == stage.eqPresetID }) {
                 EQSummaryCard(
-                  title: "Combined L/R", preset: preset, sampleRate: appState.sampleRate)
+                  preset: preset,
+                  sampleRate: devices.captureConfig.sampleRate)
               }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -404,16 +408,17 @@ struct EQOptions: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize()
-                  EQPresetPicker(selectedID: $stage.eqLeftPresetID, presets: appState.eqPresets)
+                  EQPresetPicker(selectedID: $stage.eqLeftPresetID, presets: pipeline.eqPresets)
                     .frame(maxWidth: 400)
-                    .onChange(of: stage.eqLeftPresetID) { _, _ in appState.applyConfig() }
-
+                    .onChange(of: stage.eqLeftPresetID) { _, _ in dsp.applyConfig() }
                   Spacer()
                 }
 
-                if let lPreset = appState.eqPresets.first(where: { $0.id == stage.eqLeftPresetID })
+                if let lPreset = pipeline.eqPresets.first(where: { $0.id == stage.eqLeftPresetID })
                 {
-                  EQSummaryCard(title: "Left", preset: lPreset, sampleRate: appState.sampleRate)
+                  EQSummaryCard(
+                    preset: lPreset,
+                    sampleRate: devices.captureConfig.sampleRate)
                 }
               }
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -427,16 +432,20 @@ struct EQOptions: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize()
-                  EQPresetPicker(selectedID: $stage.eqRightPresetID, presets: appState.eqPresets)
-                    .frame(maxWidth: 400)
-                    .onChange(of: stage.eqRightPresetID) { _, _ in appState.applyConfig() }
-
+                  EQPresetPicker(
+                    selectedID: $stage.eqRightPresetID, presets: pipeline.eqPresets
+                  )
+                  .frame(maxWidth: 400)
+                  .onChange(of: stage.eqRightPresetID) { _, _ in dsp.applyConfig() }
                   Spacer()
                 }
 
-                if let rPreset = appState.eqPresets.first(where: { $0.id == stage.eqRightPresetID })
-                {
-                  EQSummaryCard(title: "Right", preset: rPreset, sampleRate: appState.sampleRate)
+                if let rPreset = pipeline.eqPresets.first(where: {
+                  $0.id == stage.eqRightPresetID
+                }) {
+                  EQSummaryCard(
+                    preset: rPreset,
+                    sampleRate: devices.captureConfig.sampleRate)
                 }
               }
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -450,8 +459,7 @@ struct EQOptions: View {
 }
 
 struct EQSummaryCard: View {
-  let title: String
-  @ObservedObject var preset: EQPreset
+  @Bindable var preset: EQPreset
   let sampleRate: Int
 
   var body: some View {
@@ -485,11 +493,11 @@ struct EQPresetPicker: View {
   }
 }
 
-// MARK: - Section 5: Loudness
+// MARK: - Loudness
 
 struct LoudnessOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Loudness Compensation") {
@@ -502,7 +510,7 @@ struct LoudnessOptions: View {
           Slider(value: $stage.loudnessReference, in: -50...20, step: 1)
             .frame(maxWidth: .infinity)
             .frame(minWidth: 200)
-            .onChange(of: stage.loudnessReference) { _, _ in appState.applyConfig() }
+            .onChange(of: stage.loudnessReference) { _, _ in dsp.applyConfig() }
           Text("\(String(format: "%.0f dB", stage.loudnessReference))").font(
             .system(.body, design: .monospaced)
           ).fixedSize()
@@ -516,7 +524,7 @@ struct LoudnessOptions: View {
           Slider(value: $stage.loudnessLowBoost, in: 0...15, step: 0.5)
             .frame(maxWidth: .infinity)
             .frame(minWidth: 200)
-            .onChange(of: stage.loudnessLowBoost) { _, _ in appState.applyConfig() }
+            .onChange(of: stage.loudnessLowBoost) { _, _ in dsp.applyConfig() }
           Text("\(String(format: "%.1f dB", stage.loudnessLowBoost))").font(
             .system(.body, design: .monospaced)
           ).fixedSize()
@@ -530,7 +538,7 @@ struct LoudnessOptions: View {
           Slider(value: $stage.loudnessHighBoost, in: 0...15, step: 0.5)
             .frame(maxWidth: .infinity)
             .frame(minWidth: 200)
-            .onChange(of: stage.loudnessHighBoost) { _, _ in appState.applyConfig() }
+            .onChange(of: stage.loudnessHighBoost) { _, _ in dsp.applyConfig() }
           Text("\(String(format: "%.1f dB", stage.loudnessHighBoost))").font(
             .system(.body, design: .monospaced)
           ).fixedSize()
@@ -543,11 +551,11 @@ struct LoudnessOptions: View {
   }
 }
 
-// MARK: - Section 6: Emphasis
+// MARK: - Emphasis
 
 struct EmphasisOptions: View {
-  @ObservedObject var stage: PipelineStage
-  @EnvironmentObject var appState: AppState
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
     GroupBox("Emphasis") {
@@ -566,7 +574,7 @@ struct EmphasisOptions: View {
           .labelsHidden()
           .frame(maxWidth: .infinity, alignment: .leading)
           .frame(minWidth: 300)
-          .onChange(of: stage.emphasisMode) { _, _ in appState.applyConfig() }
+          .onChange(of: stage.emphasisMode) { _, _ in dsp.applyConfig() }
 
           Spacer()
         }
@@ -581,7 +589,7 @@ struct EmphasisOptions: View {
   }
 }
 
-// MARK: - Section 7: DC Protection
+// MARK: - DC Protection
 
 struct DCProtectionDescription: View {
   var body: some View {
@@ -598,20 +606,23 @@ struct DCProtectionDescription: View {
 // MARK: - Resampler Detail View
 
 struct ResamplerDetailView: View {
-  @EnvironmentObject var appState: AppState
+  @Environment(AudioSettings.self) var settings
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioDeviceManager.self) var devices
 
   var body: some View {
+    @Bindable var settings = settings
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         HStack {
           Image(systemName: "arrow.triangle.2.circlepath")
             .font(.title2)
-            .foregroundStyle(appState.resamplerEnabled ? Color.accentColor : .secondary)
+            .foregroundStyle(settings.resamplerEnabled ? Color.accentColor : .secondary)
           Text("Sample Rate Converter")
             .font(.title2.bold())
           Spacer()
-          Toggle("Enabled", isOn: $appState.resamplerEnabled)
-            .onChange(of: appState.resamplerEnabled) { _, _ in appState.applyConfig() }
+          Toggle("Enabled", isOn: $settings.resamplerEnabled)
+            .onChange(of: settings.resamplerEnabled) { _, _ in dsp.applyConfig() }
         }
 
         Divider()
@@ -625,7 +636,7 @@ struct ResamplerDetailView: View {
                   .foregroundStyle(.secondary)
                   .fixedSize()
 
-                Picker("", selection: $appState.resamplerType) {
+                Picker("", selection: $settings.resamplerType) {
                   ForEach(ResamplerType.allCases) { type in
                     Text(type.rawValue).tag(type)
                   }
@@ -634,19 +645,19 @@ struct ResamplerDetailView: View {
                 .labelsHidden()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(minWidth: 400)
-                .onChange(of: appState.resamplerType) { _, _ in appState.applyConfig() }
+                .onChange(of: settings.resamplerType) { _, _ in dsp.applyConfig() }
 
                 Spacer()
               }
 
-              if appState.resamplerType == .asyncSinc || appState.resamplerType == .synchronous {
+              if settings.resamplerType == .asyncSinc || settings.resamplerType == .synchronous {
                 HStack(spacing: 16) {
                   Text("Profile")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize()
 
-                  Picker("", selection: $appState.resamplerProfile) {
+                  Picker("", selection: $settings.resamplerProfile) {
                     ForEach(ResamplerProfile.allCases) { profile in
                       Text(profile.rawValue).tag(profile)
                     }
@@ -655,20 +666,20 @@ struct ResamplerDetailView: View {
                   .labelsHidden()
                   .frame(maxWidth: .infinity, alignment: .leading)
                   .frame(minWidth: 400)
-                  .onChange(of: appState.resamplerProfile) { _, _ in appState.applyConfig() }
+                  .onChange(of: settings.resamplerProfile) { _, _ in dsp.applyConfig() }
 
                   Spacer()
                 }
               }
 
-              if appState.resamplerType == .asyncPoly {
+              if settings.resamplerType == .asyncPoly {
                 HStack(spacing: 16) {
                   Text("Interp")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize()
 
-                  Picker("", selection: $appState.resamplerInterpolation) {
+                  Picker("", selection: $settings.resamplerInterpolation) {
                     ForEach(ResamplerInterpolation.allCases) { interpolation in
                       Text(interpolation.rawValue).tag(interpolation)
                     }
@@ -677,7 +688,7 @@ struct ResamplerDetailView: View {
                   .labelsHidden()
                   .frame(maxWidth: .infinity, alignment: .leading)
                   .frame(minWidth: 400)
-                  .onChange(of: appState.resamplerInterpolation) { _, _ in appState.applyConfig() }
+                  .onChange(of: settings.resamplerInterpolation) { _, _ in dsp.applyConfig() }
 
                   Spacer()
                 }
@@ -691,20 +702,20 @@ struct ResamplerDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
               HStack(spacing: 16) {
                 Text("Capture").foregroundStyle(.secondary).fixedSize()
-                Text("\(formatRate(appState.captureSampleRate))").font(
+                Text("\(formatRate(devices.captureConfig.sampleRate))").font(
                   .system(.body, design: .monospaced))
                 Spacer()
               }
               HStack(spacing: 16) {
                 Text("Playback").foregroundStyle(.secondary).fixedSize()
-                Text("\(formatRate(appState.playbackSampleRate))").font(
+                Text("\(formatRate(devices.playbackConfig.sampleRate))").font(
                   .system(.body, design: .monospaced))
                 Spacer()
               }
-              let ratio = Double(appState.playbackSampleRate) / Double(appState.captureSampleRate)
+              let ratio =
+                Double(devices.playbackConfig.sampleRate) / Double(devices.captureConfig.sampleRate)
               Text("Conversion ratio: \(String(format: "%.4f", ratio))").font(.caption)
-                .foregroundStyle(
-                  .tertiary)
+                .foregroundStyle(.tertiary)
             }
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -717,8 +728,8 @@ struct ResamplerDetailView: View {
           .foregroundStyle(.secondary)
           .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .disabled(!appState.resamplerEnabled)
-        .opacity(appState.resamplerEnabled ? 1.0 : 0.5)
+        .disabled(!settings.resamplerEnabled)
+        .opacity(settings.resamplerEnabled ? 1.0 : 0.5)
 
         Spacer()
       }
@@ -727,5 +738,4 @@ struct ResamplerDetailView: View {
     }
     .background(Color(nsColor: .controlBackgroundColor))
   }
-
 }

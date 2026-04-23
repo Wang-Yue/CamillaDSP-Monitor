@@ -1,17 +1,12 @@
-// SpectrumView - 30-band spectrum analyzer display with gradient bars
+// SpectrumView - spectrum analyzer display with gradient bars
 
+import Observation
 import SwiftUI
+
+// MARK: - SpectrumView
 
 struct SpectrumView: View {
   let bands: [Double]  // dB values for each band
-
-  static let labels: [String] = [
-    "25", "", "40", "", "63", "", "100", "", "160", "",
-    "250", "", "400", "", "630", "", "1k", "", "1.6k", "",
-    "2.5k", "", "4k", "", "6.3k", "", "10k", "", "16k", "20k",
-  ]
-
-  private static let dbMarks = [0, -12, -24, -36, -48, -60]
 
   var body: some View {
     ZStack {
@@ -33,13 +28,19 @@ struct SpectrumView: View {
 /// Static grid overlay for SpectrumView. Separated so SwiftUI only redraws it
 /// when the view size changes, not on every band data update (10 Hz).
 private struct SpectrumGridView: View {
+  private static let labels: [String] = [
+    "25", "31.5", "40", "50", "63", "80", "100", "125", "160", "200", "250",
+    "315", "400", "500", "630", "800", "1k", "1k25", "1k6", "2k", "2k5",
+    "3k15", "4k", "5k", "6k3", "8k", "10k", "12k5", "16k", "20k",
+  ]
+
   private static let dbMarks = [0, -12, -24, -36, -48, -60]
 
   var body: some View {
     Canvas { context, size in
       let maxHeight = size.height - 20
       let barSpacing: CGFloat = 2
-      let bandCount = 30
+      let bandCount = SPECTRUM_BAND_COUNT
       let totalSpacing = barSpacing * CGFloat(bandCount - 1)
       let barWidth = max(4, (size.width - 20 - totalSpacing) / CGFloat(bandCount))
 
@@ -58,11 +59,11 @@ private struct SpectrumGridView: View {
       }
 
       // Frequency labels
-      for i in 0..<bandCount {
-        if !SpectrumView.labels[i].isEmpty {
+      for i in 0..<min(bandCount, Self.labels.count) {
+        if !Self.labels[i].isEmpty {
           let x = CGFloat(i) * (barWidth + barSpacing) + 20
           context.draw(
-            Text(SpectrumView.labels[i]).font(.system(size: 7)).foregroundColor(
+            Text(Self.labels[i]).font(.system(size: 7)).foregroundColor(
               .secondary.opacity(0.7)),
             at: CGPoint(x: x + barWidth / 2, y: maxHeight + 10))
         }

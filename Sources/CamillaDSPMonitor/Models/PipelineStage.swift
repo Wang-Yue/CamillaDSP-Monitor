@@ -1,6 +1,7 @@
 // PipelineStage - Configurable DSP pipeline stages matching CamillaDSP-Monitor YAML files exactly
 
 import Foundation
+import Observation
 
 enum StageType: String, CaseIterable, Codable, Identifiable {
   case balance = "Balance"
@@ -43,6 +44,7 @@ enum PhaseInvertMode: String, CaseIterable, Identifiable {
     }
   }
 }
+
 enum CrossfeedLevel: String, CaseIterable, Identifiable {
   case off = "Off"
   case l1 = "L1"
@@ -62,11 +64,13 @@ enum CrossfeedLevel: String, CaseIterable, Identifiable {
     }
   }
 }
+
 enum EQChannelMode: String, CaseIterable, Identifiable {
   case same = "Same L/R"
   case separate = "Separate L/R"
   var id: String { rawValue }
 }
+
 enum EmphasisMode: String, CaseIterable, Identifiable {
   case off = "Off"
   case deEmphasis = "De-Emphasis"
@@ -81,31 +85,33 @@ enum EmphasisMode: String, CaseIterable, Identifiable {
   }
 }
 
-final class PipelineStage: ObservableObject, Identifiable {
+@Observable
+final class PipelineStage: Identifiable {
   let id = UUID()
   let type: StageType
   var name: String { type.rawValue }
-  @Published var isEnabled: Bool
-  @Published var balancePosition: Double = 0.0
-  @Published var widthAmount: Double = 1.0
-  @Published var phaseInvertMode: PhaseInvertMode = .both
-  @Published var crossfeedLevel: CrossfeedLevel = .l1
-  @Published var eqChannelMode: EQChannelMode = .same
-  @Published var eqPresetID: UUID?
-  @Published var eqLeftPresetID: UUID?
-  @Published var eqRightPresetID: UUID?
-  @Published var emphasisMode: EmphasisMode = .deEmphasis
-  @Published var cxCustomEnabled: Bool = false
-  @Published var cxFc: Double = 650.0
-  @Published var cxDb: Double = 13.5
-  @Published var loudnessReference: Double = -25.0
-  @Published var loudnessHighBoost: Double = 7.0
-  @Published var loudnessLowBoost: Double = 7.0
+  var isEnabled: Bool
+  var balancePosition: Double = 0.0
+  var widthAmount: Double = 1.0
+  var phaseInvertMode: PhaseInvertMode = .both
+  var crossfeedLevel: CrossfeedLevel = .l1
+  var eqChannelMode: EQChannelMode = .same
+  var eqPresetID: UUID?
+  var eqLeftPresetID: UUID?
+  var eqRightPresetID: UUID?
+  var emphasisMode: EmphasisMode = .deEmphasis
+  var cxCustomEnabled: Bool = false
+  var cxFc: Double = 650.0
+  var cxDb: Double = 13.5
+  var loudnessReference: Double = -25.0
+  var loudnessHighBoost: Double = 7.0
+  var loudnessLowBoost: Double = 7.0
 
   init(type: StageType, isEnabled: Bool = false) {
     self.type = type
     self.isEnabled = isEnabled
   }
+
   var balanceLeftPercent: Int { Int((1.0 - max(0, balancePosition)) * 100) }
   var balanceRightPercent: Int { Int((1.0 + min(0, balancePosition)) * 100) }
   var widthPercent: Int { Int(widthAmount * 100) }

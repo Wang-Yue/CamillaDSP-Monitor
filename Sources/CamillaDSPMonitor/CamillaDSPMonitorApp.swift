@@ -4,19 +4,25 @@ import SwiftUI
 
 @main
 struct CamillaDSPMonitorApp: App {
-  @StateObject private var appState = AppState()
+  @State private var appState = AppState()
   @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
   var body: some Scene {
     Window("CamillaDSP Monitor", id: "main") {
       ContentView()
-        .environmentObject(appState)
-        .environmentObject(appState.levels)
-        .environmentObject(appState.spectrum)
-        .environmentObject(appState.load)
+        .environment(appState)
+        .environment(appState.levels)
+        .environment(appState.dsp)
+        .environment(appState.settings)
+        .environment(appState.devices)
+        .environment(appState.pipeline)
+        .environment(appState.monitoring)
+        .environment(appState.spectrum)
+        .environment(appState.vuSettings)  // Inject persistent VU settings
         .frame(minWidth: 960, minHeight: 680)
         .onAppear {
           appDelegate.appState = appState
+          setupWindowIntercept()
         }
     }
     .windowStyle(.titleBar)
@@ -24,8 +30,27 @@ struct CamillaDSPMonitorApp: App {
 
     Settings {
       DevicePickerView()
-        .environmentObject(appState)
+        .environment(appState.devices)
+        .environment(appState.settings)
         .frame(width: 450, height: 350)
+    }
+  }
+
+  /// Directly overrides the minimize button action to enter PiP mode.
+  private func setupWindowIntercept() {
+    // Slight delay to ensure the NSWindow and its titlebar buttons are ready.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      guard
+        let window = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "main" }
+        )
+      else {
+        return
+      }
+
+      if let minimizeButton = window.standardWindowButton(.miniaturizeButton) {
+        minimizeButton.target = appDelegate
+        minimizeButton.action = #selector(AppDelegate.customMinimizeAction(_:))
+      }
     }
   }
 }
@@ -41,8 +66,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApplication.shared.activate(ignoringOtherApps: true)
 
-    // Kill camilladsp on SIGINT (ctrl+c) and SIGTERM (kill).
-    // applicationWillTerminate only fires on graceful quit (cmd+q).
     for sig in [SIGINT, SIGTERM] {
       signal(sig) { _ in
         DSPEngine.killStaleCamillaDSP()
@@ -52,7 +75,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    // Don't terminate when the main window is hidden for mini player mode.
     return false
   }
 
@@ -69,9 +91,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     print("[AppDelegate] applicationWillTerminate")
     appState?.savePipelineStages()
     appState?.saveEQPresets()
-    appState?.stopMonitoring()
-
-    // Kill camilladsp synchronously — can't await the actor during termination
     DSPEngine.killStaleCamillaDSP()
+  }
+
+  // MARK: - Custom Actions
+
+  @objc func customMinimizeAction(_: Any?) {
+    if let appState = appState {
+      MiniPlayerWindowController.shared.showMiniPlayer(appState: appState)
+    }
   }
 }

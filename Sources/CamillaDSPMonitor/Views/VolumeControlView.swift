@@ -1,36 +1,35 @@
 // VolumeControlView - Volume slider with mute button
 
+import Observation
 import SwiftUI
 
 struct VolumeControlView: View {
-  @EnvironmentObject var appState: AppState
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioSettings.self) var settings
 
   var body: some View {
     HStack(spacing: 8) {
-      // Mute button
       Button {
-        appState.toggleMute()
+        dsp.toggleMute()
       } label: {
-        Image(systemName: appState.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-          .foregroundStyle(appState.isMuted ? .red : .primary)
+        Image(systemName: settings.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+          .foregroundStyle(settings.isMuted ? .red : .primary)
       }
       .buttonStyle(.plain)
 
-      // Volume slider
       Slider(
         value: Binding(
-          get: { appState.volume },
-          set: { appState.setVolume($0) }
+          get: { settings.volume },
+          set: { dsp.setVolume($0) }
         ),
         in: -60...20,
         step: 0.5
       )
       .frame(width: 200)
 
-      // Volume readout
-      Text(String(format: "%+.1f dB", appState.volume))
+      Text(String(format: "%+.1f dB", settings.volume))
         .font(.system(.caption, design: .monospaced))
-        .foregroundStyle(appState.volume > 0 ? .red : .primary)
+        .foregroundStyle(settings.volume > 0 ? .red : .primary)
         .frame(width: 65, alignment: .trailing)
     }
   }
