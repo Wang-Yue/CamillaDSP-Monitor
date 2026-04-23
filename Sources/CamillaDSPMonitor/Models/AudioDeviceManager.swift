@@ -187,12 +187,10 @@ final class AudioDeviceManager {
       mScope: kAudioObjectPropertyScopeGlobal,
       mElement: kAudioObjectPropertyElementMain)
 
-    AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, nil) {
-      _, _ in
-      Task { @MainActor [weak self] in
-        print("[AudioDeviceManager] Audio devices changed, refreshing list")
-        self?.refreshDevices()
-      }
+    AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main) {
+      [weak self] _, _ in
+      print("[AudioDeviceManager] Audio devices changed, refreshing list")
+      self?.refreshDevices()
     }
   }
 
