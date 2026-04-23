@@ -12,15 +12,23 @@ The app connects to a CamillaDSP process via WebSocket, providing real-time leve
 
 ## Requirements
 
-- macOS 14+ (Sonoma)
+- macOS 15+ (Sequoia)
 - Swift 6.0+
-- A [CamillaDSP](https://github.com/HEnquist/camilladsp) binary (the app launches and manages the process automatically)
+- A [CamillaDSP](https://github.com/HEnquist/camilladsp) binary, version 4.2.0 or above (the app launches and manages the process automatically)
 
 ## Building
 
+### Simple Build & Run
 ```bash
 swift build
 swift run CamillaDSPMonitor
+```
+
+### Build as macOS Application (.app)
+Use the provided `Makefile` to build a signed app bundle and optionally install it to `/Applications`:
+```bash
+make          # Builds CamillaDSPMonitor.app in the root directory
+make install  # Builds and copies to /Applications/
 ```
 
 The app automatically looks for the CamillaDSP binary in common locations (like `~/camilladsp/target/release/camilladsp`). You can also manually select a custom path in the **Device Settings** screen, which will be saved for future launches.
@@ -35,9 +43,10 @@ The app automatically looks for the CamillaDSP binary in common locations (like 
 - Auto-refresh on device connect/disconnect
 
 ### Monitoring
-- **Level meters** — Real-time RMS/Peak bars for capture and playback (L/R) via persistent WebSocket subscriptions
-- **Spectrum analyzer** — 30-band 1/3-octave FFT display via independent CoreAudio tap
-- **Compact level bar** — Always-visible status strip across all detail views
+- **Analog VU Meters** — Hyper-realistic, calibrated RMS/Peak needles with warm amber illumination and customizable physics.
+- **Level meters** — Real-time digital RMS/Peak bars for capture and playback (L/R) via persistent WebSocket subscriptions.
+- **Spectrum analyzer** — 30-band 1/3-octave FFT display via independent CoreAudio tap.
+- **Compact level bar** — Always-visible status strip across all detail views.
 
 ### Pipeline Configuration
 
@@ -59,9 +68,9 @@ Drag-to-reorder processing stages, each with a dedicated settings panel:
 
 Three editing modes for parametric EQ presets:
 
-- **Diagram** — Interactive frequency response graph with draggable color-coded band handles
-- **Form** — Table-based editor with type picker, frequency, gain, and Q fields
-- **CSV** — AutoEq / EqualizerAPO compatible text format with import/export
+- **Diagram** — Interactive frequency response graph with draggable color-coded band handles.
+- **Form** — Table-based editor with type picker, frequency, gain, and Q fields.
+- **CSV** — AutoEq / EqualizerAPO compatible text format with import/export.
 
 Supports 13 biquad filter types: Peaking, Lowshelf, Highshelf, Lowpass, Highpass, Notch, Bandpass, Allpass, and first-order variants.
 
@@ -129,11 +138,15 @@ Sources/
       MeterState.swift          # LevelState (RMS/Peak)
       PipelineStore.swift       # Stage and Preset persistence/management
       PipelineStage.swift       # Stage models and filter builders
+      PipelineStage+Builders.swift  # Pipeline configuration builders
+      PipelineStage+Defaults.swift  # Default stage configurations
+      PipelineStage+Crossfeed.swift # Crossfeed parameter math
       EQPreset.swift            # EQ band/preset models and response calculation
       AudioDeviceManager.swift  # Device enumeration and config management
       AudioSettings.swift       # Processing parameters and preferences
       FFTSpectrumAnalyzer.swift # Accelerate vDSP FFT implementation
       CoreAudioTap.swift        # CoreAudio input tap
+      AudioRingBuffer.swift     # High-performance lock-free audio buffer
       DeviceConfig.swift        # Device/SampleRate/Format models
       AutoEqService.swift       # AutoEq preset fetching
       LogManager.swift          # Console log collection
@@ -143,11 +156,16 @@ Sources/
       DashboardView.swift       # Signal chain overview + monitoring cards
       DevicePickerView.swift    # Device and sample rate selection
       StageDetailView.swift     # Per-stage configuration panels
-      EQPresetDetailView.swift  # Parametric EQ editor
+      EQPresetDetailView.swift  # Parametric EQ editor entry
+      EQDiagramMode.swift       # Interactive EQ response graph
+      EQFormMode.swift          # Table-based EQ band editor
+      EQCSVMode.swift           # Text-based AutoEq/CSV editor
+      AnalogVUMeterView.swift   # Hyper-realistic analog VU meter component
       LevelMeterView.swift      # Dual RMS/Peak meter components
       SpectrumView.swift        # FFT visualization
       VolumeControlView.swift   # Toolbar volume and mute
       MiniPlayerView.swift      # Floating overlay UI
+      MiniPlayerContent.swift   # View content for mini player
       MiniPlayerWindowController.swift # NSPanel management
       AutoEqPickerView.swift    # AutoEq search interface
       ConsoleLogsView.swift     # Real-time log viewer
