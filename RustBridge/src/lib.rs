@@ -29,6 +29,11 @@ impl Default for CamillaEngine {
 
 impl CamillaEngine {
     pub fn new() -> Self {
+        let _ =
+            env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("trace"))
+                .try_init();
+        log::set_max_level(log::LevelFilter::Info);
+
         let (tx_command, rx_command) = bounded(10);
         let spectrum_analyzer = Arc::new(RwLock::new(SpectrumAnalyzer::new()));
 
@@ -74,7 +79,7 @@ impl CamillaEngine {
             let previous_config = Arc::new(Mutex::new(None));
 
             loop {
-                debug!("FFI Engine: Wait for config");
+                log::trace!("FFI Engine: Wait for config");
                 loop {
                     let has_config = (*active_config.lock()).is_some();
                     if has_config && rx_command.is_empty() {
@@ -109,7 +114,9 @@ impl CamillaEngine {
                 );
                 debug!("FFI Engine: Processing ended with status {:?}", exitstatus);
 
-                if let Ok(ExitState::Exit) = exitstatus { return }
+                if let Ok(ExitState::Exit) = exitstatus {
+                    return;
+                }
             }
         });
 
@@ -117,6 +124,7 @@ impl CamillaEngine {
     }
 
     pub fn set_config(&self, json: String) -> Result<(), DspError> {
+        log::info!("FFI Engine: set_config with JSON: {}", json);
         let conf: config::Configuration =
             serde_json::from_str(&json).map_err(|_| DspError::Error)?;
         self.tx_command
@@ -202,6 +210,19 @@ impl CamillaEngine {
 
     pub fn get_spectrum_bands(&self) -> Vec<f32> {
         self.spectrum_analyzer.write().compute_spectrum()
+    }
+
+    pub fn set_log_level(&self, level: String) {
+        let filter = match level.to_lowercase().as_str() {
+            "off" => log::LevelFilter::Off,
+            "error" => log::LevelFilter::Error,
+            "warn" => log::LevelFilter::Warn,
+            "info" => log::LevelFilter::Info,
+            "debug" => log::LevelFilter::Debug,
+            "trace" => log::LevelFilter::Trace,
+            _ => log::LevelFilter::Info,
+        };
+        log::set_max_level(filter);
     }
 }
 

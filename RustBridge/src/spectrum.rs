@@ -109,7 +109,6 @@ impl SpectrumAnalyzer {
             *val = 0.5 * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / (fft_n - 1) as f32).cos());
         }
 
-
         let mut planner = RealFftPlanner::<f32>::new();
         self.cached_fft = Some(planner.plan_fft_forward(fft_n));
         self.cached_fft_n = fft_n;
@@ -127,7 +126,7 @@ impl SpectrumAnalyzer {
 
         // Reconstruct contiguous window from circular buffer
         for (i, val) in input.iter_mut().enumerate().take(fft_n) {
-            // Index logic: write_pos is the NEXT write position, 
+            // Index logic: write_pos is the NEXT write position,
             // so write_pos - fft_n + i is the correct sequence.
             let idx = (self.write_pos + self.capacity - fft_n + i) % self.capacity;
             *val = self.buffer[idx] * self.cached_window[i];

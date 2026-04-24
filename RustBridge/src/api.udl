@@ -38,4 +38,5 @@ interface CamillaEngine {
     sequence<string> get_available_devices(string backend, boolean input);
     string get_device_capabilities(string backend, string device, boolean input);
     sequence<float> get_spectrum_bands();
+    void set_log_level(string level);
 };

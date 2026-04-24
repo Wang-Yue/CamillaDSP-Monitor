@@ -169,4 +169,8 @@ public actor DSPEngine {
     guard let engine = engine else { return nil }
     return engine.getSpectrumBands()
   }
+
+  public func setLogLevel(_ level: String) async {
+    engine?.setLogLevel(level: level)
+  }
 }

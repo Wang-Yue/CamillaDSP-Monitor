@@ -44,6 +44,7 @@ final class AppState {
       monitoring: monitoring, levels: levels)
     let spectrum = SpectrumEngine()
     monitoring.spectrum = spectrum
+    logManager.setEngine(engine)
 
     self.settings = settings
     self.pipeline = pipeline

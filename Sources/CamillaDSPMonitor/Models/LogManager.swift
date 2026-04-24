@@ -1,3 +1,4 @@
+import CamillaDSPLib
 import Foundation
 import Observation
 import SwiftUI
@@ -63,23 +64,68 @@ actor LogBuffer {
   }
 }
 
+enum LogLevel: String, CaseIterable, Identifiable, Sendable {
+  case off = "Off"
+  case error = "Error"
+  case warn = "Warn"
+  case info = "Info"
+  case debug = "Debug"
+  case trace = "Trace"
+  var id: String { rawValue }
+}
+
 @MainActor
 @Observable
 class LogManager {
   var entries: [LogEntry] = []
   private let maxEntries = 2000
 
+  // Log level settings
+  var selectedLogLevel: LogLevel = .info {
+    didSet {
+      saveLevel()
+      updateRustLevel()
+    }
+  }
+
   private let outPipe = Pipe()
   private let errPipe = Pipe()
 
   private let buffer: LogBuffer
   private var updateTask: Task<Void, Never>?
+  private var engine: DSPEngine?
 
   init() {
     let max = 2000
     self.buffer = LogBuffer(maxEntries: max)
+    loadLevel()
     setupCapture()
     setupBatchTimer()
+  }
+
+  func setEngine(_ engine: DSPEngine) {
+    self.engine = engine
+    updateRustLevel()
+  }
+
+  private func loadLevel() {
+    let defaults = UserDefaults.standard
+    if let saved = defaults.string(forKey: "selectedLogLevel"),
+      let level = LogLevel(rawValue: saved)
+    {
+      selectedLogLevel = level
+    }
+  }
+
+  private func saveLevel() {
+    UserDefaults.standard.set(selectedLogLevel.rawValue, forKey: "selectedLogLevel")
+  }
+
+  private func updateRustLevel() {
+    let level = selectedLogLevel.rawValue.lowercased()
+    Task { [weak engine] in
+      await engine?.setLogLevel(level)
+    }
   }
 
   private func setupCapture() {
@@ -126,13 +172,4 @@ class LogManager {
       }
     }
   }
-
-  // deinit cannot access actor-isolated property 'updateTask'.
-  // However, Tasks are implicitly cancelled if their parent task is cancelled,
-  // but this is a top-level Task stored in a property.
-  // We can't really cancel it in deinit easily without a non-isolated shadow property.
-  // Given this is a long-lived singleton-like object, it might not be a huge deal,
-  // but let's try to fix it properly.
-
-  // Actually, I'll just remove the deinit for now to see if it builds.
 }

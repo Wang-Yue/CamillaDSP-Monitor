@@ -7,11 +7,21 @@ struct ConsoleLogsView: View {
   @State private var autoScroll = true
 
   var body: some View {
+    @Bindable var bindableLogManager = logManager
     VStack(alignment: .leading, spacing: 0) {
       HStack {
         Text("Console Logs")
           .font(.headline)
+
         Spacer()
+
+        Picker("Log Level", selection: $bindableLogManager.selectedLogLevel) {
+          ForEach(LogLevel.allCases) { level in
+            Text(level.rawValue).tag(level)
+          }
+        }
+        .pickerStyle(.menu)
+        .frame(width: 150)
 
         Button {
           let allLogs = logManager.entries.map { entry in
