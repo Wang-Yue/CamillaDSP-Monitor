@@ -11,14 +11,20 @@ let package = Package(
   dependencies: [],
   targets: [
     .target(
+      name: "CamillaDSPFFI",
+      path: "Sources/CamillaDSPFFI"
+    ),
+    .target(
       name: "CamillaDSPLib",
-      dependencies: [],
+      dependencies: ["CamillaDSPFFI"],
       path: "Sources/CamillaDSPLib",
       linkerSettings: [
         .linkedFramework("AudioToolbox"),
         .linkedFramework("CoreAudio"),
         .linkedFramework("Accelerate"),
         .linkedFramework("Security"),
+        .linkedLibrary("camilladsp_ffi"),
+        .unsafeFlags(["-L", "lib"]),
       ]
     ),
     .executableTarget(

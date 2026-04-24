@@ -9,13 +9,19 @@ struct MiniSpectrumView: View {
   @Environment(SpectrumEngine.self) var spectrum
 
   var body: some View {
-    Canvas { context, size in
-      drawSpectrumBars(
-        context: &context, bands: spectrum.bands,
-        maxHeight: size.height, totalWidth: size.width,
-        spacing: 1.5, minBarWidth: 2, minBarHeight: 1, cornerRadius: 1)
+    ZStack {
+      if let bands = spectrum.bands {
+        Canvas { context, size in
+          drawSpectrumBars(
+            context: &context, bands: bands,
+            maxHeight: size.height, totalWidth: size.width,
+            spacing: 1.5, minBarWidth: 2, minBarHeight: 1, cornerRadius: 1)
+        }
+      }
     }
     .frame(height: 60)
+    .onAppear { spectrum.visibilityCount += 1 }
+    .onDisappear { spectrum.visibilityCount -= 1 }
   }
 }
 

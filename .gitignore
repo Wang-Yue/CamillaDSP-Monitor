@@ -86,3 +86,16 @@ Package.resolved
 /stage/
 Utilities/InstalledSwiftPMConfiguration/config.json
 Fixtures/BinaryLibraries/Static/Package1/Simple.artifactbundle/build
+
+# Rust
+RustBridge/target/
+RustBridge/generated/
+
+# Generated Library Bridge Files
+Sources/CamillaDSPLib/camilladsp_ffi.swift
+Sources/CamillaDSPFFI/include/
+lib/
+
+# App Bundle
+CamillaDSPMonitor.app/
+RustBridge/Cargo.lock

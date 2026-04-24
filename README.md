@@ -1,8 +1,8 @@
 # CamillaDSP Monitor
 
-A native macOS SwiftUI app for controlling and monitoring [CamillaDSP](https://github.com/HEnquist/camilladsp) — a flexible, real-time audio DSP engine for crossovers, room correction, and general audio filtering.
+A high-performance native macOS SwiftUI app for controlling and monitoring [CamillaDSP](https://github.com/HEnquist/camilladsp). Unlike traditional controllers that use WebSockets to talk to a background process, this version **integrates CamillaDSP as a native library**, providing zero-latency monitoring and superior performance.
 
-The app connects to a CamillaDSP process via WebSocket, providing real-time level meters, spectrum analysis, device selection, and a full pipeline configuration UI.
+The app uses a custom Rust bridge to embed the CamillaDSP engine directly into the Swift process, moving heavy DSP tasks (like FFT spectrum analysis) to highly optimized native code.
 
 ## Screenshots
 
@@ -13,27 +13,37 @@ The app connects to a CamillaDSP process via WebSocket, providing real-time leve
 ## Requirements
 
 - macOS 15+ (Sequoia)
-- Swift 6.0+
-- A [CamillaDSP](https://github.com/HEnquist/camilladsp) binary, version 4.2.0 or above (the app launches and manages the process automatically)
+- Swift 6.0+ (Strict Concurrency enabled)
+- Rust toolchain (latest stable)
 
 ## Building
 
-### Simple Build & Run
+The project uses a unified `Makefile` to handle the multi-language build pipeline (Rust + UniFFI + Swift).
+
+### Build and Package as macOS Application (.app)
+This will compile the Rust bridge with native CPU optimizations (`-C target-cpu=native`), generate the Swift bindings, patch them for Swift 6 concurrency, and package the final signed application:
 ```bash
-swift build
-swift run CamillaDSPMonitor
+make app          # Builds CamillaDSPMonitor.app in the root directory
+make install      # Builds and copies to /Applications/
 ```
 
-### Build as macOS Application (.app)
-Use the provided `Makefile` to build a signed app bundle and optionally install it to `/Applications`:
+### Simple Build (Command Line)
 ```bash
-make          # Builds CamillaDSPMonitor.app in the root directory
-make install  # Builds and copies to /Applications/
+make build        # Compiles everything without packaging
 ```
-
-The app automatically looks for the CamillaDSP binary in common locations (like `~/camilladsp/target/release/camilladsp`). You can also manually select a custom path in the **Device Settings** screen, which will be saved for future launches.
 
 ## Features
+
+### Native Integration
+- **Zero-Process Architecture** — No external `camilladsp` binary needed. The engine lives entirely inside the app's memory space.
+- **High-Performance Audio Tap** — A zero-allocation circular buffer captures waveforms directly from the engine with negligible CPU overhead.
+- **Optimized Rust FFT** — Spectrum analysis is performed in Rust using `realfft`, matching Apple's `vDSP` accuracy (4.0/N scaling) for perfect visual parity.
+
+### Monitoring
+- **Analog VU Meters** — Hyper-realistic, calibrated RMS/Peak needles with warm amber illumination and customizable physics.
+- **Level meters** — Real-time digital RMS/Peak bars with zero-latency updates via the native bridge.
+- **Spectrum analyzer** — 30-band 1/3-octave FFT display with lazy polling (only calculates and polls when the UI is visible to save battery).
+- **Compact level bar** — Always-visible status strip across all detail views.
 
 ### Audio Device Management
 - Capture and playback device selection with system default option
@@ -41,12 +51,6 @@ The app automatically looks for the CamillaDSP binary in common locations (like 
 - Configurable channel count and chunk size
 - Exclusive (hog) mode for output devices
 - Auto-refresh on device connect/disconnect
-
-### Monitoring
-- **Analog VU Meters** — Hyper-realistic, calibrated RMS/Peak needles with warm amber illumination and customizable physics.
-- **Level meters** — Real-time digital RMS/Peak bars for capture and playback (L/R) via persistent WebSocket subscriptions.
-- **Spectrum analyzer** — 30-band 1/3-octave FFT display via independent CoreAudio tap.
-- **Compact level bar** — Always-visible status strip across all detail views.
 
 ### Pipeline Configuration
 
@@ -90,7 +94,7 @@ A floating translucent overlay visible above all windows, including full-screen 
 
 - Start/Stop toggle in the toolbar
 - Auto-recovery when CamillaDSP stalls (e.g., capture format change)
-- Connection retry loop on startup (waits for CamillaDSP to be ready)
+- High-performance native library initialization
 - Graceful shutdown on app termination
 
 ### Persistence
@@ -102,12 +106,12 @@ All settings saved to UserDefaults across launches: device selection, sample rat
 ```
 CamillaDSPMonitor (SwiftUI)
     |
-    |-- AppState (@MainActor, ObservableObject)
-    |       |-- DSPEngine (actor) ---- WebSocket (Subscriptions) ----> camilladsp
-    |       |-- MonitoringController (Manages VU and State subscriptions)
-    |       |-- SpectrumEngine (CoreAudio tap + FFTSpectrumAnalyzer)
-    |       |-- MeterState (LevelState ObservableObject, drives UI)
-    |       |-- PipelineStore (ObservableObject, manages stages and presets)
+    |-- AppState (@MainActor, Observable)
+    |       |-- DSPEngine (actor) ---- Rust Bridge (UniFFI) ----> camilladsp lib
+    |       |-- MonitoringController (Manages VU, State, and Spectrum polling)
+    |       |-- SpectrumEngine (FFT data management)
+    |       |-- MeterState (LevelState Observable, drives UI)
+    |       |-- PipelineStore (Observable, manages stages and presets)
     |       `-- DSPEngineController (Engine lifecycle, config building)
     |
     `-- Views (NavigationSplitView)
@@ -118,23 +122,24 @@ CamillaDSPMonitor (SwiftUI)
             `-- MiniPlayer (NSPanel floating overlay)
 ```
 
-The `DSPEngine` is a Swift actor that serializes all WebSocket communication. It manages the CamillaDSP process lifecycle and uses `AsyncStream` to provide real-time updates for engine state and VU levels.
+The `DSPEngine` is a Swift actor that interfaces with the integrated Rust bridge. It manages the library lifecycle and provides real-time updates for engine state and VU levels via polling.
 
-The spectrum analyzer runs independently from CamillaDSP's signal path — it taps the capture device directly via `CoreAudioTap` and performs FFT using `vDSP`.
+The spectrum analyzer is implemented in Rust for maximum performance. It taps the engine's audio stream directly and performs FFT analysis, which is then polled by the Swift UI only when visible.
 
 ## Project Structure
 
 ```
 Sources/
   CamillaDSPLib/
-    CamillaDSP.swift            # DSPEngine actor, WebSocket protocol, data types
+    CamillaDSP.swift            # DSPEngine actor (Native Bridge Interface)
+    camilladsp_ffi.swift        # Generated UniFFI bindings
   CamillaDSPMonitor/
     CamillaDSPMonitorApp.swift  # @main app entry, AppDelegate
     Models/
       AppState.swift            # Central state coordinator
-      MonitoringController.swift # WebSocket state/VU subscription management
+      MonitoringController.swift # State/VU/Spectrum polling management
       DSPEngineController.swift # Engine lifecycle and config generation
-      SpectrumEngine.swift      # FFT lifecycle and CoreAudio tap driving
+      SpectrumEngine.swift      # Spectrum data management
       MeterState.swift          # LevelState (RMS/Peak)
       PipelineStore.swift       # Stage and Preset persistence/management
       PipelineStage.swift       # Stage models and filter builders
@@ -144,9 +149,6 @@ Sources/
       EQPreset.swift            # EQ band/preset models and response calculation
       AudioDeviceManager.swift  # Device enumeration and config management
       AudioSettings.swift       # Processing parameters and preferences
-      FFTSpectrumAnalyzer.swift # Accelerate vDSP FFT implementation
-      CoreAudioTap.swift        # CoreAudio input tap
-      AudioRingBuffer.swift     # High-performance lock-free audio buffer
       DeviceConfig.swift        # Device/SampleRate/Format models
       AutoEqService.swift       # AutoEq preset fetching
       LogManager.swift          # Console log collection
@@ -169,23 +171,27 @@ Sources/
       MiniPlayerWindowController.swift # NSPanel management
       AutoEqPickerView.swift    # AutoEq search interface
       ConsoleLogsView.swift     # Real-time log viewer
+RustBridge/
+  src/
+    lib.rs                      # Main bridge entry
+    engine.rs                   # Engine orchestration & Audio Tap
+    spectrum.rs                 # FFT logic & Windowing
+    types.rs                    # FFI types & Enums
+  api.udl                       # UniFFI interface definition
+Makefile                        # Unified build pipeline
 ```
 
 ## Dependencies
 
-No external dependencies. Uses only Apple system frameworks:
-
 - **SwiftUI** — UI
 - **CoreAudio** — Device enumeration and hardware listeners
-- **AVFoundation** — Audio engine tap for spectrum analysis
-- **Accelerate** — vDSP FFT for spectrum analyzer
-- **Foundation** — WebSocket (URLSessionWebSocketTask), JSON, process management
+- **UniFFI** — Rust/Swift bridge generation
+- **CamillaDSP** — Integrated as a native library dependency
+- **realfft** (Rust) — High-performance real-to-complex FFT
 
 ## Acknowledgments
 
 - [CamillaDSP](https://github.com/HEnquist/camilladsp) by Henrik Enquist
-- [CamillaDSP-Monitor](https://github.com/Wang-Yue/CamillaDSP-Monitor) by Wang Yue — inspiration for the monitor UI
-- [camilladsp-crossfeed](https://github.com/Wang-Yue/camilladsp-crossfeed/) — crossfeed parameter computation
 - Audio EQ Cookbook by Robert Bristow-Johnson — biquad coefficient formulas
 
 ## License

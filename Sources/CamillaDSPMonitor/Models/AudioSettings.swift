@@ -73,9 +73,6 @@ final class AudioSettings {
   var isMuted: Bool = false {
     didSet { defaults.set(isMuted, forKey: "isMuted") }
   }
-  var camillaDSPPath: String = "" {
-    didSet { defaults.set(camillaDSPPath, forKey: "camillaDSPPath") }
-  }
 
   /// Fired when a setting that affects the DSP config changes. Volume and mute are excluded
   /// because they are applied as live engine commands by DSPEngineController, not via a full
@@ -102,6 +99,5 @@ final class AudioSettings {
     {
       resamplerInterpolation = interpolation
     }
-    camillaDSPPath = defaults.string(forKey: "camillaDSPPath") ?? ""
   }
 }

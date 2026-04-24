@@ -7,46 +7,12 @@ import SwiftUI
 struct DevicePickerView: View {
   @Environment(AudioDeviceManager.self) var devices
   @Environment(AudioSettings.self) var settings
-  @State private var showRestartAlert = false
 
   var body: some View {
     @Bindable var bindableDevices = devices
     @Bindable var bindableSettings = settings
     ScrollView {
       VStack(spacing: 20) {
-        // Engine path
-        GroupBox {
-          VStack(alignment: .leading, spacing: 12) {
-            Label("CamillaDSP Engine", systemImage: "gearshape.2.fill")
-              .font(.headline)
-
-            HStack {
-              Text(
-                bindableSettings.camillaDSPPath.isEmpty
-                  ? "Not selected" : bindableSettings.camillaDSPPath
-              )
-              .font(.system(.caption, design: .monospaced))
-              .foregroundStyle(bindableSettings.camillaDSPPath.isEmpty ? .red : .secondary)
-              .lineLimit(1)
-              .truncationMode(.head)
-
-              Spacer()
-
-              Button("Browse...") {
-                selectBinary()
-              }
-            }
-
-            if bindableSettings.camillaDSPPath.isEmpty {
-              Text("Please select the camilladsp executable to start the engine.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-          }
-          .padding(4)
-          .frame(maxWidth: .infinity, alignment: .leading)
-        }
-
         // Capture device
         DeviceSection(
           title: "Capture (Input)",
@@ -187,28 +153,10 @@ struct DevicePickerView: View {
       .padding()
     }
     .background(Color(nsColor: .controlBackgroundColor))
-    .alert("Engine Path Updated", isPresented: $showRestartAlert) {
-      Button("OK", role: .cancel) {}
-    } message: {
-      Text("Please restart CamillaDSP Monitor to apply the new engine path.")
-    }
   }
 
   private var latencyText: String {
     String(format: "(%.1f ms latency)", devices.latencyMs)
-  }
-
-  private func selectBinary() {
-    let panel = NSOpenPanel()
-    panel.allowsMultipleSelection = false
-    panel.canChooseDirectories = false
-    panel.canChooseFiles = true
-    panel.message = "Select camilladsp executable"
-
-    if panel.runModal() == .OK, let url = panel.url {
-      settings.camillaDSPPath = url.path
-      showRestartAlert = true
-    }
   }
 }
 

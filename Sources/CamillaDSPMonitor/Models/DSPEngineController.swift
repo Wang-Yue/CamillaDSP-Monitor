@@ -50,9 +50,6 @@ final class DSPEngineController {
     startEngineTask?.cancel()
     startEngineTask = Task {
       do {
-        try await engine.connect(binaryPath: settings.camillaDSPPath)
-        guard !Task.isCancelled else { return }
-
         // Prime faders BEFORE sending config so the pipeline initialises at the right
         // level and doesn't see a difference that triggers a 0 dBFS ramp.
         await engine.setFaderMute(fader: 0, mute: settings.isMuted)
@@ -62,8 +59,7 @@ final class DSPEngineController {
         let config = buildConfigDict()
         try await startEngineWithConfig(config)
       } catch {
-        guard !Task.isCancelled else { return }
-        await engine.disconnect()
+        print("[DSPEngineController] Start engine failed: \(error)")
       }
     }
   }

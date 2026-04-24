@@ -6,7 +6,7 @@ import SwiftUI
 // MARK: - SpectrumView
 
 struct SpectrumView: View {
-  let bands: [Double]  // dB values for each band
+  let bands: [Double]?  // dB values for each band
 
   var body: some View {
     ZStack {
@@ -15,11 +15,13 @@ struct SpectrumView: View {
       SpectrumGridView()
 
       // Dynamic bars layer — redraws at 10 Hz with band data
-      Canvas { context, size in
-        drawSpectrumBars(
-          context: &context, bands: bands,
-          maxHeight: size.height - 20, totalWidth: size.width - 20,
-          xOffset: 20)
+      if let bands = bands {
+        Canvas { context, size in
+          drawSpectrumBars(
+            context: &context, bands: bands,
+            maxHeight: size.height - 20, totalWidth: size.width - 20,
+            xOffset: 20)
+        }
       }
     }
   }

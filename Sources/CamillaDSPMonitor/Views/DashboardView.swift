@@ -221,5 +221,7 @@ struct SpectrumCard: View {
     }
     .padding()
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    .onAppear { spectrum.visibilityCount += 1 }
+    .onDisappear { spectrum.visibilityCount -= 1 }
   }
 }

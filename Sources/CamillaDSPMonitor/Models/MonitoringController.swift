@@ -12,6 +12,7 @@ final class MonitoringController {
   let levels: LevelState
   let devices: AudioDeviceManager
   let settings: AudioSettings
+  var spectrum: SpectrumEngine?
 
   /// Fired with the new AppStatus whenever CamillaDSP reports a state change.
   var onStatusChange: ((AppStatus) -> Void)?
@@ -20,6 +21,7 @@ final class MonitoringController {
 
   /// Current status to avoid late VU updates during inactive state.
   private var currentStatus: AppStatus = .inactive
+  private var pollingTimer: Timer?
 
   // MARK: - Init
 
@@ -33,47 +35,50 @@ final class MonitoringController {
     self.settings = settings
   }
 
-  // MARK: - Subscriptions
+  // MARK: - Polling
 
-  /// Start both subscriptions once after the WebSocket connects.
-  /// They run for the lifetime of the app — never cancelled or restarted.
+  /// Start polling state and VU levels.
   func startSubscriptions() {
-    Task {
-      guard let stream = await engine.subscribeState() else {
-        print("[MonitoringController] State subscription not available")
-        return
+    pollingTimer?.invalidate()
+    pollingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+      guard let self else { return }
+      Task { @MainActor in
+        await self.poll()
       }
-      print("[MonitoringController] State subscription started")
-      for await update in stream {
-        handleStateUpdate(
-          state: update.state,
-          stopReason: update.stopReason,
-          stopReasonRate: update.stopReasonRate
-        )
-      }
-      print("[MonitoringController] State subscription ended")
+    }
+  }
+
+  private func poll() async {
+    // 1. Poll Status
+    if let update = await engine.getStatus() {
+      handleStateUpdate(
+        state: update.state,
+        stopReason: update.stopReason,
+        stopReasonRate: update.stopReasonRate
+      )
     }
 
-    Task {
-      guard let stream = await engine.subscribeVuLevels(maxRate: 10.0, attack: 5.0, release: 100.0)
-      else {
-        print("[MonitoringController] VU subscription not available")
-        return
+    // 2. Poll VU Levels
+    if currentStatus != .inactive, let vu = await engine.getVuLevels() {
+      levels.update(
+        capturePeak: StereoLevel(from: vu.capture_peak),
+        captureRms: StereoLevel(from: vu.capture_rms),
+        playbackPeak: StereoLevel(from: vu.playback_peak),
+        playbackRms: StereoLevel(from: vu.playback_rms)
+      )
+    } else if currentStatus == .inactive {
+      levels.reset()
+    }
+
+    // 3. Poll Spectrum Bands
+    if currentStatus == .running, let spectrum, spectrum.visibilityCount > 0 {
+      if let bands = await engine.getSpectrumBands(), !bands.isEmpty {
+        spectrum.updateBands(bands)
+      } else {
+        spectrum.reset()
       }
-      print("[MonitoringController] VU subscription started")
-      for await vu in stream {
-        if currentStatus == .inactive {
-          levels.reset()
-          continue
-        }
-        levels.update(
-          capturePeak: StereoLevel(from: vu.capture_peak),
-          captureRms: StereoLevel(from: vu.capture_rms),
-          playbackPeak: StereoLevel(from: vu.playback_peak),
-          playbackRms: StereoLevel(from: vu.playback_rms)
-        )
-      }
-      print("[MonitoringController] VU subscription ended")
+    } else {
+      spectrum?.reset()
     }
   }
 
@@ -82,15 +87,15 @@ final class MonitoringController {
   private func handleStateUpdate(state: String, stopReason: String?, stopReasonRate: Int? = nil) {
     let newStatus: AppStatus?
     switch state {
-    case "Running": newStatus = .running
-    case "Paused": newStatus = .paused
-    case "Starting": newStatus = .starting
-    case "Stalled": newStatus = .stalled
-    case "Inactive": newStatus = .inactive
+    case "RUNNING": newStatus = .running
+    case "PAUSED": newStatus = .paused
+    case "STARTING": newStatus = .starting
+    case "STALLED": newStatus = .stalled
+    case "INACTIVE": newStatus = .inactive
     default: newStatus = nil
     }
 
-    if let newStatus {
+    if let newStatus, newStatus != currentStatus {
       currentStatus = newStatus
       onStatusChange?(newStatus)
       if newStatus == .inactive {

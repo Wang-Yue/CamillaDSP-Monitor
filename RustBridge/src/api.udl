@@ -1,0 +1,41 @@
+namespace camilladsp_ffi {};
+
+enum DspState {
+    "Running",
+    "Paused",
+    "Inactive",
+    "Starting",
+    "Stalled"
+};
+
+dictionary DspVuLevels {
+    sequence<f32> playback_rms;
+    sequence<f32> playback_peak;
+    sequence<f32> capture_rms;
+    sequence<f32> capture_peak;
+};
+
+dictionary DspStatus {
+    DspState state;
+    string stop_reason;
+    u32? stop_reason_rate;
+};
+
+[Error]
+enum DspError {
+    "Error"
+};
+
+interface CamillaEngine {
+    constructor();
+    [Throws=DspError]
+    void set_config(string json);
+    void stop();
+    void set_volume(u32 fader, f32 volume);
+    void set_mute(u32 fader, boolean mute);
+    DspStatus get_status();
+    DspVuLevels get_vu_levels();
+    sequence<string> get_available_devices(string backend, boolean input);
+    string get_device_capabilities(string backend, string device, boolean input);
+    sequence<float> get_spectrum_bands();
+};

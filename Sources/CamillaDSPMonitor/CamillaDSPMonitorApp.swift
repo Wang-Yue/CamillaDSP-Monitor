@@ -65,13 +65,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApplication.shared.activate(ignoringOtherApps: true)
-
-    for sig in [SIGINT, SIGTERM] {
-      signal(sig) { _ in
-        DSPEngine.killStaleCamillaDSP()
-        _exit(0)
-      }
-    }
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -91,7 +84,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     print("[AppDelegate] applicationWillTerminate")
     appState?.savePipelineStages()
     appState?.saveEQPresets()
-    DSPEngine.killStaleCamillaDSP()
   }
 
   // MARK: - Custom Actions
