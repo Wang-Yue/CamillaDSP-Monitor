@@ -66,14 +66,6 @@ final class AppState {
       dsp?.applyConfig()
     }
 
-    monitoring.onStatusChange = { [weak dsp] newStatus in
-      guard let dsp, newStatus != dsp.status else { return }
-      dsp.status = newStatus
-    }
-    monitoring.onRestartEngine = { [weak dsp] in
-      dsp?.startEngine()
-    }
-
     // Load persisted preferences.
     settings.loadPreferences()
     pipeline.eqPresets = pipeline.loadEQPresets()

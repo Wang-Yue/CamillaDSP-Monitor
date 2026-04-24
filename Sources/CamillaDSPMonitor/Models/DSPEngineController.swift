@@ -15,7 +15,6 @@ final class DSPEngineController {
 
   var status: AppStatus = .inactive
 
-  var startEngineTask: Task<Void, Never>?
   var applyConfigTask: Task<Void, Never>?
 
   // MARK: - Init
@@ -44,46 +43,7 @@ final class DSPEngineController {
   // MARK: - Engine Lifecycle
 
   func startEngine() {
-    if status == .running { return }
     guard devices.devicesAvailable() else { return }
-
-    startEngineTask?.cancel()
-    startEngineTask = Task {
-      do {
-        // Prime faders BEFORE sending config so the pipeline initialises at the right
-        // level and doesn't see a difference that triggers a 0 dBFS ramp.
-        await engine.setFaderMute(fader: 0, mute: settings.isMuted)
-        await engine.setFaderExternalVolume(fader: 0, db: settings.volume)
-        guard !Task.isCancelled else { return }
-
-        let config = buildConfigDict()
-        try await startEngineWithConfig(config)
-      } catch {
-        print("[DSPEngineController] Start engine failed: \(error)")
-      }
-    }
-  }
-
-  func stopEngine() {
-    startEngineTask?.cancel()
-    applyConfigTask?.cancel()
-    let startTask = startEngineTask
-    let applyTask = applyConfigTask
-    startEngineTask = nil
-    applyConfigTask = nil
-
-    levels.reset()
-    Task {
-      await startTask?.value
-      await applyTask?.value
-      await engine.stop()
-    }
-  }
-
-  // MARK: - Configuration Management
-
-  func applyConfig() {
-    if status != .running { return }
     applyConfigTask?.cancel()
     applyConfigTask = Task {
       try? await Task.sleep(nanoseconds: 50_000_000)
@@ -92,12 +52,33 @@ final class DSPEngineController {
     }
   }
 
+  func stopEngine() {
+    applyConfigTask?.cancel()
+    let applyTask = applyConfigTask
+    applyConfigTask = nil
+
+    levels.reset()
+    Task {
+      await applyTask?.value
+      await engine.stop()
+    }
+  }
+
+  // MARK: - Configuration Management
+
+  func applyConfig() {
+    guard status != .inactive else { return }
+    startEngine()
+  }
+
   func applyConfigAsync() async {
     pipeline.savePipelineStages()
 
     do {
-      await engine.setFaderMute(fader: 0, mute: settings.isMuted)
-      await engine.setFaderExternalVolume(fader: 0, db: settings.volume)
+      // Prime faders BEFORE sending config so the pipeline initialises at the right
+      // level and doesn't see a difference that triggers a 0 dBFS ramp.
+      await engine.setMute(settings.isMuted)
+      await engine.setVolume(settings.volume)
 
       let config = buildConfigDict()
       try await startEngineWithConfig(config)
