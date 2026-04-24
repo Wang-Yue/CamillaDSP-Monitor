@@ -29,10 +29,10 @@ struct CamillaDSPMonitorApp: App {
     .defaultSize(width: 1100, height: 780)
 
     Settings {
-      DevicePickerView()
-        .environment(appState.devices)
+      GeneralSettingsView()
         .environment(appState.settings)
-        .frame(width: 450, height: 350)
+        .environment(appState.monitoring)
+        .frame(width: 450, height: 160)
     }
   }
 

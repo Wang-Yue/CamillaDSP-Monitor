@@ -14,6 +14,15 @@ final class MonitoringController {
   let settings: AudioSettings
   var spectrum: SpectrumEngine?
 
+  var pollingRate: Double = 10.0 {
+    didSet {
+      UserDefaults.standard.set(pollingRate, forKey: "pollingRate")
+      if pollingTimer != nil {
+        startSubscriptions()
+      }
+    }
+  }
+
   /// Fired with the new AppStatus whenever CamillaDSP reports a state change.
   var onStatusChange: ((AppStatus) -> Void)?
   /// Fired when a CaptureFormatChange stop reason requires restarting the engine.
@@ -33,6 +42,9 @@ final class MonitoringController {
     self.levels = levels
     self.devices = devices
     self.settings = settings
+
+    let savedPollingRate = UserDefaults.standard.double(forKey: "pollingRate")
+    self.pollingRate = savedPollingRate > 0 ? savedPollingRate : 10.0
   }
 
   // MARK: - Polling
@@ -40,7 +52,9 @@ final class MonitoringController {
   /// Start polling state and VU levels.
   func startSubscriptions() {
     pollingTimer?.invalidate()
-    pollingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+    let interval = 1.0 / pollingRate
+    pollingTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) {
+      [weak self] _ in
       guard let self else { return }
       Task { @MainActor in
         await self.poll()
