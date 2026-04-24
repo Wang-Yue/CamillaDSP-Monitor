@@ -19,49 +19,80 @@ CARGO := cargo
 SWIFT := swift
 UNIFFI_BINDGEN := $(CARGO) run --bin uniffi-bindgen --
 
+# Source Files
+RUST_SRCS := $(shell find $(RUST_BRIDGE_DIR)/src -type f) $(RUST_BRIDGE_DIR)/Cargo.toml
+SWIFT_SRCS := $(shell find $(SWIFT_APP_DIR)/Sources -type f -not -name "camilladsp_ffi.swift")
+UDL_FILE := $(RUST_BRIDGE_DIR)/src/api.udl
+
 .PHONY: all build app clean install help
 
 # Default target
 all: app
 
-## build: Build everything in release mode
-build:
-	@echo "🚀 Starting CamillaDSP-Monitor Release Build..."
-	
-	@echo "🦀 Building Rust bridge in release mode (optimized for native CPU)..."
+# 1. Build Rust library
+$(RUST_BRIDGE_DIR)/target/release/libcamilladsp_ffi.a: $(RUST_SRCS)
+	@echo "🦀 Building Rust bridge..."
 	cd $(RUST_BRIDGE_DIR) && RUSTFLAGS='-C target-cpu=native' $(CARGO) build --release
-	
+
+# 2. Generate UniFFI bindings
+$(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift: $(UDL_FILE)
 	@echo "🧬 Generating UniFFI bindings..."
+	@mkdir -p $(RUST_BRIDGE_DIR)/generated/swift
 	cd $(RUST_BRIDGE_DIR) && $(UNIFFI_BINDGEN) generate src/api.udl --language swift --out-dir generated/swift
-	
-	@echo "📂 Syncing artifacts to Swift project..."
-	mkdir -p $(SWIFT_APP_DIR)/lib
-	mkdir -p $(SWIFT_APP_DIR)/Sources/CamillaDSPFFI/include
-	cp $(RUST_BRIDGE_DIR)/target/release/libcamilladsp_ffi.a $(SWIFT_APP_DIR)/lib/
-	cp $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffiFFI.h $(SWIFT_APP_DIR)/Sources/CamillaDSPFFI/include/
-	cp $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffiFFI.modulemap $(SWIFT_APP_DIR)/Sources/CamillaDSPFFI/include/module.modulemap
-	cp $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift $(SWIFT_APP_DIR)/Sources/CamillaDSPLib/
-	
-	@echo "🔧 Patching generated Swift code for concurrency safety..."
-	sed -i '' 's/private var initializationResult: InitializationResult/private nonisolated(unsafe) var initializationResult: InitializationResult/g' $(SWIFT_APP_DIR)/Sources/CamillaDSPLib/camilladsp_ffi.swift
-	
-	@echo "🔨 Running ranlib on static library..."
-	ranlib $(SWIFT_APP_DIR)/lib/libcamilladsp_ffi.a
-	
-	@echo "🍎 Building Swift application in release mode..."
+
+# 3. Sync artifacts to Swift project (Only if changed to preserve timestamps)
+lib/libcamilladsp_ffi.a: $(RUST_BRIDGE_DIR)/target/release/libcamilladsp_ffi.a
+	@mkdir -p lib
+	@if ! cmp -s $< $@; then \
+		echo "📂 Updating library artifact..."; \
+		cp $< $@; \
+		ranlib $@; \
+	fi
+
+Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h: $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffiFFI.h
+	@mkdir -p Sources/CamillaDSPFFI/include
+	@if ! cmp -s $< $@; then \
+		echo "📂 Updating C header..."; \
+		cp $< $@; \
+	fi
+
+Sources/CamillaDSPFFI/include/module.modulemap: $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffiFFI.modulemap
+	@mkdir -p Sources/CamillaDSPFFI/include
+	@if ! cmp -s $< $@; then \
+		echo "📂 Updating module map..."; \
+		cp $< $@; \
+	fi
+
+Sources/CamillaDSPLib/camilladsp_ffi.swift: $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift
+	@mkdir -p Sources/CamillaDSPLib
+	@cp $< $@.tmp
+	@echo "🔧 Patching Swift code for concurrency safety..."
+	@sed -i '' 's/private var initializationResult: InitializationResult/private nonisolated(unsafe) var initializationResult: InitializationResult/g' $@.tmp
+	@if ! cmp -s $@.tmp $@; then \
+		echo "📂 Updating Swift bindings..."; \
+		mv $@.tmp $@; \
+	else \
+		rm $@.tmp; \
+	fi
+
+# 4. Build Swift application
+$(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/CamillaDSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS)
+	@echo "🍎 Building Swift application..."
 	cd $(SWIFT_APP_DIR) && $(SWIFT) build -c release
-	
+
+## build: Build everything with incremental tracking
+build: $(EXECUTABLE)
 	@echo "\n✅ Build Complete!"
 	@echo "📍 Binary location: $(EXECUTABLE)"
 
 ## app: Build and package as a macOS Application (.app)
 app: build
 	@echo "📦 Packaging as $(APP_BUNDLE)..."
-	mkdir -p $(MACOS)
-	mkdir -p $(RESOURCES)
-	cp $(EXECUTABLE) $(MACOS)/
+	@mkdir -p $(MACOS)
+	@mkdir -p $(RESOURCES)
+	@cp $(EXECUTABLE) $(MACOS)/
 	@echo "📄 Copying Info.plist..."
-	cp Info.plist $(CONTENTS)/
+	@cp Info.plist $(CONTENTS)/
 	@if [ -f "AppIcon.icns" ]; then \
 		echo "🖼️  Copying AppIcon.icns..."; \
 		cp AppIcon.icns $(RESOURCES)/; \
