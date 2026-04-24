@@ -15,9 +15,9 @@ RUST_BRIDGE_DIR := $(ROOT_DIR)/RustBridge
 SWIFT_APP_DIR := $(ROOT_DIR)
 
 # Tools
-CARGO := cargo
+CARGO := RUSTFLAGS='-C target-cpu=native' cargo
 SWIFT := swift
-UNIFFI_BINDGEN := $(CARGO) run --bin uniffi-bindgen --
+UNIFFI_BINDGEN := $(CARGO) run --release --bin uniffi-bindgen -- 
 
 # Source Files
 RUST_SRCS := $(shell find $(RUST_BRIDGE_DIR)/src -type f) $(RUST_BRIDGE_DIR)/Cargo.toml
@@ -32,7 +32,7 @@ all: app
 # 1. Build Rust library
 $(RUST_BRIDGE_DIR)/target/release/libcamilladsp_ffi.a: $(RUST_SRCS)
 	@echo "🦀 Building Rust bridge..."
-	cd $(RUST_BRIDGE_DIR) && RUSTFLAGS='-C target-cpu=native' $(CARGO) build --release
+	cd $(RUST_BRIDGE_DIR) && $(CARGO) build --release
 
 # 2. Generate UniFFI bindings
 $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift: $(UDL_FILE)
