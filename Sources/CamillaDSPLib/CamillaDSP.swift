@@ -1,13 +1,5 @@
 import Foundation
 
-public typealias PrcFmt = Double
-
-extension PrcFmt {
-  public static func toDB(_ linear: Float) -> Double {
-    linear <= 0 ? -100.0 : 20.0 * log10(Double(linear))
-  }
-}
-
 public enum AudioBackendError: Error, LocalizedError, Sendable {
   case commandFailed(String)
   case connectionFailed(String)
@@ -74,21 +66,12 @@ public struct AudioDeviceDescriptor: Codable, Sendable, Equatable {
   }
 }
 
-extension DspState: @unchecked Sendable {}
-extension DspVuLevels: @unchecked Sendable {}
-extension DspStatus: @unchecked Sendable {}
-extension DspError: @unchecked Sendable {}
-
 public actor DSPEngine {
   private nonisolated(unsafe) var engine: CamillaEngine?
 
   public init() {
     print("[DSPEngine] Initializing CamillaDSP library engine...")
     self.engine = CamillaEngine()
-  }
-
-  deinit {
-    // CamillaEngine will be cleaned up when dropped.
   }
 
   // MARK: - Commands

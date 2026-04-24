@@ -1,6 +1,5 @@
 // StageDetailView - Configuration UI for each pipeline stage
 
-import CamillaDSPLib
 import Observation
 import SwiftUI
 

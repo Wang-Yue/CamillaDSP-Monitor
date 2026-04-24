@@ -1,5 +1,4 @@
 import AppKit
-import CamillaDSPLib
 import SwiftUI
 
 @main

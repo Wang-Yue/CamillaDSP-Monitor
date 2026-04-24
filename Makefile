@@ -65,14 +65,9 @@ Sources/CamillaDSPFFI/include/module.modulemap: $(RUST_BRIDGE_DIR)/generated/swi
 
 Sources/CamillaDSPLib/camilladsp_ffi.swift: $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift
 	@mkdir -p Sources/CamillaDSPLib
-	@cp $< $@.tmp
-	@echo "🔧 Patching Swift code for concurrency safety..."
-	@sed -i '' 's/private var initializationResult: InitializationResult/private nonisolated(unsafe) var initializationResult: InitializationResult/g' $@.tmp
-	@if ! cmp -s $@.tmp $@; then \
+	@if ! cmp -s $< $@; then \
 		echo "📂 Updating Swift bindings..."; \
-		mv $@.tmp $@; \
-	else \
-		rm $@.tmp; \
+		cp $< $@; \
 	fi
 
 # 4. Build Swift application

@@ -1,6 +1,5 @@
 // EQPresetDetailView - Biquad EQ preset editor with three modes
 
-import CamillaDSPLib
 import Observation
 import SwiftUI
 
