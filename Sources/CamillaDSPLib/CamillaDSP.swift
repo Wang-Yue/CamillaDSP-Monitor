@@ -67,17 +67,15 @@ public struct AudioDeviceDescriptor: Codable, Sendable, Equatable {
 }
 
 public actor DSPEngine {
-  private nonisolated(unsafe) var engine: CamillaEngine?
+  let engine: CamillaEngine = CamillaEngine()
 
   public init() {
     print("[DSPEngine] Initializing CamillaDSP library engine...")
-    self.engine = CamillaEngine()
   }
 
   // MARK: - Commands
 
   public func start(configJson: String) async throws {
-    guard let engine = engine else { throw AudioBackendError.notConnected }
     do {
       try engine.setConfig(json: configJson)
     } catch {
@@ -86,27 +84,26 @@ public actor DSPEngine {
   }
 
   public func stop() async {
-    engine?.stop()
+    engine.stop()
   }
 
   public func setVolume(_ db: Double) async {
-    engine?.setVolume(fader: 0, volume: Float(db))
+    engine.setVolume(fader: 0, volume: Float(db))
   }
 
   public func setMute(_ mute: Bool) async {
-    engine?.setMute(fader: 0, mute: mute)
+    engine.setMute(fader: 0, mute: mute)
   }
 
   public func setFaderExternalVolume(fader: Int, db: Double) async {
-    engine?.setVolume(fader: UInt32(fader), volume: Float(db))
+    engine.setVolume(fader: UInt32(fader), volume: Float(db))
   }
 
   public func setFaderMute(fader: Int, mute: Bool) async {
-    engine?.setMute(fader: UInt32(fader), mute: mute)
+    engine.setMute(fader: UInt32(fader), mute: mute)
   }
 
   public func getAvailableDevices(backend: String, input: Bool) async -> [AudioDevice] {
-    guard let engine = engine else { return [] }
     let devices = engine.getAvailableDevices(backend: backend, input: input)
     return devices.map { AudioDevice(name: $0) }
   }
@@ -114,7 +111,6 @@ public actor DSPEngine {
   public func getDeviceCapabilities(
     backend: String, device: String, isCapture: Bool
   ) async -> AudioDeviceDescriptor? {
-    guard let engine = engine else { return nil }
     let json = engine.getDeviceCapabilities(backend: backend, device: device, input: isCapture)
     guard let data = json.data(using: .utf8) else { return nil }
     do {
@@ -128,7 +124,6 @@ public actor DSPEngine {
   // MARK: - Direct Fetch APIs
 
   public func getVuLevels() async -> VuLevels? {
-    guard let engine = engine else { return nil }
     let levels = engine.getVuLevels()
     return VuLevels(
       playback_rms: levels.playbackRms,
@@ -139,7 +134,6 @@ public actor DSPEngine {
   }
 
   public func getStatus() async -> StateUpdate? {
-    guard let engine = engine else { return nil }
     let status = engine.getStatus()
     return StateUpdate(
       state: "\(status.state)".uppercased(),
@@ -149,11 +143,10 @@ public actor DSPEngine {
   }
 
   public func getSpectrumBands() async -> [Float]? {
-    guard let engine = engine else { return nil }
     return engine.getSpectrumBands()
   }
 
   public func setLogLevel(_ level: String) async {
-    engine?.setLogLevel(level: level)
+    engine.setLogLevel(level: level)
   }
 }
