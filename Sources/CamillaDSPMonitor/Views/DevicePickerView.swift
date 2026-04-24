@@ -133,6 +133,9 @@ struct DevicePickerView: View {
                 Text("1024 samples").tag(1024)
                 Text("2048 samples").tag(2048)
                 Text("4096 samples").tag(4096)
+                Text("8192 samples").tag(8192)
+                Text("16384 samples").tag(16384)
+                Text("32768 samples").tag(32768)
               }
               .labelsHidden()
 

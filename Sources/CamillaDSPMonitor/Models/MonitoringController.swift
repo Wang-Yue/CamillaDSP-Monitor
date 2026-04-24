@@ -80,12 +80,12 @@ final class MonitoringController {
         playbackPeak: StereoLevel(from: vu.playback_peak),
         playbackRms: StereoLevel(from: vu.playback_rms)
       )
-    } else if currentStatus == .inactive {
+    } else {
       levels.reset()
     }
 
     // 3. Poll Spectrum Bands
-    if currentStatus == .running, let spectrum, spectrum.visibilityCount > 0 {
+    if currentStatus != .inactive, let spectrum, spectrum.visibilityCount > 0 {
       if let bands = await engine.getSpectrumBands(), !bands.isEmpty {
         spectrum.updateBands(bands)
       } else {
