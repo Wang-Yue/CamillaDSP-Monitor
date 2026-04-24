@@ -209,7 +209,12 @@ impl CamillaEngine {
     }
 
     pub fn get_spectrum_bands(&self) -> Vec<f32> {
-        self.spectrum_analyzer.write().compute_spectrum()
+        let snapshot = self.spectrum_analyzer.read().get_snapshot();
+        if let Some((input, window, fft, bins)) = snapshot {
+            SpectrumAnalyzer::process_snapshot(input, &window, fft, &bins)
+        } else {
+            vec![-100.0; 30]
+        }
     }
 
     pub fn set_log_level(&self, level: String) {

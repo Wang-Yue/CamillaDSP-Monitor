@@ -52,36 +52,48 @@ pub fn run_engine(
     let tx_cap_clone = tx_cap.clone();
     let spectrum_analyzer_tap = spectrum_analyzer.clone();
     std::thread::spawn(move || {
+        let mut local_mono = Vec::with_capacity(chunksize * 4);
         while let Ok(msg) = rx_cap_raw.recv() {
             if let AudioMessage::Audio(ref chunk) = msg {
                 let channels = chunk.channels;
                 let frames = chunk.valid_frames;
-                let mut mono = Vec::with_capacity(frames);
 
                 if chunk.waveforms.len() >= channels && channels >= 2 {
                     // Planar Stereo: sum L and R
+                    let l = &chunk.waveforms[0];
+                    let r = &chunk.waveforms[1];
                     for i in 0..frames {
-                        let sum = (chunk.waveforms[0][i] + chunk.waveforms[1][i]) * 0.5;
-                        mono.push(sum as f32);
+                        local_mono.push((l[i] + r[i]) as f32 * 0.5);
                     }
                 } else if chunk.waveforms.len() == 1 && channels >= 2 {
                     // Interleaved Stereo: sum L/R from single vector
                     let data = &chunk.waveforms[0];
                     for i in 0..frames {
                         let base = i * channels;
-                        let sum = (data[base] + data[base + 1]) * 0.5;
-                        mono.push(sum as f32);
+                        local_mono.push((data[base] + data[base + 1]) as f32 * 0.5);
                     }
                 } else if !chunk.waveforms.is_empty() {
-                    // Mono or other: take first channel/samples
+                    // Mono or other: take first channel
                     let data = &chunk.waveforms[0];
                     for &sample in data.iter().take(frames) {
-                        mono.push(sample as f32);
+                        local_mono.push(sample as f32);
                     }
                 }
 
-                if !mono.is_empty() {
-                    spectrum_analyzer_tap.write().add_samples(&mono, generation);
+                if !local_mono.is_empty() {
+                    // Critical: Use try_write to ensure we NEVER block the audio thread.
+                    // If the UI is currently taking a snapshot (briefly holding a read lock),
+                    // we just keep the samples in local_mono and flush them in the next chunk.
+                    // This preserves signal continuity (accuracy) without any blocking.
+                    if let Some(mut sa) = spectrum_analyzer_tap.try_write() {
+                        sa.add_samples(&local_mono, generation);
+                        local_mono.clear();
+                    }
+
+                    // Safety: Cap the local buffer to prevent memory issues if the lock is somehow hung
+                    if local_mono.len() > 32768 {
+                        local_mono.clear();
+                    }
                 }
             }
             if tx_cap_clone.send(msg).is_err() {

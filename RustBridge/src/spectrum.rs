@@ -1,10 +1,17 @@
+use num_complex::Complex;
 use realfft::{RealFftPlanner, RealToComplex};
 use std::sync::Arc;
 
 pub struct SpectrumAnalyzer {
+    // Circular buffer for incoming samples
     buffer: Vec<f32>,
     write_pos: usize,
     capacity: usize,
+
+    // Pre-allocated buffers
+    fft_input: Vec<f32>,
+    fft_output: Vec<Complex<f32>>,
+
     center_frequencies: Vec<f32>,
     cached_samplerate: u32,
     cached_chunksize: usize,
@@ -15,6 +22,13 @@ pub struct SpectrumAnalyzer {
     pub generation: u64,
 }
 
+type FftSnapshot = (
+    Vec<f32>,
+    Vec<f32>,
+    Arc<dyn RealToComplex<f32>>,
+    Vec<(usize, usize)>,
+);
+
 impl SpectrumAnalyzer {
     pub fn new() -> Self {
         let center_frequencies = vec![
@@ -22,11 +36,13 @@ impl SpectrumAnalyzer {
             500.0, 630.0, 800.0, 1000.0, 1250.0, 1600.0, 2000.0, 2500.0, 3150.0, 4000.0, 5000.0,
             6300.0, 8000.0, 10000.0, 12500.0, 16000.0, 20000.0,
         ];
-        let capacity = 32768; // Power of 2 for efficiency
+        let capacity = 65536;
         Self {
             buffer: vec![0.0; capacity],
             write_pos: 0,
             capacity,
+            fft_input: Vec::new(),
+            fft_output: Vec::new(),
             center_frequencies,
             cached_samplerate: 0,
             cached_chunksize: 0,
@@ -45,14 +61,30 @@ impl SpectrumAnalyzer {
         self.update_cache(samplerate, chunk_size);
     }
 
+    // High-performance sample addition. Must be fast.
     pub fn add_samples(&mut self, samples: &[f32], generation: u64) {
-        if generation != self.generation {
+        if generation != self.generation || samples.is_empty() {
             return;
         }
-        // Zero-allocation push to fixed ring buffer
-        for &s in samples {
-            self.buffer[self.write_pos] = s;
-            self.write_pos = (self.write_pos + 1) % self.capacity;
+
+        let n = samples.len();
+        if n >= self.capacity {
+            let start = n - self.capacity;
+            self.buffer.copy_from_slice(&samples[start..]);
+            self.write_pos = 0;
+            return;
+        }
+
+        let first_part = n.min(self.capacity - self.write_pos);
+        self.buffer[self.write_pos..self.write_pos + first_part]
+            .copy_from_slice(&samples[..first_part]);
+
+        if n > first_part {
+            let second_part = n - first_part;
+            self.buffer[..second_part].copy_from_slice(&samples[first_part..]);
+            self.write_pos = second_part;
+        } else {
+            self.write_pos = (self.write_pos + first_part) % self.capacity;
         }
     }
 
@@ -84,7 +116,6 @@ impl SpectrumAnalyzer {
             fft_n *= 2;
         }
 
-        // Clamp FFT size to buffer capacity
         let fft_n = fft_n.min(self.capacity);
 
         let bin_width = self.cached_samplerate as f32 / fft_n as f32;
@@ -104,51 +135,86 @@ impl SpectrumAnalyzer {
             band_bins.push((lo, hi));
         }
 
+        // Use Blackman-Harris window for much better sideband suppression (-92dB)
+        // compared to Hann (-32dB). This fixes "sidebands" around pure tones.
         let mut window = vec![0.0f32; fft_n];
-        for (i, val) in window.iter_mut().enumerate().take(fft_n) {
-            *val = 0.5 * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / (fft_n - 1) as f32).cos());
+        let a0 = 0.35875;
+        let a1 = 0.48829;
+        let a2 = 0.14128;
+        let a3 = 0.01168;
+        for (i, val) in window.iter_mut().enumerate() {
+            let t = 2.0 * std::f32::consts::PI * i as f32 / (fft_n - 1) as f32;
+            *val = a0 - a1 * t.cos() + a2 * (2.0 * t).cos() - a3 * (3.0 * t).cos();
         }
 
         let mut planner = RealFftPlanner::<f32>::new();
-        self.cached_fft = Some(planner.plan_fft_forward(fft_n));
+        let fft = planner.plan_fft_forward(fft_n);
+
+        self.fft_input = vec![0.0f32; fft_n];
+        self.fft_output = fft.make_output_vec();
+
+        self.cached_fft = Some(fft);
         self.cached_fft_n = fft_n;
         self.cached_bins = band_bins;
         self.cached_window = window;
     }
 
-    pub fn compute_spectrum(&mut self) -> Vec<f32> {
-        if self.cached_samplerate == 0 || self.cached_fft_n == 0 || self.cached_fft.is_none() {
-            return vec![-100.0; 30];
+    // This method now performs ONLY the data copy.
+    // It returns the snapshot and the necessary state for FFT.
+    pub fn get_snapshot(&self) -> Option<FftSnapshot> {
+        if self.cached_fft_n == 0 || self.cached_fft.is_none() {
+            return None;
         }
 
         let fft_n = self.cached_fft_n;
         let mut input = vec![0.0f32; fft_n];
 
-        // Reconstruct contiguous window from circular buffer
-        for (i, val) in input.iter_mut().enumerate().take(fft_n) {
-            // Index logic: write_pos is the NEXT write position,
-            // so write_pos - fft_n + i is the correct sequence.
-            let idx = (self.write_pos + self.capacity - fft_n + i) % self.capacity;
-            *val = self.buffer[idx] * self.cached_window[i];
+        let first_part_len = fft_n.min(self.write_pos);
+        if first_part_len < fft_n {
+            let second_part_len = fft_n - first_part_len;
+            let second_part_start = self.capacity - second_part_len;
+            input[..second_part_len].copy_from_slice(&self.buffer[second_part_start..]);
+            input[second_part_len..].copy_from_slice(&self.buffer[..first_part_len]);
+        } else {
+            let start = self.write_pos - fft_n;
+            input.copy_from_slice(&self.buffer[start..self.write_pos]);
         }
 
-        let fft = self.cached_fft.as_ref().unwrap().clone();
+        Some((
+            input,
+            self.cached_window.clone(),
+            self.cached_fft.as_ref().unwrap().clone(),
+            self.cached_bins.clone(),
+        ))
+    }
+
+    // Static helper to process the snapshot outside the lock
+    pub fn process_snapshot(
+        mut input: Vec<f32>,
+        window: &[f32],
+        fft: Arc<dyn RealToComplex<f32>>,
+        bins: &[(usize, usize)],
+    ) -> Vec<f32> {
+        let fft_n = input.len();
+
+        // 1. Apply window
+        for (i, val) in input.iter_mut().enumerate() {
+            *val *= window[i];
+        }
+
+        // 2. FFT
         let mut output = fft.make_output_vec();
         if fft.process(&mut input, &mut output).is_err() {
             return vec![-100.0; 30];
         }
 
-        let norm_scale = 4.0 / fft_n as f32;
-        let to_db = |linear: f32| {
-            if linear <= 0.0000000001f32 {
-                -100.0f32
-            } else {
-                20.0f32 * linear.log10()
-            }
-        };
-
+        // 3. Bands
+        // Blackman-Harris coherent gain is ~0.35875.
+        // Normalization scale: 2.0 (single-sided) / (fft_n * 0.35875)
+        let norm_scale = 2.0 / (fft_n as f32 * 0.35875);
         let mut new_bands = vec![-100.0f32; 30];
-        for (i, &(lo, hi)) in self.cached_bins.iter().enumerate() {
+
+        for (i, &(lo, hi)) in bins.iter().enumerate() {
             let mut peak_mag = 0.0f32;
             for bin in lo..=hi {
                 if bin < output.len() {
@@ -158,7 +224,12 @@ impl SpectrumAnalyzer {
                     }
                 }
             }
-            new_bands[i] = to_db(peak_mag);
+
+            new_bands[i] = if peak_mag <= 0.0000000001f32 {
+                -100.0f32
+            } else {
+                20.0f32 * peak_mag.log10()
+            };
         }
 
         new_bands
