@@ -126,6 +126,7 @@ struct DualLevelMeterView: View {
         .font(.system(.caption, design: .monospaced))
         .foregroundStyle(.secondary)
         .frame(width: 14)
+        .fixedSize()
 
       LevelMeterCanvas(peak: peak, rms: rms)
         .frame(height: 18)
@@ -135,9 +136,11 @@ struct DualLevelMeterView: View {
         Text(String(format: "%5.1f", rms))
           .font(.system(size: 9, design: .monospaced))
           .foregroundStyle(.secondary)
+          .fixedSize()
         Text(String(format: "%5.1f", peak))
           .font(.system(size: 9, design: .monospaced))
           .foregroundStyle(.tertiary)
+          .fixedSize()
       }
       .frame(width: 44, alignment: .trailing)
     }

@@ -79,12 +79,38 @@ struct AnalogVUMeter: View {
   private let bulbAmberColor = Color(red: 1.0, green: 0.82, blue: 0.40)
   private let refLevel = -18.0
 
+  private let vuMarks: [(v: Double, l: String?)] = [
+    (-20, "20"), (-10, "10"), (-7, "7"), (-5, "5"), (-3, "3"), (-2, "2"), (-1, "1"), (0, "0"),
+    (1, "1"), (2, "2"), (3, "3"),
+  ]
+
   var body: some View {
     let scale = height / 160.0
+    let vintageFont = Font.custom("Rockwell", size: 10 * scale)
+
     VStack(spacing: 8 * scale) {
-      Canvas { context, size in
-        drawVURenderer(context: &context, size: size, level: level, scale: scale)
-      }
+      Canvas(
+        renderer: { context, size in
+          drawVURenderer(context: &context, size: size, level: level, scale: scale)
+        },
+        symbols: {
+          ForEach(0..<vuMarks.count, id: \.self) { i in
+            if let text = vuMarks[i].l {
+              let color = vuMarks[i].v >= 0 ? Color.red : Color.primary
+              Text(text)
+                .font(vintageFont)
+                .foregroundColor(color.opacity(0.6))
+                .tag(i)
+            }
+          }
+          ForEach([0, 20, 40, 60, 80, 100], id: \.self) { p in
+            Text("\(p)")
+              .font(vintageFont)
+              .foregroundColor(.primary.opacity(0.3))
+              .tag(1000 + p)
+          }
+        }
+      )
       .frame(height: height)
       .overlay(
         RoundedRectangle(cornerRadius: 6 * scale).stroke(
@@ -150,16 +176,10 @@ struct AnalogVUMeter: View {
           endAngle: .degrees(endAngle), clockwise: false)
       }, with: .color(.primary.opacity(0.6)), lineWidth: 1.8 * scale)
 
-    // 4. Rockwell Typography
-    let vintageFont = Font.custom("Rockwell", size: 10 * scale)
+    // 4. Marks Drawing
 
     // VU Markings (ABOVE)
-    let vuMarks: [(v: Double, l: String?)] = [
-      (-20, "20"), (-10, "10"), (-7, "7"), (-5, "5"), (-3, "3"), (-2, "2"), (-1, "1"), (0, "0"),
-      (1, "1"), (2, "2"), (3, "3"),
-    ]
-
-    for m in vuMarks {
+    for (i, m) in vuMarks.enumerated() {
       let angDeg = angleForVU(m.v)
       let angRad = angDeg * .pi / 180
       let color = m.v >= 0 ? Color.red : Color.primary
@@ -176,14 +196,16 @@ struct AnalogVUMeter: View {
           p.addLine(to: e)
         }, with: .color(color.opacity(0.7)), lineWidth: 1.8 * scale)
 
-      if let text = m.l {
+      if m.l != nil {
         let lR = radius + 18 * scale
         let lp = CGPoint(x: center.x + cosA * lR, y: center.y + sinA * lR)
         context.translateBy(x: lp.x, y: lp.y)
         context.rotate(by: .radians(angRad + .pi / 2))
-        context.draw(
-          Text(text).font(vintageFont).foregroundColor(color.opacity(0.6)), at: .zero,
-          anchor: .center)
+
+        if let symbol = context.resolveSymbol(id: i) {
+          context.draw(symbol, at: .zero, anchor: .center)
+        }
+
         context.rotate(by: .radians(-(angRad + .pi / 2)))
         context.translateBy(x: -lp.x, y: -lp.y)
       }
@@ -211,9 +233,11 @@ struct AnalogVUMeter: View {
       let lp = CGPoint(x: center.x + cosA * lR, y: center.y + sinA * lR)
       context.translateBy(x: lp.x, y: lp.y)
       context.rotate(by: .radians(angRad + .pi / 2))
-      context.draw(
-        Text("\(p)").font(vintageFont).foregroundColor(.primary.opacity(0.3)), at: .zero,
-        anchor: .center)
+
+      if let symbol = context.resolveSymbol(id: 1000 + p) {
+        context.draw(symbol, at: .zero, anchor: .center)
+      }
+
       context.rotate(by: .radians(-(angRad + .pi / 2)))
       context.translateBy(x: -lp.x, y: -lp.y)
     }

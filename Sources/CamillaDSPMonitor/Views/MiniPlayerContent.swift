@@ -77,6 +77,7 @@ struct MiniMeterRow: View {
         .font(.system(size: 10, weight: .medium, design: .monospaced))
         .foregroundStyle(.white.opacity(0.5))
         .frame(width: 12)
+        .fixedSize()
 
       LevelMeterCanvas(peak: peak, rms: rms, compact: true)
 
@@ -84,9 +85,11 @@ struct MiniMeterRow: View {
         Text(String(format: "%5.1f", rms))
           .font(.system(size: 9, design: .monospaced))
           .foregroundStyle(.white.opacity(0.7))
+          .fixedSize()
         Text(String(format: "%5.1f", peak))
           .font(.system(size: 9, design: .monospaced))
           .foregroundStyle(.white.opacity(0.4))
+          .fixedSize()
       }
       .frame(width: 38)
     }

@@ -58,10 +58,12 @@ struct ConsoleLogsView: View {
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .frame(width: 70, alignment: .leading)
+                .fixedSize()
 
               Text(entry.message)
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
             }
             .id(entry.id)
           }
