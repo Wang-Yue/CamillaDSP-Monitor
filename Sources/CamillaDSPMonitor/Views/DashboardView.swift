@@ -211,11 +211,18 @@ struct SpectrumCard: View {
   @Environment(SpectrumEngine.self) var spectrum
 
   var body: some View {
+    @Bindable var spectrum = spectrum
     VStack(alignment: .leading, spacing: 12) {
       HStack {
         Text("Spectrum").font(.headline)
         Spacer()
-        Text("FFT Pre-Processing").font(.caption).foregroundStyle(.tertiary)
+        Picker("Spectrum Source", selection: $spectrum.side) {
+          Text("Capture").tag("capture")
+          Text("Playback").tag("playback")
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 160)
       }
       SpectrumView(bands: spectrum.bands).frame(height: 160)
     }

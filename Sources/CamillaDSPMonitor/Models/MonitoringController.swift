@@ -86,8 +86,14 @@ final class MonitoringController {
 
     // 3. Poll Spectrum Bands
     if currentStatus != .inactive, let spectrum, spectrum.visibilityCount > 0 {
-      if let bands = await engine.getSpectrumBands(), !bands.isEmpty {
-        spectrum.updateBands(bands)
+      if let spectrumData = await engine.getSpectrum(
+        side: spectrum.side,
+        channel: spectrum.channel,
+        minFreq: spectrum.minFreq,
+        maxFreq: spectrum.maxFreq,
+        nBins: spectrum.nBins
+      ), !spectrumData.magnitudes.isEmpty {
+        spectrum.updateBands(spectrumData.magnitudes)
       } else {
         spectrum.reset()
       }

@@ -11,6 +11,13 @@ final class SpectrumEngine {
   /// Number of active spectrum views currently on screen.
   var visibilityCount: Int = 0
 
+  // Spectrum configuration
+  var minFreq: Double = 25.0
+  var maxFreq: Double = 20000.0
+  var nBins: UInt32 = 30
+  var side: String = "capture"
+  var channel: UInt32? = nil
+
   init() {}
 
   /// Update the bands with pre-computed values from the library.

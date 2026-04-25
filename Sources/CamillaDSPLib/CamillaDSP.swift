@@ -33,6 +33,12 @@ public struct StateUpdate: Sendable {
   public let stopReasonRate: Int?
 }
 
+/// Spectrum data.
+public struct Spectrum: Sendable {
+  public let frequencies: [Float]
+  public let magnitudes: [Float]
+}
+
 public struct AudioDevice: Identifiable, Sendable {
   public var id: String { name }
   public let name: String
@@ -134,8 +140,17 @@ public actor DSPEngine {
     )
   }
 
-  public func getSpectrumBands() async -> [Float]? {
-    return engine.getSpectrumBands()
+  public func getSpectrum(
+    side: String, channel: UInt32?, minFreq: Double, maxFreq: Double, nBins: UInt32
+  ) async -> Spectrum? {
+    do {
+      let data = try engine.getSpectrum(
+        side: side, channel: channel, minFreq: minFreq, maxFreq: maxFreq, nBins: nBins)
+      return Spectrum(frequencies: data.frequencies, magnitudes: data.magnitudes)
+    } catch {
+      print("[DSPEngine] Failed to get spectrum: \(error)")
+      return nil
+    }
   }
 
   public func setLogLevel(_ level: String) async {

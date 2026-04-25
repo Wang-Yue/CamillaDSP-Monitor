@@ -1,17 +1,15 @@
-use crate::spectrum::SpectrumAnalyzer;
 use camillalib::{
-    audiodevice, audiodevice::AudioMessage, config, processing, CommandMessage, ControllerMessage,
-    ExitState, ProcessingState, SharedConfigs, StatusMessage, StatusStructs, StopReason,
+    audiodevice, config, processing, CommandMessage, ControllerMessage, ExitState, ProcessingState,
+    SharedConfigs, StatusMessage, StatusStructs, StopReason,
 };
 use crossbeam_channel::{bounded, never, select, unbounded, Receiver};
-use parking_lot::{RwLock, RwLockUpgradableReadGuard};
+use parking_lot::RwLockUpgradableReadGuard;
 use std::sync::{Arc, Barrier};
 
 pub fn run_engine(
     shared_configs: SharedConfigs,
     status_structs: StatusStructs,
     rx_ctrl: Receiver<ControllerMessage>,
-    spectrum_analyzer: Arc<RwLock<SpectrumAnalyzer>>,
 ) -> Result<ExitState, String> {
     let mut is_starting = true;
     let mut active_config = match shared_configs.active.lock().clone() {
@@ -21,20 +19,8 @@ pub fn run_engine(
         }
     };
 
-    let chunksize = active_config.devices.chunksize;
-    let samplerate = active_config.devices.samplerate;
-    let generation;
-
-    // Explicitly reset analyzer with new format before starting threads
-    {
-        let mut sa = spectrum_analyzer.write();
-        sa.reset(samplerate as u32, chunksize);
-        generation = sa.generation;
-    }
-
     let (tx_pb, rx_pb) = bounded(active_config.devices.queuelimit());
     let (tx_cap, rx_cap) = bounded(active_config.devices.queuelimit());
-    let (tx_cap_raw, rx_cap_raw) = bounded(active_config.devices.queuelimit());
 
     let (tx_status, rx_status) = unbounded();
     let tx_status_pb = tx_status.clone();
@@ -47,60 +33,6 @@ pub fn run_engine(
     let barrier_pb = barrier.clone();
     let barrier_cap = barrier.clone();
     let barrier_proc = barrier.clone();
-
-    // Spawn the tap proxy thread
-    let tx_cap_clone = tx_cap.clone();
-    let spectrum_analyzer_tap = spectrum_analyzer.clone();
-    std::thread::spawn(move || {
-        let mut local_mono = Vec::with_capacity(chunksize * 4);
-        while let Ok(msg) = rx_cap_raw.recv() {
-            if let AudioMessage::Audio(ref chunk) = msg {
-                let channels = chunk.channels;
-                let frames = chunk.valid_frames;
-
-                if chunk.waveforms.len() >= channels && channels >= 2 {
-                    // Planar Stereo: sum L and R
-                    let l = &chunk.waveforms[0];
-                    let r = &chunk.waveforms[1];
-                    for i in 0..frames {
-                        local_mono.push((l[i] + r[i]) as f32 * 0.5);
-                    }
-                } else if chunk.waveforms.len() == 1 && channels >= 2 {
-                    // Interleaved Stereo: sum L/R from single vector
-                    let data = &chunk.waveforms[0];
-                    for i in 0..frames {
-                        let base = i * channels;
-                        local_mono.push((data[base] + data[base + 1]) as f32 * 0.5);
-                    }
-                } else if !chunk.waveforms.is_empty() {
-                    // Mono or other: take first channel
-                    let data = &chunk.waveforms[0];
-                    for &sample in data.iter().take(frames) {
-                        local_mono.push(sample as f32);
-                    }
-                }
-
-                if !local_mono.is_empty() {
-                    // Critical: Use try_write to ensure we NEVER block the audio thread.
-                    // If the UI is currently taking a snapshot (briefly holding a read lock),
-                    // we just keep the samples in local_mono and flush them in the next chunk.
-                    // This preserves signal continuity (accuracy) without any blocking.
-                    if let Some(mut sa) = spectrum_analyzer_tap.try_write() {
-                        sa.add_samples(&local_mono, generation);
-                        local_mono.clear();
-                    }
-
-                    // Safety: Cap the local buffer to prevent memory issues if the lock is somehow hung
-                    if local_mono.len() > 32768 {
-                        local_mono.clear();
-                    }
-                }
-            }
-            if tx_cap_clone.send(msg).is_err() {
-                break;
-            }
-        }
-    });
 
     let conf_pb = active_config.clone();
     let conf_cap = active_config.clone();
@@ -130,7 +62,7 @@ pub fn run_engine(
     let mut capture_dev = audiodevice::new_capture_device(conf_cap.devices);
     let cap_handle = capture_dev
         .start(
-            tx_cap_raw,
+            tx_cap,
             barrier_cap,
             tx_status_cap,
             rx_command_cap,

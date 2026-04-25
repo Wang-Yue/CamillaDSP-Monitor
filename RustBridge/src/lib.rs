@@ -8,17 +8,15 @@ use parking_lot::{Mutex, RwLock};
 use std::sync::Arc;
 
 mod engine;
-mod spectrum;
 mod types;
 
 use engine::run_engine;
-use spectrum::SpectrumAnalyzer;
-pub use types::{DspError, DspState, DspStatus, DspVuLevels};
+pub use types::{DspError, DspSpectrum, DspState, DspStatus, DspVuLevels};
 
 pub struct CamillaEngine {
     tx_command: Sender<ControllerMessage>,
     status_structs: StatusStructs,
-    spectrum_analyzer: Arc<RwLock<SpectrumAnalyzer>>,
+    active_config: Arc<Mutex<Option<config::Configuration>>>,
 }
 
 impl Default for CamillaEngine {
@@ -35,7 +33,7 @@ impl CamillaEngine {
         log::set_max_level(log::LevelFilter::Info);
 
         let (tx_command, rx_command) = bounded(10);
-        let spectrum_analyzer = Arc::new(RwLock::new(SpectrumAnalyzer::new()));
+        let active_config = Arc::new(Mutex::new(None));
 
         let capture_status = Arc::new(RwLock::new(camillalib::CaptureStatus {
             measured_samplerate: 0,
@@ -46,6 +44,7 @@ impl CamillaEngine {
             signal_rms: countertimer::ValueHistory::new(1024, 2),
             signal_peak: countertimer::ValueHistory::new(1024, 2),
             used_channels: Vec::new(),
+            audio_buffer: Default::default(),
         }));
         let playback_status = Arc::new(RwLock::new(camillalib::PlaybackStatus {
             buffer_level: 0,
@@ -53,6 +52,7 @@ impl CamillaEngine {
             update_interval: 1000,
             signal_rms: countertimer::ValueHistory::new(1024, 2),
             signal_peak: countertimer::ValueHistory::new(1024, 2),
+            audio_buffer: Default::default(),
         }));
         let processing_params = Arc::new(camillalib::ProcessingParameters::default());
         let processing_status = Arc::new(RwLock::new(camillalib::ProcessingStatus {
@@ -69,13 +69,11 @@ impl CamillaEngine {
         let engine = CamillaEngine {
             tx_command: tx_command.clone(),
             status_structs: status_structs.clone(),
-            spectrum_analyzer: spectrum_analyzer.clone(),
+            active_config: active_config.clone(),
         };
 
         let status_structs_clone = status_structs.clone();
-        let spectrum_analyzer_clone = spectrum_analyzer;
         std::thread::spawn(move || {
-            let active_config = Arc::new(Mutex::new(None));
             let previous_config = Arc::new(Mutex::new(None));
 
             loop {
@@ -110,7 +108,6 @@ impl CamillaEngine {
                     shared_configs,
                     status_structs_clone.clone(),
                     rx_command.clone(),
-                    spectrum_analyzer_clone.clone(),
                 );
                 debug!("FFI Engine: Processing ended with status {:?}", exitstatus);
 
@@ -208,12 +205,46 @@ impl CamillaEngine {
         }
     }
 
-    pub fn get_spectrum_bands(&self) -> Vec<f32> {
-        let snapshot = self.spectrum_analyzer.read().get_snapshot();
-        if let Some((input, window, fft, bins)) = snapshot {
-            SpectrumAnalyzer::process_snapshot(input, &window, fft, &bins)
-        } else {
-            vec![-100.0; 30]
+    pub fn get_spectrum(
+        &self,
+        side: String,
+        channel: Option<u32>,
+        min_freq: f64,
+        max_freq: f64,
+        n_bins: u32,
+    ) -> Result<types::DspSpectrum, DspError> {
+        let samplerate = self
+            .active_config
+            .lock()
+            .as_ref()
+            .map(|c| c.devices.samplerate)
+            .unwrap_or(0);
+        if samplerate == 0 {
+            return Err(DspError::Error);
+        }
+
+        let channel = channel.map(|c| c as usize);
+        let n_bins = n_bins as usize;
+
+        let buffer = match side.as_str() {
+            "capture" => self.status_structs.capture.read().audio_buffer.clone(),
+            "playback" => self.status_structs.playback.read().audio_buffer.clone(),
+            _ => return Err(DspError::Error),
+        };
+
+        match camillalib::spectrum::compute_spectrum(
+            &buffer,
+            min_freq,
+            max_freq,
+            n_bins,
+            channel,
+            samplerate,
+        ) {
+            Ok(data) => Ok(types::DspSpectrum {
+                frequencies: data.frequencies.to_vec(),
+                magnitudes: data.magnitudes,
+            }),
+            Err(_) => Err(DspError::Error),
         }
     }
 

@@ -65,3 +65,8 @@ pub fn parse_stop_reason(reason: &StopReason) -> (String, Option<u32>) {
     };
     (text.to_string(), rate)
 }
+
+pub struct DspSpectrum {
+    pub frequencies: Vec<f32>,
+    pub magnitudes: Vec<f32>,
+}

@@ -26,6 +26,11 @@ enum DspError {
     "Error"
 };
 
+dictionary DspSpectrum {
+    sequence<f32> frequencies;
+    sequence<f32> magnitudes;
+};
+
 interface CamillaEngine {
     constructor();
     [Throws=DspError]
@@ -37,6 +42,7 @@ interface CamillaEngine {
     DspVuLevels get_vu_levels();
     sequence<string> get_available_devices(string backend, boolean input);
     string get_device_capabilities(string backend, string device, boolean input);
-    sequence<float> get_spectrum_bands();
+    [Throws=DspError]
+    DspSpectrum get_spectrum(string side, u32? channel, f64 min_freq, f64 max_freq, u32 n_bins);
     void set_log_level(string level);
 };
