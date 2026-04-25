@@ -203,7 +203,11 @@ struct LevelMetersCard: View {
             label: "R", peak: levels.playbackPeak.right, rms: levels.playbackRms.right)
         }
       }
-    }.padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+    .padding()
+    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+    .onAppear { levels.visibilityCount += 1 }
+    .onDisappear { levels.visibilityCount -= 1 }
   }
 }
 

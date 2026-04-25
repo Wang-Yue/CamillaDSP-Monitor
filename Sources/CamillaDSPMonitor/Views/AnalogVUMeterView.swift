@@ -290,6 +290,8 @@ struct AnalogVUCard: View {
       }
     }
     .padding()
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+    .onAppear { levels.visibilityCount += 1 }
+    .onDisappear { levels.visibilityCount -= 1 }
   }
 }

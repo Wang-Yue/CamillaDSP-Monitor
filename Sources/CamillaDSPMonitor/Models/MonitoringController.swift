@@ -73,7 +73,7 @@ final class MonitoringController {
     }
 
     // 2. Poll VU Levels
-    if currentStatus != .inactive, let vu = await engine.getVuLevels() {
+    if currentStatus != .inactive, levels.visibilityCount > 0, let vu = await engine.getVuLevels() {
       levels.update(
         capturePeak: StereoLevel(from: vu.capture_peak),
         captureRms: StereoLevel(from: vu.capture_rms),
@@ -85,19 +85,17 @@ final class MonitoringController {
     }
 
     // 3. Poll Spectrum Bands
-    if currentStatus != .inactive, let spectrum, spectrum.visibilityCount > 0 {
-      if let spectrumData = await engine.getSpectrum(
+    if currentStatus != .inactive, let spectrum, spectrum.visibilityCount > 0,
+      let spectrumData = await engine.getSpectrum(
         side: spectrum.side,
         channel: nil,
         minFreq: spectrum.minFreq,
         maxFreq: spectrum.maxFreq,
         nBins: spectrum.nBins
-      ), !spectrumData.magnitudes.isEmpty {
-        spectrum.updateSpectrum(
-          frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
-      } else {
-        spectrum.reset()
-      }
+      ), !spectrumData.magnitudes.isEmpty
+    {
+      spectrum.updateSpectrum(
+        frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
     } else {
       spectrum?.reset()
     }

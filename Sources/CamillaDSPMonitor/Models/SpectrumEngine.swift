@@ -50,8 +50,10 @@ final class SpectrumEngine {
   }
 
   func reset() {
-    bands = nil
-    frequencies = nil
+    if bands != nil || frequencies != nil {
+      bands = nil
+      frequencies = nil
+    }
   }
 
   func resetToDefaults() {

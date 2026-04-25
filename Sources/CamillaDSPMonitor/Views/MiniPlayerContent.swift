@@ -63,6 +63,8 @@ struct MiniMetersView: View {
       MiniMeterRow(label: "R", peak: levels.playbackPeak.right, rms: levels.playbackRms.right)
     }
     .frame(height: 60)
+    .onAppear { levels.visibilityCount += 1 }
+    .onDisappear { levels.visibilityCount -= 1 }
   }
 }
 
@@ -110,5 +112,7 @@ struct MiniAnalogVUView: View {
         level: levels.playbackRms.right, label: "R", params: vuSettings.params, height: 50)
     }
     .frame(height: 60)
+    .onAppear { levels.visibilityCount += 1 }
+    .onDisappear { levels.visibilityCount -= 1 }
   }
 }

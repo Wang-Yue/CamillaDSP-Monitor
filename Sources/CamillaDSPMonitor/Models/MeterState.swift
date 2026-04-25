@@ -26,6 +26,7 @@ struct StereoLevel: Sendable, Equatable {
 @MainActor
 @Observable
 final class LevelState {
+  var visibilityCount: Int = 0
   var capturePeak: StereoLevel = .silent
   var captureRms: StereoLevel = .silent
   var playbackPeak: StereoLevel = .silent
@@ -42,8 +43,12 @@ final class LevelState {
   }
 
   func reset() {
-    update(
-      capturePeak: .silent, captureRms: .silent,
-      playbackPeak: .silent, playbackRms: .silent)
+    if capturePeak != .silent || captureRms != .silent || playbackPeak != .silent
+      || playbackRms != .silent
+    {
+      update(
+        capturePeak: .silent, captureRms: .silent,
+        playbackPeak: .silent, playbackRms: .silent)
+    }
   }
 }

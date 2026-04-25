@@ -171,6 +171,8 @@ struct CompactLevelMeterBar: View {
       Spacer()
       CompactStatusIndicator()
     }
+    .onAppear { levels.visibilityCount += 1 }
+    .onDisappear { levels.visibilityCount -= 1 }
   }
 }
 
