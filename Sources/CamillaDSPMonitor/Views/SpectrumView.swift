@@ -74,7 +74,7 @@ private struct SpectrumGridView: View, Equatable {
           context.draw(
             Text(label).font(.system(size: 7)).foregroundColor(
               .secondary.opacity(0.7)),
-            at: CGPoint(x: x + barWidth / 2, y: maxHeight + 10))
+            at: CGPoint(x: x + barWidth / 2, y: SPECTRUM_TOP_PADDING + maxHeight + 10))
         }
       }
     }
