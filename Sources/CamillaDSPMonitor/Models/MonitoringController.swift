@@ -12,7 +12,7 @@ final class MonitoringController {
   let levels: LevelState
   let devices: AudioDeviceManager
   let settings: AudioSettings
-  var spectrum: SpectrumEngine?
+  let spectrum: SpectrumEngine
 
   var pollingRate: Double = 10.0 {
     didSet {
@@ -35,11 +35,12 @@ final class MonitoringController {
   // MARK: - Init
 
   init(
-    engine: DSPEngine, levels: LevelState,
+    engine: DSPEngine, levels: LevelState, spectrum: SpectrumEngine,
     devices: AudioDeviceManager, settings: AudioSettings
   ) {
     self.engine = engine
     self.levels = levels
+    self.spectrum = spectrum
     self.devices = devices
     self.settings = settings
 
@@ -73,7 +74,9 @@ final class MonitoringController {
     }
 
     // 2. Poll VU Levels
-    if currentStatus != .inactive, levels.visibilityCount > 0, let vu = await engine.getVuLevels() {
+    if currentStatus != .inactive, currentStatus != .paused, levels.visibilityCount > 0,
+      let vu = await engine.getVuLevels()
+    {
       levels.update(
         capturePeak: StereoLevel(from: vu.capture_peak),
         captureRms: StereoLevel(from: vu.capture_rms),
@@ -85,7 +88,7 @@ final class MonitoringController {
     }
 
     // 3. Poll Spectrum Bands
-    if currentStatus != .inactive, let spectrum, spectrum.visibilityCount > 0,
+    if currentStatus != .inactive, currentStatus != .paused, spectrum.visibilityCount > 0,
       let spectrumData = await engine.getSpectrum(
         side: spectrum.side,
         channel: nil,
@@ -97,7 +100,7 @@ final class MonitoringController {
       spectrum.updateSpectrum(
         frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
     } else {
-      spectrum?.reset()
+      spectrum.reset()
     }
   }
 
@@ -117,8 +120,9 @@ final class MonitoringController {
     if let newStatus, newStatus != currentStatus {
       currentStatus = newStatus
       onStatusChange?(newStatus)
-      if newStatus == .inactive {
+      if newStatus == .inactive || newStatus == .paused {
         levels.reset()
+        spectrum.reset()
       }
     }
 

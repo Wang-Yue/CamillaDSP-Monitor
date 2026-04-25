@@ -31,7 +31,7 @@ struct CamillaDSPMonitorApp: App {
       GeneralSettingsView()
         .environment(appState.settings)
         .environment(appState.monitoring)
-        .frame(width: 450, height: 160)
+        .frame(width: 450, height: 320)
     }
   }
 

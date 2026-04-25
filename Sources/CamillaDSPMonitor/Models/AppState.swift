@@ -36,14 +36,13 @@ final class AppState {
     let pipeline = PipelineStore()
     let levels = LevelState()
     let devices = AudioDeviceManager(engine: engine, settings: settings)
+    let spectrum = SpectrumEngine()
     let monitoring = MonitoringController(
-      engine: engine, levels: levels,
+      engine: engine, levels: levels, spectrum: spectrum,
       devices: devices, settings: settings)
     let dsp = DSPEngineController(
       engine: engine, devices: devices, settings: settings, pipeline: pipeline,
       monitoring: monitoring, levels: levels)
-    let spectrum = SpectrumEngine()
-    monitoring.spectrum = spectrum
     logManager.setEngine(engine)
 
     self.settings = settings
@@ -51,8 +50,8 @@ final class AppState {
     self.devices = devices
     self.monitoring = monitoring
     self.dsp = dsp
-    self.spectrum = spectrum
     self.levels = levels
+    self.spectrum = spectrum
 
     // Load persisted preferences.
     settings.loadPreferences()

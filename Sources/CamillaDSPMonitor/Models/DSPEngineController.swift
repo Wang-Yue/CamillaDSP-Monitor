@@ -96,6 +96,11 @@ final class DSPEngineController {
       ],
     ]
 
+    if settings.silenceTimeout > 0 {
+      devicesDict["silence_threshold"] = settings.silenceThreshold
+      devicesDict["silence_timeout"] = settings.silenceTimeout
+    }
+
     if settings.resamplerEnabled {
       devicesDict["capture_samplerate"] = devices.captureConfig.sampleRate
       switch settings.resamplerType {

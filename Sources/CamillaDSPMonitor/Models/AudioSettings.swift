@@ -73,6 +73,18 @@ final class AudioSettings {
   var isMuted: Bool = false {
     didSet { defaults.set(isMuted, forKey: "isMuted") }
   }
+  var silenceThreshold: Double = -60.0 {
+    didSet {
+      defaults.set(silenceThreshold, forKey: "silenceThreshold")
+      onChanged?()
+    }
+  }
+  var silenceTimeout: Double = 0.0 {
+    didSet {
+      defaults.set(silenceTimeout, forKey: "silenceTimeout")
+      onChanged?()
+    }
+  }
 
   /// Fired when a setting that affects the DSP config changes. Volume and mute are excluded
   /// because they are applied as live engine commands by DSPEngineController, not via a full
@@ -86,6 +98,10 @@ final class AudioSettings {
     isMuted = defaults.bool(forKey: "isMuted")
     enableRateAdjust = defaults.bool(forKey: "enableRateAdjust")
     resamplerEnabled = defaults.bool(forKey: "resamplerEnabled")
+
+    silenceThreshold = defaults.object(forKey: "silenceThreshold") as? Double ?? -60.0
+    silenceTimeout = defaults.object(forKey: "silenceTimeout") as? Double ?? 0.0
+
     if let t = defaults.string(forKey: "resamplerType"), let type = ResamplerType(rawValue: t) {
       resamplerType = type
     }
