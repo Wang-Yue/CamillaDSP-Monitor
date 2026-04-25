@@ -27,12 +27,13 @@ struct VolumeControlView: View {
         ),
         in: -60...20
       )
-      .frame(width: 200)
+      .frame(width: 400)
 
       Text(String(format: "%+.1f dB", settings.volume))
         .font(.system(.caption, design: .monospaced))
         .foregroundStyle(settings.volume > 0 ? .red : .primary)
-        .frame(width: 65, alignment: .trailing)
+        .frame(width: 50, alignment: .trailing)
+        .padding(.trailing, 10)
     }
   }
 }
