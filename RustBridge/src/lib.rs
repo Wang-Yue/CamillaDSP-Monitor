@@ -225,20 +225,24 @@ impl CamillaEngine {
 
         let channel = channel.map(|c| c as usize);
         let n_bins = n_bins as usize;
+        let fft_len = camillalib::spectrum::fft_length_for(min_freq, samplerate);
 
-        let buffer = match side.as_str() {
-            "capture" => self.status_structs.capture.read().audio_buffer.clone(),
-            "playback" => self.status_structs.playback.read().audio_buffer.clone(),
+        let signal = match side.as_str() {
+            "capture" => {
+                let status = self.status_structs.capture.read();
+                status.audio_buffer.read_latest(fft_len, channel)
+            }
+            "playback" => {
+                let status = self.status_structs.playback.read();
+                status.audio_buffer.read_latest(fft_len, channel)
+            }
             _ => return Err(DspError::Error),
         };
 
-        match camillalib::spectrum::compute_spectrum(
-            &buffer,
-            min_freq,
-            max_freq,
-            n_bins,
-            channel,
-            samplerate,
+        let signal = signal.ok_or(DspError::Error)?;
+
+        match camillalib::spectrum::compute_spectrum_from_signal(
+            signal, min_freq, max_freq, n_bins, samplerate,
         ) {
             Ok(data) => Ok(types::DspSpectrum {
                 frequencies: data.frequencies.to_vec(),
