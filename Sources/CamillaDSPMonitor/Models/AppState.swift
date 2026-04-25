@@ -54,6 +54,9 @@ final class AppState {
     self.spectrum = spectrum
     self.levels = levels
 
+    // Load persisted preferences.
+    settings.loadPreferences()
+
     // Wire callbacks after all objects exist.
     settings.onChanged = { [weak devices, weak dsp] in
       devices?.validateSampleRates()
@@ -65,9 +68,6 @@ final class AppState {
     pipeline.onChanged = { [weak dsp] in
       dsp?.applyConfig()
     }
-
-    // Load persisted preferences.
-    settings.loadPreferences()
     pipeline.eqPresets = pipeline.loadEQPresets()
     pipeline.createDefaultEQPresetsIfNeeded()
     pipeline.loadPipelineStages()
