@@ -7,12 +7,13 @@ import SwiftUI
 
 struct SpectrumView: View {
   let bands: [Double]?  // dB values for each band
+  let frequencies: [Double]?  // Add this
 
   var body: some View {
     ZStack {
       // Static grid layer — only redraws on size change, not on band value updates.
       // This avoids expensive CoreText/ICU text resolution every 100ms frame.
-      SpectrumGridView()
+      SpectrumGridView(frequencies: frequencies).equatable()
 
       // Dynamic bars layer — redraws at 10 Hz with band data
       if let bands = bands {
@@ -29,12 +30,12 @@ struct SpectrumView: View {
 
 /// Static grid overlay for SpectrumView. Separated so SwiftUI only redraws it
 /// when the view size changes, not on every band data update (10 Hz).
-private struct SpectrumGridView: View {
-  private static let labels: [String] = [
-    "25", "31.5", "40", "50", "63", "80", "100", "125", "160", "200", "250",
-    "315", "400", "500", "630", "800", "1k", "1k25", "1k6", "2k", "2k5",
-    "3k15", "4k", "5k", "6k3", "8k", "10k", "12k5", "16k", "20k",
-  ]
+private struct SpectrumGridView: View, Equatable {
+  let frequencies: [Double]?  // Add this
+
+  nonisolated static func == (lhs: SpectrumGridView, rhs: SpectrumGridView) -> Bool {
+    lhs.frequencies == rhs.frequencies
+  }
 
   private static let dbMarks = [0, -12, -24, -36, -48, -60]
 
@@ -42,7 +43,7 @@ private struct SpectrumGridView: View {
     Canvas { context, size in
       let maxHeight = size.height - 20
       let barSpacing: CGFloat = 2
-      let bandCount = SPECTRUM_BAND_COUNT
+      let bandCount = frequencies?.count ?? 30  // Fallback to 30 if nil
       let totalSpacing = barSpacing * CGFloat(bandCount - 1)
       let barWidth = max(4, (size.width - 20 - totalSpacing) / CGFloat(bandCount))
 
@@ -61,15 +62,39 @@ private struct SpectrumGridView: View {
       }
 
       // Frequency labels
-      for i in 0..<min(bandCount, Self.labels.count) {
-        if !Self.labels[i].isEmpty {
+      if let frequencies = frequencies {
+        let count = frequencies.count
+        for i in 0..<count {
+          let f = frequencies[i]
+          let label = formatFrequency(f)
           let x = CGFloat(i) * (barWidth + barSpacing) + 20
           context.draw(
-            Text(Self.labels[i]).font(.system(size: 7)).foregroundColor(
+            Text(label).font(.system(size: 7)).foregroundColor(
               .secondary.opacity(0.7)),
             at: CGPoint(x: x + barWidth / 2, y: maxHeight + 10))
         }
       }
     }
+  }
+}
+
+private func formatFrequency(_ f: Double) -> String {
+  if f >= 1000 {
+    let k = f / 1000
+    // Use at most 2 digits for fraction
+    let s = String(format: "%.2f", k)
+    let parts = s.split(separator: ".")
+    let intPart = parts[0]
+    let fracPart =
+      parts.count > 1 ? parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "0")) : ""
+
+    if fracPart.isEmpty {
+      return "\(intPart)k"
+    } else {
+      return "\(intPart)k\(fracPart)"
+    }
+  } else {
+    // For < 1000, drop anything after the dot (round to nearest integer)
+    return "\(Int(f.rounded()))"
   }
 }

@@ -88,12 +88,13 @@ final class MonitoringController {
     if currentStatus != .inactive, let spectrum, spectrum.visibilityCount > 0 {
       if let spectrumData = await engine.getSpectrum(
         side: spectrum.side,
-        channel: spectrum.channel,
+        channel: nil,
         minFreq: spectrum.minFreq,
         maxFreq: spectrum.maxFreq,
         nBins: spectrum.nBins
       ), !spectrumData.magnitudes.isEmpty {
-        spectrum.updateBands(spectrumData.magnitudes)
+        spectrum.updateSpectrum(
+          frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
       } else {
         spectrum.reset()
       }

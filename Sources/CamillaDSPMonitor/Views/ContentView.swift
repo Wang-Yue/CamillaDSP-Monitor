@@ -189,10 +189,7 @@ struct DetailPanel: View {
           .frame(maxHeight: .infinity, alignment: .top)
           .background(Color(nsColor: .controlBackgroundColor))
       case .spectrum:
-        SpectrumCard()
-          .padding()
-          .frame(maxHeight: .infinity, alignment: .top)
-          .background(Color(nsColor: .controlBackgroundColor))
+        SpectrumDetailView()
       case .analogVU:
         AnalogVUDetailView()  // Use a specialized detail view that includes controls
       case .logs:
@@ -306,6 +303,71 @@ struct AnalogVUDetailView: View {
             }
           }
         }
+      }
+      .padding(24)
+      .background(.thinMaterial)
+    }
+    .background(Color(nsColor: .controlBackgroundColor))
+  }
+}
+
+// MARK: - Spectrum Detail (with interactive controls)
+
+struct SpectrumDetailView: View {
+  @Environment(SpectrumEngine.self) var spectrum
+
+  var body: some View {
+    @Bindable var spectrum = spectrum
+    VStack(spacing: 0) {
+      ScrollView {
+        SpectrumCard()
+          .padding(32)
+      }
+
+      Divider()
+
+      // SPECTRUM SETTINGS CONTROLS
+      VStack(alignment: .leading, spacing: 16) {
+        HStack {
+          Label("Spectrum Settings", systemImage: "slider.horizontal.3")
+            .font(.headline)
+          Spacer()
+          Button("Reset to Defaults") {
+            spectrum.resetToDefaults()
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+        }
+
+        HStack(spacing: 20) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Source").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: $spectrum.side) {
+              Text("Capture").tag("capture")
+              Text("Playback").tag("playback")
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 140)
+          }
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Bins").font(.caption).foregroundStyle(.secondary)
+            Stepper("\(Int(spectrum.nBins))", value: $spectrum.nBins, in: 2...100)
+              .frame(width: 100)
+          }
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Range: \(Int(spectrum.minFreq)) - \(Int(spectrum.maxFreq)) Hz").font(.caption)
+              .foregroundStyle(.secondary)
+            LogRangeSlider(
+              minValue: $spectrum.minFreq, maxValue: $spectrum.maxFreq, range: 20...20000
+            )
+            .frame(maxWidth: .infinity)
+          }
+
+          Spacer()
+        }
+        .padding(.vertical, 8)
       }
       .padding(24)
       .background(.thinMaterial)
