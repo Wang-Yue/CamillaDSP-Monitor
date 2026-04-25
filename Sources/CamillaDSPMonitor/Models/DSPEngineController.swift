@@ -147,7 +147,7 @@ final class DSPEngineController {
     guard devices.devicesAvailable() else { return }
     applyConfigTask?.cancel()
     applyConfigTask = Task {
-      try? await Task.sleep(nanoseconds: 50_000_000)
+      try? await Task.sleep(nanoseconds: 10_000_000)
       guard !Task.isCancelled else { return }
       await applyConfigAsync()
     }

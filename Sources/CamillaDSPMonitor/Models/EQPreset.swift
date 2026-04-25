@@ -155,7 +155,10 @@ final class EQPreset: Identifiable, Codable, Equatable {
   func addBand(_ band: EQBand? = nil) { bands.append(band ?? EQBand()) }
   func removeBand(at index: Int) { if bands.indices.contains(index) { bands.remove(at: index) } }
   func combinedResponse(atFreq f: Double, sampleRate: Int) -> Double {
-    bands.filter(\.isEnabled).reduce(0.0) { $0 + $1.response(atFreq: f, sampleRate: sampleRate) }
+    preampGain
+      + bands.filter(\.isEnabled).reduce(0.0) {
+        $0 + $1.response(atFreq: f, sampleRate: sampleRate)
+      }
   }
 
   // MARK: - AutoEq / EqualizerAPO CSV Format

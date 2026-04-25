@@ -93,7 +93,7 @@ struct EQFrequencyResponseView: View {
     guard let idx = preset.bands.firstIndex(where: { $0.id == band.id }) else { return .gray }
     return Self.bandColors[idx % Self.bandColors.count]
   }
-  private let minFreq = 20.0, maxFreq = 20000.0, minDB = -24.0, maxDB = 24.0, numPoints = 200
+  private let minFreq = 20.0, maxFreq = 20000.0, minDB = -24.0, maxDB = 24.0, numPoints = 1000
   private func freqToX(_ f: Double, width: Double) -> Double {
     let logMin = log10(minFreq)
     let logMax = log10(maxFreq)
@@ -106,8 +106,7 @@ struct EQFrequencyResponseView: View {
     return pow(10, logF)
   }
   private func dbToY(_ db: Double, height: Double) -> Double {
-    let clamped = max(minDB, min(maxDB, db))
-    return height * (1.0 - (clamped - minDB) / (maxDB - minDB))
+    return height * (1.0 - (db - minDB) / (maxDB - minDB))
   }
   private func yToDB(_ y: Double, height: Double) -> Double {
     let ratio = 1.0 - y / height
@@ -130,6 +129,7 @@ struct EQFrequencyResponseView: View {
         combinedCurve(w: w, h: h).stroke(Color.accentColor, lineWidth: 2.5)
         ForEach(preset.bands) { band in bandHandle(band: band, w: w, h: h) }
       }
+      .clipShape(RoundedRectangle(cornerRadius: 8))
       .onTapGesture {
         selectedBandID = nil
       }
