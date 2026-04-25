@@ -43,13 +43,7 @@ final class DSPEngineController {
   // MARK: - Engine Lifecycle
 
   func startEngine() {
-    guard devices.devicesAvailable() else { return }
-    applyConfigTask?.cancel()
-    applyConfigTask = Task {
-      try? await Task.sleep(nanoseconds: 50_000_000)
-      guard !Task.isCancelled else { return }
-      await applyConfigAsync()
-    }
+    runApplyConfigTask()
   }
 
   func stopEngine() {
@@ -68,23 +62,7 @@ final class DSPEngineController {
 
   func applyConfig() {
     guard status != .inactive else { return }
-    startEngine()
-  }
-
-  func applyConfigAsync() async {
-    pipeline.savePipelineStages()
-
-    do {
-      // Prime faders BEFORE sending config so the pipeline initialises at the right
-      // level and doesn't see a difference that triggers a 0 dBFS ramp.
-      await engine.setMute(settings.isMuted)
-      await engine.setVolume(settings.volume)
-
-      let config = buildConfigDict()
-      try await startEngineWithConfig(config)
-    } catch {
-      print("[DSPEngineController] Config apply failed: \(error)")
-    }
+    runApplyConfigTask()
   }
 
   // MARK: - Volume / Mute
@@ -165,11 +143,37 @@ final class DSPEngineController {
 
   // MARK: - Private
 
-  private func startEngineWithConfig(_ config: [String: Any]) async throws {
+  private func runApplyConfigTask() {
+    guard devices.devicesAvailable() else { return }
+    applyConfigTask?.cancel()
+    applyConfigTask = Task {
+      try? await Task.sleep(nanoseconds: 50_000_000)
+      guard !Task.isCancelled else { return }
+      await applyConfigAsync()
+    }
+  }
+
+  private func apply(config: [String: Any]) async throws {
     let data = try JSONSerialization.data(withJSONObject: config)
     guard let json = String(data: data, encoding: .utf8) else {
       throw AudioBackendError.commandFailed("Failed to serialize config to JSON string")
     }
     try await engine.start(configJson: json)
+  }
+
+  private func applyConfigAsync() async {
+    pipeline.savePipelineStages()
+
+    do {
+      // Prime faders BEFORE sending config so the pipeline initialises at the right
+      // level and doesn't see a difference that triggers a 0 dBFS ramp.
+      await engine.setMute(settings.isMuted)
+      await engine.setVolume(settings.volume)
+
+      let config: [String: Any] = buildConfigDict()
+      try await apply(config: config)
+    } catch {
+      print("[DSPEngineController] Config apply failed: \(error)")
+    }
   }
 }
