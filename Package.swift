@@ -22,7 +22,6 @@ let package = Package(
         .linkedFramework("AudioToolbox"),
         .linkedFramework("CoreAudio"),
         .linkedFramework("Accelerate"),
-        .linkedFramework("Security"),
         .linkedLibrary("camilladsp_ffi"),
         .unsafeFlags(["-L", "lib"]),
       ]

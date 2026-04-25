@@ -65,10 +65,12 @@ struct MiniPlayerView: View {
           Slider(
             value: Binding(
               get: { settings.volume },
-              set: { dsp.setVolume($0) }
+              set: { newValue in
+                let rounded = (newValue * 2.0).rounded() / 2.0
+                dsp.setVolume(rounded)
+              }
             ),
-            in: -60...20,
-            step: 0.5
+            in: -60...20
           )
           .controlSize(.mini)
 

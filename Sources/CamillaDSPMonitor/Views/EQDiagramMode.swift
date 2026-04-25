@@ -249,7 +249,9 @@ struct EQBandListBar: View {
             let color = EQFrequencyResponseView.bandColors[
               i % EQFrequencyResponseView.bandColors.count]
             EQBandChip(
-              band: band, index: i + 1, isSelected: band.id == selectedBandID, color: color
+              preset: preset,
+              band: band, index: i + 1, isSelected: band.id == selectedBandID, color: color,
+              selectedBandID: $selectedBandID
             ).onTapGesture { selectedBandID = band.id }
           }
         }
@@ -263,15 +265,6 @@ struct EQBandListBar: View {
         } label: {
           Image(systemName: "plus.circle")
         }.buttonStyle(.plain)
-        if let id = selectedBandID, let idx = preset.bands.firstIndex(where: { $0.id == id }) {
-          Button {
-            preset.removeBand(at: idx)
-            selectedBandID = nil
-            dsp.applyConfig()
-          } label: {
-            Image(systemName: "minus.circle").foregroundStyle(.red)
-          }.buttonStyle(.plain)
-        }
       }
       .padding(.leading, 8)
     }
@@ -279,10 +272,12 @@ struct EQBandListBar: View {
 }
 
 struct EQBandChip: View {
+  @Bindable var preset: EQPreset
   @Bindable var band: EQBand
   let index: Int
   let isSelected: Bool
   let color: Color
+  @Binding var selectedBandID: UUID?
   @Environment(DSPEngineController.self) var dsp
   var body: some View {
     HStack(spacing: 4) {
@@ -305,9 +300,34 @@ struct EQBandChip: View {
       RoundedRectangle(cornerRadius: 6).stroke(isSelected ? color : Color.clear, lineWidth: 1)
     ).foregroundStyle(band.isEnabled ? .primary : .tertiary)
       .contextMenu {
-        Button(band.isEnabled ? "Disable Band" : "Enable Band") {
+        Button {
           band.isEnabled.toggle()
           dsp.applyConfig()
+        } label: {
+          Label(
+            band.isEnabled ? "Disable Band" : "Enable Band",
+            systemImage: band.isEnabled ? "eye.slash" : "eye")
+        }
+
+        Menu {
+          ForEach(EQBandType.allCases) { type in
+            Button(type.rawValue) {
+              band.type = type
+              dsp.applyConfig()
+            }
+          }
+        } label: {
+          Label("Change Type", systemImage: "slider.horizontal.3")
+        }
+
+        Button(role: .destructive) {
+          if let idx = preset.bands.firstIndex(where: { $0.id == band.id }) {
+            preset.removeBand(at: idx)
+            selectedBandID = nil
+            dsp.applyConfig()
+          }
+        } label: {
+          Label("Delete", systemImage: "trash")
         }
       }
   }
