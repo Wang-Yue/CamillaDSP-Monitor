@@ -27,6 +27,7 @@ enum MiniPlayerMode: Int, CaseIterable {
 
 struct MiniPlayerView: View {
   @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioSettings.self) var settings
   @State private var mode: MiniPlayerMode = .spectrum
   @State private var isHovering = false
 
@@ -49,7 +50,36 @@ struct MiniPlayerView: View {
         }
         .buttonStyle(.plain)
 
-        Spacer()
+        // Volume Control Row
+        HStack(spacing: 6) {
+          Button {
+            dsp.toggleMute()
+          } label: {
+            Image(systemName: settings.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+              .font(.system(size: 10))
+              .foregroundStyle(settings.isMuted ? .red : .white.opacity(0.5))
+              .frame(width: 18, height: 18)
+          }
+          .buttonStyle(.plain)
+
+          Slider(
+            value: Binding(
+              get: { settings.volume },
+              set: { dsp.setVolume($0) }
+            ),
+            in: -60...20,
+            step: 0.5
+          )
+          .controlSize(.mini)
+
+          Text(String(format: "%+.0f", settings.volume))
+            .font(.system(size: 9, design: .monospaced))
+            .foregroundStyle(settings.volume > 0 ? .red : .white.opacity(0.7))
+            .frame(width: 25, alignment: .trailing)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
+        .opacity(isHovering ? 1 : 0.3)
 
         // Mode buttons
         ForEach(MiniPlayerMode.allCases, id: \.rawValue) { m in
@@ -63,19 +93,6 @@ struct MiniPlayerView: View {
           }
           .buttonStyle(.plain)
         }
-
-        Spacer()
-
-        // Restore button
-        Button {
-          MiniPlayerWindowController.shared.closeMiniPlayer()
-        } label: {
-          Image(systemName: "arrow.up.left.and.arrow.down.right")
-            .font(.system(size: 9))
-            .foregroundStyle(.white.opacity(0.5))
-            .frame(width: 18, height: 18)
-        }
-        .buttonStyle(.plain)
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 4)
