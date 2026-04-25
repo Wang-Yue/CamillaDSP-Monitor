@@ -3,6 +3,8 @@
 import Observation
 import SwiftUI
 
+private let SPECTRUM_TOP_PADDING: CGFloat = 10
+
 // MARK: - SpectrumView
 
 struct SpectrumView: View {
@@ -18,9 +20,10 @@ struct SpectrumView: View {
       // Dynamic bars layer — redraws at 10 Hz with band data
       if let bands = bands {
         Canvas { context, size in
+          context.translateBy(x: 0, y: SPECTRUM_TOP_PADDING)
           drawSpectrumBars(
             context: &context, bands: bands,
-            maxHeight: size.height - 20, totalWidth: size.width - 20,
+            maxHeight: size.height - 20 - SPECTRUM_TOP_PADDING, totalWidth: size.width - 20,
             xOffset: 20)
         }
       }
@@ -41,7 +44,7 @@ private struct SpectrumGridView: View, Equatable {
 
   var body: some View {
     Canvas { context, size in
-      let maxHeight = size.height - 20
+      let maxHeight = size.height - 20 - SPECTRUM_TOP_PADDING
       let barSpacing: CGFloat = 2
       let bandCount = frequencies?.count ?? 30  // Fallback to 30 if nil
       let totalSpacing = barSpacing * CGFloat(bandCount - 1)
@@ -49,7 +52,7 @@ private struct SpectrumGridView: View, Equatable {
 
       // dB grid lines and labels
       for dbMark in Self.dbMarks {
-        let y = maxHeight * (1.0 - (Double(dbMark) + 60) / 60)
+        let y = SPECTRUM_TOP_PADDING + maxHeight * (1.0 - (Double(dbMark) + 60) / 60)
 
         var line = Path()
         line.move(to: CGPoint(x: 20, y: y))
