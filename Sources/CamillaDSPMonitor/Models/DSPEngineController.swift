@@ -178,7 +178,7 @@ final class DSPEngineController {
       let config: [String: Any] = buildConfigDict()
       try await apply(config: config)
     } catch {
-      print("[DSPEngineController] Config apply failed: \(error)")
+      print("[DSPEngineController] Config apply failed: \(error.localizedDescription)")
     }
   }
 }

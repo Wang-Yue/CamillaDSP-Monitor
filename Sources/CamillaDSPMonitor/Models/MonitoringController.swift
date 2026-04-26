@@ -106,7 +106,7 @@ final class MonitoringController {
         nBins: spectrum.nBins
       )
     } catch {
-      print("[MonitoringController] Failed to get spectrum: \(error)")
+      print("[MonitoringController] Failed to get spectrum: \(error.localizedDescription)")
       return nil
     }
   }
