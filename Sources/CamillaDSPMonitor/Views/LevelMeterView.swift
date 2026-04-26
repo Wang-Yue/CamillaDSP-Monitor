@@ -23,7 +23,7 @@ extension Gradient {
 /// Draw spectrum bars into a Canvas context.
 func drawSpectrumBars(
   context: inout GraphicsContext,
-  bands: [Double],
+  bands: [Float],
   maxHeight: CGFloat,
   totalWidth: CGFloat,
   xOffset: CGFloat = 0,
@@ -54,8 +54,8 @@ func drawSpectrumBars(
 /// Shared Canvas for drawing dual RMS+Peak level bars.
 /// Used by DualLevelMeterView (dashboard) and MiniMeterRow (mini player).
 struct LevelMeterCanvas: View {
-  let peak: Double
-  let rms: Double
+  let peak: Float
+  let rms: Float
   /// compact = mini player style: smaller radii, white-based colors, no scale marks
   var compact: Bool = false
 
@@ -100,7 +100,7 @@ struct LevelMeterCanvas: View {
 
       if !compact {
         for dbMark in [-48, -36, -24, -12, -6, -3, 0] {
-          let pos = w * normalizedDB(Double(dbMark))
+          let pos = w * normalizedDB(Float(dbMark))
           let markH = dbMark == 0 ? h : h * 0.5
           let markY = dbMark == 0 ? 0 : (h - markH) / 2
           var markPath = Path()
@@ -117,8 +117,8 @@ struct LevelMeterCanvas: View {
 
 struct DualLevelMeterView: View {
   let label: String
-  let peak: Double  // dB
-  let rms: Double  // dB
+  let peak: Float  // dB
+  let rms: Float  // dB
 
   var body: some View {
     HStack(spacing: 8) {
@@ -178,8 +178,8 @@ struct CompactLevelMeterBar: View {
 
 /// A batched renderer for two horizontal level bars, maintaining the original look.
 struct CompactStereoMeter: View {
-  let left: Double
-  let right: Double
+  let left: Float
+  let right: Float
 
   var body: some View {
     Canvas { context, size in
@@ -196,7 +196,7 @@ struct CompactStereoMeter: View {
     .frame(width: 80 * 2 + 6, height: 6)
   }
 
-  private func drawSingleBar(context: inout GraphicsContext, rect: CGRect, level: Double) {
+  private func drawSingleBar(context: inout GraphicsContext, rect: CGRect, level: Float) {
     context.fill(
       Path(roundedRect: rect, cornerRadius: 2), with: .color(Color.primary.opacity(0.06)))
     let fillW = rect.width * normalizedDB(level)

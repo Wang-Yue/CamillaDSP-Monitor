@@ -7,18 +7,18 @@ import Foundation
 import Observation
 
 struct StereoLevel: Sendable, Equatable {
-  var left: Double
-  var right: Double
+  var left: Float
+  var right: Float
   static let silent = StereoLevel(left: -100, right: -100)
 
-  init(left: Double, right: Double) {
+  init(left: Float, right: Float) {
     self.left = left
     self.right = right
   }
 
   init(from levels: [Float]) {
-    left = max(-100.0, Double(levels.first ?? -100))
-    right = max(-100.0, Double(levels.count > 1 ? levels[1] : -100))
+    left = max(-100.0, levels.first ?? -100)
+    right = max(-100.0, levels.count > 1 ? levels[1] : -100)
   }
 }
 

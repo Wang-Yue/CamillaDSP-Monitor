@@ -6,8 +6,8 @@ import Observation
 @MainActor
 @Observable
 final class SpectrumEngine {
-  private(set) var bands: [Double]?
-  private(set) var frequencies: [Double]?
+  private(set) var bands: [Float]?
+  private(set) var frequencies: [Float]?
 
   /// Number of active spectrum views currently on screen.
   var visibilityCount: Int = 0
@@ -49,8 +49,8 @@ final class SpectrumEngine {
       reset()
       return
     }
-    self.frequencies = frequencies.map { Double($0) }
-    self.bands = magnitudes.map { Double($0) }
+    self.frequencies = frequencies
+    self.bands = magnitudes
   }
 
   func reset() {

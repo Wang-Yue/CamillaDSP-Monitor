@@ -70,7 +70,7 @@ struct VUParams {
 // MARK: - Hyper-Realistic VU Meter
 
 struct AnalogVUMeter: View {
-  let level: Double  // dBFS (-60...0)
+  let level: Float  // dBFS (-60...0)
   let label: String
   var params: VUParams
   var height: CGFloat = 160
@@ -126,8 +126,9 @@ struct AnalogVUMeter: View {
   }
 
   private func drawVURenderer(
-    context: inout GraphicsContext, size: CGSize, level: Double, scale: CGFloat
+    context: inout GraphicsContext, size: CGSize, level: Float, scale: CGFloat
   ) {
+    let level = Double(level)
     let w = size.width
     let h = size.height
 

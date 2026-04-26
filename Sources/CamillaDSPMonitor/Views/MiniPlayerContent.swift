@@ -70,8 +70,8 @@ struct MiniMetersView: View {
 
 struct MiniMeterRow: View {
   let label: String
-  let peak: Double
-  let rms: Double
+  let peak: Float
+  let rms: Float
 
   var body: some View {
     HStack(spacing: 6) {

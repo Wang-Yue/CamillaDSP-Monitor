@@ -8,8 +8,8 @@ private let SPECTRUM_TOP_PADDING: CGFloat = 10
 // MARK: - SpectrumView
 
 struct SpectrumView: View {
-  let bands: [Double]?  // dB values for each band
-  let frequencies: [Double]?  // Add this
+  let bands: [Float]?  // dB values for each band
+  let frequencies: [Float]?  // Add this
 
   var body: some View {
     ZStack {
@@ -34,7 +34,7 @@ struct SpectrumView: View {
 /// Static grid overlay for SpectrumView. Separated so SwiftUI only redraws it
 /// when the view size changes, not on every band data update (10 Hz).
 private struct SpectrumGridView: View, Equatable {
-  let frequencies: [Double]?  // Add this
+  let frequencies: [Float]?  // Add this
 
   nonisolated static func == (lhs: SpectrumGridView, rhs: SpectrumGridView) -> Bool {
     lhs.frequencies == rhs.frequencies
@@ -81,7 +81,7 @@ private struct SpectrumGridView: View, Equatable {
   }
 }
 
-private func formatFrequency(_ f: Double) -> String {
+private func formatFrequency(_ f: Float) -> String {
   if f >= 1000 {
     let k = f / 1000
     // Use at most 2 digits for fraction
