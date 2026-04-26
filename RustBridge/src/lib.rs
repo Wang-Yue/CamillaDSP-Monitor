@@ -225,31 +225,38 @@ impl CamillaEngine {
 
         let channel = channel.map(|c| c as usize);
         let n_bins = n_bins as usize;
-        let fft_len = camillalib::spectrum::fft_length_for(min_freq, samplerate);
-
-        let signal = match side.as_str() {
+        let data = match side.as_str() {
             "capture" => {
                 let status = self.status_structs.capture.read();
-                status.audio_buffer.read_latest(fft_len, channel)
+                camillalib::spectrum::compute_spectrum(
+                    &status.audio_buffer,
+                    min_freq,
+                    max_freq,
+                    n_bins,
+                    channel,
+                    samplerate,
+                )
             }
             "playback" => {
                 let status = self.status_structs.playback.read();
-                status.audio_buffer.read_latest(fft_len, channel)
+                camillalib::spectrum::compute_spectrum(
+                    &status.audio_buffer,
+                    min_freq,
+                    max_freq,
+                    n_bins,
+                    channel,
+                    samplerate,
+                )
             }
             _ => return Err(DspError::Error),
         };
 
-        let signal = signal.ok_or(DspError::Error)?;
+        let data = data.map_err(|_| DspError::Error)?;
 
-        match camillalib::spectrum::compute_spectrum_from_signal(
-            signal, min_freq, max_freq, n_bins, samplerate,
-        ) {
-            Ok(data) => Ok(types::DspSpectrum {
-                frequencies: data.frequencies.to_vec(),
-                magnitudes: data.magnitudes,
-            }),
-            Err(_) => Err(DspError::Error),
-        }
+        Ok(types::DspSpectrum {
+            frequencies: data.frequencies.to_vec(),
+            magnitudes: data.magnitudes,
+        })
     }
 
     pub fn set_log_level(&self, level: String) {
