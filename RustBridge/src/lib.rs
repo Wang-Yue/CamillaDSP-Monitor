@@ -123,34 +123,23 @@ impl CamillaEngine {
         let pb = self.status_structs.playback.read();
         let cap = self.status_structs.capture.read();
 
-        let to_db = |linear: f32| camillalib::utils::decibels::linear_to_db(linear);
-
-        let pb_rms = pb
-            .signal_rms
-            .last_sqrt()
-            .map(|r| r.values.iter().map(|&v| to_db(v)).collect::<Vec<f32>>())
-            .unwrap_or_default();
-        let pb_peak = pb
-            .signal_peak
-            .last()
-            .map(|r| r.values.iter().map(|&v| to_db(v)).collect::<Vec<f32>>())
-            .unwrap_or_default();
-        let cap_rms = cap
-            .signal_rms
-            .last_sqrt()
-            .map(|r| r.values.iter().map(|&v| to_db(v)).collect::<Vec<f32>>())
-            .unwrap_or_default();
-        let cap_peak = cap
-            .signal_peak
-            .last()
-            .map(|r| r.values.iter().map(|&v| to_db(v)).collect::<Vec<f32>>())
-            .unwrap_or_default();
+        macro_rules! get_db {
+            ($opt:expr) => {
+                $opt.map(|r| {
+                    r.values
+                        .iter()
+                        .map(|&v| camillalib::utils::decibels::linear_to_db(v))
+                        .collect::<Vec<f32>>()
+                })
+                .unwrap_or_default()
+            };
+        }
 
         DspVuLevels {
-            playback_rms: pb_rms,
-            playback_peak: pb_peak,
-            capture_rms: cap_rms,
-            capture_peak: cap_peak,
+            playback_rms: get_db!(pb.signal_rms.last_sqrt()),
+            playback_peak: get_db!(pb.signal_peak.last()),
+            capture_rms: get_db!(cap.signal_rms.last_sqrt()),
+            capture_peak: get_db!(cap.signal_peak.last()),
         }
     }
 
@@ -188,33 +177,26 @@ impl CamillaEngine {
 
         let channel = channel.map(|c| c as usize);
         let n_bins = n_bins as usize;
-        let data = match side.as_str() {
-            "capture" => {
-                let status = self.status_structs.capture.read();
-                camillalib::spectrum::compute_spectrum(
-                    &status.audio_buffer,
-                    min_freq,
-                    max_freq,
-                    n_bins,
-                    channel,
-                    samplerate,
-                )
-            }
-            "playback" => {
-                let status = self.status_structs.playback.read();
-                camillalib::spectrum::compute_spectrum(
-                    &status.audio_buffer,
-                    min_freq,
-                    max_freq,
-                    n_bins,
-                    channel,
-                    samplerate,
-                )
-            }
-            _ => return Err(DspError::InvalidSide),
-        };
 
-        let data = data.map_err(|_| DspError::SpectrumComputeError)?;
+        macro_rules! compute {
+            ($status:expr) => {
+                camillalib::spectrum::compute_spectrum(
+                    &$status.audio_buffer,
+                    min_freq,
+                    max_freq,
+                    n_bins,
+                    channel,
+                    samplerate,
+                )
+            };
+        }
+
+        let data = match side.as_str() {
+            "capture" => compute!(self.status_structs.capture.read()),
+            "playback" => compute!(self.status_structs.playback.read()),
+            _ => return Err(DspError::InvalidSide),
+        }
+        .map_err(|_| DspError::SpectrumComputeError)?;
 
         Ok(types::DspSpectrum {
             frequencies: data.frequencies.to_vec(),
