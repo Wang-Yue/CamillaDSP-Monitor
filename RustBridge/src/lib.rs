@@ -11,7 +11,7 @@ mod engine;
 mod types;
 
 use engine::run_engine;
-pub use types::{DspError, DspSpectrum, DspState, DspStatus, DspVuLevels};
+pub use types::{DspError, DspSpectrum, DspState, DspStatus, DspStopReason, DspVuLevels};
 
 pub struct CamillaEngine {
     tx_command: Sender<ControllerMessage>,
@@ -148,11 +148,9 @@ impl CamillaEngine {
     pub fn get_status(&self) -> DspStatus {
         let cap = self.status_structs.capture.read();
         let stat = self.status_structs.status.read();
-        let (stop_reason, stop_reason_rate) = types::parse_stop_reason(&stat.stop_reason);
         DspStatus {
             state: DspState::from(cap.state),
-            stop_reason,
-            stop_reason_rate,
+            stop_reason: types::DspStopReason::from(&stat.stop_reason),
         }
     }
 

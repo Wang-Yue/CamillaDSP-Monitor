@@ -8,6 +8,17 @@ enum DspState {
     "Stalled"
 };
 
+[Enum]
+interface DspStopReason {
+  None();
+  Done();
+  CaptureError(string message);
+  PlaybackError(string message);
+  CaptureFormatChange(u32 rate);
+  PlaybackFormatChange(u32 rate);
+  UnknownError(string message);
+};
+
 dictionary DspVuLevels {
     sequence<f32> playback_rms;
     sequence<f32> playback_peak;
@@ -17,8 +28,7 @@ dictionary DspVuLevels {
 
 dictionary DspStatus {
     DspState state;
-    string stop_reason;
-    u32? stop_reason_rate;
+    DspStopReason stop_reason;
 };
 
 [Error]

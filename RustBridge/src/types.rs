@@ -21,6 +21,40 @@ impl From<ProcessingState> for DspState {
     }
 }
 
+pub enum DspStopReason {
+    None,
+    Done,
+    CaptureError { message: String },
+    PlaybackError { message: String },
+    CaptureFormatChange { rate: u32 },
+    PlaybackFormatChange { rate: u32 },
+    UnknownError { message: String },
+}
+
+impl From<&StopReason> for DspStopReason {
+    fn from(r: &StopReason) -> Self {
+        match r {
+            StopReason::None => DspStopReason::None,
+            StopReason::Done => DspStopReason::Done,
+            StopReason::CaptureError(msg) => DspStopReason::CaptureError {
+                message: msg.clone(),
+            },
+            StopReason::PlaybackError(msg) => DspStopReason::PlaybackError {
+                message: msg.clone(),
+            },
+            StopReason::CaptureFormatChange(rate) => {
+                DspStopReason::CaptureFormatChange { rate: *rate as u32 }
+            }
+            StopReason::PlaybackFormatChange(rate) => {
+                DspStopReason::PlaybackFormatChange { rate: *rate as u32 }
+            }
+            StopReason::UnknownError(msg) => DspStopReason::UnknownError {
+                message: msg.clone(),
+            },
+        }
+    }
+}
+
 pub struct DspVuLevels {
     pub playback_rms: Vec<f32>,
     pub playback_peak: Vec<f32>,
@@ -30,8 +64,7 @@ pub struct DspVuLevels {
 
 pub struct DspStatus {
     pub state: DspState,
-    pub stop_reason: String,
-    pub stop_reason_rate: Option<u32>,
+    pub stop_reason: DspStopReason,
 }
 
 #[derive(Debug)]
@@ -50,25 +83,6 @@ impl std::fmt::Display for DspError {
 }
 
 impl std::error::Error for DspError {}
-
-/// Helper to convert StopReason to a string and extract rate
-pub fn parse_stop_reason(reason: &StopReason) -> (String, Option<u32>) {
-    let rate = match reason {
-        StopReason::CaptureFormatChange(r) => Some(*r as u32),
-        StopReason::PlaybackFormatChange(r) => Some(*r as u32),
-        _ => None,
-    };
-    let text = match reason {
-        StopReason::None => "None",
-        StopReason::Done => "Done",
-        StopReason::CaptureError(_) => "CaptureError",
-        StopReason::PlaybackError(_) => "PlaybackError",
-        StopReason::CaptureFormatChange(_) => "CaptureFormatChange",
-        StopReason::PlaybackFormatChange(_) => "PlaybackFormatChange",
-        StopReason::UnknownError(_) => "UnknownError",
-    };
-    (text.to_string(), rate)
-}
 
 pub struct DspSpectrum {
     pub frequencies: Vec<f32>,

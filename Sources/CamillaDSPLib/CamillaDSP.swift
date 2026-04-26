@@ -54,11 +54,32 @@ public enum ProcessingState: Sendable {
   }
 }
 
+public enum ProcessingStopReason: Sendable {
+  case none
+  case done
+  case captureError(String)
+  case playbackError(String)
+  case captureFormatChange(Int)
+  case playbackFormatChange(Int)
+  case unknownError(String)
+
+  init(_ dspStopReason: DspStopReason) {
+    switch dspStopReason {
+    case .none: self = .none
+    case .done: self = .done
+    case .captureError(let message): self = .captureError(message)
+    case .playbackError(let message): self = .playbackError(message)
+    case .captureFormatChange(let rate): self = .captureFormatChange(Int(rate))
+    case .playbackFormatChange(let rate): self = .playbackFormatChange(Int(rate))
+    case .unknownError(let message): self = .unknownError(message)
+    }
+  }
+}
+
 /// State change data.
 public struct StateUpdate: Sendable {
   public let state: ProcessingState
-  public let stopReason: String?
-  public let stopReasonRate: Int?
+  public let stopReason: ProcessingStopReason
 }
 
 /// Spectrum data.
@@ -163,8 +184,7 @@ public actor DSPEngine {
     let status = engine.getStatus()
     return StateUpdate(
       state: ProcessingState(status.state),
-      stopReason: status.stopReason,
-      stopReasonRate: status.stopReasonRate.map { Int($0) }
+      stopReason: ProcessingStopReason(status.stopReason)
     )
   }
 
