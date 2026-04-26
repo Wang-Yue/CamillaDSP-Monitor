@@ -23,13 +23,13 @@ final class MonitoringController {
     }
   }
 
-  /// Fired with the new AppStatus whenever CamillaDSP reports a state change.
-  var onStatusChange: ((AppStatus) -> Void)?
+  /// Fired with the new ProcessingState whenever CamillaDSP reports a state change.
+  var onStatusChange: ((ProcessingState) -> Void)?
   /// Fired when a CaptureFormatChange stop reason requires restarting the engine.
   var onRestartEngine: (() -> Void)?
 
   /// Current status to avoid late VU updates during inactive state.
-  private var currentStatus: AppStatus = .inactive
+  private var currentStatus: ProcessingState = .inactive
   private var pollingTimer: Timer?
 
   // MARK: - Init
@@ -65,18 +65,16 @@ final class MonitoringController {
 
   private func poll() async {
     // 1. Poll Status
-    if let update = await engine.getStatus() {
-      handleStateUpdate(
-        state: update.state,
-        stopReason: update.stopReason,
-        stopReasonRate: update.stopReasonRate
-      )
-    }
+    let update = await engine.getStatus()
+    handleStateUpdate(
+      state: update.state,
+      stopReason: update.stopReason,
+      stopReasonRate: update.stopReasonRate
+    )
 
     // 2. Poll VU Levels
-    if currentStatus != .inactive, currentStatus != .paused, levels.visibilityCount > 0,
+    if currentStatus != .inactive, currentStatus != .paused, levels.visibilityCount > 0 {
       let vu = await engine.getVuLevels()
-    {
       levels.update(
         capturePeak: StereoLevel(from: vu.capture_peak),
         captureRms: StereoLevel(from: vu.capture_rms),
@@ -106,21 +104,13 @@ final class MonitoringController {
 
   // MARK: - State Change Handling
 
-  private func handleStateUpdate(state: String, stopReason: String?, stopReasonRate: Int? = nil) {
-    let newStatus: AppStatus?
-    switch state {
-    case "RUNNING": newStatus = .running
-    case "PAUSED": newStatus = .paused
-    case "STARTING": newStatus = .starting
-    case "STALLED": newStatus = .stalled
-    case "INACTIVE": newStatus = .inactive
-    default: newStatus = nil
-    }
-
-    if let newStatus, newStatus != currentStatus {
-      currentStatus = newStatus
-      onStatusChange?(newStatus)
-      if newStatus == .inactive || newStatus == .paused {
+  private func handleStateUpdate(
+    state: ProcessingState, stopReason: String?, stopReasonRate: Int? = nil
+  ) {
+    if state != currentStatus {
+      currentStatus = state
+      onStatusChange?(state)
+      if state == .inactive || state == .paused {
         levels.reset()
         spectrum.reset()
       }

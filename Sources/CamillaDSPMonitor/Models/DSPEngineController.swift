@@ -13,7 +13,7 @@ final class DSPEngineController {
   let pipeline: PipelineStore
   let levels: LevelState
 
-  var status: AppStatus = .inactive
+  var status: ProcessingState = .inactive
 
   var applyConfigTask: Task<Void, Never>?
 

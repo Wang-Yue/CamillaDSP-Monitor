@@ -5,14 +5,6 @@ import Foundation
 import Observation
 import SwiftUI
 
-enum AppStatus: Equatable, Sendable {
-  case inactive
-  case starting
-  case running
-  case paused
-  case stalled
-}
-
 @MainActor
 @Observable
 final class AppState {

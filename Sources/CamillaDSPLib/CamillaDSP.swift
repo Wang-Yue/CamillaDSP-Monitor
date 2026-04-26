@@ -26,9 +26,17 @@ public struct VuLevels: Sendable {
   public let capture_peak: [Float]
 }
 
+public enum ProcessingState: Sendable {
+  case running
+  case paused
+  case inactive
+  case starting
+  case stalled
+}
+
 /// State change data.
 public struct StateUpdate: Sendable {
-  public let state: String
+  public let state: ProcessingState
   public let stopReason: String?
   public let stopReasonRate: Int?
 }
@@ -121,7 +129,7 @@ public actor DSPEngine {
 
   // MARK: - Direct Fetch APIs
 
-  public func getVuLevels() async -> VuLevels? {
+  public func getVuLevels() async -> VuLevels {
     let levels = engine.getVuLevels()
     return VuLevels(
       playback_rms: levels.playbackRms,
@@ -131,10 +139,18 @@ public actor DSPEngine {
     )
   }
 
-  public func getStatus() async -> StateUpdate? {
+  public func getStatus() async -> StateUpdate {
     let status = engine.getStatus()
+    let state: ProcessingState
+    switch status.state {
+    case .running: state = .running
+    case .paused: state = .paused
+    case .inactive: state = .inactive
+    case .starting: state = .starting
+    case .stalled: state = .stalled
+    }
     return StateUpdate(
-      state: "\(status.state)".uppercased(),
+      state: state,
       stopReason: status.stopReason,
       stopReasonRate: status.stopReasonRate.map { Int($0) }
     )
