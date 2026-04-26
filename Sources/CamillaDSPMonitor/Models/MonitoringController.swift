@@ -17,9 +17,6 @@ final class MonitoringController {
   var pollingRate: Double = 10.0 {
     didSet {
       UserDefaults.standard.set(pollingRate, forKey: "pollingRate")
-      if pollingTimer != nil {
-        startSubscriptions()
-      }
     }
   }
 
@@ -30,7 +27,7 @@ final class MonitoringController {
 
   /// Current status to avoid late VU updates during inactive state.
   private var currentStatus: ProcessingState = .inactive
-  private var pollingTimer: Timer?
+  private var pollingTask: Task<Void, Never>?
 
   // MARK: - Init
 
@@ -46,19 +43,12 @@ final class MonitoringController {
 
     let savedPollingRate = UserDefaults.standard.double(forKey: "pollingRate")
     self.pollingRate = savedPollingRate > 0 ? savedPollingRate : 10.0
-  }
 
-  // MARK: - Polling
-
-  /// Start polling state and VU levels.
-  func startSubscriptions() {
-    pollingTimer?.invalidate()
-    let interval = 1.0 / pollingRate
-    pollingTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) {
-      [weak self] _ in
-      guard let self else { return }
-      Task { @MainActor in
+    pollingTask = Task { @MainActor [weak self] in
+      while !Task.isCancelled {
+        guard let self else { break }
         await self.poll()
+        try? await Task.sleep(for: .seconds(1.0 / self.pollingRate))
       }
     }
   }

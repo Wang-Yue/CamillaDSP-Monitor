@@ -64,7 +64,6 @@ final class AppState {
     pipeline.loadPipelineStages()
 
     Task {
-      monitoring.startSubscriptions()
       await devices.fetchDevices()  // internally calls refreshDeviceCapabilities()
       devices.validateSampleRates()
     }

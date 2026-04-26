@@ -1,12 +1,25 @@
 # Makefile for CamillaDSP-Monitor (Library Mode)
 
+# Build Mode: release or debug
+MODE ?= release
+
+ifeq ($(MODE),release)
+  CARGO_FLAGS = --release
+  SWIFT_FLAGS = -c release
+  BUILD_DIR = release
+else
+  CARGO_FLAGS =
+  SWIFT_FLAGS = -c debug
+  BUILD_DIR = debug
+endif
+
 # App Metadata
 APP_NAME = CamillaDSPMonitor
 APP_BUNDLE = $(APP_NAME).app
 CONTENTS = $(APP_BUNDLE)/Contents
 MACOS = $(CONTENTS)/MacOS
 RESOURCES = $(CONTENTS)/Resources
-EXECUTABLE = .build/release/$(APP_NAME)
+EXECUTABLE = .build/$(BUILD_DIR)/$(APP_NAME)
 INSTALL_BIN_PATH = /usr/local/bin/$(APP_NAME)
 
 # Paths
@@ -17,7 +30,7 @@ SWIFT_APP_DIR := $(ROOT_DIR)
 # Tools
 CARGO := MACOSX_DEPLOYMENT_TARGET=15.0 RUSTFLAGS='-C target-cpu=native' cargo
 SWIFT := swift
-UNIFFI_BINDGEN := $(CARGO) run --release --bin uniffi-bindgen -- 
+UNIFFI_BINDGEN := $(CARGO) run $(CARGO_FLAGS) --bin uniffi-bindgen --
 
 # Source Files
 RUST_SRCS := $(shell find $(RUST_BRIDGE_DIR)/src -type f) $(RUST_BRIDGE_DIR)/Cargo.toml
@@ -30,9 +43,9 @@ UDL_FILE := $(RUST_BRIDGE_DIR)/src/api.udl
 all: app
 
 # 1. Build Rust library
-$(RUST_BRIDGE_DIR)/target/release/libcamilladsp_ffi.a: $(RUST_SRCS)
-	@echo "🦀 Building Rust bridge..."
-	cd $(RUST_BRIDGE_DIR) && $(CARGO) build --release
+$(RUST_BRIDGE_DIR)/target/$(BUILD_DIR)/libcamilladsp_ffi.a: $(RUST_SRCS)
+	@echo "🦀 Building Rust bridge ($(MODE))..."
+	cd $(RUST_BRIDGE_DIR) && $(CARGO) build $(CARGO_FLAGS)
 
 # 2. Generate UniFFI bindings
 $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift: $(UDL_FILE)
@@ -41,7 +54,7 @@ $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift: $(UDL_FILE)
 	cd $(RUST_BRIDGE_DIR) && $(UNIFFI_BINDGEN) generate src/api.udl --language swift --out-dir generated/swift
 
 # 3. Sync artifacts to Swift project (Only if changed to preserve timestamps)
-lib/libcamilladsp_ffi.a: $(RUST_BRIDGE_DIR)/target/release/libcamilladsp_ffi.a
+lib/libcamilladsp_ffi.a: $(RUST_BRIDGE_DIR)/target/$(BUILD_DIR)/libcamilladsp_ffi.a
 	@mkdir -p lib
 	@if ! cmp -s $< $@; then \
 		echo "📂 Updating library artifact..."; \
@@ -72,8 +85,8 @@ Sources/CamillaDSPLib/camilladsp_ffi.swift: $(RUST_BRIDGE_DIR)/generated/swift/c
 
 # 4. Build Swift application
 $(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/CamillaDSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS)
-	@echo "🍎 Building Swift application..."
-	cd $(SWIFT_APP_DIR) && $(SWIFT) build -c release
+	@echo "🍎 Building Swift application ($(MODE))..."
+	cd $(SWIFT_APP_DIR) && $(SWIFT) build $(SWIFT_FLAGS)
 
 ## build: Build everything with incremental tracking
 build: $(EXECUTABLE)
