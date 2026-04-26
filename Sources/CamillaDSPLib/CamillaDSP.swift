@@ -1,19 +1,29 @@
 import Foundation
 
 public enum AudioBackendError: Error, LocalizedError, Sendable {
-  case commandFailed(String)
-  case connectionFailed(String)
-  case notConnected
-  case binaryNotFound
-  case decodingError(String)
+  case configParse
+  case commandSend
+  case invalidSamplerate
+  case invalidSide
+  case spectrumCompute
 
   public var errorDescription: String? {
     switch self {
-    case .commandFailed(let msg): return "CamillaDSP command failed: \(msg)"
-    case .connectionFailed(let msg): return "Could not connect to CamillaDSP: \(msg)"
-    case .notConnected: return "Not connected to CamillaDSP"
-    case .binaryNotFound: return "CamillaDSP binary not found"
-    case .decodingError(let msg): return "Failed to decode response: \(msg)"
+    case .configParse: return "Config parse error"
+    case .commandSend: return "Command send error"
+    case .invalidSamplerate: return "Invalid samplerate"
+    case .invalidSide: return "Invalid side"
+    case .spectrumCompute: return "Spectrum compute error"
+    }
+  }
+
+  init(_ dspError: DspError) {
+    switch dspError {
+    case .ConfigParseError(_): self = .configParse
+    case .CommandSendError(_): self = .commandSend
+    case .InvalidSamplerate(_): self = .invalidSamplerate
+    case .InvalidSide(_): self = .invalidSide
+    case .SpectrumComputeError(_): self = .spectrumCompute
     }
   }
 }
@@ -102,8 +112,8 @@ public actor DSPEngine {
   public func start(configJson: String) async throws {
     do {
       try engine.setConfig(json: configJson)
-    } catch {
-      throw AudioBackendError.commandFailed(error.localizedDescription)
+    } catch let error as DspError {
+      throw AudioBackendError(error)
     }
   }
 
@@ -160,14 +170,13 @@ public actor DSPEngine {
 
   public func getSpectrum(
     side: String, channel: UInt32?, minFreq: Double, maxFreq: Double, nBins: UInt32
-  ) async -> Spectrum? {
+  ) async throws -> Spectrum {
     do {
       let data = try engine.getSpectrum(
         side: side, channel: channel, minFreq: minFreq, maxFreq: maxFreq, nBins: nBins)
       return Spectrum(frequencies: data.frequencies, magnitudes: data.magnitudes)
-    } catch {
-      print("[DSPEngine] Failed to get spectrum: \(error)")
-      return nil
+    } catch let error as DspError {
+      throw AudioBackendError(error)
     }
   }
 

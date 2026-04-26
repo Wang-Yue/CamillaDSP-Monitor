@@ -87,18 +87,27 @@ final class MonitoringController {
 
     // 3. Poll Spectrum Bands
     if currentStatus != .inactive, currentStatus != .paused, spectrum.visibilityCount > 0,
-      let spectrumData = await engine.getSpectrum(
-        side: spectrum.side,
-        channel: nil,
-        minFreq: spectrum.minFreq,
-        maxFreq: spectrum.maxFreq,
-        nBins: spectrum.nBins
-      ), !spectrumData.magnitudes.isEmpty
+      let spectrumData = await fetchSpectrum(for: spectrum)
     {
       spectrum.updateSpectrum(
         frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
     } else {
       spectrum.reset()
+    }
+  }
+
+  private func fetchSpectrum(for spectrum: SpectrumEngine) async -> Spectrum? {
+    do {
+      return try await engine.getSpectrum(
+        side: spectrum.side,
+        channel: nil,
+        minFreq: spectrum.minFreq,
+        maxFreq: spectrum.maxFreq,
+        nBins: spectrum.nBins
+      )
+    } catch {
+      print("[MonitoringController] Failed to get spectrum: \(error)")
+      return nil
     }
   }
 

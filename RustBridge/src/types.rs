@@ -36,7 +36,11 @@ pub struct DspStatus {
 
 #[derive(Debug)]
 pub enum DspError {
-    Error,
+    ConfigParseError,
+    CommandSendError,
+    InvalidSamplerate,
+    InvalidSide,
+    SpectrumComputeError,
 }
 
 impl std::fmt::Display for DspError {

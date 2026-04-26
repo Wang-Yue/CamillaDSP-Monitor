@@ -23,7 +23,11 @@ dictionary DspStatus {
 
 [Error]
 enum DspError {
-    "Error"
+    "ConfigParseError",
+    "CommandSendError",
+    "InvalidSamplerate",
+    "InvalidSide",
+    "SpectrumComputeError"
 };
 
 dictionary DspSpectrum {

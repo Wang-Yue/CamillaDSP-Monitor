@@ -45,6 +45,10 @@ final class SpectrumEngine {
 
   /// Update the spectrum with pre-computed values from the library.
   func updateSpectrum(frequencies: [Float], magnitudes: [Float]) {
+    guard !magnitudes.isEmpty else {
+      reset()
+      return
+    }
     self.frequencies = frequencies.map { Double($0) }
     self.bands = magnitudes.map { Double($0) }
   }

@@ -123,10 +123,10 @@ impl CamillaEngine {
     pub fn set_config(&self, json: String) -> Result<(), DspError> {
         log::info!("FFI Engine: set_config with JSON: {}", json);
         let conf: config::Configuration =
-            serde_json::from_str(&json).map_err(|_| DspError::Error)?;
+            serde_json::from_str(&json).map_err(|_| DspError::ConfigParseError)?;
         self.tx_command
             .send(ControllerMessage::ConfigChanged(Box::new(conf)))
-            .map_err(|_| DspError::Error)
+            .map_err(|_| DspError::CommandSendError)
     }
 
     pub fn stop(&self) {
@@ -220,7 +220,7 @@ impl CamillaEngine {
             .map(|c| c.devices.samplerate)
             .unwrap_or(0);
         if samplerate == 0 {
-            return Err(DspError::Error);
+            return Err(DspError::InvalidSamplerate);
         }
 
         let channel = channel.map(|c| c as usize);
@@ -248,10 +248,10 @@ impl CamillaEngine {
                     samplerate,
                 )
             }
-            _ => return Err(DspError::Error),
+            _ => return Err(DspError::InvalidSide),
         };
 
-        let data = data.map_err(|_| DspError::Error)?;
+        let data = data.map_err(|_| DspError::SpectrumComputeError)?;
 
         Ok(types::DspSpectrum {
             frequencies: data.frequencies.to_vec(),
