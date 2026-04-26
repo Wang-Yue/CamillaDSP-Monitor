@@ -143,7 +143,8 @@ struct AnalogVUMeter: View {
       let minR = 0.1
       let maxR = 1.412
       let norm = (ratio - minR) / (maxR - minR)
-      return startAngle + norm * totalSpan
+      let clippedNorm = min(max(norm, -0.076), 1.1)
+      return startAngle + clippedNorm * totalSpan
     }
 
     // 1. BOTTOM AMBER GLOW
