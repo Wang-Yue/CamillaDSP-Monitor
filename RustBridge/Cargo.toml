@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-CamillaDSP = { git = "https://github.com/HEnquist/camilladsp", branch = "next4.2.0" }
+CamillaDSP = { git = "https://github.com/HEnquist/camilladsp", branch = "bin_is_thin_wrapper" }
 uniffi = { version = "0.31", features = ["cli"] }
 serde_json = "1.0"
 log = "0.4"

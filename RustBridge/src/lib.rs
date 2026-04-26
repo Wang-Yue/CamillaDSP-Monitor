@@ -1,16 +1,10 @@
-use camillalib::{
-    config, utils::countertimer, ControllerMessage, ExitState, ProcessingState, SharedConfigs,
-    StatusStructs, StopReason,
-};
+use camillalib::{config, ControllerMessage, ExitState, SharedConfigs, StatusStructs, StopReason};
 use crossbeam_channel::{bounded, Sender};
 use log::debug;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use std::sync::Arc;
 
-mod engine;
 mod types;
-
-use engine::run_engine;
 pub use types::{DspError, DspSpectrum, DspState, DspStatus, DspStopReason, DspVuLevels};
 
 pub struct CamillaEngine {
@@ -35,36 +29,7 @@ impl CamillaEngine {
         let (tx_command, rx_command) = bounded(10);
         let active_config = Arc::new(Mutex::new(None));
 
-        let capture_status = Arc::new(RwLock::new(camillalib::CaptureStatus {
-            measured_samplerate: 0,
-            update_interval: 1000,
-            signal_range: 0.0,
-            rate_adjust: 0.0,
-            state: ProcessingState::Inactive,
-            signal_rms: countertimer::ValueHistory::new(1024, 2),
-            signal_peak: countertimer::ValueHistory::new(1024, 2),
-            used_channels: Vec::new(),
-            audio_buffer: Default::default(),
-        }));
-        let playback_status = Arc::new(RwLock::new(camillalib::PlaybackStatus {
-            buffer_level: 0,
-            clipped_samples: 0,
-            update_interval: 1000,
-            signal_rms: countertimer::ValueHistory::new(1024, 2),
-            signal_peak: countertimer::ValueHistory::new(1024, 2),
-            audio_buffer: Default::default(),
-        }));
-        let processing_params = Arc::new(camillalib::ProcessingParameters::default());
-        let processing_status = Arc::new(RwLock::new(camillalib::ProcessingStatus {
-            stop_reason: StopReason::None,
-        }));
-
-        let status_structs = StatusStructs {
-            capture: capture_status.clone(),
-            playback: playback_status.clone(),
-            processing: processing_params.clone(),
-            status: processing_status.clone(),
-        };
+        let status_structs = StatusStructs::default();
 
         let engine = CamillaEngine {
             tx_command: tx_command.clone(),
@@ -104,7 +69,7 @@ impl CamillaEngine {
                     previous: previous_config.clone(),
                 };
 
-                let exitstatus = run_engine(
+                let exitstatus = camillalib::engine::run(
                     shared_configs,
                     status_structs_clone.clone(),
                     rx_command.clone(),
