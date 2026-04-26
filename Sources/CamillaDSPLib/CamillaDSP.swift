@@ -32,6 +32,16 @@ public enum ProcessingState: Sendable {
   case inactive
   case starting
   case stalled
+
+  init(_ dspState: DspState) {
+    switch dspState {
+    case .running: self = .running
+    case .paused: self = .paused
+    case .inactive: self = .inactive
+    case .starting: self = .starting
+    case .stalled: self = .stalled
+    }
+  }
 }
 
 /// State change data.
@@ -141,16 +151,8 @@ public actor DSPEngine {
 
   public func getStatus() async -> StateUpdate {
     let status = engine.getStatus()
-    let state: ProcessingState
-    switch status.state {
-    case .running: state = .running
-    case .paused: state = .paused
-    case .inactive: state = .inactive
-    case .starting: state = .starting
-    case .stalled: state = .stalled
-    }
     return StateUpdate(
-      state: state,
+      state: ProcessingState(status.state),
       stopReason: status.stopReason,
       stopReasonRate: status.stopReasonRate.map { Int($0) }
     )
