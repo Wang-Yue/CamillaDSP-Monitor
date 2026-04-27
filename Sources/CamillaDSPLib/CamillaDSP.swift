@@ -142,12 +142,12 @@ public actor DSPEngine {
     engine.stop()
   }
 
-  public func setVolume(_ db: Double) async {
-    engine.setVolume(fader: 0, volume: Float(db))
+  public func setVolume(_ db: Float) async {
+    engine.setVolume(volume: db)
   }
 
   public func setMute(_ mute: Bool) async {
-    engine.setMute(fader: 0, mute: mute)
+    engine.setMute(mute: mute)
   }
 
   public func getAvailableDevices(backend: String, input: Bool) async -> [AudioDevice] {

@@ -67,7 +67,7 @@ final class DSPEngineController {
 
   // MARK: - Volume / Mute
 
-  func setVolume(_ db: Double) {
+  func setVolume(_ db: Float) {
     settings.volume = db
     Task { await engine.setVolume(db) }
   }

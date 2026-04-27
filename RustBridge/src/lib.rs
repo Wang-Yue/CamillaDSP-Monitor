@@ -1,4 +1,6 @@
-use camillalib::{config, ControllerMessage, ExitState, SharedConfigs, StatusStructs, StopReason};
+use camillalib::{
+    config, ControllerMessage, ExitState, ProcessingState, SharedConfigs, StatusStructs, StopReason,
+};
 use crossbeam_channel::{bounded, Sender};
 use log::debug;
 use parking_lot::Mutex;
@@ -98,16 +100,16 @@ impl CamillaEngine {
         let _ = self.tx_command.send(ControllerMessage::Stop);
     }
 
-    pub fn set_volume(&self, fader: u32, volume: f32) {
-        self.status_structs
-            .processing
-            .set_target_volume(fader as usize, volume);
+    pub fn set_volume(&self, volume: f32) {
+        self.status_structs.processing.set_target_volume(0, volume);
+        let state = self.status_structs.capture.read().state;
+        if state == ProcessingState::Inactive || state == ProcessingState::Starting {
+            self.status_structs.processing.set_current_volume(0, volume);
+        }
     }
 
-    pub fn set_mute(&self, fader: u32, mute: bool) {
-        self.status_structs
-            .processing
-            .set_mute(fader as usize, mute);
+    pub fn set_mute(&self, mute: bool) {
+        self.status_structs.processing.set_mute(0, mute);
     }
 
     pub fn get_status(&self) -> DspStatus {

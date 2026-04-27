@@ -50,8 +50,8 @@ interface CamillaEngine {
     [Throws=DspError]
     void set_config(string json);
     void stop();
-    void set_volume(u32 fader, f32 volume);
-    void set_mute(u32 fader, boolean mute);
+    void set_volume(f32 volume);
+    void set_mute(boolean mute);
     DspStatus get_status();
     DspVuLevels get_vu_levels();
     sequence<string> get_available_devices(string backend, boolean input);

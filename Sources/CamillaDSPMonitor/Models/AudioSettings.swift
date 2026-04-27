@@ -67,7 +67,7 @@ final class AudioSettings {
       onChanged?()
     }
   }
-  var volume: Double = 0.0 {
+  var volume: Float = 0.0 {
     didSet { defaults.set(volume, forKey: "volume") }
   }
   var isMuted: Bool = false {
@@ -94,7 +94,7 @@ final class AudioSettings {
   func loadPreferences() {
     let savedChunkSize = defaults.integer(forKey: "chunksize")
     chunkSize = savedChunkSize > 0 ? savedChunkSize : 1024
-    volume = defaults.double(forKey: "volume")
+    volume = defaults.float(forKey: "volume")
     isMuted = defaults.bool(forKey: "isMuted")
     enableRateAdjust = defaults.bool(forKey: "enableRateAdjust")
     resamplerEnabled = defaults.bool(forKey: "resamplerEnabled")
