@@ -14,7 +14,6 @@ struct SpectrogramView: View {
       // Dynamic waterfall layer
       SpectrogramContentView()
     }
-    .background(Color.black)
   }
 }
 
@@ -59,7 +58,7 @@ struct SpectrogramContentView: View {
         for j in 0..<min(Int(nBins), frame.data.count) {
           let magnitude = frame.data[j]
           let normalized = Float(normalizedDB(magnitude))
-          let color = colorForMagnitude(normalized, palette: spectroscope.selectedPalette)
+          let color = colorForMagnitude(normalized)
 
           // Low frequencies at the bottom of the draw area
           let y = drawHeight - CGFloat(j + 1) * barHeight
@@ -71,25 +70,14 @@ struct SpectrogramContentView: View {
     }
   }
 
-  private func colorForMagnitude(_ value: Float, palette: SpectrogramEngine.Palette) -> Color {
-    switch palette {
-    case .heatMap:
-      return heatMapColor(value)
-    case .grayscale:
-      return Color(white: Double(value))
-    case .appTheme:
-      return appThemeColor(value)
-    }
-  }
+  private func colorForMagnitude(_ value: Float) -> Color {
+    let baseColor = appThemeColor(value)
 
-  private func heatMapColor(_ value: Float) -> Color {
-    if value < 0.3 {
-      return Color(red: Double(value / 0.3), green: 0, blue: 0)
-    } else if value < 0.7 {
-      return Color(red: 1.0, green: Double((value - 0.3) / 0.4), blue: 0)
-    } else {
-      return Color(red: 1.0, green: 1.0, blue: Double((value - 0.7) / 0.3))
+    // Apply opacity for low values to reveal the background
+    if value < 0.2 {
+      return baseColor.opacity(Double(value / 0.2))
     }
+    return baseColor
   }
 
   private func appThemeColor(_ value: Float) -> Color {
@@ -125,18 +113,18 @@ struct SpectrogramGridView: View, Equatable {
         var line = Path()
         line.move(to: CGPoint(x: x, y: 0))
         line.addLine(to: CGPoint(x: x, y: drawHeight))
-        context.stroke(line, with: .color(Color.white.opacity(0.1)), lineWidth: 0.5)
+        context.stroke(line, with: .color(Color.primary.opacity(0.05)), lineWidth: 0.5)
 
         // Label
         context.draw(
-          Text("\(mark)s").font(.system(size: 8, design: .monospaced)).foregroundColor(.white),
+          Text("\(mark)s").font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary),
           at: CGPoint(x: x, y: drawHeight + 10),
           anchor: mark == 0 ? .trailing : .center)
       }
 
       // Draw frequency labels
       if let freqs = frequencies {
-        let targetFreqs: [Float] = [20, 100, 1000, 10000, 20000]
+        let targetFreqs: [Float] = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
         for target in targetFreqs {
           if let index = findClosestIndex(target: target, in: freqs) {
             let y = drawHeight - CGFloat(index + 1) * (drawHeight / CGFloat(nBins))
@@ -145,13 +133,14 @@ struct SpectrogramGridView: View, Equatable {
             var line = Path()
             line.move(to: CGPoint(x: leftPadding, y: y))
             line.addLine(to: CGPoint(x: size.width, y: y))
-            context.stroke(line, with: .color(Color.white.opacity(0.1)), lineWidth: 0.5)
+            context.stroke(line, with: .color(Color.primary.opacity(0.05)), lineWidth: 0.5)
 
             // Label
             let label = formatFrequency(target)
             context.draw(
-              Text(label).font(.system(size: 8, design: .monospaced)).foregroundColor(.white),
-              at: CGPoint(x: 20, y: y))
+              Text(label).font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary),
+              at: CGPoint(x: 20, y: y),
+              anchor: .topLeading)
           }
         }
       }

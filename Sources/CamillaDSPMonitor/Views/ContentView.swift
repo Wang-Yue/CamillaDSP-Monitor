@@ -428,17 +428,6 @@ struct SpectroscopeDetailView: View {
             .frame(width: 120)
           }
 
-          VStack(alignment: .leading, spacing: 4) {
-            Text("Palette").font(.caption).foregroundStyle(.secondary)
-            Picker("", selection: $spectroscope.selectedPalette) {
-              ForEach(SpectrogramEngine.Palette.allCases, id: \.self) { palette in
-                Text(palette.rawValue).tag(palette)
-              }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 250)
-          }
-
           Spacer()
         }
         .padding(.vertical, 8)

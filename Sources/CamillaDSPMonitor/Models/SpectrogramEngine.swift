@@ -38,16 +38,6 @@ final class SpectrogramEngine {
     didSet { defaults.set(isCapture, forKey: "spectroscope_is_capture") }
   }
 
-  enum Palette: String, CaseIterable, Codable {
-    case heatMap = "Heat Map"
-    case grayscale = "Grayscale"
-    case appTheme = "App Theme"
-  }
-
-  var selectedPalette: Palette = .heatMap {
-    didSet { defaults.set(selectedPalette.rawValue, forKey: "spectroscope_palette") }
-  }
-
   init() {
     let bins = defaults.integer(forKey: "spectroscope_n_bins")
     if bins > 0 { self.nBins = UInt32(bins) }
@@ -56,11 +46,6 @@ final class SpectrogramEngine {
       self.isCapture = defaults.bool(forKey: "spectroscope_is_capture")
     }
 
-    if let savedPalette = defaults.string(forKey: "spectroscope_palette"),
-      let palette = Palette(rawValue: savedPalette)
-    {
-      self.selectedPalette = palette
-    }
   }
 
   /// Update the spectrum with pre-computed values from the library.
@@ -89,7 +74,6 @@ final class SpectrogramEngine {
   func resetToDefaults() {
     nBins = 200
     isCapture = true
-    selectedPalette = .heatMap
     history.removeAll()
   }
 }
