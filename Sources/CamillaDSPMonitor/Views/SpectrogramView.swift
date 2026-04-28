@@ -20,78 +20,100 @@ struct SpectrogramView: View {
 
 struct SpectrogramContentView: View {
   @Environment(SpectrogramEngine.self) var spectroscope
-  @State private var imageBuffer: CGImage?
+  @State private var bitmapContext: CGContext?
+  @State private var currentX: CGFloat = 0.0
   @State private var bufferSize: CGSize = .zero
+  @State private var publishedImage: CGImage?
 
   var body: some View {
     GeometryReader { geometry in
       Canvas { context, size in
-        if let image = imageBuffer {
-          context.draw(
-            Image(image, scale: 1.0, label: Text("Spectrogram")),
-            in: CGRect(origin: .zero, size: size))
+        if let image = publishedImage {
+          let leftPadding: CGFloat = 40
+          let drawWidth = size.width - leftPadding
+
+          // Part 1: Oldest data (cursorX to right edge -> drawn on the left)
+          let leftPartWidth = drawWidth - currentX
+          if leftPartWidth > 0 {
+            var subContext = context
+            let clipRect = CGRect(x: leftPadding, y: 0, width: leftPartWidth, height: size.height)
+            subContext.clip(to: Path(clipRect))
+
+            let imageRect = CGRect(x: -currentX, y: 0, width: size.width, height: size.height)
+            subContext.draw(Image(image, scale: 1.0, label: Text("")), in: imageRect)
+          }
+
+          // Part 2: Newest data (leftPadding to cursorX -> drawn on the right)
+          let rightPartWidth = currentX
+          if rightPartWidth > 0 {
+            var subContext = context
+            let clipRect = CGRect(
+              x: leftPadding + leftPartWidth, y: 0, width: rightPartWidth, height: size.height)
+            subContext.clip(to: Path(clipRect))
+
+            let imageRect = CGRect(
+              x: drawWidth - currentX, y: 0, width: size.width, height: size.height)
+            subContext.draw(Image(image, scale: 1.0, label: Text("")), in: imageRect)
+          }
         }
       }
       .onChange(of: spectroscope.history) { _, newHistory in
         updateBuffer(with: newHistory, size: geometry.size)
       }
       .onChange(of: geometry.size) { _, newSize in
-        updateBuffer(with: spectroscope.history, size: newSize)
+        recreateBuffer(size: newSize, history: spectroscope.history)
       }
       .onAppear {
-        updateBuffer(with: spectroscope.history, size: geometry.size)
+        recreateBuffer(size: geometry.size, history: spectroscope.history)
       }
     }
   }
 
   private func updateBuffer(with history: [SpectrogramFrame], size: CGSize) {
-    guard size.width > 0 && size.height > 0 else { return }
+    guard let context = bitmapContext else { return }
+
+    guard let lastFrame = history.last else {
+      // History cleared, clear the buffer
+      context.clear(CGRect(origin: .zero, size: size))
+      publishedImage = context.makeImage()
+      currentX = 0
+      return
+    }
 
     let leftPadding: CGFloat = 40
-    let bottomPadding: CGFloat = 20
     let drawWidth = size.width - leftPadding
-    let drawHeight = size.height - bottomPadding
+    let drawHeight = size.height - 20  // bottomPadding = 20
+
+    let count = history.count
+    let timeDiff: TimeInterval
+    if count > 1 {
+      timeDiff = lastFrame.timestamp.timeIntervalSince(history[count - 2].timestamp)
+    } else {
+      timeDiff = 0.1  // Fallback
+    }
+
+    let stripWidth = drawWidth * CGFloat(timeDiff / 10.0)
+
+    // Draw new data at currentX
+    drawFrame(
+      lastFrame, in: context, at: leftPadding + currentX, width: stripWidth, drawHeight: drawHeight,
+      nBins: spectroscope.nBins)
+
+    // Advance cursor
+    currentX += stripWidth
+    if currentX >= drawWidth {
+      currentX = 0  // Wrap around
+    }
+
+    // Publish the new image
+    publishedImage = context.makeImage()
+  }
+
+  private func recreateBuffer(size: CGSize, history: [SpectrogramFrame]) {
+    guard size.width > 0 && size.height > 0 else { return }
 
     let colorSpace = CGColorSpaceCreateDeviceRGB()
     let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-
-    // If size changed or buffer is nil, recreate
-    if bufferSize != size || imageBuffer == nil {
-      guard
-        let context = CGContext(
-          data: nil, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8,
-          bytesPerRow: Int(size.width) * 4, space: colorSpace, bitmapInfo: bitmapInfo.rawValue)
-      else { return }
-
-      redrawAllHistory(
-        in: context, history: history, size: size, leftPadding: leftPadding, drawWidth: drawWidth,
-        drawHeight: drawHeight)
-
-      imageBuffer = context.makeImage()
-      bufferSize = size
-      return
-    }
-
-    // Incremental update
-    guard let lastFrame = history.last else { return }
-    let count = history.count
-    guard count > 1 else {
-      // First frame
-      guard
-        let context = CGContext(
-          data: nil, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8,
-          bytesPerRow: Int(size.width) * 4, space: colorSpace, bitmapInfo: bitmapInfo.rawValue)
-      else { return }
-      redrawAllHistory(
-        in: context, history: history, size: size, leftPadding: leftPadding, drawWidth: drawWidth,
-        drawHeight: drawHeight)
-      imageBuffer = context.makeImage()
-      return
-    }
-
-    let prevFrame = history[count - 2]
-    let timeDiff = lastFrame.timestamp.timeIntervalSince(prevFrame.timestamp)
-    let stripWidth = drawWidth * CGFloat(timeDiff / 10.0)
 
     guard
       let context = CGContext(
@@ -99,18 +121,20 @@ struct SpectrogramContentView: View {
         bytesPerRow: Int(size.width) * 4, space: colorSpace, bitmapInfo: bitmapInfo.rawValue)
     else { return }
 
-    if let oldImage = imageBuffer {
-      // Shift left
-      context.draw(
-        oldImage, in: CGRect(x: -stripWidth, y: 0, width: size.width, height: size.height))
+    let leftPadding: CGFloat = 40
+    let bottomPadding: CGFloat = 20
+    let drawWidth = size.width - leftPadding
+    let drawHeight = size.height - bottomPadding
 
-      // Draw new data on the right edge
-      drawFrame(
-        lastFrame, in: context, at: size.width - stripWidth, width: stripWidth,
-        drawHeight: drawHeight, nBins: spectroscope.nBins)
-    }
+    // Redraw all history
+    redrawAllHistory(
+      in: context, history: history, size: size, leftPadding: leftPadding, drawWidth: drawWidth,
+      drawHeight: drawHeight)
 
-    imageBuffer = context.makeImage()
+    self.bitmapContext = context
+    self.publishedImage = context.makeImage()
+    self.bufferSize = size
+    self.currentX = 0  // Reset cursor on resize
   }
 
   private func redrawAllHistory(
@@ -160,7 +184,8 @@ struct SpectrogramContentView: View {
       let baseColor = appThemeColor(normalized)
       let color = normalized < 0.2 ? baseColor.opacity(Double(normalized / 0.2)) : baseColor
 
-      let y = CGFloat(j) * barHeight
+      let bottomPadding: CGFloat = 20
+      let y = bottomPadding + CGFloat(j) * barHeight
       let rect = CGRect(x: x, y: y, width: width, height: barHeight)
 
       let nsColor = NSColor(color)

@@ -35,7 +35,10 @@ final class SpectrogramEngine {
     }
   }
   var isCapture: Bool = true {
-    didSet { defaults.set(isCapture, forKey: "spectroscope_is_capture") }
+    didSet {
+      defaults.set(isCapture, forKey: "spectroscope_is_capture")
+      history.removeAll()
+    }
   }
 
   init() {
