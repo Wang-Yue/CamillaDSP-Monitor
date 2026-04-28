@@ -1,0 +1,45 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Run when a tag starting with 'v' is pushed
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Build App
+      run: |
+        # Note: The Makefile uses RUSTFLAGS='-C target-cpu=native'.
+        # On GitHub runners, this will optimize for the runner's CPU.
+        # If you want a binary that runs on all Apple Silicon Macs,
+        # you might want to remove that flag or set it to a generic target.
+        # For now, we build using the Makefile as requested.
+        make app MODE=release
+
+    - name: Zip App
+      run: |
+        zip -r CamillaDSPMonitor.zip CamillaDSPMonitor.app
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: CamillaDSPMonitor
+        path: CamillaDSPMonitor.zip
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: CamillaDSPMonitor.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

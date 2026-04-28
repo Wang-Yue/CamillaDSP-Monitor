@@ -28,7 +28,11 @@ RUST_BRIDGE_DIR := $(ROOT_DIR)/RustBridge
 SWIFT_APP_DIR := $(ROOT_DIR)
 
 # Tools
-CARGO := MACOSX_DEPLOYMENT_TARGET=15.0 RUSTFLAGS='-C target-cpu=native' cargo
+ifeq ($(GITHUB_ACTIONS),true)
+  CARGO := MACOSX_DEPLOYMENT_TARGET=15.0 cargo
+else
+  CARGO := MACOSX_DEPLOYMENT_TARGET=15.0 RUSTFLAGS='-C target-cpu=native' cargo
+endif
 SWIFT := swift
 UNIFFI_BINDGEN := $(CARGO) run $(CARGO_FLAGS) --bin uniffi-bindgen --
 
