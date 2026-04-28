@@ -19,11 +19,6 @@ jobs:
 
     - name: Build App
       run: |
-        # Note: The Makefile uses RUSTFLAGS='-C target-cpu=native'.
-        # On GitHub runners, this will optimize for the runner's CPU.
-        # If you want a binary that runs on all Apple Silicon Macs,
-        # you might want to remove that flag or set it to a generic target.
-        # For now, we build using the Makefile as requested.
         make app MODE=release
 
     - name: Zip App
