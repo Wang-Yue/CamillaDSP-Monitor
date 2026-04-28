@@ -90,10 +90,14 @@ impl CamillaEngine {
     pub fn set_config(&self, json: String) -> Result<(), DspError> {
         log::info!("FFI Engine: set_config with JSON: {}", json);
         let conf: config::Configuration =
-            serde_json::from_str(&json).map_err(|_| DspError::ConfigParseError)?;
+            serde_json::from_str(&json).map_err(|e| DspError::ConfigParseError {
+                message: e.to_string(),
+            })?;
         self.tx_command
             .send(ControllerMessage::ConfigChanged(Box::new(conf)))
-            .map_err(|_| DspError::CommandSendError)
+            .map_err(|e| DspError::CommandSendError {
+                message: e.to_string(),
+            })
     }
 
     pub fn stop(&self) {
@@ -174,7 +178,9 @@ impl CamillaEngine {
             .map(|c| c.devices.samplerate)
             .unwrap_or(0);
         if samplerate == 0 {
-            return Err(DspError::InvalidSamplerate);
+            return Err(DspError::InvalidSamplerate {
+                message: "Samplerate is 0".to_string(),
+            });
         }
 
         let channel = channel.map(|c| c as usize);
@@ -196,9 +202,15 @@ impl CamillaEngine {
         let data = match side.as_str() {
             "capture" => compute!(self.status_structs.capture.read()),
             "playback" => compute!(self.status_structs.playback.read()),
-            _ => return Err(DspError::InvalidSide),
+            _ => {
+                return Err(DspError::InvalidSide {
+                    message: format!("Invalid side: {}", side),
+                })
+            }
         }
-        .map_err(|_| DspError::SpectrumComputeError)?;
+        .map_err(|e| DspError::SpectrumComputeError {
+            message: format!("{:?}", e),
+        })?;
 
         Ok(types::DspSpectrum {
             frequencies: data.frequencies.to_vec(),

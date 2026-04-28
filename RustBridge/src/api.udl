@@ -32,12 +32,12 @@ dictionary DspStatus {
 };
 
 [Error]
-enum DspError {
-    "ConfigParseError",
-    "CommandSendError",
-    "InvalidSamplerate",
-    "InvalidSide",
-    "SpectrumComputeError"
+interface DspError {
+    ConfigParseError(string message);
+    CommandSendError(string message);
+    InvalidSamplerate(string message);
+    InvalidSide(string message);
+    SpectrumComputeError(string message);
 };
 
 dictionary DspSpectrum {

@@ -1,29 +1,29 @@
 import Foundation
 
 public enum AudioBackendError: Error, LocalizedError, Sendable {
-  case configParse
-  case commandSend
-  case invalidSamplerate
-  case invalidSide
-  case spectrumCompute
+  case configParse(message: String)
+  case commandSend(message: String)
+  case invalidSamplerate(message: String)
+  case invalidSide(message: String)
+  case spectrumCompute(message: String)
 
   public var errorDescription: String? {
     switch self {
-    case .configParse: return "Config parse error"
-    case .commandSend: return "Command send error"
-    case .invalidSamplerate: return "Invalid samplerate"
-    case .invalidSide: return "Invalid side"
-    case .spectrumCompute: return "Spectrum compute error"
+    case .configParse(let message): return "Config parse error: \(message)"
+    case .commandSend(let message): return "Command send error: \(message)"
+    case .invalidSamplerate(let message): return "Invalid samplerate: \(message)"
+    case .invalidSide(let message): return "Invalid side: \(message)"
+    case .spectrumCompute(let message): return "Spectrum compute error: \(message)"
     }
   }
 
   init(_ dspError: DspError) {
     switch dspError {
-    case .ConfigParseError(_): self = .configParse
-    case .CommandSendError(_): self = .commandSend
-    case .InvalidSamplerate(_): self = .invalidSamplerate
-    case .InvalidSide(_): self = .invalidSide
-    case .SpectrumComputeError(_): self = .spectrumCompute
+    case .ConfigParseError(let message): self = .configParse(message: message)
+    case .CommandSendError(let message): self = .commandSend(message: message)
+    case .InvalidSamplerate(let message): self = .invalidSamplerate(message: message)
+    case .InvalidSide(let message): self = .invalidSide(message: message)
+    case .SpectrumComputeError(let message): self = .spectrumCompute(message: message)
     }
   }
 }

@@ -161,7 +161,7 @@ final class DSPEngineController {
   private func apply(config: [String: Any]) async throws {
     let data = try JSONSerialization.data(withJSONObject: config)
     guard let json = String(data: data, encoding: .utf8) else {
-      throw AudioBackendError.configParse
+      throw AudioBackendError.configParse(message: "Failed to convert JSON data to UTF-8 string")
     }
     try await engine.start(configJson: json)
   }
