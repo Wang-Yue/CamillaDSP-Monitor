@@ -5,16 +5,26 @@ import SwiftUI
 
 // MARK: - Shared Visual Constants
 
+struct AudioTheme {
+  static let min: Double = 0.0
+  static let mid: Double = 0.2
+  static let max: Double = 1.0
+}
+
+/// Returns a color for a given normalized value (0..1) based on the app theme.
+func appThemeColor(_ value: Float) -> Color {
+  let v = Double(value)
+  let hue = 0.4 * (AudioTheme.max - v)
+  return Color(hue: hue, saturation: 1.0, brightness: 0.9)
+}
+
 extension Gradient {
-  /// Standard audio level gradient: green → yellow → orange → red.
+  /// Standard audio level gradient: green → yellow → red.
   /// Used identically by level meters and spectrum bars.
   static let audioLevel = Gradient(stops: [
-    .init(color: .green, location: 0.0),
-    .init(color: .green, location: 0.35),
-    .init(color: .yellow, location: 0.55),
-    .init(color: .orange, location: 0.75),
-    .init(color: .red, location: 0.95),
-    .init(color: .red, location: 1.0),
+    .init(color: appThemeColor(Float(AudioTheme.min)), location: AudioTheme.min),
+    .init(color: appThemeColor(Float(AudioTheme.mid)), location: AudioTheme.mid),
+    .init(color: appThemeColor(Float(AudioTheme.max)), location: AudioTheme.max),
   ])
 }
 
@@ -203,7 +213,8 @@ struct CompactStereoMeter: View {
     if fillW > 0 {
       let fillRect = CGRect(x: rect.minX, y: rect.minY, width: fillW, height: rect.height)
       context.fill(
-        Path(roundedRect: fillRect, cornerRadius: 2), with: .color(level > -6 ? .orange : .green))
+        Path(roundedRect: fillRect, cornerRadius: 2),
+        with: .color(appThemeColor(Float(normalizedDB(level)))))
     }
   }
 }

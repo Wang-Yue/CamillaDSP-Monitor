@@ -80,13 +80,6 @@ struct SpectrogramContentView: View {
     return baseColor
   }
 
-  private func appThemeColor(_ value: Float) -> Color {
-    if value < 0.5 {
-      return Color(red: Double(value / 0.5), green: 1.0, blue: 0)
-    } else {
-      return Color(red: 1.0, green: Double((1.0 - value) / 0.5), blue: 0)
-    }
-  }
 }
 
 struct SpectrogramGridView: View, Equatable {
