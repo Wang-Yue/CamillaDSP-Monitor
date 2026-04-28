@@ -21,8 +21,42 @@ final class AppState {
   let vuSettings = VUSettings()  // Added persistent VU settings
   let logManager = LogManager()
 
+  var showLevelMetersInDashboard = true {
+    didSet {
+      UserDefaults.standard.set(showLevelMetersInDashboard, forKey: "show_levels_in_dashboard")
+    }
+  }
+  var showSpectrumInDashboard = true {
+    didSet {
+      UserDefaults.standard.set(showSpectrumInDashboard, forKey: "show_spectrum_in_dashboard")
+    }
+  }
+  var showSpectrogramInDashboard = true {
+    didSet {
+      UserDefaults.standard.set(showSpectrogramInDashboard, forKey: "show_spectrogram_in_dashboard")
+    }
+  }
+  var showAnalogVUInDashboard = true {
+    didSet {
+      UserDefaults.standard.set(showAnalogVUInDashboard, forKey: "show_analog_vu_in_dashboard")
+    }
+  }
+
   init() {
     print("[AppState] Initializing...")
+
+    self.showLevelMetersInDashboard =
+      UserDefaults.standard.object(forKey: "show_levels_in_dashboard") != nil
+      ? UserDefaults.standard.bool(forKey: "show_levels_in_dashboard") : true
+    self.showSpectrumInDashboard =
+      UserDefaults.standard.object(forKey: "show_spectrum_in_dashboard") != nil
+      ? UserDefaults.standard.bool(forKey: "show_spectrum_in_dashboard") : true
+    self.showSpectrogramInDashboard =
+      UserDefaults.standard.object(forKey: "show_spectrogram_in_dashboard") != nil
+      ? UserDefaults.standard.bool(forKey: "show_spectrogram_in_dashboard") : true
+    self.showAnalogVUInDashboard =
+      UserDefaults.standard.object(forKey: "show_analog_vu_in_dashboard") != nil
+      ? UserDefaults.standard.bool(forKey: "show_analog_vu_in_dashboard") : true
 
     let engine = DSPEngine()
     let settings = AudioSettings()

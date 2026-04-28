@@ -62,14 +62,25 @@ private class VerticalToHorizontalScrollView: NSScrollView {
 }
 
 struct DashboardView: View {
+  @Environment(AppState.self) var appState
+
   var body: some View {
     ScrollView {
       VStack(spacing: 20) {
         PipelineOverview()
-        LevelMetersCard()
-        AnalogVUCard()  // Added Analog VU Card
-        SpectrumCard()
-        SpectrogramCard()
+
+        if appState.showLevelMetersInDashboard {
+          LevelMetersCard()
+        }
+        if appState.showAnalogVUInDashboard {
+          AnalogVUCard()
+        }
+        if appState.showSpectrumInDashboard {
+          SpectrumCard()
+        }
+        if appState.showSpectrogramInDashboard {
+          SpectrogramCard()
+        }
       }
       .padding()
     }

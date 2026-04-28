@@ -92,10 +92,12 @@ struct ToolbarView: ToolbarContent {
 struct SidebarView: View {
   @Environment(AudioSettings.self) var settings
   @Environment(PipelineStore.self) var pipeline
+  @Environment(AppState.self) var appState
   @Binding var selection: SidebarItem?
   @Binding var showAutoEqSearch: Bool
 
   var body: some View {
+    @Bindable var appState = appState
     List(selection: $selection) {
       Section("Audio") {
         Label("Devices", systemImage: "hifispeaker.2")
@@ -105,14 +107,25 @@ struct SidebarView: View {
       }
 
       Section("Monitoring") {
-        Label("Level Meters", systemImage: "chart.bar")
-          .tag(SidebarItem.levels)
-        Label("Spectrum", systemImage: "waveform.path.ecg.rectangle")
-          .tag(SidebarItem.spectrum)
-        Label("Spectroscope", systemImage: "circle.grid.3x3.fill")
-          .tag(SidebarItem.spectroscope)
-        Label("Analog VU", systemImage: "gauge.with.needle")
-          .tag(SidebarItem.analogVU)
+        MonitoringSidebarRow(
+          icon: "chart.bar", title: "Level Meters", isEnabled: $appState.showLevelMetersInDashboard
+        )
+        .tag(SidebarItem.levels)
+        MonitoringSidebarRow(
+          icon: "waveform.path.ecg.rectangle", title: "Spectrum",
+          isEnabled: $appState.showSpectrumInDashboard
+        )
+        .tag(SidebarItem.spectrum)
+        MonitoringSidebarRow(
+          icon: "circle.grid.3x3.fill", title: "Spectroscope",
+          isEnabled: $appState.showSpectrogramInDashboard
+        )
+        .tag(SidebarItem.spectroscope)
+        MonitoringSidebarRow(
+          icon: "gauge.with.needle", title: "Analog VU",
+          isEnabled: $appState.showAnalogVUInDashboard
+        )
+        .tag(SidebarItem.analogVU)
         Label("Console Logs", systemImage: "terminal")
           .tag(SidebarItem.logs)
       }
@@ -454,6 +467,27 @@ struct ResamplerSidebarRow: View {
         .foregroundStyle(settings.resamplerEnabled ? .primary : .secondary)
       Spacer()
       Toggle("", isOn: $settings.resamplerEnabled)
+        .labelsHidden()
+        .toggleStyle(.switch)
+        .controlSize(.mini)
+    }
+  }
+}
+
+struct MonitoringSidebarRow: View {
+  let icon: String
+  let title: String
+  @Binding var isEnabled: Bool
+
+  var body: some View {
+    HStack {
+      Image(systemName: icon)
+        .frame(width: 20)
+        .foregroundStyle(isEnabled ? Color.accentColor : Color.secondary)
+      Text(title)
+        .foregroundStyle(isEnabled ? .primary : .secondary)
+      Spacer()
+      Toggle("", isOn: $isEnabled)
         .labelsHidden()
         .toggleStyle(.switch)
         .controlSize(.mini)
