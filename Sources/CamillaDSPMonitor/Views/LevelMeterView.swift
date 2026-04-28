@@ -5,26 +5,36 @@ import SwiftUI
 
 // MARK: - Shared Visual Constants
 
-struct AudioTheme {
-  static let min: Double = 0.0
-  static let mid: Double = 0.2
-  static let max: Double = 1.0
-}
-
 /// Returns a color for a given normalized value (0..1) based on the app theme.
+/// Mimics the original gradient stops: green (0.35) → yellow (0.55) → orange (0.75) → red (0.95).
 func appThemeColor(_ value: Float) -> Color {
   let v = Double(value)
-  let hue = 0.4 * (AudioTheme.max - v)
-  return Color(hue: hue, saturation: 1.0, brightness: 0.5 + 0.5 * v)
+  if v < 0.35 {
+    return .green
+  } else if v < 0.55 {
+    let t = (v - 0.35) / 0.2
+    return Color(red: t, green: 1.0, blue: 0)
+  } else if v < 0.75 {
+    let t = (v - 0.55) / 0.2
+    return Color(red: 1.0, green: 1.0 - t * 0.5, blue: 0)
+  } else if v < 0.95 {
+    let t = (v - 0.75) / 0.2
+    return Color(red: 1.0, green: 0.5 - t * 0.5, blue: 0)
+  } else {
+    return .red
+  }
 }
 
 extension Gradient {
-  /// Standard audio level gradient: green → yellow → red.
+  /// Standard audio level gradient: green → yellow → orange → red.
   /// Used identically by level meters and spectrum bars.
   static let audioLevel = Gradient(stops: [
-    .init(color: appThemeColor(Float(AudioTheme.min)), location: AudioTheme.min),
-    .init(color: appThemeColor(Float(AudioTheme.mid)), location: AudioTheme.mid),
-    .init(color: appThemeColor(Float(AudioTheme.max)), location: AudioTheme.max),
+    .init(color: .green, location: 0.0),
+    .init(color: .green, location: 0.35),
+    .init(color: .yellow, location: 0.55),
+    .init(color: .orange, location: 0.75),
+    .init(color: .red, location: 0.95),
+    .init(color: .red, location: 1.0),
   ])
 }
 
