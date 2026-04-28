@@ -15,7 +15,7 @@ struct AudioTheme {
 func appThemeColor(_ value: Float) -> Color {
   let v = Double(value)
   let hue = 0.4 * (AudioTheme.max - v)
-  return Color(hue: hue, saturation: 1.0, brightness: 0.9)
+  return Color(hue: hue, saturation: 1.0, brightness: 0.5 + 0.5 * v)
 }
 
 extension Gradient {
