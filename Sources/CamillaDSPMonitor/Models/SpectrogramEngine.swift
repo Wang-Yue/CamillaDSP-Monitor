@@ -3,7 +3,7 @@
 import Foundation
 import Observation
 
-struct SpectrogramFrame: Sendable {
+struct SpectrogramFrame: Sendable, Equatable {
   let data: [Float]
   let timestamp: Date
 }
