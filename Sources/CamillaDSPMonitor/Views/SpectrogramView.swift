@@ -116,42 +116,28 @@ struct SpectrogramGridView: View, Equatable {
       }
 
       // Draw frequency labels
-      if let freqs = frequencies {
-        let targetFreqs: [Float] = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
-        for target in targetFreqs {
-          if let index = findClosestIndex(target: target, in: freqs) {
-            let y = drawHeight - CGFloat(index + 1) * (drawHeight / CGFloat(nBins))
+      // Draw frequency labels (Fixed positions independent of bins)
+      let targetFreqs: [Float] = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
+      let minLog = log10(20.0)
+      let maxLog = log10(20000.0)
+      for target in targetFreqs {
+        let fraction = (log10(Double(target)) - minLog) / (maxLog - minLog)
+        let y = drawHeight * (1.0 - CGFloat(fraction))
 
-            // Grid line
-            var line = Path()
-            line.move(to: CGPoint(x: leftPadding, y: y))
-            line.addLine(to: CGPoint(x: size.width, y: y))
-            context.stroke(line, with: .color(Color.primary.opacity(0.05)), lineWidth: 0.5)
+        // Grid line
+        var line = Path()
+        line.move(to: CGPoint(x: leftPadding, y: y))
+        line.addLine(to: CGPoint(x: size.width, y: y))
+        context.stroke(line, with: .color(Color.primary.opacity(0.05)), lineWidth: 0.5)
 
-            // Label
-            let label = formatFrequency(target)
-            context.draw(
-              Text(label).font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary),
-              at: CGPoint(x: 20, y: y),
-              anchor: .topLeading)
-          }
-        }
+        // Label
+        let label = formatFrequency(target)
+        context.draw(
+          Text(label).font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary),
+          at: CGPoint(x: 20, y: y),
+          anchor: target == 20 ? .bottomLeading : .topLeading)
       }
     }
-  }
-
-  private func findClosestIndex(target: Float, in array: [Float]) -> Int? {
-    guard !array.isEmpty else { return nil }
-    var closestIndex = 0
-    var minDiff = abs(array[0] - target)
-    for i in 1..<array.count {
-      let diff = abs(array[i] - target)
-      if diff < minDiff {
-        minDiff = diff
-        closestIndex = i
-      }
-    }
-    return closestIndex
   }
 
   private func formatFrequency(_ f: Float) -> String {
