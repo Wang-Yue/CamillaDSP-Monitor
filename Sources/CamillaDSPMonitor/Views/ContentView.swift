@@ -342,9 +342,9 @@ struct SpectrumDetailView: View {
         HStack(spacing: 20) {
           VStack(alignment: .leading, spacing: 4) {
             Text("Source").font(.caption).foregroundStyle(.secondary)
-            Picker("", selection: $spectrum.side) {
-              Text("Capture").tag("capture")
-              Text("Playback").tag("playback")
+            Picker("", selection: $spectrum.isCapture) {
+              Text("Capture").tag(true)
+              Text("Playback").tag(false)
             }
             .pickerStyle(.segmented)
             .frame(width: 140)

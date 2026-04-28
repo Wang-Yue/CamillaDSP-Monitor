@@ -36,7 +36,6 @@ interface DspError {
     ConfigParseError(string message);
     CommandSendError(string message);
     InvalidSamplerate(string message);
-    InvalidSide(string message);
     SpectrumComputeError(string message);
 };
 
@@ -57,6 +56,6 @@ interface CamillaEngine {
     sequence<string> get_available_devices(string backend, boolean input);
     string get_device_capabilities(string backend, string device, boolean input);
     [Throws=DspError]
-    DspSpectrum get_spectrum(string side, u32? channel, f64 min_freq, f64 max_freq, u32 n_bins);
+    DspSpectrum get_spectrum(boolean input, u32? channel, f64 min_freq, f64 max_freq, u32 n_bins);
     void set_log_level(string level);
 };

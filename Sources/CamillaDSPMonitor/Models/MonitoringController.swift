@@ -88,7 +88,7 @@ final class MonitoringController {
   private func fetchSpectrum(for spectrum: SpectrumEngine) async -> Spectrum? {
     do {
       return try await engine.getSpectrum(
-        side: spectrum.side,
+        isCapture: spectrum.isCapture,
         channel: nil,
         minFreq: spectrum.minFreq,
         maxFreq: spectrum.maxFreq,

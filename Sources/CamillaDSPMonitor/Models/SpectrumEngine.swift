@@ -24,8 +24,8 @@ final class SpectrumEngine {
   var nBins: UInt32 = 30 {
     didSet { defaults.set(Int(nBins), forKey: "spectrum_n_bins") }
   }
-  var side: String = "capture" {
-    didSet { defaults.set(side, forKey: "spectrum_side") }
+  var isCapture: Bool = true {
+    didSet { defaults.set(isCapture, forKey: "spectrum_is_capture") }
   }
 
   init() {
@@ -38,8 +38,8 @@ final class SpectrumEngine {
     let bins = defaults.integer(forKey: "spectrum_n_bins")
     if bins > 0 { self.nBins = UInt32(bins) }
 
-    if let s = defaults.string(forKey: "spectrum_side") {
-      self.side = s
+    if defaults.object(forKey: "spectrum_is_capture") != nil {
+      self.isCapture = defaults.bool(forKey: "spectrum_is_capture")
     }
   }
 
@@ -64,6 +64,6 @@ final class SpectrumEngine {
     minFreq = 25.0
     maxFreq = 20000.0
     nBins = 30
-    side = "capture"
+    isCapture = true
   }
 }

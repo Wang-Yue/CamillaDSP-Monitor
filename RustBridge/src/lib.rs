@@ -165,7 +165,7 @@ impl CamillaEngine {
 
     pub fn get_spectrum(
         &self,
-        side: String,
+        input: bool,
         channel: Option<u32>,
         min_freq: f64,
         max_freq: f64,
@@ -199,14 +199,10 @@ impl CamillaEngine {
             };
         }
 
-        let data = match side.as_str() {
-            "capture" => compute!(self.status_structs.capture.read()),
-            "playback" => compute!(self.status_structs.playback.read()),
-            _ => {
-                return Err(DspError::InvalidSide {
-                    message: format!("Invalid side: {}", side),
-                })
-            }
+        let data = if input {
+            compute!(self.status_structs.capture.read())
+        } else {
+            compute!(self.status_structs.playback.read())
         }
         .map_err(|e| DspError::SpectrumComputeError {
             message: format!("{:?}", e),

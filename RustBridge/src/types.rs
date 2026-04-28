@@ -72,7 +72,6 @@ pub enum DspError {
     ConfigParseError { message: String },
     CommandSendError { message: String },
     InvalidSamplerate { message: String },
-    InvalidSide { message: String },
     SpectrumComputeError { message: String },
 }
 
