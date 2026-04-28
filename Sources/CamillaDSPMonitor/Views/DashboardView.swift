@@ -69,6 +69,7 @@ struct DashboardView: View {
         LevelMetersCard()
         AnalogVUCard()  // Added Analog VU Card
         SpectrumCard()
+        SpectrogramCard()
       }
       .padding()
     }
@@ -223,5 +224,22 @@ struct SpectrumCard: View {
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     .onAppear { spectrum.visibilityCount += 1 }
     .onDisappear { spectrum.visibilityCount -= 1 }
+  }
+}
+
+struct SpectrogramCard: View {
+  @Environment(SpectrogramEngine.self) var spectroscope
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("Spectroscope").font(.headline)
+      SpectrogramView()
+        .frame(height: 480)
+        .cornerRadius(8)
+    }
+    .padding()
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    .onAppear { spectroscope.visibilityCount += 1 }
+    .onDisappear { spectroscope.visibilityCount -= 1 }
   }
 }

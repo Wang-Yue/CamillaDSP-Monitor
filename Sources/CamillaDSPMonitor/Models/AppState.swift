@@ -16,6 +16,7 @@ final class AppState {
   let monitoring: MonitoringController
   let dsp: DSPEngineController
   let spectrum: SpectrumEngine
+  let spectroscope: SpectrogramEngine
   let levels: LevelState
   let vuSettings = VUSettings()  // Added persistent VU settings
   let logManager = LogManager()
@@ -29,9 +30,13 @@ final class AppState {
     let levels = LevelState()
     let devices = AudioDeviceManager(engine: engine, settings: settings)
     let spectrum = SpectrumEngine()
+    let spectroscope = SpectrogramEngine()
+
     let monitoring = MonitoringController(
       engine: engine, levels: levels, spectrum: spectrum,
+      spectroscope: spectroscope,
       devices: devices, settings: settings)
+
     let dsp = DSPEngineController(
       engine: engine, devices: devices, settings: settings, pipeline: pipeline,
       monitoring: monitoring, levels: levels)
@@ -44,6 +49,7 @@ final class AppState {
     self.dsp = dsp
     self.levels = levels
     self.spectrum = spectrum
+    self.spectroscope = spectroscope
 
     // Load persisted preferences.
     settings.loadPreferences()

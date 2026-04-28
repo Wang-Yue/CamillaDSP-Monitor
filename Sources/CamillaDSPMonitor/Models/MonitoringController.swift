@@ -13,6 +13,7 @@ final class MonitoringController {
   let devices: AudioDeviceManager
   let settings: AudioSettings
   let spectrum: SpectrumEngine
+  let spectroscope: SpectrogramEngine
 
   var pollingRate: Double = 10.0 {
     didSet {
@@ -33,11 +34,13 @@ final class MonitoringController {
 
   init(
     engine: DSPEngine, levels: LevelState, spectrum: SpectrumEngine,
+    spectroscope: SpectrogramEngine,
     devices: AudioDeviceManager, settings: AudioSettings
   ) {
     self.engine = engine
     self.levels = levels
     self.spectrum = spectrum
+    self.spectroscope = spectroscope
     self.devices = devices
     self.settings = settings
 
@@ -83,6 +86,16 @@ final class MonitoringController {
     } else {
       spectrum.reset()
     }
+
+    // 4. Poll Spectroscope Bands
+    if currentStatus != .inactive, currentStatus != .paused, spectroscope.visibilityCount > 0,
+      let spectrumData = await fetchSpectroscope(for: spectroscope)
+    {
+      spectroscope.updateSpectrum(
+        frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
+    } else {
+      spectroscope.reset()
+    }
   }
 
   private func fetchSpectrum(for spectrum: SpectrumEngine) async -> Spectrum? {
@@ -100,6 +113,21 @@ final class MonitoringController {
     }
   }
 
+  private func fetchSpectroscope(for spectroscope: SpectrogramEngine) async -> Spectrum? {
+    do {
+      return try await engine.getSpectrum(
+        isCapture: spectroscope.isCapture,
+        channel: nil,
+        minFreq: spectroscope.minFreq,
+        maxFreq: spectroscope.maxFreq,
+        nBins: spectroscope.nBins
+      )
+    } catch {
+      print("[MonitoringController] Failed to get spectroscope: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
   // MARK: - State Change Handling
 
   private func handleStateUpdate(state: ProcessingState, stopReason: ProcessingStopReason) {
@@ -109,6 +137,7 @@ final class MonitoringController {
       if state == .inactive || state == .paused {
         levels.reset()
         spectrum.reset()
+        spectroscope.reset()
       }
     }
 

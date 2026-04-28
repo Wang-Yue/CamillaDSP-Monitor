@@ -35,6 +35,7 @@ enum SidebarItem: Hashable {
   case devices
   case levels
   case spectrum
+  case spectroscope
   case analogVU
   case logs
   case dashboard
@@ -108,6 +109,8 @@ struct SidebarView: View {
           .tag(SidebarItem.levels)
         Label("Spectrum", systemImage: "waveform.path.ecg.rectangle")
           .tag(SidebarItem.spectrum)
+        Label("Spectroscope", systemImage: "circle.grid.3x3.fill")
+          .tag(SidebarItem.spectroscope)
         Label("Analog VU", systemImage: "gauge.with.needle")
           .tag(SidebarItem.analogVU)
         Label("Console Logs", systemImage: "terminal")
@@ -190,6 +193,8 @@ struct DetailPanel: View {
           .background(Color(nsColor: .controlBackgroundColor))
       case .spectrum:
         SpectrumDetailView()
+      case .spectroscope:
+        SpectroscopeDetailView()
       case .analogVU:
         AnalogVUDetailView()  // Use a specialized detail view that includes controls
       case .logs:
@@ -363,6 +368,75 @@ struct SpectrumDetailView: View {
               minValue: $spectrum.minFreq, maxValue: $spectrum.maxFreq, range: 20...20000
             )
             .frame(maxWidth: .infinity)
+          }
+
+          Spacer()
+        }
+        .padding(.vertical, 8)
+      }
+      .padding(24)
+      .background(.thinMaterial)
+    }
+    .background(Color(nsColor: .controlBackgroundColor))
+  }
+}
+
+// MARK: - Spectroscope Detail (with interactive controls)
+
+struct SpectroscopeDetailView: View {
+  @Environment(SpectrogramEngine.self) var spectroscope
+
+  var body: some View {
+    @Bindable var spectroscope = spectroscope
+    VStack(spacing: 0) {
+      ScrollView {
+        SpectrogramCard()
+          .padding(32)
+      }
+
+      Divider()
+
+      // SPECTROSCOPE SETTINGS CONTROLS
+      VStack(alignment: .leading, spacing: 16) {
+        HStack {
+          Label("Spectroscope Settings", systemImage: "slider.horizontal.3")
+            .font(.headline)
+          Spacer()
+          Button("Reset to Defaults") {
+            spectroscope.resetToDefaults()
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+        }
+
+        HStack(spacing: 20) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Source").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: $spectroscope.isCapture) {
+              Text("Capture").tag(true)
+              Text("Playback").tag(false)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 140)
+          }
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Bins").font(.caption).foregroundStyle(.secondary)
+            Stepper(
+              "\(Int(spectroscope.nBins))", value: $spectroscope.nBins, in: 20...500, step: 20
+            )
+            .frame(width: 120)
+          }
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Palette").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: $spectroscope.selectedPalette) {
+              ForEach(SpectrogramEngine.Palette.allCases, id: \.self) { palette in
+                Text(palette.rawValue).tag(palette)
+              }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 250)
           }
 
           Spacer()
