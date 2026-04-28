@@ -83,6 +83,28 @@ impl std::fmt::Display for DspError {
 
 impl std::error::Error for DspError {}
 
+#[derive(Debug, Clone, Copy)]
+pub enum DspLogLevel {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl From<DspLogLevel> for log::LevelFilter {
+    fn from(level: DspLogLevel) -> Self {
+        match level {
+            DspLogLevel::Off => log::LevelFilter::Off,
+            DspLogLevel::Error => log::LevelFilter::Error,
+            DspLogLevel::Warn => log::LevelFilter::Warn,
+            DspLogLevel::Info => log::LevelFilter::Info,
+            DspLogLevel::Debug => log::LevelFilter::Debug,
+            DspLogLevel::Trace => log::LevelFilter::Trace,
+        }
+    }
+}
 pub struct DspSpectrum {
     pub frequencies: Vec<f32>,
     pub magnitudes: Vec<f32>,

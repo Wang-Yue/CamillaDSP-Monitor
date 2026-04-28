@@ -8,6 +8,15 @@ enum DspState {
     "Stalled"
 };
 
+enum DspLogLevel {
+    "Off",
+    "Error",
+    "Warn",
+    "Info",
+    "Debug",
+    "Trace"
+};
+
 [Enum]
 interface DspStopReason {
   None();
@@ -57,5 +66,5 @@ interface CamillaEngine {
     string get_device_capabilities(string backend, string device, boolean input);
     [Throws=DspError]
     DspSpectrum get_spectrum(boolean input, u32? channel, f64 min_freq, f64 max_freq, u32 n_bins);
-    void set_log_level(string level);
+    void set_log_level(DspLogLevel level);
 };

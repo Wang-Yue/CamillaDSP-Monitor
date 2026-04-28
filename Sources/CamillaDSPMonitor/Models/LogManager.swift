@@ -64,16 +64,6 @@ actor LogBuffer {
   }
 }
 
-enum LogLevel: String, CaseIterable, Identifiable, Sendable {
-  case off = "Off"
-  case error = "Error"
-  case warn = "Warn"
-  case info = "Info"
-  case debug = "Debug"
-  case trace = "Trace"
-  var id: String { rawValue }
-}
-
 @MainActor
 @Observable
 class LogManager {
@@ -122,7 +112,7 @@ class LogManager {
   }
 
   private func updateRustLevel() {
-    let level = selectedLogLevel.rawValue.lowercased()
+    let level = selectedLogLevel
     Task { [weak engine] in
       await engine?.setLogLevel(level)
     }

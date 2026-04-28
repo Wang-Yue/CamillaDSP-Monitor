@@ -7,7 +7,9 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 
 mod types;
-pub use types::{DspError, DspSpectrum, DspState, DspStatus, DspStopReason, DspVuLevels};
+pub use types::{
+    DspError, DspLogLevel, DspSpectrum, DspState, DspStatus, DspStopReason, DspVuLevels,
+};
 
 pub struct CamillaEngine {
     tx_command: Sender<ControllerMessage>,
@@ -214,17 +216,8 @@ impl CamillaEngine {
         })
     }
 
-    pub fn set_log_level(&self, level: String) {
-        let filter = match level.to_lowercase().as_str() {
-            "off" => log::LevelFilter::Off,
-            "error" => log::LevelFilter::Error,
-            "warn" => log::LevelFilter::Warn,
-            "info" => log::LevelFilter::Info,
-            "debug" => log::LevelFilter::Debug,
-            "trace" => log::LevelFilter::Trace,
-            _ => log::LevelFilter::Info,
-        };
-        log::set_max_level(filter);
+    pub fn set_log_level(&self, level: DspLogLevel) {
+        log::set_max_level(level.into());
     }
 }
 

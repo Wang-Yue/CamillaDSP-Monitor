@@ -25,6 +25,27 @@ public enum AudioBackendError: Error, LocalizedError, Sendable {
   }
 }
 
+public enum LogLevel: String, CaseIterable, Identifiable, Sendable {
+  case off = "Off"
+  case error = "Error"
+  case warn = "Warn"
+  case info = "Info"
+  case debug = "Debug"
+  case trace = "Trace"
+  public var id: String { rawValue }
+
+  public var dspLogLevel: DspLogLevel {
+    switch self {
+    case .off: return .off
+    case .error: return .error
+    case .warn: return .warn
+    case .info: return .info
+    case .debug: return .debug
+    case .trace: return .trace
+    }
+  }
+}
+
 /// VU level data.
 public struct VuLevels: Sendable {
   public let playback_rms: [Float]
@@ -197,7 +218,7 @@ public actor DSPEngine {
     }
   }
 
-  public func setLogLevel(_ level: String) async {
-    engine.setLogLevel(level: level)
+  public func setLogLevel(_ level: LogLevel) async {
+    engine.setLogLevel(level: level.dspLogLevel)
   }
 }
