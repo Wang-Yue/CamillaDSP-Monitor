@@ -108,10 +108,6 @@ impl CamillaEngine {
 
     pub fn set_volume(&self, volume: f32) {
         self.status_structs.processing.set_target_volume(0, volume);
-        let state = self.status_structs.capture.read().state;
-        if state == ProcessingState::Inactive || state == ProcessingState::Starting {
-            self.status_structs.processing.set_current_volume(0, volume);
-        }
     }
 
     pub fn set_mute(&self, mute: bool) {
