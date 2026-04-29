@@ -8,17 +8,19 @@ import SwiftUI
 // MARK: - Mini Player Mode
 
 enum MiniPlayerMode: Int, CaseIterable {
-  case spectrum = 0
-  case pipeline = 1
+  case pipeline = 0
+  case spectrum = 1
   case meters = 2
   case analogVU = 3
+  case spectrogram = 4
 
   var icon: String {
     switch self {
-    case .spectrum: return "waveform.path.ecg.rectangle"
     case .pipeline: return "point.3.connected.trianglepath.dotted"
+    case .spectrum: return "waveform.path.ecg.rectangle"
     case .meters: return "chart.bar"
     case .analogVU: return "gauge.with.needle"
+    case .spectrogram: return "circle.grid.3x3.fill"
     }
   }
 }
@@ -103,14 +105,16 @@ struct MiniPlayerView: View {
       // Content
       Group {
         switch mode {
-        case .spectrum:
-          MiniSpectrumView()
         case .pipeline:
           MiniPipelineView()
+        case .spectrum:
+          MiniSpectrumView()
         case .meters:
           MiniMetersView()
         case .analogVU:
           MiniAnalogVUView()
+        case .spectrogram:
+          MiniSpectrogramView()
         }
       }
       .padding(.horizontal, 8)

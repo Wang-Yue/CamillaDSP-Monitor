@@ -116,3 +116,18 @@ struct MiniAnalogVUView: View {
     .onDisappear { levels.visibilityCount -= 1 }
   }
 }
+
+// MARK: - Mini Spectrogram
+
+struct MiniSpectrogramView: View {
+  @Environment(SpectrogramEngine.self) var spectroscope
+
+  var body: some View {
+    ZStack {
+      SpectrogramContentView(leftPadding: 0, bottomPadding: 0)
+    }
+    .frame(height: 60)
+    .onAppear { spectroscope.visibilityCount += 1 }
+    .onDisappear { spectroscope.visibilityCount -= 1 }
+  }
+}

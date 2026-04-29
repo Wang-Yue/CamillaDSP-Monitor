@@ -16,13 +16,17 @@ struct SpectrogramView: View {
         .equatable()
 
       // Dynamic waterfall layer
-      SpectrogramContentView()
+      SpectrogramContentView(leftPadding: leftPadding, bottomPadding: bottomPadding)
     }
   }
 }
 
 struct SpectrogramContentView: View {
   @Environment(SpectrogramEngine.self) var spectroscope
+
+  let leftPadding: CGFloat
+  let bottomPadding: CGFloat
+
   @State private var bitmapContext: CGContext?
   @State private var currentX: CGFloat = 0.0
   @State private var bufferSize: CGSize = .zero
@@ -137,7 +141,7 @@ struct SpectrogramContentView: View {
 
     // Redraw all history
     redrawAllHistory(
-      in: context, history: history, size: size, leftPadding: leftPadding, drawWidth: drawWidth,
+      in: context, history: history, size: size, drawWidth: drawWidth,
       drawHeight: drawHeight)
 
     self.bitmapContext = context
@@ -147,7 +151,7 @@ struct SpectrogramContentView: View {
   }
 
   private func redrawAllHistory(
-    in context: CGContext, history: [SpectrogramFrame], size: CGSize, leftPadding: CGFloat,
+    in context: CGContext, history: [SpectrogramFrame], size: CGSize,
     drawWidth: CGFloat, drawHeight: CGFloat
   ) {
     let nBins = spectroscope.nBins

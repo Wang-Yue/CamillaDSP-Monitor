@@ -39,6 +39,7 @@ final class MiniPlayerWindowController {
       .environment(appState.monitoring)
       .environment(appState.dsp)
       .environment(appState.spectrum)
+      .environment(appState.spectroscope)
       .environment(appState.vuSettings)  // Inject persistent VU settings
 
     let hostingView = NSHostingView(rootView: miniView)
