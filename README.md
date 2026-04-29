@@ -38,6 +38,7 @@ CamillaDSP Monitor empowers you to take full control of your audio experience wi
 - **Hyper-Realistic VU Meters**: Watch your audio levels on calibrated RMS and Peak needles with warm amber illumination.
 - **Precision Spectrum Analyzer**: See the frequency content of your audio in real-time across the human audible range (20 Hz to 20 kHz) using a fast Fourier transform (FFT) for outstanding musical visualization.
 - **Spectrogram (Waterfall Plot)**: Track frequency history over time to identify sustained frequencies and resonances.
+- **Vector Scope (Goniometer)**: Visualize the stereo image and phase relationships between left and right channels in real-time.
 
 ### Tailor Your Stereo Image
 - **Stereo Width**: Adjust the stereo width from mono to extra-wide, or swap channels.
@@ -58,7 +59,7 @@ CamillaDSP Monitor empowers you to take full control of your audio experience wi
 - **DC Protection**: Protect your speakers and headphones from harmful DC signals with a zero-latency high-pass filter at 7 Hz.
 
 ### Stay Focused with Mini Player
-- Keep an eye on your levels or spectrum with a floating, translucent overlay that stays above all windows, perfect for watching full-screen video while monitoring your audio.
+- Keep an eye on your levels, spectrum, or vector scope with a floating, translucent overlay that stays above all windows, perfect for watching full-screen video while monitoring your audio.
 
 ## Acknowledgments
 

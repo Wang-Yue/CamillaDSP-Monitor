@@ -27,12 +27,31 @@ enum MiniPlayerMode: Int, CaseIterable {
   }
 }
 
+@Observable
+final class MiniPlayerState {
+  var mode: MiniPlayerMode = .spectrum {
+    didSet {
+      UserDefaults.standard.set(mode.rawValue, forKey: "mini_player_mode")
+    }
+  }
+
+  init() {
+    if UserDefaults.standard.object(forKey: "mini_player_mode") != nil {
+      self.mode =
+        MiniPlayerMode(rawValue: UserDefaults.standard.integer(forKey: "mini_player_mode"))
+        ?? .spectrum
+    } else {
+      self.mode = .spectrum
+    }
+  }
+}
+
 // MARK: - Mini Player SwiftUI Content
 
 struct MiniPlayerView: View {
   @Environment(DSPEngineController.self) var dsp
   @Environment(AudioSettings.self) var settings
-  @State private var mode: MiniPlayerMode = .spectrum
+  @State private var playerState = MiniPlayerState()
   @State private var isHovering = false
 
   var body: some View {
@@ -90,11 +109,11 @@ struct MiniPlayerView: View {
         // Mode buttons
         ForEach(MiniPlayerMode.allCases, id: \.rawValue) { m in
           Button {
-            withAnimation(.easeInOut(duration: 0.15)) { mode = m }
+            withAnimation(.easeInOut(duration: 0.15)) { playerState.mode = m }
           } label: {
             Image(systemName: m.icon)
               .font(.system(size: 10))
-              .foregroundStyle(mode == m ? .white : .white.opacity(0.4))
+              .foregroundStyle(playerState.mode == m ? .white : .white.opacity(0.4))
               .frame(width: 18, height: 18)
           }
           .buttonStyle(.plain)
@@ -106,7 +125,7 @@ struct MiniPlayerView: View {
 
       // Content
       Group {
-        switch mode {
+        switch playerState.mode {
         case .pipeline:
           MiniPipelineView()
         case .spectrum:
