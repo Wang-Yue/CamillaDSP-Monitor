@@ -560,7 +560,7 @@ struct MonitoringSidebarRow: View {
 }
 
 struct EQPresetSidebarRow: View {
-  @Bindable var preset: EQPreset
+  let preset: EQPreset
 
   var body: some View {
     Label(preset.name, systemImage: "slider.horizontal.3")

@@ -177,7 +177,7 @@ private struct StageChipBorderModifier: ViewModifier {
 }
 
 struct StageChipButton: View {
-  @Bindable var stage: PipelineStage
+  let stage: PipelineStage
   @Environment(DSPEngineController.self) var dsp
   var compact: Bool = false
 

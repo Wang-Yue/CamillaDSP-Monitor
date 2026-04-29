@@ -24,7 +24,6 @@ private struct StageDetailContent: View {
   @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
-    @Bindable var stage = stage
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         HStack {
@@ -458,7 +457,7 @@ struct EQOptions: View {
 }
 
 struct EQSummaryCard: View {
-  @Bindable var preset: EQPreset
+  let preset: EQPreset
   let sampleRate: Int
 
   var body: some View {

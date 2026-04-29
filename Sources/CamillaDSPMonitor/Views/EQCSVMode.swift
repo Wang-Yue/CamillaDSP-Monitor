@@ -4,7 +4,7 @@ import Observation
 import SwiftUI
 
 struct EQCSVMode: View {
-  @Bindable var preset: EQPreset
+  let preset: EQPreset
   @Environment(DSPEngineController.self) var dsp
   @State private var csvText: String = ""
   @State private var parseError: String?

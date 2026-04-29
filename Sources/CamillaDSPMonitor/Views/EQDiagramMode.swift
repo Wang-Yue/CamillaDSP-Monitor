@@ -82,7 +82,7 @@ struct EQDiagramMode: View {
 }
 
 struct EQFrequencyResponseView: View {
-  @Bindable var preset: EQPreset
+  let preset: EQPreset
   @Environment(DSPEngineController.self) var dsp
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
@@ -237,7 +237,7 @@ struct EQFrequencyResponseView: View {
 }
 
 struct EQBandListBar: View {
-  @Bindable var preset: EQPreset
+  let preset: EQPreset
   @Binding var selectedBandID: UUID?
   @Environment(DSPEngineController.self) var dsp
 
@@ -272,8 +272,8 @@ struct EQBandListBar: View {
 }
 
 struct EQBandChip: View {
-  @Bindable var preset: EQPreset
-  @Bindable var band: EQBand
+  let preset: EQPreset
+  let band: EQBand
   let index: Int
   let isSelected: Bool
   let color: Color

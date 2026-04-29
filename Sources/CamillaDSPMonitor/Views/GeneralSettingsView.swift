@@ -7,7 +7,6 @@ struct GeneralSettingsView: View {
 
   var body: some View {
     @Bindable var bindableMonitoring = monitoring
-    @Bindable var bindableSettings = settings
 
     Form {
       Section("Polling Rate") {
