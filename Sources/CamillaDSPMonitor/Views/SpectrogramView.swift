@@ -98,11 +98,13 @@ struct SpectrogramContentView: View {
     }
 
     let stripWidth = drawWidth * CGFloat(timeDiff / 10.0)
+    let clearWidth = max(1.0, ceil(stripWidth))
+
     // Clear stale portion before drawing new data
     context.clear(
-      CGRect(x: leftPadding + currentX, y: 0, width: stripWidth, height: size.height))
-    if currentX + stripWidth > drawWidth {
-      let wrappedWidth = (currentX + stripWidth) - drawWidth
+      CGRect(x: leftPadding + currentX, y: 0, width: clearWidth, height: size.height))
+    if currentX + clearWidth > drawWidth {
+      let wrappedWidth = (currentX + clearWidth) - drawWidth
       context.clear(CGRect(x: leftPadding, y: 0, width: wrappedWidth, height: size.height))
     }
 
@@ -114,7 +116,7 @@ struct SpectrogramContentView: View {
     // Advance cursor
     currentX += stripWidth
     if currentX >= drawWidth {
-      currentX = 0  // Wrap around
+      currentX -= drawWidth  // Keep fraction for accurate wrap
     }
 
     // Publish the new image
