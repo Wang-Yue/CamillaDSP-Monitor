@@ -93,6 +93,16 @@ struct SpectrogramContentView: View {
     }
 
     let stripWidth = drawWidth * CGFloat(timeDiff / 10.0)
+    let gapWidth: CGFloat = 10.0
+    let totalClearWidth = stripWidth + gapWidth
+
+    // Clear stale portion and a gap ahead before drawing new data
+    context.clear(
+      CGRect(x: leftPadding + currentX, y: 0, width: totalClearWidth, height: size.height))
+    if currentX + totalClearWidth > drawWidth {
+      let wrappedWidth = (currentX + totalClearWidth) - drawWidth
+      context.clear(CGRect(x: leftPadding, y: 0, width: wrappedWidth, height: size.height))
+    }
 
     // Draw new data at currentX
     drawFrame(
