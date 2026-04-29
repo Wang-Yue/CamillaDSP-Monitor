@@ -215,10 +215,7 @@ struct DetailPanel: View {
       case .spectroscope:
         SpectroscopeDetailView()
       case .vectorscope:
-        VectorScopeView()
-          .padding()
-          .frame(maxHeight: .infinity, alignment: .top)
-          .background(Color(nsColor: .controlBackgroundColor))
+        VectorScopeDetailView()
       case .analogVU:
         AnalogVUDetailView()  // Use a specialized detail view that includes controls
       case .logs:
@@ -450,6 +447,62 @@ struct SpectroscopeDetailView: View {
               "\(Int(spectroscope.nBins))", value: $spectroscope.nBins, in: 20...500, step: 20
             )
             .frame(width: 120)
+          }
+
+          Spacer()
+        }
+        .padding(.vertical, 8)
+      }
+      .padding(24)
+      .background(.thinMaterial)
+    }
+    .background(Color(nsColor: .controlBackgroundColor))
+  }
+}
+
+// MARK: - Vector Scope Detail (with interactive controls)
+
+struct VectorScopeDetailView: View {
+  @Environment(VectorScopeEngine.self) var vectorscope
+
+  var body: some View {
+    @Bindable var vectorscope = vectorscope
+    VStack(spacing: 0) {
+      VectorScopeView()
+        .padding(32)
+
+      Divider()
+
+      // VECTOR SCOPE SETTINGS CONTROLS
+      VStack(alignment: .leading, spacing: 16) {
+        HStack {
+          Label("Vector Scope Settings", systemImage: "slider.horizontal.3")
+            .font(.headline)
+          Spacer()
+          Button("Reset to Defaults") {
+            vectorscope.resetToDefaults()
+          }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+        }
+
+        HStack(spacing: 20) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Source").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: $vectorscope.isCapture) {
+              Text("Capture").tag(true)
+              Text("Playback").tag(false)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 140)
+          }
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Frames").font(.caption).foregroundStyle(.secondary)
+            Stepper(
+              "\(Int(vectorscope.nFrames))", value: $vectorscope.nFrames, in: 128...4096, step: 128
+            )
+            .frame(width: 140)
           }
 
           Spacer()

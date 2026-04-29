@@ -83,7 +83,7 @@ struct DashboardView: View {
         }
         if appState.showVectorScopeInDashboard {
           VectorScopeView()
-            .frame(height: 400)
+            .frame(height: 700)
         }
       }
       .padding()
