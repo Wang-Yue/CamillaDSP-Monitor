@@ -25,16 +25,18 @@ func appThemeColor(_ value: Float) -> Color {
   }
 }
 
+private let barOpacity: Double = 0.9
+
 extension Gradient {
   /// Standard audio level gradient: green → yellow → orange → red.
   /// Used identically by level meters and spectrum bars.
   static let audioLevel = Gradient(stops: [
-    .init(color: .green, location: 0.0),
-    .init(color: .green, location: 0.35),
-    .init(color: .yellow, location: 0.55),
-    .init(color: .orange, location: 0.75),
-    .init(color: .red, location: 0.95),
-    .init(color: .red, location: 1.0),
+    .init(color: .green.opacity(barOpacity), location: 0.0),
+    .init(color: .green.opacity(barOpacity), location: 0.35),
+    .init(color: .yellow.opacity(barOpacity), location: 0.55),
+    .init(color: .orange.opacity(barOpacity), location: 0.75),
+    .init(color: .red.opacity(barOpacity), location: 0.95),
+    .init(color: .red.opacity(barOpacity), location: 1.0),
   ])
 }
 

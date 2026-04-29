@@ -81,7 +81,8 @@ struct VectorScopeContentView: View {
         }
       }
 
-      context.stroke(path, with: .color(Color.accentColor.opacity(0.7)), lineWidth: 1)
+      let lineWidth = max(1.0, min(drawWidth, drawHeight) / 150.0)
+      context.stroke(path, with: .color(Color.accentColor.opacity(0.7)), lineWidth: lineWidth)
     }
   }
 }
