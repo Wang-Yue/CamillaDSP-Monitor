@@ -45,6 +45,7 @@ final class MiniPlayerWindowController {
 
     let hostingView = NSHostingView(rootView: miniView)
     hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: 90)
+    hostingView.autoresizingMask = [.width, .height]
 
     let panel = NSPanel(
       contentRect: NSRect(x: 0, y: 0, width: 320, height: 90),
@@ -69,7 +70,7 @@ final class MiniPlayerWindowController {
     panel.titleVisibility = .hidden
     panel.isFloatingPanel = true
     panel.minSize = NSSize(width: 200, height: 80)
-    panel.maxSize = NSSize(width: 600, height: 120)
+    panel.maxSize = NSSize(width: 1000, height: 300)
 
     if let screen = NSScreen.main {
       let screenFrame = screen.visibleFrame
@@ -77,6 +78,8 @@ final class MiniPlayerWindowController {
       let y = screenFrame.minY + 10
       panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
+
+    panel.setFrameAutosaveName("MiniPlayerWindow")
 
     panel.orderFront(nil)
     self.panel = panel

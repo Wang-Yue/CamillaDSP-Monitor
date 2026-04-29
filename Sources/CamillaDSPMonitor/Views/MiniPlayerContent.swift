@@ -19,7 +19,7 @@ struct MiniSpectrumView: View {
         }
       }
     }
-    .frame(height: 60)
+    .frame(minHeight: 60, maxHeight: .infinity)
     .onAppear { spectrum.visibilityCount += 1 }
     .onDisappear { spectrum.visibilityCount -= 1 }
   }
@@ -48,7 +48,7 @@ struct MiniPipelineView: View {
         }
       }
     }
-    .frame(height: 60)
+    .frame(minHeight: 60, maxHeight: .infinity)
   }
 }
 
@@ -62,7 +62,7 @@ struct MiniMetersView: View {
       MiniMeterRow(label: "L", peak: levels.playbackPeak.left, rms: levels.playbackRms.left)
       MiniMeterRow(label: "R", peak: levels.playbackPeak.right, rms: levels.playbackRms.right)
     }
-    .frame(height: 60)
+    .frame(minHeight: 60, maxHeight: .infinity)
     .onAppear { levels.visibilityCount += 1 }
     .onDisappear { levels.visibilityCount -= 1 }
   }
@@ -105,13 +105,17 @@ struct MiniAnalogVUView: View {
   @Environment(VUSettings.self) var vuSettings
 
   var body: some View {
-    HStack(spacing: 8) {
-      AnalogVUMeter(
-        level: levels.playbackRms.left, label: "L", params: vuSettings.params, height: 50)
-      AnalogVUMeter(
-        level: levels.playbackRms.right, label: "R", params: vuSettings.params, height: 50)
+    GeometryReader { geometry in
+      HStack(spacing: 8) {
+        AnalogVUMeter(
+          level: levels.playbackRms.left, label: "L", params: vuSettings.params,
+          height: geometry.size.height)
+        AnalogVUMeter(
+          level: levels.playbackRms.right, label: "R", params: vuSettings.params,
+          height: geometry.size.height)
+      }
     }
-    .frame(height: 60)
+    .frame(minHeight: 60, maxHeight: .infinity)
     .onAppear { levels.visibilityCount += 1 }
     .onDisappear { levels.visibilityCount -= 1 }
   }
@@ -126,7 +130,7 @@ struct MiniSpectrogramView: View {
     ZStack {
       SpectrogramContentView(leftPadding: 0, bottomPadding: 0)
     }
-    .frame(height: 60)
+    .frame(minHeight: 60, maxHeight: .infinity)
     .onAppear { spectroscope.visibilityCount += 1 }
     .onDisappear { spectroscope.visibilityCount -= 1 }
   }
@@ -141,7 +145,7 @@ struct MiniVectorScopeView: View {
     ZStack {
       VectorScopeContentView(showGrid: false)
     }
-    .frame(height: 60)
+    .frame(minHeight: 60, maxHeight: .infinity)
     .onAppear { vectorscope.visibilityCount += 1 }
     .onDisappear { vectorscope.visibilityCount -= 1 }
   }
