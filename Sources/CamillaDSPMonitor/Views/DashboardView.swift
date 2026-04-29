@@ -81,6 +81,10 @@ struct DashboardView: View {
         if appState.showSpectrogramInDashboard {
           SpectrogramCard()
         }
+        if appState.showVectorScopeInDashboard {
+          VectorScopeView()
+            .frame(height: 400)
+        }
       }
       .padding()
     }

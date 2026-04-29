@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 mod types;
 pub use types::{
-    DspError, DspLogLevel, DspSpectrum, DspState, DspStatus, DspStopReason, DspVuLevels,
+    DspAudioSamples, DspError, DspLogLevel, DspSpectrum, DspState, DspStatus, DspStopReason,
+    DspVuLevels,
 };
 
 pub struct CamillaEngine {
@@ -208,6 +209,34 @@ impl CamillaEngine {
             frequencies: data.frequencies.to_vec(),
             magnitudes: data.magnitudes,
         })
+    }
+
+    pub fn get_samples(
+        &self,
+        input: bool,
+        n_frames: u32,
+    ) -> Result<types::DspAudioSamples, DspError> {
+        let n_frames = n_frames as usize;
+
+        macro_rules! read_samples {
+            ($status:expr) => {{
+                let buffer = &$status.audio_buffer;
+                let left = buffer.read_latest(n_frames, Some(0)).unwrap_or_default();
+                let right = buffer.read_latest(n_frames, Some(1)).unwrap_or_default();
+                (
+                    left.iter().map(|&x| x as f32).collect::<Vec<f32>>(),
+                    right.iter().map(|&x| x as f32).collect::<Vec<f32>>(),
+                )
+            }};
+        }
+
+        let (left, right) = if input {
+            read_samples!(self.status_structs.capture.read())
+        } else {
+            read_samples!(self.status_structs.playback.read())
+        };
+
+        Ok(types::DspAudioSamples { left, right })
     }
 
     pub fn set_log_level(&self, level: DspLogLevel) {

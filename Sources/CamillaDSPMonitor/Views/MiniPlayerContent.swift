@@ -131,3 +131,18 @@ struct MiniSpectrogramView: View {
     .onDisappear { spectroscope.visibilityCount -= 1 }
   }
 }
+
+// MARK: - Mini Vector Scope
+
+struct MiniVectorScopeView: View {
+  @Environment(VectorScopeEngine.self) var vectorscope
+
+  var body: some View {
+    ZStack {
+      VectorScopeContentView(showGrid: false)
+    }
+    .frame(height: 60)
+    .onAppear { vectorscope.visibilityCount += 1 }
+    .onDisappear { vectorscope.visibilityCount -= 1 }
+  }
+}

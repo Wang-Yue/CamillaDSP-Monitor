@@ -17,6 +17,7 @@ final class AppState {
   let dsp: DSPEngineController
   let spectrum: SpectrumEngine
   let spectroscope: SpectrogramEngine
+  let vectorscope: VectorScopeEngine
   let levels: LevelState
   let vuSettings = VUSettings()  // Added persistent VU settings
   let logManager = LogManager()
@@ -34,6 +35,11 @@ final class AppState {
   var showSpectrogramInDashboard = true {
     didSet {
       UserDefaults.standard.set(showSpectrogramInDashboard, forKey: "show_spectrogram_in_dashboard")
+    }
+  }
+  var showVectorScopeInDashboard = true {
+    didSet {
+      UserDefaults.standard.set(showVectorScopeInDashboard, forKey: "show_vectorscope_in_dashboard")
     }
   }
   var showAnalogVUInDashboard = true {
@@ -54,6 +60,9 @@ final class AppState {
     self.showSpectrogramInDashboard =
       UserDefaults.standard.object(forKey: "show_spectrogram_in_dashboard") != nil
       ? UserDefaults.standard.bool(forKey: "show_spectrogram_in_dashboard") : true
+    self.showVectorScopeInDashboard =
+      UserDefaults.standard.object(forKey: "show_vectorscope_in_dashboard") != nil
+      ? UserDefaults.standard.bool(forKey: "show_vectorscope_in_dashboard") : true
     self.showAnalogVUInDashboard =
       UserDefaults.standard.object(forKey: "show_analog_vu_in_dashboard") != nil
       ? UserDefaults.standard.bool(forKey: "show_analog_vu_in_dashboard") : true
@@ -65,10 +74,11 @@ final class AppState {
     let devices = AudioDeviceManager(engine: engine, settings: settings)
     let spectrum = SpectrumEngine()
     let spectroscope = SpectrogramEngine()
+    let vectorscope = VectorScopeEngine()
 
     let monitoring = MonitoringController(
       engine: engine, levels: levels, spectrum: spectrum,
-      spectroscope: spectroscope,
+      spectroscope: spectroscope, vectorscope: vectorscope,
       devices: devices, settings: settings)
 
     let dsp = DSPEngineController(
@@ -84,6 +94,7 @@ final class AppState {
     self.levels = levels
     self.spectrum = spectrum
     self.spectroscope = spectroscope
+    self.vectorscope = vectorscope
 
     // Load persisted preferences.
     settings.loadPreferences()

@@ -53,6 +53,11 @@ dictionary DspSpectrum {
     sequence<f32> magnitudes;
 };
 
+dictionary DspAudioSamples {
+    sequence<f32> left;
+    sequence<f32> right;
+};
+
 interface CamillaEngine {
     constructor();
     [Throws=DspError]
@@ -66,5 +71,7 @@ interface CamillaEngine {
     string get_device_capabilities(string backend, string device, boolean input);
     [Throws=DspError]
     DspSpectrum get_spectrum(boolean input, u32? channel, f64 min_freq, f64 max_freq, u32 n_bins);
+    [Throws=DspError]
+    DspAudioSamples get_samples(boolean input, u32 n_frames);
     void set_log_level(DspLogLevel level);
 };

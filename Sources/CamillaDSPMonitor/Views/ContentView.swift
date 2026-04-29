@@ -36,6 +36,7 @@ enum SidebarItem: Hashable {
   case levels
   case spectrum
   case spectroscope
+  case vectorscope
   case analogVU
   case logs
   case dashboard
@@ -121,6 +122,11 @@ struct SidebarView: View {
           isEnabled: $appState.showSpectrogramInDashboard
         )
         .tag(SidebarItem.spectroscope)
+        MonitoringSidebarRow(
+          icon: "waveform.path", title: "Vector Scope",
+          isEnabled: $appState.showVectorScopeInDashboard
+        )
+        .tag(SidebarItem.vectorscope)
         MonitoringSidebarRow(
           icon: "gauge.with.needle", title: "Analog VU",
           isEnabled: $appState.showAnalogVUInDashboard
@@ -208,6 +214,11 @@ struct DetailPanel: View {
         SpectrumDetailView()
       case .spectroscope:
         SpectroscopeDetailView()
+      case .vectorscope:
+        VectorScopeView()
+          .padding()
+          .frame(maxHeight: .infinity, alignment: .top)
+          .background(Color(nsColor: .controlBackgroundColor))
       case .analogVU:
         AnalogVUDetailView()  // Use a specialized detail view that includes controls
       case .logs:

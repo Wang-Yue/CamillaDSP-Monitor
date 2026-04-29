@@ -106,6 +106,11 @@ public struct Spectrum: Sendable {
   public let magnitudes: [Float]
 }
 
+public struct AudioSamples: Sendable {
+  public let left: [Float]
+  public let right: [Float]
+}
+
 public struct AudioDevice: Identifiable, Sendable {
   public var id: String { name }
   public let name: String
@@ -213,6 +218,15 @@ public actor DSPEngine {
       let data = try engine.getSpectrum(
         input: isCapture, channel: channel, minFreq: minFreq, maxFreq: maxFreq, nBins: nBins)
       return Spectrum(frequencies: data.frequencies, magnitudes: data.magnitudes)
+    } catch let error as DspError {
+      throw AudioBackendError(error)
+    }
+  }
+
+  public func getSamples(isCapture: Bool, nFrames: UInt32) async throws -> AudioSamples {
+    do {
+      let data = try engine.getSamples(input: isCapture, nFrames: nFrames)
+      return AudioSamples(left: data.left, right: data.right)
     } catch let error as DspError {
       throw AudioBackendError(error)
     }

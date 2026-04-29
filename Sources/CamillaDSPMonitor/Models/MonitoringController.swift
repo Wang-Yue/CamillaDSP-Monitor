@@ -14,6 +14,7 @@ final class MonitoringController {
   let settings: AudioSettings
   let spectrum: SpectrumEngine
   let spectroscope: SpectrogramEngine
+  let vectorscope: VectorScopeEngine
 
   var pollingRate: Double = 10.0 {
     didSet {
@@ -34,13 +35,14 @@ final class MonitoringController {
 
   init(
     engine: DSPEngine, levels: LevelState, spectrum: SpectrumEngine,
-    spectroscope: SpectrogramEngine,
+    spectroscope: SpectrogramEngine, vectorscope: VectorScopeEngine,
     devices: AudioDeviceManager, settings: AudioSettings
   ) {
     self.engine = engine
     self.levels = levels
     self.spectrum = spectrum
     self.spectroscope = spectroscope
+    self.vectorscope = vectorscope
     self.devices = devices
     self.settings = settings
 
@@ -95,6 +97,22 @@ final class MonitoringController {
         frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
     } else {
       spectroscope.reset()
+    }
+
+    // 5. Poll Vector Scope Samples
+    if currentStatus != .inactive, currentStatus != .paused, vectorscope.visibilityCount > 0 {
+      do {
+        let samples = try await engine.getSamples(
+          isCapture: vectorscope.isCapture,
+          nFrames: vectorscope.nFrames
+        )
+        vectorscope.updateSamples(left: samples.left, right: samples.right)
+      } catch {
+        print("[MonitoringController] Failed to get samples: \(error.localizedDescription)")
+        vectorscope.reset()
+      }
+    } else {
+      vectorscope.reset()
     }
   }
 

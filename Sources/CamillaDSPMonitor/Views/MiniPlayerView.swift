@@ -13,6 +13,7 @@ enum MiniPlayerMode: Int, CaseIterable {
   case meters = 2
   case analogVU = 3
   case spectrogram = 4
+  case vectorscope = 5
 
   var icon: String {
     switch self {
@@ -21,6 +22,7 @@ enum MiniPlayerMode: Int, CaseIterable {
     case .meters: return "chart.bar"
     case .analogVU: return "gauge.with.needle"
     case .spectrogram: return "circle.grid.3x3.fill"
+    case .vectorscope: return "waveform.path"
     }
   }
 }
@@ -115,6 +117,8 @@ struct MiniPlayerView: View {
           MiniAnalogVUView()
         case .spectrogram:
           MiniSpectrogramView()
+        case .vectorscope:
+          MiniVectorScopeView()
         }
       }
       .padding(.horizontal, 8)

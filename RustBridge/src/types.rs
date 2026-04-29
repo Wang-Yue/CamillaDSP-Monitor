@@ -109,3 +109,8 @@ pub struct DspSpectrum {
     pub frequencies: Vec<f32>,
     pub magnitudes: Vec<f32>,
 }
+
+pub struct DspAudioSamples {
+    pub left: Vec<f32>,
+    pub right: Vec<f32>,
+}
