@@ -3,6 +3,9 @@
 import AppKit
 import SwiftUI
 
+private let bottomPadding: CGFloat = 20
+private let leftPadding: CGFloat = 40
+
 struct SpectrogramView: View {
   @Environment(SpectrogramEngine.self) var spectroscope
 
@@ -29,7 +32,6 @@ struct SpectrogramContentView: View {
     GeometryReader { geometry in
       Canvas { context, size in
         if let image = publishedImage {
-          let leftPadding: CGFloat = 40
           let drawWidth = size.width - leftPadding
 
           // Part 1: Oldest data (cursorX to right edge -> drawn on the left)
@@ -80,9 +82,8 @@ struct SpectrogramContentView: View {
       return
     }
 
-    let leftPadding: CGFloat = 40
     let drawWidth = size.width - leftPadding
-    let drawHeight = size.height - 20  // bottomPadding = 20
+    let drawHeight = size.height - bottomPadding
 
     let count = history.count
     let timeDiff: TimeInterval
@@ -131,8 +132,6 @@ struct SpectrogramContentView: View {
         bytesPerRow: Int(size.width) * 4, space: colorSpace, bitmapInfo: bitmapInfo.rawValue)
     else { return }
 
-    let leftPadding: CGFloat = 40
-    let bottomPadding: CGFloat = 20
     let drawWidth = size.width - leftPadding
     let drawHeight = size.height - bottomPadding
 
@@ -194,7 +193,6 @@ struct SpectrogramContentView: View {
       let baseColor = appThemeColor(normalized)
       let color = normalized < 0.2 ? baseColor.opacity(Double(normalized / 0.2)) : baseColor
 
-      let bottomPadding: CGFloat = 20
       let y = bottomPadding + CGFloat(j) * barHeight
       let rect = CGRect(x: x, y: y, width: width, height: barHeight)
 
@@ -215,8 +213,6 @@ struct SpectrogramGridView: View, Equatable {
 
   var body: some View {
     Canvas { context, size in
-      let leftPadding: CGFloat = 40
-      let bottomPadding: CGFloat = 20
       let drawWidth = size.width - leftPadding
       let drawHeight = size.height - bottomPadding
 
@@ -257,7 +253,7 @@ struct SpectrogramGridView: View, Equatable {
         let label = formatFrequency(target)
         context.draw(
           Text(label).font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary),
-          at: CGPoint(x: 20, y: y),
+          at: CGPoint(x: leftPadding / 2, y: y),
           anchor: target == 20 ? .bottomLeading : .topLeading)
       }
     }

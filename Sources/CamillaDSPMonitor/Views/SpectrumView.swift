@@ -3,7 +3,8 @@
 import Observation
 import SwiftUI
 
-private let SPECTRUM_TOP_PADDING: CGFloat = 10
+private let spectrumTopPadding: CGFloat = 10
+private let spectrumLeftPadding: CGFloat = 20
 
 // MARK: - SpectrumView
 
@@ -20,11 +21,12 @@ struct SpectrumView: View {
       // Dynamic bars layer — redraws at 10 Hz with band data
       if let bands = bands {
         Canvas { context, size in
-          context.translateBy(x: 0, y: SPECTRUM_TOP_PADDING)
+          context.translateBy(x: 0, y: spectrumTopPadding)
           drawSpectrumBars(
             context: &context, bands: bands,
-            maxHeight: size.height - 20 - SPECTRUM_TOP_PADDING, totalWidth: size.width - 20,
-            xOffset: 20)
+            maxHeight: size.height - spectrumLeftPadding - spectrumTopPadding,
+            totalWidth: size.width - spectrumLeftPadding,
+            xOffset: spectrumLeftPadding)
         }
       }
     }
@@ -44,18 +46,18 @@ private struct SpectrumGridView: View, Equatable {
 
   var body: some View {
     Canvas { context, size in
-      let maxHeight = size.height - 20 - SPECTRUM_TOP_PADDING
+      let maxHeight = size.height - spectrumLeftPadding - spectrumTopPadding
       let barSpacing: CGFloat = 2
       let bandCount = frequencies?.count ?? 30  // Fallback to 30 if nil
       let totalSpacing = barSpacing * CGFloat(bandCount - 1)
-      let barWidth = max(4, (size.width - 20 - totalSpacing) / CGFloat(bandCount))
+      let barWidth = max(4, (size.width - spectrumLeftPadding - totalSpacing) / CGFloat(bandCount))
 
       // dB grid lines and labels
       for dbMark in Self.dbMarks {
-        let y = SPECTRUM_TOP_PADDING + maxHeight * (1.0 - (Double(dbMark) + 60) / 60)
+        let y = spectrumTopPadding + maxHeight * (1.0 - (Double(dbMark) + 60) / 60)
 
         var line = Path()
-        line.move(to: CGPoint(x: 20, y: y))
+        line.move(to: CGPoint(x: spectrumLeftPadding, y: y))
         line.addLine(to: CGPoint(x: size.width, y: y))
         context.stroke(line, with: .color(Color.primary.opacity(0.05)), lineWidth: 0.5)
 
@@ -70,11 +72,11 @@ private struct SpectrumGridView: View, Equatable {
         for i in 0..<count {
           let f = frequencies[i]
           let label = formatFrequency(f)
-          let x = CGFloat(i) * (barWidth + barSpacing) + 20
+          let x = CGFloat(i) * (barWidth + barSpacing) + spectrumLeftPadding
           context.draw(
             Text(label).font(.system(size: 7)).foregroundColor(
               .secondary.opacity(0.7)),
-            at: CGPoint(x: x + barWidth / 2, y: SPECTRUM_TOP_PADDING + maxHeight + 10))
+            at: CGPoint(x: x + barWidth / 2, y: spectrumTopPadding + maxHeight + 10))
         }
       }
     }
