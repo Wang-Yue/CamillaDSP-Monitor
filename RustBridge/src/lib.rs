@@ -1,6 +1,4 @@
-use camillalib::{
-    config, ControllerMessage, ExitState, ProcessingState, SharedConfigs, StatusStructs, StopReason,
-};
+use camillalib::{config, ControllerMessage, ExitState, SharedConfigs, StatusStructs, StopReason};
 use crossbeam_channel::{bounded, Sender};
 use log::debug;
 use parking_lot::Mutex;

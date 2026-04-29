@@ -19,7 +19,7 @@ A beautiful, high-performance native macOS app to control and monitor your Camil
 The project uses a unified `Makefile` to handle the multi-language build pipeline (Rust + UniFFI + Swift).
 
 ### Build and Package as macOS Application (.app)
-This will compile the Rust bridge with native CPU optimizations (`-C target-cpu=native`), generate the Swift bindings, patch them for Swift 6 concurrency, and package the final signed application:
+This will compile the Rust bridge with native CPU optimizations (`-C target-cpu=native`), generate the Swift bindings, and package the final signed application:
 ```bash
 make app          # Builds CamillaDSPMonitor.app in the root directory
 make install      # Builds and copies to /Applications/
@@ -36,7 +36,8 @@ CamillaDSP Monitor empowers you to take full control of your audio experience wi
 
 ### Visualize Your Sound
 - **Hyper-Realistic VU Meters**: Watch your audio levels on calibrated RMS and Peak needles with warm amber illumination.
-- **Precision Spectrum Analyzer**: See the frequency content of your audio in real-time across the human audible range (20 Hz to 20 kHz) using a true band-pass filter calculation for outstanding musical visualization.
+- **Precision Spectrum Analyzer**: See the frequency content of your audio in real-time across the human audible range (20 Hz to 20 kHz) using a fast Fourier transform (FFT) for outstanding musical visualization.
+- **Spectrogram (Waterfall Plot)**: Track frequency history over time to identify sustained frequencies and resonances.
 
 ### Tailor Your Stereo Image
 - **Stereo Width**: Adjust the stereo width from mono to extra-wide, or swap channels.
