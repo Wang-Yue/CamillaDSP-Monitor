@@ -23,6 +23,7 @@ final class AudioDeviceManager {
   // assignment inside init(), spawning refreshDeviceCapabilities() Tasks before the engine
   // is connected and printing spurious "notConnected" errors on every launch.
   private var isInitializing = true
+  private var isValidating = false
 
   var captureConfig: DeviceConfig = DeviceConfig() {
     didSet {
@@ -152,15 +153,23 @@ final class AudioDeviceManager {
   // MARK: - Sample Rate Validation
 
   func validateSampleRates() {
+    guard !isValidating else { return }
+    isValidating = true
+    defer { isValidating = false }
+
     let pbOptions = playbackRateOptions
     if !pbOptions.isEmpty && !pbOptions.contains(playbackConfig.sampleRate) {
-      playbackConfig.sampleRate = DeviceConfig.bestRate(
-        from: pbOptions, preferring: playbackConfig.sampleRate)
+      let best = DeviceConfig.bestRate(from: pbOptions, preferring: playbackConfig.sampleRate)
+      if playbackConfig.sampleRate != best {
+        playbackConfig.sampleRate = best
+      }
     }
     let capOptions = captureRateOptions
     if !capOptions.isEmpty && !capOptions.contains(captureConfig.sampleRate) {
-      captureConfig.sampleRate = DeviceConfig.bestRate(
-        from: capOptions, preferring: captureConfig.sampleRate)
+      let best = DeviceConfig.bestRate(from: capOptions, preferring: captureConfig.sampleRate)
+      if captureConfig.sampleRate != best {
+        captureConfig.sampleRate = best
+      }
     }
     if !settings.resamplerEnabled && captureConfig.sampleRate != playbackConfig.sampleRate {
       captureConfig.sampleRate = playbackConfig.sampleRate
