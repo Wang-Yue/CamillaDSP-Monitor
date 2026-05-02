@@ -20,9 +20,9 @@ enum ResamplerProfile: String, Codable, Sendable, CaseIterable, Identifiable {
 
 enum ResamplerInterpolation: String, Codable, Sendable, CaseIterable, Identifiable {
   case linear = "Linear"
-  case quadratic = "Quadratic"
   case cubic = "Cubic"
-  case sinc = "Sinc"
+  case quintic = "Quintic"
+  case septic = "Septic"
   var id: String { rawValue }
 }
 

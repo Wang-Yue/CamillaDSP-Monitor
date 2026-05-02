@@ -648,7 +648,7 @@ struct ResamplerDetailView: View {
                 Spacer()
               }
 
-              if settings.resamplerType == .asyncSinc || settings.resamplerType == .synchronous {
+              if settings.resamplerType == .asyncSinc {
                 HStack(spacing: 16) {
                   Text("Profile")
                     .font(.subheadline)
