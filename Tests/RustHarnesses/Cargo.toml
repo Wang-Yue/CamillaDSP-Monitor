@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = [
+    "cdsp_resampler_compare",
+    "cdsp_filter_compare",
+]
+
+# Each harness pins its upstream crate (rubato / CamillaDSP) to a specific
+# git commit — see the member Cargo.toml files for the rev. Cargo will fetch
+# them on first build; no sibling working copy needed.

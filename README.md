@@ -12,22 +12,31 @@ A beautiful, high-performance native macOS app to control and monitor your Camil
 
 - macOS 15+ (Sequoia)
 - Swift 6.0+ (Strict Concurrency enabled)
-- Rust toolchain (latest stable)
+- Optional: Rust toolchain (Cargo) — only required if you want to build the program with the Rust engine (`ENGINE=rust`).
 
 ## Building
 
-The project uses a unified `Makefile` to handle the multi-language build pipeline (Rust + UniFFI + Swift).
+CamillaDSP Monitor supports two engine backends. You can choose between them at build time using the `ENGINE` variable.
 
-### Build and Package as macOS Application (.app)
-This will compile the Rust bridge with native CPU optimizations (`-C target-cpu=native`), generate the Swift bindings, and package the final signed application:
+### 1. Pure Swift Engine (Default)
+A pure-Swift port of CamillaDSP. No Rust toolchain is required.
 ```bash
-make app          # Builds CamillaDSPMonitor.app in the root directory
-make install      # Builds and copies to /Applications/
+make                          # Builds CamillaDSPMonitor.app (Default)
 ```
 
-### Simple Build (Command Line)
+### 2. Rust Engine (Optional)
+Uses a Rust bridge (`RustBridge`) via UniFFI to embed the original CamillaDSP. Requires the Rust toolchain.
 ```bash
-make build        # Compiles everything without packaging
+make ENGINE=rust              # Builds using the Rust bridge
+```
+
+### Other Build Commands
+```bash
+make build                    # Compiles the binary without packaging
+make install                  # Builds and copies to /Applications/
+make test                     # Runs tests (Pure Swift engine only)
+make bench                    # Runs benchmarks (Pure Swift engine only)
+make clean                    # Removes all build artifacts
 ```
 
 ## What You Can Do

@@ -91,6 +91,14 @@ Fixtures/BinaryLibraries/Static/Package1/Simple.artifactbundle/build
 RustBridge/target/
 RustBridge/generated/
 
+# Rust harnesses for filter/resampler comparison tests (Tests/RustHarnesses/).
+# The Cargo workspace builds reference binaries that the Swift tests invoke;
+# only the source needs to live in git — the build artifacts and lockfile
+# follow the same convention as RustBridge above.
+Tests/RustHarnesses/target/
+Tests/RustHarnesses/Cargo.lock
+Tests/RustHarnesses/**/Cargo.lock
+
 # Generated Library Bridge Files
 Sources/CamillaDSPLib/camilladsp_ffi.swift
 Sources/CamillaDSPFFI/include/
@@ -99,3 +107,9 @@ lib/
 # App Bundle
 CamillaDSPMonitor.app/
 RustBridge/Cargo.lock
+
+# Test scratch files written under /tmp by the resampler/filter comparison
+# harnesses are already isolated to /tmp, but if anyone runs tests with a
+# custom $TMPDIR pointing inside the repo, ignore the staging files here too.
+/tmp/cdsp_*.raw
+cdsp_*.raw

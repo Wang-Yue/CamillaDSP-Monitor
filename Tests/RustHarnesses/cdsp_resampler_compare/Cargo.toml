@@ -1,0 +1,16 @@
+[package]
+name = "cdsp_resampler_compare"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# Pinned to a specific upstream rubato commit so the harness's bit-equivalent
+# results stay reproducible. Bump the rev when the AsyncSinc/AsyncPoly Swift
+# implementations are re-validated against a newer rubato.
+rubato = { git = "https://github.com/HEnquist/rubato.git", rev = "63c2107383e3c0dc3419466b18a2b1b6ad87fda2", default-features = false, features = ["fft_resampler"] }
+audioadapter-buffers = "3.0"
+
+[[bin]]
+name = "cdsp_resampler_compare"
+path = "src/main.rs"

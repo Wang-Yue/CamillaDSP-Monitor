@@ -1,0 +1,16 @@
+[package]
+name = "cdsp_filter_compare"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# Pinned to a specific upstream camilladsp commit so the filter-comparison
+# harness stays reproducible. Cargo resolves the package by its `name`
+# (CamillaDSP) but exposes the lib target as `camillalib` per the upstream
+# Cargo.toml. Bump the rev when filters are re-validated against a newer cut.
+CamillaDSP = { git = "https://github.com/HEnquist/camilladsp.git", rev = "39ff85f77e60fbe694273d8480416fefca258185" }
+
+[[bin]]
+name = "cdsp_filter_compare"
+path = "src/main.rs"

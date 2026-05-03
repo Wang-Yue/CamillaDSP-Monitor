@@ -47,16 +47,20 @@ private class VerticalToHorizontalScrollView: NSScrollView {
     if abs(event.deltaX) >= abs(event.deltaY) {
       super.scrollWheel(with: event)
     } else {
-      let converted = NSEvent.init(
-        cgEvent: {
-          let cg = event.cgEvent!
-          cg.setDoubleValueField(
-            .scrollWheelEventDeltaAxis2, value: cg.getDoubleValueField(.scrollWheelEventDeltaAxis1))
-          cg.setDoubleValueField(.scrollWheelEventDeltaAxis1, value: 0)
-          return cg
-        }()
-      )!
-      super.scrollWheel(with: converted)
+      guard let cg = event.cgEvent else {
+        super.scrollWheel(with: event)
+        return
+      }
+      cg.setDoubleValueField(
+        .scrollWheelEventDeltaAxis2,
+        value: cg.getDoubleValueField(.scrollWheelEventDeltaAxis1)
+      )
+      cg.setDoubleValueField(.scrollWheelEventDeltaAxis1, value: 0)
+      if let converted = NSEvent(cgEvent: cg) {
+        super.scrollWheel(with: converted)
+      } else {
+        super.scrollWheel(with: event)
+      }
     }
   }
 }
