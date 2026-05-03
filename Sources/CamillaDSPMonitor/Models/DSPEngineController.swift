@@ -85,12 +85,12 @@ final class DSPEngineController {
       "chunksize": settings.chunkSize,
       "volume_ramp_time": 200.0,
       "capture": [
-        "type": "CoreAudio", "channels": devices.captureConfig.channels,
+        "type": "CoreAudio", "channels": 2,
         "device": devices.captureConfig.deviceName as Any,
         "format": devices.captureConfig.format,
       ],
       "playback": [
-        "type": "CoreAudio", "channels": devices.playbackConfig.channels,
+        "type": "CoreAudio", "channels": 2,
         "device": devices.playbackConfig.deviceName as Any,
         "format": devices.playbackConfig.format, "exclusive": devices.exclusiveMode,
       ],
@@ -174,6 +174,13 @@ final class DSPEngineController {
       // level and doesn't see a difference that triggers a 0 dBFS ramp.
       await engine.setMute(settings.isMuted)
       await engine.setVolume(settings.volume)
+
+      if devices.captureConfig.channels < 2 || devices.playbackConfig.channels < 2 {
+        throw AudioBackendError.configParse(
+          message:
+            "Capture and Playback devices must have at least 2 channels selected for 2in-2out flow (Capture: \(devices.captureConfig.channels), Playback: \(devices.playbackConfig.channels))."
+        )
+      }
 
       let config: [String: Any] = buildConfigDict()
       try await apply(config: config)
