@@ -7,13 +7,16 @@ struct ContentView: View {
   @Environment(AppState.self) var appState
   @State private var selection: SidebarItem? = .devices
   @State private var showAutoEqSearch = false
+  @State private var showOratorySearch = false
 
   var body: some View {
     if appState.isMiniPlayerActive {
       Color.clear
     } else {
       NavigationSplitView {
-        SidebarView(selection: $selection, showAutoEqSearch: $showAutoEqSearch)
+        SidebarView(
+          selection: $selection, showAutoEqSearch: $showAutoEqSearch,
+          showOratorySearch: $showOratorySearch)
       } detail: {
         DetailPanel(selection: selection)
       }
@@ -23,6 +26,10 @@ struct ContentView: View {
       .navigationTitle("CamillaDSP Monitor")
       .sheet(isPresented: $showAutoEqSearch) {
         AutoEqPickerView()
+          .environment(appState.pipeline)
+      }
+      .sheet(isPresented: $showOratorySearch) {
+        OratoryPresetPickerView()
           .environment(appState.pipeline)
       }
     }
@@ -103,6 +110,7 @@ struct SidebarView: View {
   @Environment(AppState.self) var appState
   @Binding var selection: SidebarItem?
   @Binding var showAutoEqSearch: Bool
+  @Binding var showOratorySearch: Bool
 
   var body: some View {
     @Bindable var appState = appState
@@ -192,23 +200,26 @@ struct SidebarView: View {
             }
         }
 
-        HStack {
+        HStack(spacing: 12) {
           Button {
             pipeline.addEQPreset()
           } label: {
             Label("Add", systemImage: "plus")
-              .foregroundStyle(.secondary)
           }
 
-          Spacer()
+          Button {
+            showOratorySearch = true
+          } label: {
+            Label("Oratory", systemImage: "headphones")
+          }
 
           Button {
             showAutoEqSearch = true
           } label: {
             Label("AutoEQ", systemImage: "magnifyingglass")
-              .foregroundStyle(.secondary)
           }
         }
+        .foregroundStyle(.secondary)
         .buttonStyle(.plain)
         .font(.caption)
       }
