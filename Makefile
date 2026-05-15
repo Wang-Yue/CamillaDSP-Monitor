@@ -56,7 +56,7 @@ RUST_HARNESS_BINS := \
 RUST_HARNESS_SRCS := $(shell find $(RUST_HARNESS_DIR) -type f \
 	\( -name "*.rs" -o -name "Cargo.toml" \) 2>/dev/null)
 
-.PHONY: all build app clean install help test test-swift test-rust-build bench
+.PHONY: all build app run clean install help test test-swift test-rust-build bench
 
 # Default target
 all: app
@@ -145,6 +145,12 @@ install: app
 	@echo "📦 Installing $(APP_BUNDLE) to /Applications/..."
 	cp -R $(APP_BUNDLE) /Applications/
 	@echo "✅ Installed!"
+
+## run: Build the application package and run it
+run: app
+	@echo "🚀 Running $(APP_NAME)..."
+	open $(APP_BUNDLE)
+
 
 ## test-rust-build: Build the Rust harness binaries used by Swift tests
 ##                  (rubato + camilladsp upstream). Pure Swift only.
