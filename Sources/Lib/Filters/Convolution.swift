@@ -7,12 +7,12 @@
 // management differ:
 //
 //   - The Rust version uses the `realfft` crate's complex-bin spectrum;
-//     this port uses `BluesteinRealFFT`, which stores the same N+1
+//     this port uses `RealFFT`, which stores the same N+1
 //     unique bins as separate `specRe`/`specIm` arrays. The flat layout
 //     (DC at index 0, Nyquist at index N, both with `im == 0`) lets us
 //     run the spectrum multiply through `vDSP_zvmulD` / `vDSP_zvmaD`
 //     without any DC/Nyquist special-casing.
-//   - `BluesteinRealFFT.inverse` produces `length · signal`. The Rust
+//   - `RealFFT.inverse` produces `length · signal`. The Rust
 //     `realfft` inverse does not scale, so the Rust version pre-divides
 //     coefficients by `2 * data_length` to compensate; the same
 //     pre-scaling works here for the same reason.
@@ -171,7 +171,7 @@ final class ConvolutionFilter: Filter {
   /// Unique-bin count `N + 1`.
   private let bins: Int
 
-  private let fft: BluesteinRealFFT
+  private let fft: RealFFT
 
   /// Number of `chunkSize`-long IR segments.
   private var nsegments: Int
@@ -211,7 +211,7 @@ final class ConvolutionFilter: Filter {
     self.chunkSize = chunkSize
     self.fftSize = 2 * chunkSize
     self.bins = chunkSize + 1
-    self.fft = BluesteinRealFFT(length: 2 * chunkSize)
+    self.fft = RealFFT(length: 2 * chunkSize)
 
     let ns = (coefficients.count + chunkSize - 1) / chunkSize
     self.nsegments = ns
@@ -334,7 +334,7 @@ final class ConvolutionFilter: Filter {
       }
     }
 
-    // 4. Inverse FFT. BluesteinRealFFT.inverse multiplies by
+    // 4. Inverse FFT. RealFFT.inverse multiplies by
     //    `length = 2N`, but `coeffsF` was pre-divided by `2N` in init,
     //    so the net result is the un-normalised linear convolution
     //    sum, exactly as the Rust port produces.
@@ -357,7 +357,7 @@ final class ConvolutionFilter: Filter {
     _ coefficients: [PrcFmt],
     chunkSize: Int,
     nsegments: Int,
-    fft: BluesteinRealFFT,
+    fft: RealFFT,
     coeffsFRe: UnsafeMutablePointer<PrcFmt>,
     coeffsFIm: UnsafeMutablePointer<PrcFmt>
   ) {

@@ -7,7 +7,7 @@
 // computed on demand — there's no value in eagerly caching when the
 // caller is typically rendering one or two of those views at a time.
 //
-// All transforms route through `BluesteinRealFFT` so the FFT length
+// All transforms route through `RealFFT` so the FFT length
 // can be any even number; callers don't have to round up to a power
 // of two themselves.
 
@@ -109,7 +109,7 @@ public struct FrequencyResponse: Sendable {
     precondition(
       n % 2 == 0 && n >= ir.count, "FrequencyResponse: fftSize must be even and ≥ ir.count")
     let bins = n / 2 + 1
-    let fft = BluesteinRealFFT(length: n)
+    let fft = RealFFT(length: n)
 
     let padded = UnsafeMutablePointer<PrcFmt>.allocate(capacity: n)
     padded.initialize(repeating: 0, count: n)
@@ -220,7 +220,7 @@ public struct FrequencyResponse: Sendable {
       hann[i] = 0.5 * (1.0 - cos(2.0 * PrcFmt.pi * PrcFmt(i) / PrcFmt(windowLength - 1)))
     }
 
-    let fft = BluesteinRealFFT(length: fftSize)
+    let fft = RealFFT(length: fftSize)
     let bins = fftSize / 2 + 1
 
     let padded = UnsafeMutablePointer<PrcFmt>.allocate(capacity: fftSize)

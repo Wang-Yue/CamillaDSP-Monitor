@@ -1,11 +1,11 @@
 // factors are all ≤ 7. Targets `N = 1029 = 3 · 7³` and `N = 1120 = 2⁵ · 5 · 7`
-// — the inner FFT sizes that BluesteinRealFFT needs for 44.1↔48 kHz
+// — the inner FFT sizes that RealFFT needs for 44.1↔48 kHz
 // resampling. Compared with Bluestein-on-vDSP, this trades the inner
 // power-of-2 transforms (M = 4096) for a direct decomposition into
 // `O(N · Σ pᵢ)` ops — about 6× fewer arithmetic operations at N = 1029.
 //
 // Note on the radix-2/4/8 stages: they're not redundant with
-// `BluesteinRealFFT`'s outer `vDSP_fft_zrip` fast path. That fast path
+// `RealFFT`'s outer `vDSP_fft_zrip` fast path. That fast path
 // fires only when the *whole* real-FFT length is a power of two; the
 // radix-2/4/8 stages here handle the *power-of-two portion* of a mixed
 // factorisation (e.g. `1120 = 2⁵·5·7` collapses into `[8, 4, 5, 7]`).

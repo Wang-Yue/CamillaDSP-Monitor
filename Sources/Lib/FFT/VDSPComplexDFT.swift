@@ -8,7 +8,7 @@ import Foundation
 
 /// Wraps `vDSP_DFT_zopD` (complex out-of-place DFT). Setup creation
 /// returns `nil` for any size outside the supported family, in which
-/// case the caller (`BluesteinRealFFT.init`) falls back to
+/// case the caller (`RealFFT.init`) falls back to
 /// `MixedRadixFFT` (small-prime sizes 2/3/5/7) or `BluesteinFFT`
 /// (universal).
 ///

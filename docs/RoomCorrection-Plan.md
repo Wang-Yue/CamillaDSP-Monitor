@@ -19,7 +19,7 @@ validation across a variety of mics and DACs.
 
 | Capability | Where | State |
 |---|---|---|
-| Real FFT (vDSP-tuned, arbitrary length) | `CamillaDSPLib/FFT/BluesteinRealFFT.swift` | ✓ |
+| Real FFT (vDSP-tuned, arbitrary length) | `CamillaDSPLib/FFT/RealFFT.swift` | ✓ |
 | Window functions (BH², Harris, Tukey) | `CamillaDSPLib/FFT/WindowFunction.swift` | ✓ |
 | Spectrum analyser | `CamillaDSPLib/Audio/SpectrumAnalyzer.swift` | ✓ |
 | Biquad library + public `gainDB` / `phaseRad` | `CamillaDSPLib/BiquadCoefficients.swift` | ✓ |
@@ -44,7 +44,7 @@ validation across a variety of mics and DACs.
 
 ## Phase 0 — `ConvolutionFilter`
 
-- [x] Port `camilladsp/src/filters/fftconv.rs` → `Convolution.swift`. Uniform-partition overlap-save through `BluesteinRealFFT`, zero-alloc hot path verified by `HotPathAllocationTests.Convolution_AllocationFree`.
+- [x] Port `camilladsp/src/filters/fftconv.rs` → `Convolution.swift`. Uniform-partition overlap-save through `RealFFT`, zero-alloc hot path verified by `HotPathAllocationTests.Convolution_AllocationFree`.
 - [x] `FilterType.conv` + `ConvParameters` (Values / Wav / Raw / Dummy, capitalized to match the Rust upstream wire format).
 - [x] Coefficient loaders (WAV 16/24/32f/64f, Raw F32/F64/S16/S32 LE, TEXT). Off-thread.
 - [x] Migrated user's CamillaDSP-Swift `ConvolutionTests` to swift-testing.

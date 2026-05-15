@@ -22,7 +22,7 @@
 //     group delay = `N/2` samples (same latency as linear-phase, but
 //     with phase compensation built in).
 //
-// All routines route their FFTs through `BluesteinRealFFT` and
+// All routines route their FFTs through `RealFFT` and
 // return real `[PrcFmt]` IRs that load directly into a
 // `ConvolutionFilter` (or persist to disk as a raw `FLOAT64` stream
 // for `ConvParameters(.raw, ...)`).
@@ -93,7 +93,7 @@ public enum FIRDesign {
   ) -> [PrcFmt] {
     let n = options.fftSize
     let bins = n / 2 + 1
-    let fft = BluesteinRealFFT(length: n)
+    let fft = RealFFT(length: n)
 
     // Step 1-2: build log-magnitude spectrum from the biquad chain.
     let floorLin = pow(10.0, options.floorDB / 20.0)
@@ -159,7 +159,7 @@ public enum FIRDesign {
   ) -> [PrcFmt] {
     let n = options.fftSize
     let bins = n / 2 + 1
-    let fft = BluesteinRealFFT(length: n)
+    let fft = RealFFT(length: n)
 
     // Build the magnitude spectrum from the chain. For linear phase,
     // we want IR even-symmetric around the centre, which corresponds
@@ -216,7 +216,7 @@ public enum FIRDesign {
   ) -> [PrcFmt] {
     let n = options.fftSize
     let bins = n / 2 + 1
-    let fft = BluesteinRealFFT(length: n)
+    let fft = RealFFT(length: n)
 
     let measuredBinHz = PrcFmt(measured.sampleRate) / PrcFmt(measured.fftSize)
     let designBinHz = PrcFmt(designSampleRate) / PrcFmt(n)
@@ -323,7 +323,7 @@ public enum FIRDesign {
   /// via real cepstrum: ifft(log|H|) → causal-only cepstrum → fft →
   /// imag part is the min-phase angle (Smith §10.3).
   private static func computeMinimumPhaseAngle(
-    magnitude: [PrcFmt], fft: BluesteinRealFFT, floorLin: PrcFmt
+    magnitude: [PrcFmt], fft: RealFFT, floorLin: PrcFmt
   ) -> [PrcFmt] {
     let bins = magnitude.count
     let n = fft.length
@@ -426,12 +426,12 @@ public enum FIRDesign {
   // MARK: - FFT plumbing
 
   /// Forward FFT of a real time-domain buffer. Wraps
-  /// `BluesteinRealFFT.forward` with the safe `withUnsafe...` calls.
+  /// `RealFFT.forward` with the safe `withUnsafe...` calls.
   private static func forwardFFTReal(
     input: [PrcFmt],
     re: inout [PrcFmt],
     im: inout [PrcFmt],
-    fft: BluesteinRealFFT
+    fft: RealFFT
   ) {
     input.withUnsafeBufferPointer { src in
       re.withUnsafeMutableBufferPointer { reBuf in
@@ -449,7 +449,7 @@ public enum FIRDesign {
   /// `fft.length`. Output is normalised so `inverse(forward(x)) ≈ x`.
   private static func inverseFFTRealSpectrum(
     re: [PrcFmt],
-    fft: BluesteinRealFFT
+    fft: RealFFT
   ) -> [PrcFmt] {
     let n = fft.length
     let bins = n / 2 + 1
@@ -458,12 +458,12 @@ public enum FIRDesign {
   }
 
   /// Inverse FFT of a complex spectrum, with 1/n normalisation
-  /// applied so `inverse(forward(x)) ≈ x`. (BluesteinRealFFT's raw
+  /// applied so `inverse(forward(x)) ≈ x`. (RealFFT's raw
   /// inverse multiplies by `length`.)
   private static func inverseFFTComplexSpectrum(
     re: [PrcFmt],
     im: [PrcFmt],
-    fft: BluesteinRealFFT
+    fft: RealFFT
   ) -> [PrcFmt] {
     let n = fft.length
     var out = [PrcFmt](repeating: 0, count: n)

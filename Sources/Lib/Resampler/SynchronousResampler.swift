@@ -67,7 +67,7 @@
 //      `result[P..2P)` as `carry` for the next chunk
 //      (Oppenheim & Schafer §8.7).
 //
-// The arbitrary-length real FFTs are handled by `BluesteinRealFFT`,
+// The arbitrary-length real FFTs are handled by `RealFFT`,
 // which lets the block lengths be sized exactly to `L` and `M`
 // rather than padded to a power of two.
 //
@@ -112,8 +112,8 @@ final class SynchronousResampler: AudioResampler {
   // Real-input FFT engines. The forward engine handles the zero-padded
   // input block (length `2 · inputBlockLen`); the inverse engine
   // reconstructs the output block (length `2 · outputBlockLen`).
-  private let inputFFT: BluesteinRealFFT
-  private let outputFFT: BluesteinRealFFT
+  private let inputFFT: RealFFT
+  private let outputFFT: RealFFT
 
   // Per-channel time-domain overlap-add carry. Each entry holds the
   // tail of the previous chunk's IFFT result, length `outputBlockLen`.
@@ -183,8 +183,8 @@ final class SynchronousResampler: AudioResampler {
       filterTime[i] = kernel[i] * scale
     }
 
-    let inputFFT = BluesteinRealFFT(length: twoN)
-    let outputFFT = BluesteinRealFFT(length: 2 * outputBlock)
+    let inputFFT = RealFFT(length: twoN)
+    let outputFFT = RealFFT(length: 2 * outputBlock)
     self.inputFFT = inputFFT
     self.outputFFT = outputFFT
 

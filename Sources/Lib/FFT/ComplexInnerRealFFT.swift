@@ -4,7 +4,7 @@
 // pow2 < 8).
 //
 // The inner N-point complex FFT is supplied by the caller —
-// `BluesteinRealFFT.init` picks between `VDSPComplexDFT`,
+// `RealFFT.init` picks between `VDSPComplexDFT`,
 // `MixedRadixFFT`, and `BluesteinFFT` based on `halfN`'s factorisation.
 // This class stays purely about the real-FFT structure (packing,
 // untwiddle, inverse unpack) and never re-decides the backend.
@@ -18,14 +18,14 @@ import Foundation
 
 /// Computes a 2N-point real FFT via an N-point complex FFT plus an O(N)
 /// untwiddle. The inner complex FFT is supplied by the caller —
-/// `BluesteinRealFFT.init` does the priority-based selection so this
+/// `RealFFT.init` does the priority-based selection so this
 /// class stays purely about the real-FFT structure (packing, untwiddle,
 /// inverse unpack) and never re-decides the backend.
 final class ComplexInnerRealFFT: RealFFTBackend {
   private let halfN: Int  // = length / 2 = N
   /// The N-point complex FFT picked at construction. Could be any
   /// `ArbitraryComplexFFT` — `VDSPComplexDFT`, `MixedRadixFFT`, or
-  /// `BluesteinFFT` depending on what `BluesteinRealFFT.init` chose.
+  /// `BluesteinFFT` depending on what `RealFFT.init` chose.
   private let inner: ArbitraryComplexFFT
 
   // Unit-modulus twiddle table `W[k] = exp(-iπk/N)` for k = 0..N-1.

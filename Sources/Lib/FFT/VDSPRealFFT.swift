@@ -1,6 +1,6 @@
 // vDSP `fft_zrip` backend for power-of-two real-FFT lengths.
 //
-// Selected by `BluesteinRealFFT.init` when `length` is a power of two
+// Selected by `RealFFT.init` when `length` is a power of two
 // `≥ 8`. vDSP's hand-tuned NEON/SSE radix-2 split-complex real FFT is
 // the fastest path on Apple Silicon — for our resampler matrix it
 // roughly doubles the throughput of the "complex-FFT-via-half-N" path
@@ -104,7 +104,7 @@ final class VDSPRealFFT: RealFFTBackend {
     // Asymmetric vDSP scaling: forward applies a `2×` factor, inverse
     // does not. Feeding unscaled bins (we already halved the forward
     // output) directly produces the unnormalised IDFT result —
-    // `length · signal` — which is exactly the BluesteinRealFFT
+    // `length · signal` — which is exactly the RealFFT
     // convention. No extra scaling needed here.
     //
     // Re-interleave split-complex back to 2N reals: realOut[2k] = split.real[k],

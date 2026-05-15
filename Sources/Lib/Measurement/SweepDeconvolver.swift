@@ -13,7 +13,7 @@
 // This is a single-pass batch op, not a streaming filter — the
 // captured signal is finite, so we transform once at the full
 // `M = capture + inverse − 1` length (rounded up to the next even
-// number for `BluesteinRealFFT`). Streaming overlap-save isn't needed.
+// number for `RealFFT`). Streaming overlap-save isn't needed.
 
 import Accelerate
 import DSPAudio
@@ -36,10 +36,10 @@ public enum SweepDeconvolver {
     precondition(!inverseFilter.isEmpty, "SweepDeconvolver: inverseFilter must be non-empty")
 
     let m = captured.count + inverseFilter.count - 1
-    // BluesteinRealFFT requires an even length; round up.
+    // RealFFT requires an even length; round up.
     let n = m + (m % 2)
     let bins = n / 2 + 1
-    let fft = BluesteinRealFFT(length: n)
+    let fft = RealFFT(length: n)
 
     let aPadded = UnsafeMutablePointer<PrcFmt>.allocate(capacity: n)
     let bPadded = UnsafeMutablePointer<PrcFmt>.allocate(capacity: n)
@@ -101,7 +101,7 @@ public enum SweepDeconvolver {
 
     fft.inverse(specRe: cRe, specIm: cIm, realOut: outBuf)
 
-    // BluesteinRealFFT.inverse multiplies by length; undo so the
+    // RealFFT.inverse multiplies by length; undo so the
     // convolution sum has the conventional unit scaling.
     let invN = 1.0 / PrcFmt(n)
     var result = [PrcFmt](repeating: 0, count: m)

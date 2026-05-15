@@ -1,4 +1,4 @@
-// Real-input FFT of arbitrary even length. `BluesteinRealFFT.init` is
+// Real-input FFT of arbitrary even length. `RealFFT.init` is
 // the **single dispatch point** for the resampler's FFT subsystem — it
 // inspects the requested length once and picks the fastest available
 // backend, so callers (and the per-backend classes) never repeat that
@@ -38,7 +38,7 @@
 import Foundation
 
 /// Module-internal protocol implemented by every real-FFT backend
-/// `BluesteinRealFFT` can dispatch to. Forward = unscaled DFT, inverse
+/// `RealFFT` can dispatch to. Forward = unscaled DFT, inverse
 /// = `length · signal` (round-trip with `forward` multiplies by
 /// `length`). The protocol-witness call is paid once per `forward` /
 /// `inverse` (twice per resampler chunk per channel) and is invisible
@@ -61,7 +61,7 @@ protocol RealFFTBackend: AnyObject {
 /// `init(length:)` is the project's single FFT-backend selector — see
 /// the file-level header for the routing decision tree. Callers never
 /// see (or pick) a backend; they just get a correctly-sized real FFT.
-public final class BluesteinRealFFT {
+public final class RealFFT {
   /// Time-domain length (must be even).
   public let length: Int
 
@@ -71,8 +71,8 @@ public final class BluesteinRealFFT {
   private let backend: RealFFTBackend
 
   public init(length: Int) {
-    precondition(length > 0, "BluesteinRealFFT: length must be positive")
-    precondition(length % 2 == 0, "BluesteinRealFFT: length must be even")
+    precondition(length > 0, "RealFFT: length must be positive")
+    precondition(length % 2 == 0, "RealFFT: length must be even")
     self.length = length
 
     // Branch 1: power-of-2 → vDSP's tuned real FFT, no complex-inner

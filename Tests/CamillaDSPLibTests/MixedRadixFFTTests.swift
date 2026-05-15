@@ -141,7 +141,7 @@ import Testing
   }
 
   /// `init?` should return `nil` for sizes whose factorisation includes
-  /// any prime > 7. The caller (BluesteinRealFFT) relies on this to fall
+  /// any prime > 7. The caller (RealFFT) relies on this to fall
   /// back to Bluestein.
   @Test func UnsupportedFactorsReturnNil() {
     for n in [11, 13, 17, 22, 33, 121] {

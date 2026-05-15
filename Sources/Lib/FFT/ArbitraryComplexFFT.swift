@@ -1,6 +1,6 @@
 // Shared interface for any complex-input/output DFT engine. The
 // `ComplexInnerRealFFT` real-FFT backend takes one of these as its
-// inner transform; `BluesteinRealFFT.init` does the priority-based
+// inner transform; `RealFFT.init` does the priority-based
 // selection between the available conformers.
 
 import Foundation

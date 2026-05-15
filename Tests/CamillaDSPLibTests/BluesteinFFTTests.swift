@@ -132,12 +132,12 @@ import Testing
   }
 
   /// The production resampler exercises this: when `MixedRadixFFT(n:)`
-  /// returns nil, `BluesteinRealFFT.init` falls back to `BluesteinFFT`.
+  /// returns nil, `RealFFT.init` falls back to `BluesteinFFT`.
   /// Verify a real-FFT length with a prime > 7 in the inner FFT works.
-  @Test func BluesteinRealFFTFallbackForPrimeFactors() throws {
+  @Test func RealFFTFallbackForPrimeFactors() throws {
     // length = 22 → halfN = 11, prime → forces Bluestein fallback.
     let length = 22
-    let realFFT = BluesteinRealFFT(length: length)
+    let realFFT = RealFFT(length: length)
     #expect(realFFT.spectrumLength == length / 2 + 1)
 
     // Generate a real impulse and confirm the spectrum is a flat 1.0 across
@@ -192,8 +192,8 @@ import Testing
     240,  // halfN=120=15·2³
     2560,  // halfN=1280=5·2⁸ — the 192→44.1k input FFT
   ])
-  func BluesteinRealFFTVDSPDFTInnerRoundtrip(length: Int) throws {
-    let realFFT = BluesteinRealFFT(length: length)
+  func RealFFTVDSPDFTInnerRoundtrip(length: Int) throws {
+    let realFFT = RealFFT(length: length)
     #expect(realFFT.spectrumLength == length / 2 + 1)
 
     var input = [Double](repeating: 0, count: length)
@@ -233,15 +233,15 @@ import Testing
   }
 
   /// Power-of-2 lengths take the vDSP `fft_zrip` fast path inside
-  /// `BluesteinRealFFT`. This test pins the vDSP backend's scaling
+  /// `RealFFT`. This test pins the vDSP backend's scaling
   /// (forward = unscaled DFT, inverse = `length · signal`) so it stays
   /// in lock-step with the complex-inner backend tested above. A bug
   /// in the `0.5` un-scale on either side would either make the
   /// impulse spectrum non-unit-magnitude, or shift the recovered
   /// impulse height away from `length`.
   @Test(arguments: [8, 16, 32, 64, 1024, 2048, 4096])
-  func BluesteinRealFFTPow2VDSPRoundtrip(length: Int) throws {
-    let realFFT = BluesteinRealFFT(length: length)
+  func RealFFTPow2VDSPRoundtrip(length: Int) throws {
+    let realFFT = RealFFT(length: length)
     #expect(realFFT.spectrumLength == length / 2 + 1)
 
     // forward(impulse) should be a flat unit-magnitude spectrum.
