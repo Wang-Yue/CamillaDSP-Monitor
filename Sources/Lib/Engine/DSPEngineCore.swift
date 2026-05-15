@@ -208,6 +208,7 @@ internal final class DSPEngineCore {
     let captureChunkSize: Int
     let playbackChunkSize: Int
     let pipelineRate: Int
+    let captureRate: Int
   }
 
   private func buildRuntime() throws -> Runtime {
@@ -276,7 +277,7 @@ internal final class DSPEngineCore {
       capture: capture, playback: playback, resampler: resampler, pipeline: pipeline,
       resamplerScratch: resamplerScratch, pipelineScratch: pipelineScratch,
       captureChunkSize: captureChunkSize, playbackChunkSize: playbackChunkSize,
-      pipelineRate: pipelineRate
+      pipelineRate: pipelineRate, captureRate: captureRate
     )
   }
 
@@ -292,7 +293,7 @@ internal final class DSPEngineCore {
       dopDecoder: dopDecoder,
       chunkSize: runtime.captureChunkSize,
       channels: currentConfig.devices.capture.channels,
-      samplerate: runtime.pipelineRate,
+      samplerate: runtime.captureRate,
       silenceThresholdDb: currentConfig.devices.silenceThreshold ?? 0,
       silenceTimeoutSeconds: currentConfig.devices.silenceTimeout ?? 0,
       onStop: { [weak self] reason in self?.stop(reason: reason) }
@@ -302,6 +303,7 @@ internal final class DSPEngineCore {
       shared: shared,
       stateMachine: stateMachine,
       processingParams: processingParams,
+      pipelineRate: runtime.pipelineRate,
       resampler: runtime.resampler,
       pipeline: runtime.pipeline,
       resamplerScratch: runtime.resamplerScratch,

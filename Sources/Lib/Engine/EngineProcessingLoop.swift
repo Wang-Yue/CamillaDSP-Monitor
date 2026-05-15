@@ -41,6 +41,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
   private let shared: EngineSharedState
   private let stateMachine: EngineStateMachine
   private let processingParams: ProcessingParameters
+  private let pipelineRate: Int
   private let resampler: AudioResampler?
   private let pipelineQueue = SPSCQueue<Pipeline>(minimumCapacity: 2)
   private var activePipeline: Pipeline
@@ -56,6 +57,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
     shared: EngineSharedState,
     stateMachine: EngineStateMachine,
     processingParams: ProcessingParameters,
+    pipelineRate: Int,
     resampler: AudioResampler?,
     pipeline: Pipeline,
     resamplerScratch: AudioChunk,
@@ -67,6 +69,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
     self.shared = shared
     self.stateMachine = stateMachine
     self.processingParams = processingParams
+    self.pipelineRate = pipelineRate
     self.resampler = resampler
     self.activePipeline = pipeline
     self.resamplerScratch = resamplerScratch
@@ -78,7 +81,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
 
   func run() {
     logger.info("Processing thread started")
-    setRealtimePriority()
+    setRealtimeThreadPriority(bufferFrames: pipelineScratch.frames, sampleRate: pipelineRate)
 
     var scratchPool = RoundRobinChunkPool(
       capacity: shared.processedQueue.capacity + 4,
@@ -157,29 +160,5 @@ final class EngineProcessingLoop: @unchecked Sendable {
 
   func setPipeline(_ newPipeline: sending Pipeline) {
     _ = pipelineQueue.enqueue(newPipeline)
-  }
-}
-
-// MARK: - Real-time thread priority
-
-/// Bind the *calling* thread to a Mach time-constraint scheduling
-/// policy with a 5 ms compute window inside a 10 ms constraint
-/// window. This is the standard Darwin idiom for audio threads —
-/// the kernel preempts non-RT work to give us our window.
-private func setRealtimePriority() {
-  var policy = thread_time_constraint_policy_data_t(
-    period: 0,
-    computation: UInt32(5_000_000),  // 5 ms
-    constraint: UInt32(10_000_000),  // 10 ms
-    preemptible: 1
-  )
-  let count = mach_msg_type_number_t(
-    MemoryLayout<thread_time_constraint_policy_data_t>.size / MemoryLayout<integer_t>.size
-  )
-  let thread = mach_thread_self()
-  _ = withUnsafeMutablePointer(to: &policy) { ptr in
-    ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
-      thread_policy_set(thread, UInt32(THREAD_TIME_CONSTRAINT_POLICY), intPtr, count)
-    }
   }
 }

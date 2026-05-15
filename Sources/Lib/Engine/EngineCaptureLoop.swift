@@ -45,6 +45,7 @@ final class EngineCaptureLoop: @unchecked Sendable {
 
   private let chunkSize: Int
   private let channels: Int
+  private let samplerate: Int
 
   /// Hooked stop callback. Invoked when capture decides the engine
   /// must shut down (format change / capture error / stall). The
@@ -75,6 +76,7 @@ final class EngineCaptureLoop: @unchecked Sendable {
     self.dopDecoder = dopDecoder
     self.chunkSize = chunkSize
     self.channels = channels
+    self.samplerate = samplerate
     self.onStop = onStop
     self.silenceCounter = SilenceCounter(
       thresholdDb: silenceThresholdDb,
@@ -90,6 +92,8 @@ final class EngineCaptureLoop: @unchecked Sendable {
 
   func run() {
     logger.info("Capture thread started")
+    setRealtimeThreadPriority(bufferFrames: chunkSize, sampleRate: samplerate)
+
     var chunkPool = RoundRobinChunkPool(
       capacity: shared.capturedQueue.capacity + 4,
       frames: chunkSize,
