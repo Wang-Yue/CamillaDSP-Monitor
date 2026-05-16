@@ -295,10 +295,22 @@ struct DetailPanel: View {
       case .eqPreset(let id):
         if let preset = pipeline.eqPresets.first(where: { $0.id == id }) {
           EQPresetDetailView(preset: preset)
+        } else {
+          ContentUnavailableView(
+            "EQ Preset Deleted", systemImage: "slider.horizontal.3",
+            description: Text("Select another preset or create a new one.")
+          )
+          .frame(maxHeight: .infinity)
         }
       case .convPreset(let id):
         if let preset = pipeline.convPresets.first(where: { $0.id == id }) {
           ConvolutionPresetDetailView(preset: preset)
+        } else {
+          ContentUnavailableView(
+            "Convolution Preset Deleted", systemImage: "waveform.badge.magnifyingglass",
+            description: Text("Select another preset or measure/import a new one.")
+          )
+          .frame(maxHeight: .infinity)
         }
       case .stage(let index):
         StageDetailView(stageIndex: index)
