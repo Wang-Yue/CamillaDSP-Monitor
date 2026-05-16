@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: CoreAudio capture backend for macOS
+// CoreAudio capture backend for macOS
 //
 // Real-time discipline
 // --------------------
@@ -22,7 +22,7 @@ import Foundation
 import Synchronization
 
 public final class CoreAudioCapture: CaptureBackend {
-  fileprivate let logger = Logger(label: "camilladsp.coreaudio.capture")
+  fileprivate let logger = Logger(label: "dsp.coreaudio.capture")
   private let deviceName: String?
   let channels: Int
   private let sampleRate: Double

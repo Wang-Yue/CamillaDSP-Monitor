@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: Internal processing precision type
+// Internal processing precision type
 // Default is Double (f64). Change to Float for 32-bit processing.
 
 import Accelerate

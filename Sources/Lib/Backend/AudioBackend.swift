@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: Audio backend protocols.
+// Audio backend protocols.
 //
 // `ProcessingState` and `ProcessingStopReason` — used by both the
 // engine internals and the public actor — live in `Engine/DSPEngine.swift`.
@@ -44,8 +44,7 @@ public protocol CaptureBackend: AnyObject {
   /// the moment that's BlackHole 0.5.0+ on macOS, which advertises
   /// an "Internal Adjustable" clock source. When `true`, the
   /// rate-adjust loop sends corrections through `setPitch(_:)`
-  /// instead of nudging the resampler ratio (bit-perfect path,
-  /// matching upstream camilladsp's preferred mode).
+  /// instead of nudging the resampler ratio (bit-perfect path).
   var pitchControlSupported: Bool { get }
   /// Apply a clock-pitch correction to the capture device.
   /// `multiplier` is close to `1.0` (typically `1.0 ± 0.001`).

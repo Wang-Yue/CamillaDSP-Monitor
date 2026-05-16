@@ -1,21 +1,16 @@
 // Uniform-partitioned overlap-save FIR convolution.
-//
-// Direct Swift port of camilladsp/src/filters/fftconv.rs. The algorithm
-// (Stockham-style segmented overlap-save with one 2N-point real FFT per
+// Stockham-style segmented overlap-save with one 2N-point real FFT per
 // chunk and an N+1-bin spectrum-domain multiply-accumulate across the
-// segment history) is unchanged; only the FFT plumbing and buffer
-// management differ:
+// segment history.
 //
-//   - The Rust version uses the `realfft` crate's complex-bin spectrum;
-//     this port uses `RealFFT`, which stores the same N+1
-//     unique bins as separate `specRe`/`specIm` arrays. The flat layout
-//     (DC at index 0, Nyquist at index N, both with `im == 0`) lets us
-//     run the spectrum multiply through `vDSP_zvmulD` / `vDSP_zvmaD`
-//     without any DC/Nyquist special-casing.
-//   - `RealFFT.inverse` produces `length · signal`. The Rust
-//     `realfft` inverse does not scale, so the Rust version pre-divides
-//     coefficients by `2 * data_length` to compensate; the same
-//     pre-scaling works here for the same reason.
+//   - Uses `RealFFT`, which stores the same N+1 unique bins as separate
+//     `specRe`/`specIm` arrays. The flat layout (DC at index 0, Nyquist
+//     at index N, both with `im == 0`) lets us run the spectrum
+//     multiply through `vDSP_zvmulD` / `vDSP_zvmaD` without any DC/
+//     Nyquist special-casing.
+//   - `RealFFT.inverse` produces `length · signal`. The inverse does not
+//     scale, so the Rust version pre-divides coefficients by
+//     `2 * data_length` to compensate.
 //   - All hot-path buffers are owned by raw `UnsafeMutablePointer`s
 //     (`AudioBuffers`-style) so `process(waveform:)` cannot trip
 //     Swift's Array CoW path that a `[PrcFmt]` field would.
@@ -65,8 +60,7 @@ extension ConvParameters {
 }
 
 /// Coefficient file readers. Off the audio thread — straightforward
-/// `Data`-based parsers, no streaming or memory-mapping. Ported from
-/// the user's CamillaDSP-Swift `Convolution.swift` loaders.
+/// `Data`-based parsers, no streaming or memory-mapping.
 public enum ConvCoefficientLoader {
   public static func loadWAV(path: String, channel: Int) throws -> [PrcFmt] {
     let url = URL(fileURLWithPath: path)

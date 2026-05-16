@@ -1,15 +1,15 @@
-// JSON loader and cross-component validator for `CamillaDSPConfig`.
+// JSON loader and cross-component validator for `DSPConfiguration`.
 //
 // Per-domain validation (filter parameters, mixer mappings) lives next
 // to the validated types — see `BiquadParameters.validate(sampleRate:)`,
 // `GainParameters.validate()`, `LoudnessParameters.validate()`, and
 // `MixerConfig.validate()`. This file owns only:
-//   1. JSON → `CamillaDSPConfig` decoding.
+//   1. JSON → `DSPConfiguration` decoding.
 //   2. Top-level field checks (samplerate, chunksize, channel counts).
 //   3. The pipeline walk that ties filters/mixers to the device channel
 //      counts.
 //
-// CamillaDSP-Monitor only ever sends JSON over the actor's
+// DSPMonitor only ever sends JSON over the actor's
 // `start(configJson:)` boundary, so the loader is JSON-only; the
 // upstream YAML pathway and Yams dependency have been pruned.
 
@@ -18,16 +18,16 @@ import DSPLogging
 import Foundation
 
 public enum ConfigLoader {
-  private static let logger = Logger(label: "camilladsp.config")
+  private static let logger = Logger(label: "dsp.config")
 
-  /// Parse a CamillaDSP configuration from JSON and run full validation.
-  public static func parse(json: String) throws -> CamillaDSPConfig {
+  /// Parse a DSP configuration from JSON and run full validation.
+  public static func parse(json: String) throws -> DSPConfiguration {
     guard let data = json.data(using: .utf8) else {
       throw ConfigError.parseError("JSON config is not valid UTF-8")
     }
-    let config: CamillaDSPConfig
+    let config: DSPConfiguration
     do {
-      config = try JSONDecoder().decode(CamillaDSPConfig.self, from: data)
+      config = try JSONDecoder().decode(DSPConfiguration.self, from: data)
     } catch let error as DecodingError {
       throw ConfigError.parseError("\(error)")
     }
@@ -37,7 +37,7 @@ public enum ConfigLoader {
 
   /// Validate a parsed configuration. Top-level field checks first,
   /// then per-component validation, then the pipeline walk.
-  public static func validate(_ config: CamillaDSPConfig) throws {
+  public static func validate(_ config: DSPConfiguration) throws {
     try validateTopLevelFields(config)
 
     if let filters = config.filters {
@@ -65,7 +65,7 @@ public enum ConfigLoader {
     logger.info("Configuration validated successfully")
   }
 
-  private static func validateTopLevelFields(_ config: CamillaDSPConfig) throws {
+  private static func validateTopLevelFields(_ config: DSPConfiguration) throws {
     guard config.devices.samplerate > 0 else {
       throw ConfigError.validationError("Sample rate must be positive")
     }
@@ -88,7 +88,7 @@ public enum ConfigLoader {
   ///   - Mixer step: `channelsIn` must match current count; count
   ///     becomes `channelsOut`.
   /// After the walk, the count must equal the playback channel count.
-  private static func validatePipeline(_ config: CamillaDSPConfig) throws {
+  private static func validatePipeline(_ config: DSPConfiguration) throws {
     var numChannels = config.devices.capture.channels
 
     if let pipeline = config.pipeline {

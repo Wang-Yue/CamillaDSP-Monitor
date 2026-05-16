@@ -1,6 +1,6 @@
-# CamillaDSP Monitor
+# DSPMonitor
 
-A beautiful, high-performance native macOS app to control and monitor your CamillaDSP workflow. It brings advanced digital signal processing features to your desktop with an intuitive interface and hyper-realistic visualizations.
+A beautiful, high-performance native macOS app to control and monitor your DSP workflow. It brings advanced digital signal processing features to your desktop with an intuitive interface and hyper-realistic visualizations.
 
 ## Screenshots
 
@@ -16,12 +16,12 @@ A beautiful, high-performance native macOS app to control and monitor your Camil
 
 ## Building
 
-CamillaDSP Monitor supports two engine backends. You can choose between them at build time using the `ENGINE` variable.
+DSPMonitor supports two engine backends. You can choose between them at build time using the `ENGINE` variable.
 
 ### 1. Pure Swift Engine (Default)
-A pure-Swift port of CamillaDSP. No Rust toolchain is required.
+A pure Swift implementation of the DSP engine. No Rust toolchain is required.
 ```bash
-make                          # Builds CamillaDSPMonitor.app (Default)
+make                          # Builds DSPMonitor.app (Default)
 ```
 
 ### 2. Rust Engine (Optional)
@@ -41,7 +41,7 @@ make clean                    # Removes all build artifacts
 
 ## What You Can Do
 
-CamillaDSP Monitor empowers you to take full control of your audio experience with a suite of professional-grade DSP features, inspired by high-end audio hardware like the RME ADI-2 DAC.
+DSPMonitor empowers you to take full control of your audio experience with a suite of professional-grade DSP features, inspired by high-end audio hardware like the RME ADI-2 DAC.
 
 ### Visualize Your Sound
 - **Hyper-Realistic VU Meters**: Watch your audio levels on calibrated RMS and Peak needles with warm amber illumination.

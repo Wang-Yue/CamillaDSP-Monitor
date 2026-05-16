@@ -130,7 +130,7 @@ final class SynchronousResampler: AudioResampler {
   private let workingSpecIm: UnsafeMutablePointer<Double>
 
   private var relativeRatioWarningEmitted = false
-  private let logger = Logger(label: "camilladsp.resampler.synchronous")
+  private let logger = Logger(label: "dsp.resampler.synchronous")
 
   var ratio: Double { _ratio }
   var maxOutputFrames: Int { outputChunkSize }

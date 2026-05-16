@@ -1,6 +1,6 @@
 import Foundation
 
-/// Errors raised while parsing or validating a `CamillaDSPConfig`.
+/// Errors raised while parsing or validating a `DSPConfiguration`.
 public enum ConfigError: Error, Sendable, CustomStringConvertible {
   case parseError(String)
   case validationError(String)

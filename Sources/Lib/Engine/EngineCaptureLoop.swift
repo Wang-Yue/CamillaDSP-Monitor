@@ -34,7 +34,7 @@ import Synchronization
 /// internal synchronisation and is *not* safe to use from multiple
 /// threads concurrently.
 final class EngineCaptureLoop: @unchecked Sendable {
-  private let logger = Logger(label: "camilladsp.capture")
+  private let logger = Logger(label: "dsp.capture")
 
   private let shared: EngineSharedState
   private let stateMachine: EngineStateMachine

@@ -49,7 +49,7 @@ public final class Pipeline {
   private let expectedOutChannels: Int
 
   public init(
-    config: CamillaDSPConfig,
+    config: DSPConfiguration,
     processingParams: ProcessingParameters,
     explicitChunkSize: Int? = nil
   ) throws {

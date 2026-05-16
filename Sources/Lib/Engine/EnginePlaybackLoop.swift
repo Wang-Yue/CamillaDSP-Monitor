@@ -38,7 +38,7 @@ import Synchronization
 /// and stopwatch are all loop-local state with no synchronisation
 /// and are *not* safe to use from multiple threads concurrently.
 final class EnginePlaybackLoop: @unchecked Sendable {
-  private let logger = Logger(label: "camilladsp.playback")
+  private let logger = Logger(label: "dsp.playback")
 
   private let shared: EngineSharedState
   private let capture: CaptureBackend

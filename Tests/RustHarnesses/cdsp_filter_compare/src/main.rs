@@ -1,4 +1,4 @@
-// Reference-output generator for CamillaDSP-Monitor's Swift filter audit.
+// Reference-output generator for DSPMonitor's Swift filter audit.
 //
 // Reads raw little-endian f64 samples (mono), runs a camilladsp filter chosen
 // via CLI arg, writes the resulting samples back as raw little-endian f64.

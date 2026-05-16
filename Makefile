@@ -15,7 +15,7 @@ else
 endif
 
 # App Metadata
-APP_NAME = CamillaDSPMonitor
+APP_NAME = DSPMonitor
 APP_BUNDLE = $(APP_NAME).app
 CONTENTS = $(APP_BUNDLE)/Contents
 MACOS = $(CONTENTS)/MacOS
@@ -96,15 +96,15 @@ Sources/CamillaDSPFFI/include/module.modulemap: $(RUST_BRIDGE_DIR)/generated/swi
 		cp $< $@; \
 	fi
 
-Sources/CamillaDSPLib/camilladsp_ffi.swift: $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift
-	@mkdir -p Sources/CamillaDSPLib
+Sources/DSPLib/camilladsp_ffi.swift: $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift
+	@mkdir -p Sources/DSPLib
 	@if ! cmp -s $< $@; then \
 		echo "📂 Updating Swift bindings..."; \
 		cp $< $@; \
 	fi
 
 # 4. Build Swift application (Rust path)
-$(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/CamillaDSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS) Package.swift
+$(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/DSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS) Package.swift
 	@echo "🍎 Building Swift application with Rust library ($(MODE))..."
 	$(SWIFT) build $(SWIFT_FLAGS)
 
@@ -205,7 +205,7 @@ clean:
 	rm -rf $(RUST_HARNESS_DIR)/target
 	rm -rf lib
 	rm -rf Sources/CamillaDSPFFI/include
-	rm -f Sources/CamillaDSPLib/camilladsp_ffi.swift
+	rm -f Sources/DSPLib/camilladsp_ffi.swift
 	@if [ -d RustBridge ]; then \
 		echo "🧹 Cleaning Rust bridge..."; \
 		cd RustBridge && $(CARGO_CMD) clean && rm -rf generated; \

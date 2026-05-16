@@ -315,8 +315,7 @@ enum CoreAudioDevice {
   /// If `deviceID` advertises an "Internal Adjustable" clock source
   /// (BlackHole 0.5.0+), select it as the active source and return
   /// `true`. Returns `false` for devices that don't support pitch
-  /// tuning. Mirrors `configure_pitch_control` in
-  /// `camilladsp/src/coreaudio_backend/device.rs`.
+  /// tuning.
   static func selectAdjustableClockSource(_ deviceID: AudioDeviceID) -> Bool {
     let (names, ids) = clockSourceNamesAndIDs(deviceID)
     guard !names.isEmpty,
@@ -329,8 +328,7 @@ enum CoreAudioDevice {
   /// writing `kAudioDevicePropertyStereoPan`. Upstream maps
   /// `pitch ∈ [0.99, 1.01]` to `pan ∈ [0, 1]` with the formula
   /// `pan = (pitch - 1.0) * 50.0 + 0.5`, clamped to the valid
-  /// range. Direct port of `set_pitch` in
-  /// `camilladsp/src/coreaudio_backend/device.rs`.
+  /// range.
   static func setDevicePitch(_ deviceID: AudioDeviceID, pitch: Double) {
     var addr = AudioObjectPropertyAddress(
       mSelector: kAudioDevicePropertyStereoPan,

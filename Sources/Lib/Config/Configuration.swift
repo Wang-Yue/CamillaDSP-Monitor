@@ -6,7 +6,7 @@
 import Foundation
 
 /// Top-level configuration consumed by the DSP engine.
-public struct CamillaDSPConfig: Codable, Sendable {
+public struct DSPConfiguration: Codable, Sendable {
 
   public var devices: DevicesConfig
   public var filters: [String: FilterConfig]?

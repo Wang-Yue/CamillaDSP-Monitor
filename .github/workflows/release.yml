@@ -28,18 +28,18 @@ jobs:
 
     - name: Zip App
       run: |
-        zip -r CamillaDSPMonitor-${{ matrix.engine }}.zip CamillaDSPMonitor.app
+        zip -r DSPMonitor-${{ matrix.engine }}.zip DSPMonitor.app
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: CamillaDSPMonitor-${{ matrix.engine }}
-        path: CamillaDSPMonitor-${{ matrix.engine }}.zip
+        name: DSPMonitor-${{ matrix.engine }}
+        path: DSPMonitor-${{ matrix.engine }}.zip
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: CamillaDSPMonitor-${{ matrix.engine }}.zip
+        files: DSPMonitor-${{ matrix.engine }}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

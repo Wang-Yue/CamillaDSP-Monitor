@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: top-level engine orchestrator.
+// top-level engine orchestrator.
 //
 // This class owns the *shape* of an engine run — config, sizing,
 // device handles, the three audio threads — but contains no audio
@@ -37,11 +37,11 @@ import Foundation
 import Synchronization
 
 internal final class DSPEngineCore {
-  private let logger = Logger(label: "camilladsp.engine.core")
+  private let logger = Logger(label: "dsp.engine.core")
 
   // MARK: - Configuration
 
-  internal private(set) var currentConfig: CamillaDSPConfig
+  internal private(set) var currentConfig: DSPConfiguration
   internal let processingParams: ProcessingParameters
 
   // MARK: - Shared state
@@ -83,7 +83,7 @@ internal final class DSPEngineCore {
 
   // MARK: - Init
 
-  internal init(config: CamillaDSPConfig) {
+  internal init(config: DSPConfiguration) {
     self.currentConfig = config
     self.processingParams = ProcessingParameters(
       captureChannels: config.devices.capture.channels,
@@ -108,7 +108,7 @@ internal final class DSPEngineCore {
 
     stateMachine.setState(.starting)
     shared.shouldStop.store(false, ordering: .releasing)
-    logger.info("Starting CamillaDSP engine")
+    logger.info("Starting DSP engine")
 
     let runtime = try buildRuntime()
     self.capture = runtime.capture
@@ -134,7 +134,7 @@ internal final class DSPEngineCore {
 
     stateMachine.setState(.running)
     logger.info(
-      "CamillaDSP engine started: %dHz, chunk=%d", .int(currentConfig.devices.samplerate),
+      "DSP engine started: %dHz, chunk=%d", .int(currentConfig.devices.samplerate),
       .int(runtime.captureChunkSize))
   }
 
@@ -174,7 +174,7 @@ internal final class DSPEngineCore {
   /// verifying that `newConfig.devices == currentConfig.devices` —
   /// the `DSPEngine` actor does this comparison and falls back to a
   /// full teardown when they differ.
-  internal func reloadConfig(_ newConfig: CamillaDSPConfig) throws {
+  internal func reloadConfig(_ newConfig: DSPConfiguration) throws {
     currentConfig = newConfig
     let captureRateForDoP = Double(
       newConfig.devices.captureSamplerate ?? newConfig.devices.samplerate)
@@ -331,11 +331,11 @@ internal final class DSPEngineCore {
     self.processingLoop = processingLoop
 
     _ = spawnRealtimeThread(
-      name: "camilladsp.capture", body: { captureLoop.run() })
+      name: "dsp.capture", body: { captureLoop.run() })
     _ = spawnRealtimeThread(
-      name: "camilladsp.processing", body: { processingLoop.run() })
+      name: "dsp.processing", body: { processingLoop.run() })
     _ = spawnRealtimeThread(
-      name: "camilladsp.playback", body: { playbackLoop.run() })
+      name: "dsp.playback", body: { playbackLoop.run() })
   }
 
   /// Wrap `Thread` construction so each spawn shares the same QoS,

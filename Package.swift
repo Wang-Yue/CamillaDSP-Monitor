@@ -71,20 +71,20 @@ var targets: [Target] = libTargets
 if usePureSwift {
   targets.append(contentsOf: [
     .target(
-      name: "CamillaDSPLib",
+      name: "DSPLib",
       dependencies: commonLibDeps,
-      path: "Sources/CamillaDSPLib",
+      path: "Sources/DSPLib",
       exclude: ["RustDSPEngine.swift", "camilladsp_ffi.swift"]
     ),
     .executableTarget(
-      name: "CamillaDSPMonitor",
-      dependencies: ["CamillaDSPLib"] + commonLibDeps,
-      path: "Sources/CamillaDSPMonitor"
+      name: "DSPMonitor",
+      dependencies: ["DSPLib"] + commonLibDeps,
+      path: "Sources/DSPMonitor"
     ),
     .testTarget(
-      name: "CamillaDSPLibTests",
-      dependencies: ["CamillaDSPLib"],
-      path: "Tests/CamillaDSPLibTests"
+      name: "DSPMonitorTests",
+      dependencies: ["DSPLib"],
+      path: "Tests/DSPMonitorTests"
     ),
   ])
 } else {
@@ -97,9 +97,9 @@ if usePureSwift {
       path: "Sources/CamillaDSPFFI"
     ),
     .target(
-      name: "CamillaDSPLib",
+      name: "DSPLib",
       dependencies: rustLibDeps,
-      path: "Sources/CamillaDSPLib",
+      path: "Sources/DSPLib",
       exclude: ["SwiftDSPEngine.swift"],
       linkerSettings: [
         .linkedLibrary("camilladsp_ffi"),
@@ -107,19 +107,19 @@ if usePureSwift {
       ]
     ),
     .executableTarget(
-      name: "CamillaDSPMonitor",
-      dependencies: ["CamillaDSPLib"] + commonLibDeps,
-      path: "Sources/CamillaDSPMonitor"
+      name: "DSPMonitor",
+      dependencies: ["DSPLib"] + commonLibDeps,
+      path: "Sources/DSPMonitor"
     ),
   ])
 }
 
 let package = Package(
-  name: "CamillaDSP",
+  name: "DSPMonitor",
   platforms: [.macOS(.v15)],
   products: [
-    .executable(name: "CamillaDSPMonitor", targets: ["CamillaDSPMonitor"]),
-    .library(name: "CamillaDSPLib", targets: ["CamillaDSPLib"]),
+    .executable(name: "DSPMonitor", targets: ["DSPMonitor"]),
+    .library(name: "DSPLib", targets: ["DSPLib"]),
   ],
   dependencies: dependencies,
   targets: targets

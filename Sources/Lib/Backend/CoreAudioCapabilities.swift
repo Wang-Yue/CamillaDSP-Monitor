@@ -1,15 +1,4 @@
 // Device capability discovery for CoreAudio.
-//
-// CamillaDSP 4.2.0 exposes a `GetCaptureDeviceCapabilities` /
-// `GetPlaybackDeviceCapabilities` websocket command, but the Rust
-// implementation on `next4.2.0` does not actually populate capability
-// data — it only returns device names. CamillaDSP-Monitor's UI, however,
-// already consumes a structured capability tree to render the device
-// configuration dialog. This module fills that gap by walking the
-// CoreAudio HAL directly: for each output (or input) stream of the
-// requested device we enumerate every available physical format and
-// translate it into the (channels, samplerate, format) tuples the UI
-// expects.
 
 import AudioToolbox
 import CoreAudio
@@ -178,7 +167,7 @@ public enum CoreAudioCapabilities {
     }
   }
 
-  /// Map an AudioStreamBasicDescription to a CamillaDSP CoreAudio sample
+  /// Map an AudioStreamBasicDescription to a DSP CoreAudio sample
   /// format token. The token set matches Rust's `CoreAudioSampleFormat`
   /// enum (S16, S24, S32, F32) — exactly the formats the CoreAudio
   /// backend accepts. Anything else (e.g. 64-bit float, unsigned PCM)

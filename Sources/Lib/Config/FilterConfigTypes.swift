@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: Standalone filter configuration types.
+// Standalone filter configuration types.
 
 import Foundation
 

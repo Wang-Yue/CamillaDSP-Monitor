@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: CoreAudio playback backend for macOS
+// CoreAudio playback backend for macOS
 //
 // Real-time discipline
 // --------------------
@@ -22,7 +22,7 @@ import Foundation
 import Synchronization
 
 public final class CoreAudioPlayback: PlaybackBackend {
-  fileprivate let logger = Logger(label: "camilladsp.coreaudio.playback")
+  fileprivate let logger = Logger(label: "dsp.coreaudio.playback")
   private let deviceName: String?
   let channels: Int
   private let sampleRate: Double

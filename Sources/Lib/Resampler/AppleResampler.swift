@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: Apple AudioConverter resampler.
+// Apple AudioConverter resampler.
 
 import Accelerate
 import AudioToolbox
@@ -14,7 +14,7 @@ final class AppleResampler: AudioResampler {
   private let baseRatio: Double
   private var currentRatio: Double
   private var relativeRatioWarningEmitted = false
-  private let logger = Logger(label: "camilladsp.resampler.apple")
+  private let logger = Logger(label: "dsp.resampler.apple")
 
   private var converter: AudioConverterRef? = nil
   fileprivate let fillContext: FillContext

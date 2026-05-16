@@ -1,4 +1,4 @@
-// Reference-output generator for CamillaDSP-Monitor's Swift resampler audit.
+// Reference-output generator for DSPMonitor's Swift resampler audit.
 //
 // Reads raw little-endian f64 samples (mono, one channel), runs a rubato
 // resampler chosen via CLI arg, writes the resulting samples back as raw

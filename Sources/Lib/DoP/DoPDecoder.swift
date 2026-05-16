@@ -27,7 +27,7 @@ import DSPLogging
 import Foundation
 
 public final class DoPDecoder {
-  private let logger = Logger(label: "camilladsp.dop")
+  private let logger = Logger(label: "dsp.dop")
 
   /// Frames of valid alternating markers required to lock on. ~180 µs at
   /// 176.4 kHz PCM rate.

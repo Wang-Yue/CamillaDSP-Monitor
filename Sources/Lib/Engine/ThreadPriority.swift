@@ -1,11 +1,11 @@
-// CamillaDSP-Swift: Helper for promoting threads to Mach real-time priority
+// Helper for promoting threads to Mach real-time priority
 // based on audio parameters (buffer frames and sample rate).
 
 import DSPLogging
 import Darwin
 import Foundation
 
-private let logger = Logger(label: "camilladsp.threadpriority")
+private let logger = Logger(label: "dsp.threadpriority")
 
 /// Bind the *calling* thread to a Mach time-constraint scheduling policy
 /// tailored to the given audio buffer parameters.

@@ -100,12 +100,12 @@ Tests/RustHarnesses/Cargo.lock
 Tests/RustHarnesses/**/Cargo.lock
 
 # Generated Library Bridge Files
-Sources/CamillaDSPLib/camilladsp_ffi.swift
+Sources/DSPLib/camilladsp_ffi.swift
 Sources/CamillaDSPFFI/include/
 lib/libcamilladsp_ffi.a
 
 # App Bundle
-CamillaDSPMonitor.app/
+DSPMonitor.app/
 RustBridge/Cargo.lock
 
 # Test scratch files written under /tmp by the resampler/filter comparison

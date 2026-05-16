@@ -1,5 +1,4 @@
-// CamillaDSP-Swift: Standalone Engine Configuration and API Types
-// Zero dependencies — purely data structures and interfaces for UI isolation.
+// Standalone Engine Configuration and API Types
 
 import Foundation
 
@@ -165,7 +164,7 @@ public struct AudioDeviceDescriptor: Codable, Sendable, Equatable {
 
 // MARK: - Device Config Models
 
-/// Audio I/O backend. CamillaDSP-Monitor only ever uses CoreAudio.
+/// Audio I/O backend. DSPMonitor only ever uses CoreAudio.
 public enum AudioBackendType: String, Codable, Equatable, Sendable {
   case coreAudio = "CoreAudio"
 }

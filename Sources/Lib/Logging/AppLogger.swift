@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: Lock-free, allocation-free high performance logger for real-time audio threads
+// Lock-free, allocation-free high performance logger for real-time audio threads
 
 import DSPAudio
 import DSPConfig
@@ -58,7 +58,7 @@ public final class AppLogger: Sendable {
       let thread = Thread { [weak self] in
         self?.runWorker()
       }
-      thread.name = "camilladsp.logger"
+      thread.name = "dsp.logger"
       thread.qualityOfService = .utility
       thread.start()
     }

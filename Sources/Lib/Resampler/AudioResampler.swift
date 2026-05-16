@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: Resampler protocol + shared types.
+// Resampler protocol + shared types.
 // Two resampler implementations conform to `AudioResampler`:
 //   * `SynchronousResampler` — FFT-based fixed-ratio.
 //   * `AppleResampler`       — Core Audio AudioConverter wrapper.

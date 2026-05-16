@@ -189,7 +189,7 @@ public struct CalibrationCurve: Sendable {
   public func writeFRD(to path: String, comment: String? = nil) throws {
     var lines: [String] = []
     lines.append("* Frequency Response Data")
-    lines.append("* Exported by CamillaDSP-Monitor")
+    lines.append("* Exported by DSPMonitor")
     if let c = comment, !c.isEmpty {
       for line in c.split(separator: "\n") {
         lines.append("* \(line)")

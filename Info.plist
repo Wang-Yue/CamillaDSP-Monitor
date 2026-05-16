@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
         <key>CFBundleExecutable</key>
-        <string>CamillaDSPMonitor</string>
+        <string>DSPMonitor</string>
         <key>CFBundleIdentifier</key>
-        <string>com.example.CamillaDSPMonitor</string>
+        <string>com.example.DSPMonitor</string>
         <key>CFBundleName</key>
-        <string>CamillaDSPMonitor</string>
+        <string>DSPMonitor</string>
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleShortVersionString</key>
@@ -19,9 +19,9 @@
         <key>CFBundleIconFile</key>
         <string>AppIcon</string>
         <key>NSMicrophoneUsageDescription</key>
-        <string>CamillaDSP Monitor needs microphone access to analyze and process audio signals.</string>
+        <string>DSP Monitor needs microphone access to analyze and process audio signals.</string>
         <key>NSBluetoothAlwaysUsageDescription</key>
-        <string>CamillaDSP Monitor needs Bluetooth access to connect to Bluetooth audio devices.</string>
+        <string>DSP Monitor needs Bluetooth access to connect to Bluetooth audio devices.</string>
         <key>LSUIElement</key>
         <true/>
 </dict>

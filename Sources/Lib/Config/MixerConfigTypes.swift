@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: Standalone mixer configuration types.
+// Standalone mixer configuration types.
 
 import Foundation
 

@@ -1,4 +1,4 @@
-// CamillaDSP-Swift: Standalone resampler configuration types.
+// Standalone resampler configuration types.
 
 import Foundation
 
