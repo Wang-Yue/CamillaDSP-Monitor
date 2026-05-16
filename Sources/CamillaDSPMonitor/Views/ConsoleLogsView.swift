@@ -52,24 +52,26 @@ struct ConsoleLogsView: View {
       Divider()
 
       ScrollViewReader { proxy in
-        List {
-          ForEach(logManager.entries) { entry in
-            HStack(alignment: .top, spacing: 8) {
-              Text(entry.timestamp, style: .time)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .leading)
-                .fixedSize()
+        ScrollView {
+          LazyVStack(alignment: .leading, spacing: 6) {
+            ForEach(logManager.entries) { entry in
+              HStack(alignment: .top, spacing: 8) {
+                Text(entry.timestamp, style: .time)
+                  .font(.system(.caption, design: .monospaced))
+                  .foregroundStyle(.secondary)
+                  .frame(width: 70, alignment: .leading)
+                  .fixedSize()
 
-              Text(entry.message)
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(entry.message)
+                  .font(.system(.body, design: .monospaced))
+                  .textSelection(.enabled)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .id(entry.id)
             }
-            .id(entry.id)
           }
+          .padding()
         }
-        .listStyle(.plain)
         .onChange(of: logManager.entries.count) { _, _ in
           if autoScroll, let last = logManager.entries.last {
             DispatchQueue.main.async {
