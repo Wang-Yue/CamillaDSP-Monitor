@@ -173,6 +173,15 @@ final class PipelineStore {
       if stage.convLeftPresetID == toDelete.id { stage.convLeftPresetID = nil }
       if stage.convRightPresetID == toDelete.id { stage.convRightPresetID = nil }
     }
+
+    // Delete associated files on disk
+    let fm = FileManager.default
+    for path in toDelete.irPaths.values {
+      if fm.fileExists(atPath: path) {
+        try? fm.removeItem(atPath: path)
+      }
+    }
+
     convPresets.remove(at: index)
     saveConvPresets()
     onChanged?()
