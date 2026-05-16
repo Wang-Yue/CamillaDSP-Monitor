@@ -72,7 +72,9 @@ struct ConsoleLogsView: View {
         .listStyle(.plain)
         .onChange(of: logManager.entries.count) { _, _ in
           if autoScroll, let last = logManager.entries.last {
-            proxy.scrollTo(last.id, anchor: .bottom)
+            DispatchQueue.main.async {
+              proxy.scrollTo(last.id, anchor: .bottom)
+            }
           }
         }
       }
