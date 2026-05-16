@@ -92,7 +92,7 @@ final class EngineCaptureLoop: @unchecked Sendable {
 
   func run() {
     logger.info("Capture thread started")
-    setRealtimeThreadPriority(bufferFrames: chunkSize, sampleRate: samplerate)
+    setRealtimeThreadPriority(name: "Capture", bufferFrames: chunkSize, sampleRate: samplerate)
 
     var chunkPool = RoundRobinChunkPool(
       capacity: shared.capturedQueue.capacity + 4,

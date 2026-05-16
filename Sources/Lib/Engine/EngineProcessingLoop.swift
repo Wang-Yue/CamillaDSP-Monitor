@@ -81,7 +81,8 @@ final class EngineProcessingLoop: @unchecked Sendable {
 
   func run() {
     logger.info("Processing thread started")
-    setRealtimeThreadPriority(bufferFrames: pipelineScratch.frames, sampleRate: pipelineRate)
+    setRealtimeThreadPriority(
+      name: "Processing", bufferFrames: pipelineScratch.frames, sampleRate: pipelineRate)
 
     var scratchPool = RoundRobinChunkPool(
       capacity: shared.processedQueue.capacity + 4,

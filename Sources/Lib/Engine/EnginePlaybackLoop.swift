@@ -79,7 +79,7 @@ final class EnginePlaybackLoop: @unchecked Sendable {
 
   func run() {
     logger.info("Playback thread started")
-    setRealtimeThreadPriority(bufferFrames: chunkSize, sampleRate: pipelineRate)
+    setRealtimeThreadPriority(name: "Playback", bufferFrames: chunkSize, sampleRate: pipelineRate)
     logRateAdjustMode()
 
     // Rate-adjust state lives entirely on this thread.

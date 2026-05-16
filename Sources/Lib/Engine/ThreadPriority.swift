@@ -13,20 +13,22 @@ private let logger = Logger(label: "camilladsp.threadpriority")
 /// This is the standard Darwin/macOS idiom for real-time audio threads.
 ///
 /// - Parameters:
+///   - name: A descriptive name of the thread (e.g. Capture, Playback, Processing).
 ///   - bufferFrames: The buffer size in frames.
 ///   - sampleRate: The sample rate in Hz.
-internal func setRealtimeThreadPriority(bufferFrames: Int, sampleRate: Int) {
+internal func setRealtimeThreadPriority(name: StaticString, bufferFrames: Int, sampleRate: Int) {
   guard bufferFrames > 0, sampleRate > 0 else {
     logger.warning(
-      "Invalid audio parameters for real-time priority: frames=%d, rate=%d",
-      .int(bufferFrames), .int(sampleRate))
+      "[%s] Invalid audio parameters for real-time priority: frames=%d, rate=%d",
+      .staticString(name), .int(bufferFrames), .int(sampleRate))
     return
   }
 
   var tbInfo = mach_timebase_info_data_t()
   let status = mach_timebase_info(&tbInfo)
   guard status == KERN_SUCCESS else {
-    logger.error("Failed to retrieve Mach timebase info: %d", .int(Int(status)))
+    logger.error(
+      "[%s] Failed to retrieve Mach timebase info: %d", .staticString(name), .int(Int(status)))
     return
   }
 
@@ -41,8 +43,8 @@ internal func setRealtimeThreadPriority(bufferFrames: Int, sampleRate: Int) {
   let maxQuantumNs = 50_000_000.0
   if computationNs > maxQuantumNs {
     logger.info(
-      "Thread computation budget capped at 50.0ms (%.1fms requested)",
-      .double(computationNs / 1_000_000.0))
+      "[%s] Thread computation budget capped at 50.0ms (%.1fms requested)",
+      .staticString(name), .double(computationNs / 1_000_000.0))
     computationNs = maxQuantumNs
   }
 
@@ -75,12 +77,14 @@ internal func setRealtimeThreadPriority(bufferFrames: Int, sampleRate: Int) {
 
   if result == KERN_SUCCESS {
     logger.info(
-      "Thread promoted to real-time priority: period=%.1fms, computation=%.1fms, constraint=%.1fms",
+      "[%s] Thread promoted to real-time priority: period=%.1fms, computation=%.1fms, constraint=%.1fms",
+      .staticString(name),
       .double(periodNs / 1_000_000.0),
       .double(computationNs / 1_000_000.0),
       .double(constraintNs / 1_000_000.0)
     )
   } else {
-    logger.error("Failed to set real-time thread policy: %d", .int(Int(result)))
+    logger.error(
+      "[%s] Failed to set real-time thread policy: %d", .staticString(name), .int(Int(result)))
   }
 }
