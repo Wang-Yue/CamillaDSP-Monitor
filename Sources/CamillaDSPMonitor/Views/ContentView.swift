@@ -8,6 +8,7 @@ struct ContentView: View {
   @State private var selection: SidebarItem? = .devices
   @State private var showAutoEqSearch = false
   @State private var showOratorySearch = false
+  @State private var showImportConv = false
 
   var body: some View {
     if appState.isMiniPlayerActive {
@@ -16,7 +17,7 @@ struct ContentView: View {
       NavigationSplitView {
         SidebarView(
           selection: $selection, showAutoEqSearch: $showAutoEqSearch,
-          showOratorySearch: $showOratorySearch)
+          showOratorySearch: $showOratorySearch, showImportConv: $showImportConv)
       } detail: {
         DetailPanel(selection: selection)
       }
@@ -30,6 +31,10 @@ struct ContentView: View {
       }
       .sheet(isPresented: $showOratorySearch) {
         OratoryPresetPickerView()
+          .environment(appState.pipeline)
+      }
+      .sheet(isPresented: $showImportConv) {
+        ConvolutionImportView()
           .environment(appState.pipeline)
       }
     }
@@ -111,6 +116,7 @@ struct SidebarView: View {
   @Binding var selection: SidebarItem?
   @Binding var showAutoEqSearch: Bool
   @Binding var showOratorySearch: Bool
+  @Binding var showImportConv: Bool
 
   var body: some View {
     @Bindable var appState = appState
@@ -183,6 +189,18 @@ struct SidebarView: View {
               }
           }
         }
+
+        HStack(spacing: 12) {
+          Button {
+            showImportConv = true
+          } label: {
+            Label("Import IR File(s)…", systemImage: "square.and.arrow.down")
+          }
+        }
+        .foregroundStyle(.secondary)
+        .buttonStyle(.plain)
+        .font(.caption)
+        .padding(.top, 4)
       }
 
       Section("EQ Presets") {

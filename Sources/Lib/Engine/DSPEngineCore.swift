@@ -37,7 +37,7 @@ import Foundation
 import Synchronization
 
 internal final class DSPEngineCore {
-  private let logger = Logger(label: "camilladsp.engine")
+  private let logger = Logger(label: "camilladsp.engine.core")
 
   // MARK: - Configuration
 

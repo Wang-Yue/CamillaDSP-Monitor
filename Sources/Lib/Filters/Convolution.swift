@@ -67,8 +67,8 @@ extension ConvParameters {
 /// Coefficient file readers. Off the audio thread — straightforward
 /// `Data`-based parsers, no streaming or memory-mapping. Ported from
 /// the user's CamillaDSP-Swift `Convolution.swift` loaders.
-enum ConvCoefficientLoader {
-  static func loadWAV(path: String, channel: Int) throws -> [PrcFmt] {
+public enum ConvCoefficientLoader {
+  public static func loadWAV(path: String, channel: Int) throws -> [PrcFmt] {
     let url = URL(fileURLWithPath: path)
     guard FileManager.default.fileExists(atPath: path) else {
       throw ConfigError.invalidFilter("WAV file not found: \(path)")
@@ -119,7 +119,7 @@ enum ConvCoefficientLoader {
     return result
   }
 
-  static func loadRaw(path: String, format: String) throws -> [PrcFmt] {
+  public static func loadRaw(path: String, format: String) throws -> [PrcFmt] {
     let url = URL(fileURLWithPath: path)
     guard FileManager.default.fileExists(atPath: path) else {
       throw ConfigError.invalidFilter("Raw file not found: \(path)")

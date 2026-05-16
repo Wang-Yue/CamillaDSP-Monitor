@@ -7,6 +7,7 @@ import Foundation
 import Synchronization
 
 public actor SwiftCamillaEngine {
+  private let logger = Logger(label: "camilladsp.engine")
   private var core: DSPEngineCore?
   private let spectrum = SpectrumAnalyzer()
   private let captureBuffer = AudioHistoryBuffer()
@@ -18,6 +19,7 @@ public actor SwiftCamillaEngine {
   public init() {}
 
   public func setConfig(json: String) async throws {
+    logger.info("Set config: %s", .string(json))
     let parsed: CamillaDSPConfig
     do {
       parsed = try ConfigLoader.parse(json: json)
