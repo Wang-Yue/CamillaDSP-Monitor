@@ -1,7 +1,7 @@
 // DSPEngineController - DSP engine lifecycle and config building
 
-import DSPLib
 import DSPConfig
+import DSPLib
 import Observation
 import SwiftUI
 

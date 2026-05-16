@@ -170,24 +170,18 @@ struct SidebarView: View {
       }
 
       Section("Convolution") {
-        if pipeline.convPresets.isEmpty {
-          Label("No presets yet", systemImage: "waveform.badge.magnifyingglass")
-            .foregroundStyle(.secondary)
-            .font(.caption)
-        } else {
-          ForEach(pipeline.convPresets) { preset in
-            ConvolutionPresetSidebarRow(preset: preset)
-              .tag(SidebarItem.convPreset(preset.id))
-              .contextMenu {
-                Button(role: .destructive) {
-                  if let idx = pipeline.convPresets.firstIndex(where: { $0.id == preset.id }) {
-                    pipeline.deleteConvPreset(at: idx)
-                  }
-                } label: {
-                  Label("Delete", systemImage: "trash")
+        ForEach(pipeline.convPresets) { preset in
+          ConvolutionPresetSidebarRow(preset: preset)
+            .tag(SidebarItem.convPreset(preset.id))
+            .contextMenu {
+              Button(role: .destructive) {
+                if let idx = pipeline.convPresets.firstIndex(where: { $0.id == preset.id }) {
+                  pipeline.deleteConvPreset(at: idx)
                 }
+              } label: {
+                Label("Delete", systemImage: "trash")
               }
-          }
+            }
         }
 
         HStack(spacing: 12) {

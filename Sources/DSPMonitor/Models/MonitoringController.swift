@@ -1,8 +1,8 @@
 // MonitoringController - State and VU level subscriptions
 
 import AppKit
-import DSPLib
 import DSPConfig
+import DSPLib
 import Foundation
 import Observation
 

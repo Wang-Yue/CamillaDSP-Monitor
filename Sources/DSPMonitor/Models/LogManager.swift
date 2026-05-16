@@ -1,5 +1,5 @@
-import DSPLib
 import DSPConfig
+import DSPLib
 import Foundation
 import Observation
 import SwiftUI

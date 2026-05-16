@@ -1,7 +1,7 @@
 // DevicePickerView - Audio device selection and configuration
 
-import DSPLib
 import DSPConfig
+import DSPLib
 import Observation
 import SwiftUI
 

@@ -1,8 +1,8 @@
 // AudioDeviceManager - Audio device enumeration, capability fetching, and config management
 
-import DSPLib
 import CoreAudio
 import DSPConfig
+import DSPLib
 import Foundation
 import Observation
 

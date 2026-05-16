@@ -112,7 +112,6 @@ final class AppState {
       dsp?.applyConfig()
     }
     pipeline.eqPresets = pipeline.loadEQPresets()
-    pipeline.createDefaultEQPresetsIfNeeded()
     pipeline.convPresets = pipeline.loadConvPresets()
     pipeline.loadPipelineStages()
 
