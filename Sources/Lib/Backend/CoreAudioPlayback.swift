@@ -386,18 +386,25 @@ private func playbackCallback(
   let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
   let frameCount = Int(inNumberFrames)
 
-  var underrunFrames = 0
+  // Determine the maximum frames we can safely consume in lockstep across all channels
+  // to keep all channels perfectly phase-aligned in case of underruns.
+  var minAvailable = frameCount
+  for ch in 0..<playback.channels {
+    let avail = playback.playbackRings[ch].availableToRead
+    if avail < minAvailable {
+      minAvailable = avail
+    }
+  }
+  let toCopy = minAvailable
+  let underrunFrames = frameCount - toCopy
+
   for (ch, buffer) in buffers.enumerated() {
     guard let data = buffer.mData else { continue }
     let floatPtr = data.assumingMemoryBound(to: Float.self)
     if ch < playback.channels {
-      // Drain whatever's queued for this channel; pad the remainder
-      // with silence on underrun.
-      let copied = playback.playbackRings[ch].consume(into: floatPtr, count: frameCount)
+      // Drain the synchronized frame count for this channel; pad the remainder with silence.
+      let copied = playback.playbackRings[ch].consume(into: floatPtr, count: toCopy)
       if copied < frameCount {
-        if ch == 0 {
-          underrunFrames = frameCount - copied
-        }
         var zero: Float = 0
         vDSP_vfill(&zero, floatPtr + copied, 1, vDSP_Length(frameCount - copied))
       }
