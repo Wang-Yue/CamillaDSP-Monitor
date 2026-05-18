@@ -45,14 +45,22 @@ public final class DoPEncoder: @unchecked Sendable {
   ]
 
   private final class ChannelState: @unchecked Sendable {
-    var fifo: [Double]
+    let fifo: UnsafeMutablePointer<Double>
     var fifoPos: Int = 0
     var marker: UInt8 = 0x05
     let modulator: SigmaDeltaModulator
+    private let fifoSize: Int
 
     init(fifoSize: Int, modulator: SigmaDeltaModulator) {
-      self.fifo = [Double](repeating: 0.0, count: fifoSize * 2)
+      self.fifoSize = fifoSize
+      self.fifo = UnsafeMutablePointer<Double>.allocate(capacity: fifoSize * 2)
+      self.fifo.initialize(repeating: 0.0, count: fifoSize * 2)
       self.modulator = modulator
+    }
+
+    deinit {
+      fifo.deinitialize(count: fifoSize * 2)
+      fifo.deallocate()
     }
   }
 
@@ -149,78 +157,76 @@ public final class DoPEncoder: @unchecked Sendable {
     let coeffPtr = self.coeffs
     let modulator = state.modulator
 
-    state.fifo.withUnsafeMutableBufferPointer { fifo in
-      let fifoPtr = fifo.baseAddress!
-      var pos = state.fifoPos
-      var marker = state.marker
+    let fifoPtr = state.fifo
+    var pos = state.fifoPos
+    var marker = state.marker
 
-      for t in 0..<frames {
-        // Push the new PCM sample into both halves of the polyphase FIR's history.
-        let sampleVal = Double(buf[t])
-        fifoPtr[pos] = sampleVal
-        fifoPtr[pos + nTaps] = sampleVal
+    for t in 0..<frames {
+      // Push the new PCM sample into both halves of the polyphase FIR's history.
+      let sampleVal = Double(buf[t])
+      fifoPtr[pos] = sampleVal
+      fifoPtr[pos + nTaps] = sampleVal
 
-        // For each of the 16 oversampled phases, compute the interpolated
-        // sample and feed it through the SDM. Phase p=0 is the oldest
-        // sample within this frame's 16-sample window and ends up in the
-        // MSB of the packed word; phase p=15 is the newest and ends up in
-        // the LSB. This matches the bit ordering used by `DoPDecoder`.
-        var word: UInt16 = 0
-        let baseIdx = pos + 1
-        for p in 0..<16 {
-          let coeffOffset = p * 32
-          let coeffP = coeffPtr + coeffOffset
-          let fifoP = fifoPtr + baseIdx
+      // For each of the 16 oversampled phases, compute the interpolated
+      // sample and feed it through the SDM. Phase p=0 is the oldest
+      // sample within this frame's 16-sample window and ends up in the
+      // MSB of the packed word; phase p=15 is the newest and ends up in
+      // the LSB. This matches the bit ordering used by `DoPDecoder`.
+      var word: UInt16 = 0
+      let baseIdx = pos + 1
+      for p in 0..<16 {
+        let coeffOffset = p * 32
+        let coeffP = coeffPtr + coeffOffset
+        let fifoP = fifoPtr + baseIdx
 
-          let c0 = UnsafeRawPointer(coeffP).load(as: SIMD4<Double>.self)
-          let f0 = UnsafeRawPointer(fifoP).load(as: SIMD4<Double>.self)
-          let c1 = UnsafeRawPointer(coeffP + 4).load(as: SIMD4<Double>.self)
-          let f1 = UnsafeRawPointer(fifoP + 4).load(as: SIMD4<Double>.self)
-          let c2 = UnsafeRawPointer(coeffP + 8).load(as: SIMD4<Double>.self)
-          let f2 = UnsafeRawPointer(fifoP + 8).load(as: SIMD4<Double>.self)
-          let c3 = UnsafeRawPointer(coeffP + 12).load(as: SIMD4<Double>.self)
-          let f3 = UnsafeRawPointer(fifoP + 12).load(as: SIMD4<Double>.self)
-          let c4 = UnsafeRawPointer(coeffP + 16).load(as: SIMD4<Double>.self)
-          let f4 = UnsafeRawPointer(fifoP + 16).load(as: SIMD4<Double>.self)
-          let c5 = UnsafeRawPointer(coeffP + 20).load(as: SIMD4<Double>.self)
-          let f5 = UnsafeRawPointer(fifoP + 20).load(as: SIMD4<Double>.self)
-          let c6 = UnsafeRawPointer(coeffP + 24).load(as: SIMD4<Double>.self)
-          let f6 = UnsafeRawPointer(fifoP + 24).load(as: SIMD4<Double>.self)
-          let c7 = UnsafeRawPointer(coeffP + 28).load(as: SIMD4<Double>.self)
-          let f7 = UnsafeRawPointer(fifoP + 28).load(as: SIMD4<Double>.self)
+        let c0 = UnsafeRawPointer(coeffP).loadUnaligned(as: SIMD4<Double>.self)
+        let f0 = UnsafeRawPointer(fifoP).loadUnaligned(as: SIMD4<Double>.self)
+        let c1 = UnsafeRawPointer(coeffP + 4).loadUnaligned(as: SIMD4<Double>.self)
+        let f1 = UnsafeRawPointer(fifoP + 4).loadUnaligned(as: SIMD4<Double>.self)
+        let c2 = UnsafeRawPointer(coeffP + 8).loadUnaligned(as: SIMD4<Double>.self)
+        let f2 = UnsafeRawPointer(fifoP + 8).loadUnaligned(as: SIMD4<Double>.self)
+        let c3 = UnsafeRawPointer(coeffP + 12).loadUnaligned(as: SIMD4<Double>.self)
+        let f3 = UnsafeRawPointer(fifoP + 12).loadUnaligned(as: SIMD4<Double>.self)
+        let c4 = UnsafeRawPointer(coeffP + 16).loadUnaligned(as: SIMD4<Double>.self)
+        let f4 = UnsafeRawPointer(fifoP + 16).loadUnaligned(as: SIMD4<Double>.self)
+        let c5 = UnsafeRawPointer(coeffP + 20).loadUnaligned(as: SIMD4<Double>.self)
+        let f5 = UnsafeRawPointer(fifoP + 20).loadUnaligned(as: SIMD4<Double>.self)
+        let c6 = UnsafeRawPointer(coeffP + 24).loadUnaligned(as: SIMD4<Double>.self)
+        let f6 = UnsafeRawPointer(fifoP + 24).loadUnaligned(as: SIMD4<Double>.self)
+        let c7 = UnsafeRawPointer(coeffP + 28).loadUnaligned(as: SIMD4<Double>.self)
+        let f7 = UnsafeRawPointer(fifoP + 28).loadUnaligned(as: SIMD4<Double>.self)
 
-          var sumVec = c0 * f0
-          sumVec += c1 * f1
-          sumVec += c2 * f2
-          sumVec += c3 * f3
-          sumVec += c4 * f4
-          sumVec += c5 * f5
-          sumVec += c6 * f6
-          sumVec += c7 * f7
-          let acc = sumVec.sum()
+        var sumVec = c0 * f0
+        sumVec += c1 * f1
+        sumVec += c2 * f2
+        sumVec += c3 * f3
+        sumVec += c4 * f4
+        sumVec += c5 * f5
+        sumVec += c6 * f6
+        sumVec += c7 * f7
+        let acc = sumVec.sum()
 
-          let dsd = modulator.sdmSample(acc * 0.5)
+        let dsd = modulator.sdmSample(acc * 0.5)
 
-          if dsd > 0 {
-            word |= UInt16(1) << (15 - p)
-          }
+        if dsd > 0 {
+          word |= UInt16(1) << (15 - p)
         }
-
-        // 24-bit DoP container: marker in bits 23..16, DSD word in bits 15..0.
-        // Sign-extend from int24 and normalize back to ±1.0 float for the
-        // playback backend, which will re-quantize to the device format
-        // (must be S24 or S32 to preserve the bit pattern).
-        let val24: UInt32 = (UInt32(marker) << 16) | UInt32(word)
-        let intVal: Int32 = Int32(bitPattern: val24 << 8) >> 8
-        buf[t] = PrcFmt(Double(intVal) / 8388608.0)
-
-        marker = (marker == 0x05) ? 0xFA : 0x05
-        pos = (pos &+ 1) & mask
       }
 
-      state.fifoPos = pos
-      state.marker = marker
+      // 24-bit DoP container: marker in bits 23..16, DSD word in bits 15..0.
+      // Sign-extend from int24 and normalize back to ±1.0 float for the
+      // playback backend, which will re-quantize to the device format
+      // (must be S24 or S32 to preserve the bit pattern).
+      let val24: UInt32 = (UInt32(marker) << 16) | UInt32(word)
+      let intVal: Int32 = Int32(bitPattern: val24 << 8) >> 8
+      buf[t] = PrcFmt(Double(intVal) / 8388608.0)
+
+      marker = (marker == 0x05) ? 0xFA : 0x05
+      pos = (pos &+ 1) & mask
     }
+
+    state.fifoPos = pos
+    state.marker = marker
   }
 
   // MARK: - SDM filter selection
