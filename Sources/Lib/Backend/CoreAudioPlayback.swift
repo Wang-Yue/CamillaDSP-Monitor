@@ -49,6 +49,12 @@ public final class CoreAudioPlayback: PlaybackBackend {
   private let _isDeviceAlive = Atomic<Bool>(true)
   private var aliveListenerBlock: AudioObjectPropertyListenerBlock?
 
+  private let _isPaused = Atomic<Bool>(false)
+  public var isPaused: Bool {
+    get { _isPaused.load(ordering: .acquiring) }
+    set { _isPaused.store(newValue, ordering: .releasing) }
+  }
+
   public var pendingRateChange: Double? { rateWatcher?.pendingRateChange }
 
   public var bufferLevel: Int {
@@ -415,8 +421,10 @@ private func playbackCallback(
     }
   }
   if underrunFrames > 0 && underrunFrames <= frameCount {
-    playback.logger.warning(
-      "Playback underrun: missing %d frames, filling with silence", .int(underrunFrames))
+    if !playback.isPaused {
+      playback.logger.warning(
+        "Playback underrun: missing %d frames, filling with silence", .int(underrunFrames))
+    }
   }
   return noErr
 }

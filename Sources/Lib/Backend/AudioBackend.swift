@@ -77,9 +77,15 @@ public protocol PlaybackBackend: AnyObject {
   /// `target_level` from its first measurement, instead of having
   /// to ramp up from empty.
   func prefillSilence(frames: Int) throws
+  /// Flag to indicate if the playback is currently paused, to suppress underrun warnings.
+  var isPaused: Bool { get set }
 }
 
 extension PlaybackBackend {
   public var pendingRateChange: Double? { nil }
   public func prefillSilence(frames: Int) throws {}
+  public var isPaused: Bool {
+    get { false }
+    set {}
+  }
 }

@@ -119,11 +119,14 @@ public final class AudioHistoryBuffer: @unchecked Sendable {
     guard let scratch = averagingScratch, count <= scratch.count else {
       return false
     }
-    guard buffers[0].readLatest(into: dest, count: count, atWrittenIndex: minWritten) else { return false }
+    guard buffers[0].readLatest(into: dest, count: count, atWrittenIndex: minWritten) else {
+      return false
+    }
     if channels == 1 { return true }
     for ch in 1..<channels {
       guard let scratchPtr = scratch.baseAddress else { return false }
-      guard buffers[ch].readLatest(into: scratchPtr, count: count, atWrittenIndex: minWritten) else {
+      guard buffers[ch].readLatest(into: scratchPtr, count: count, atWrittenIndex: minWritten)
+      else {
         return false
       }
       // dest += scratch (vectorised, no allocation).

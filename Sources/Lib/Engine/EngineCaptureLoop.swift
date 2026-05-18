@@ -146,6 +146,7 @@ final class EngineCaptureLoop: @unchecked Sendable {
         let current = stateMachine.state
         if desired != current {
           stateMachine.setState(desired)
+          playback.isPaused = (desired == .paused)
         }
 
         // Enqueue for processing. The lock-free SPSC queue is
