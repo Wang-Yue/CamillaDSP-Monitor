@@ -171,19 +171,17 @@ final class EngineCaptureLoop: @unchecked Sendable {
     logger.info("Capture thread stopped")
   }
 
-  /// Slow path when `capture.read` returns no data (e.g. transient
-  /// HAL hiccup). Trip the watchdog after `stallTimeout` seconds and
-  /// back off briefly so we don't spin.
   private func handleEmptyRead() {
     if shared.shouldStop.load(ordering: .acquiring) { return }
     if watchdog.tickEmptyRead() {
       stateMachine.setState(.stalled)
       logger.warning("Capture device stalled — no data for %fs", .double(watchdog.timeoutSeconds))
     }
-    // Back off by 20ms when officially stalled to conserve CPU power.
-    // Otherwise, back off by 1ms during short transient HAL hiccups.
-    let backoff = stateMachine.state == .stalled ? 0.020 : 0.001
-    Thread.sleep(forTimeInterval: backoff)
+
+    // Wait on the capture device's GCD semaphore for new samples, up to 20ms.
+    // This matches upstream CamillaDSP's wait_timeout(20ms) design, preserving
+    // real-time priority propagation under load instead of doing a raw sleep.
+    _ = capture.wait(timeout: .now() + .milliseconds(20))
   }
 }
 

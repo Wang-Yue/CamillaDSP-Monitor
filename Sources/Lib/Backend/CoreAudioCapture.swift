@@ -44,6 +44,7 @@ public final class CoreAudioCapture: CaptureBackend {
   var preallocChannelDataPointers: UnsafeMutableBufferPointer<UnsafeMutableRawPointer>?
   var preallocBytesPerChannelBuffer: Int = 0
   var callbackErrorCount = 0
+  fileprivate let semaphore = DispatchSemaphore(value: 0)
 
   /// HAL device the unit is bound to. Captured during `open()` so
   /// `close()` can dispose the rate-change listener without redoing
@@ -381,7 +382,12 @@ public final class CoreAudioCapture: CaptureBackend {
     return true
   }
 
+  public func wait(timeout: DispatchTime) -> Bool {
+    return semaphore.wait(timeout: timeout) == .success
+  }
+
   public func close() {
+    semaphore.signal()
     // Drop the HAL listener *before* disposing the AudioUnit so
     // we don't get a final fire racing the teardown.
     rateWatcher?.dispose()
@@ -574,6 +580,7 @@ private func captureCallback(
     }
   }
 
+  capture.semaphore.signal()
   return noErr
 }
 

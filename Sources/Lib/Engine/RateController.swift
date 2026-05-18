@@ -53,85 +53,80 @@ import Foundation
 /// conditional-integration form of anti-windup, which prevents the
 /// integrator from accumulating during sustained saturation.
 internal final class PIRateController {
-  private let setpoint: Double
-  private let samplePeriod: Double
+  private let targetLevel: Double
+  private let interval: Double
   private let kp: Double
   private let ki: Double
-  private let maxAdjustment: Double
+  private let framesPerInterval: Double
+  private var accumulated: Double = 0.0
+  private let rampSteps: Int = 20
+  private let rampTriggerLimit: Double = 0.33
+  private var rampStart: Double
+  private var rampStep: Int = 0
 
-  /// Integrator state. Bounded to `±maxAdjustment` after every update
-  /// so that the integrator alone cannot push the unsaturated control
-  /// signal past the limit.
-  private var integrator: Double = 0.0
-
-  /// Convenience initializer with a tuning chosen for typical audio
-  /// rate-adjust use: `ωn = 0.1 rad/s` (≈ 10 s closed-loop response)
-  /// and `ζ = √2/2` (no overshoot in practice). Output is bounded to
-  /// ±2000 ppm — the de-facto industry target for inaudible
-  /// asynchronous sample-rate corrections.
   internal convenience init(samplerate: Int, interval: Double, targetLevel: Int) {
-    let omegaN = 0.1
-    let zeta = 0.7071067811865476  // √2/2
-    let fs = Double(samplerate)
+    // Default gains matching CamillaDSP exactly
     self.init(
       samplerate: samplerate,
       interval: interval,
       targetLevel: targetLevel,
-      kp: 2.0 * zeta * omegaN / fs,
-      ki: (omegaN * omegaN) / fs,
-      maxAdjustment: 0.002
+      kp: 0.2,
+      ki: 0.004
     )
   }
 
-  /// Designated initializer. `samplerate` is unused by the algorithm
-  /// itself — gains are passed in directly — but kept in the
-  /// signature so the public API matches the convenience form and so
-  /// callers that prefer to specify `Fs`-relative gains have a single
-  /// place to do it.
   internal init(
     samplerate: Int,
     interval: Double,
     targetLevel: Int,
     kp: Double,
-    ki: Double,
-    maxAdjustment: Double
+    ki: Double
   ) {
-    _ = samplerate  // gains are absolute; samplerate retained for API symmetry
-    self.setpoint = Double(targetLevel)
-    self.samplePeriod = interval
+    self.targetLevel = Double(targetLevel)
+    self.interval = interval
     self.kp = kp
     self.ki = ki
-    self.maxAdjustment = abs(maxAdjustment)
+    self.framesPerInterval = interval * Double(samplerate)
+    self.rampStart = Double(targetLevel)
+    self.rampStep = 20  // Start fully stabilized by default
   }
 
-  /// Advance the controller by one sample period and return the next
-  /// speed multiplier. The caller is expected to invoke this exactly
-  /// once per `interval` seconds; the integrator term assumes a fixed
-  /// step.
   internal func next(level: Double) -> Double {
-    let error = setpoint - level
-
-    // Forward (rectangular) Euler integration of the error. Single
-    // sample, single multiply — no allocation, no branching beyond
-    // the clamp below.
-    integrator += ki * samplePeriod * error
-
-    // Conditional integrator clamping (anti-windup). Bounding the
-    // integrator state itself, rather than a separate
-    // back-calculation term, keeps the implementation
-    // single-parameter and produces the same steady-state behavior:
-    // once the controller saturates, the integrator stops growing.
-    if integrator > maxAdjustment {
-      integrator = maxAdjustment
-    } else if integrator < -maxAdjustment {
-      integrator = -maxAdjustment
+    if rampStep >= rampSteps && abs((targetLevel - level) / targetLevel) > rampTriggerLimit {
+      rampStart = level
+      rampStep = 0
+    }
+    if rampStep == 0 {
+      rampStart = level
+    }
+    let currentTarget: Double
+    if rampStep < rampSteps {
+      rampStep += 1
+      let progress = Double(rampSteps - rampStep) / Double(rampSteps)
+      currentTarget = rampStart + (targetLevel - rampStart) * (1.0 - pow(progress, 4))
+    } else {
+      currentTarget = targetLevel
     }
 
-    let unsaturated = kp * error + integrator
-    let saturated = Swift.max(-maxAdjustment, Swift.min(maxAdjustment, unsaturated))
-    return 1.0 + saturated
-  }
+    let err = level - currentTarget
+    let relErr = err / framesPerInterval
+    accumulated += relErr * interval
 
+    // Anti-windup: clamp the integrator term to the safe saturation band (±0.005)
+    let maxVal = 0.005
+    let minVal = -0.005
+    if accumulated * ki > maxVal {
+      accumulated = maxVal / ki
+    } else if accumulated * ki < minVal {
+      accumulated = minVal / ki
+    }
+
+    let proportional = kp * relErr
+    let integral = ki * accumulated
+    let output = proportional + integral
+    let clampedOutput = Swift.max(minVal, Swift.min(maxVal, output))
+    return 1.0 - clampedOutput
+  }
 }
 
 // MARK: - Averager

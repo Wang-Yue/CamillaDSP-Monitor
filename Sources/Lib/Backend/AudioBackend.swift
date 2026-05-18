@@ -50,12 +50,19 @@ public protocol CaptureBackend: AnyObject {
   /// `multiplier` is close to `1.0` (typically `1.0 ± 0.001`).
   /// No-op for backends without tunable clocks.
   func setPitch(_ multiplier: Double)
+
+  /// Wait for new samples to become available, up to the given timeout.
+  func wait(timeout: DispatchTime) -> Bool
 }
 
 extension CaptureBackend {
   public var pendingRateChange: Double? { nil }
   public var pitchControlSupported: Bool { false }
   public func setPitch(_ multiplier: Double) {}
+  public func wait(timeout: DispatchTime) -> Bool {
+    Thread.sleep(forTimeInterval: 0.001)
+    return false
+  }
 }
 
 /// Protocol for audio playback backends
