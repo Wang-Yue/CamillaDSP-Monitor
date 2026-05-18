@@ -51,7 +51,7 @@ public final class DoPEncoder: @unchecked Sendable {
     let modulator: SigmaDeltaModulator
 
     init(fifoSize: Int, modulator: SigmaDeltaModulator) {
-      self.fifo = [Double](repeating: 0.0, count: fifoSize)
+      self.fifo = [Double](repeating: 0.0, count: fifoSize * 2)
       self.modulator = modulator
     }
   }
@@ -146,17 +146,19 @@ public final class DoPEncoder: @unchecked Sendable {
   private func encodeChannel(state: ChannelState, buf: MutableWaveform, frames: Int) {
     let mask = DoPEncoder.fifoMask
     let nTaps = DoPEncoder.subFilterTaps
-    let nPhases = DoPEncoder.phases
-    let coeffs = self.coeffs
+    let coeffPtr = self.coeffs
     let modulator = state.modulator
 
     state.fifo.withUnsafeMutableBufferPointer { fifo in
+      let fifoPtr = fifo.baseAddress!
       var pos = state.fifoPos
       var marker = state.marker
 
       for t in 0..<frames {
-        // Push the new PCM sample into the polyphase FIR's history.
-        fifo[pos] = Double(buf[t])
+        // Push the new PCM sample into both halves of the polyphase FIR's history.
+        let sampleVal = Double(buf[t])
+        fifoPtr[pos] = sampleVal
+        fifoPtr[pos + nTaps] = sampleVal
 
         // For each of the 16 oversampled phases, compute the interpolated
         // sample and feed it through the SDM. Phase p=0 is the oldest
@@ -164,14 +166,41 @@ public final class DoPEncoder: @unchecked Sendable {
         // MSB of the packed word; phase p=15 is the newest and ends up in
         // the LSB. This matches the bit ordering used by `DoPDecoder`.
         var word: UInt16 = 0
-        for p in 0..<nPhases {
-          var acc = 0.0
-          let coeffOffset = p * nTaps
-          for m in 0..<nTaps {
-            let idx = (pos &- m) & mask
-            acc += coeffs[coeffOffset + m] * fifo[idx]
-          }
-          let dsd = modulator.processSample(acc * SAMPLE_MAX)
+        let baseIdx = pos + 1
+        for p in 0..<16 {
+          let coeffOffset = p * 32
+          let coeffP = coeffPtr + coeffOffset
+          let fifoP = fifoPtr + baseIdx
+
+          let c0 = UnsafeRawPointer(coeffP).load(as: SIMD4<Double>.self)
+          let f0 = UnsafeRawPointer(fifoP).load(as: SIMD4<Double>.self)
+          let c1 = UnsafeRawPointer(coeffP + 4).load(as: SIMD4<Double>.self)
+          let f1 = UnsafeRawPointer(fifoP + 4).load(as: SIMD4<Double>.self)
+          let c2 = UnsafeRawPointer(coeffP + 8).load(as: SIMD4<Double>.self)
+          let f2 = UnsafeRawPointer(fifoP + 8).load(as: SIMD4<Double>.self)
+          let c3 = UnsafeRawPointer(coeffP + 12).load(as: SIMD4<Double>.self)
+          let f3 = UnsafeRawPointer(fifoP + 12).load(as: SIMD4<Double>.self)
+          let c4 = UnsafeRawPointer(coeffP + 16).load(as: SIMD4<Double>.self)
+          let f4 = UnsafeRawPointer(fifoP + 16).load(as: SIMD4<Double>.self)
+          let c5 = UnsafeRawPointer(coeffP + 20).load(as: SIMD4<Double>.self)
+          let f5 = UnsafeRawPointer(fifoP + 20).load(as: SIMD4<Double>.self)
+          let c6 = UnsafeRawPointer(coeffP + 24).load(as: SIMD4<Double>.self)
+          let f6 = UnsafeRawPointer(fifoP + 24).load(as: SIMD4<Double>.self)
+          let c7 = UnsafeRawPointer(coeffP + 28).load(as: SIMD4<Double>.self)
+          let f7 = UnsafeRawPointer(fifoP + 28).load(as: SIMD4<Double>.self)
+
+          var sumVec = c0 * f0
+          sumVec += c1 * f1
+          sumVec += c2 * f2
+          sumVec += c3 * f3
+          sumVec += c4 * f4
+          sumVec += c5 * f5
+          sumVec += c6 * f6
+          sumVec += c7 * f7
+          let acc = sumVec.sum()
+
+          let dsd = modulator.sdmSample(acc * 0.5)
+
           if dsd > 0 {
             word |= UInt16(1) << (15 - p)
           }
@@ -262,7 +291,8 @@ public final class DoPEncoder: @unchecked Sendable {
       let scale = subSum != 0 ? 1.0 / subSum : 0.0
       for m in 0..<subFilterTaps {
         let v = taps[m * phases + ph] * scale
-        (p + (ph * subFilterTaps + m)).initialize(to: v)
+        let storeIdx = ph * subFilterTaps + (subFilterTaps - 1 - m)
+        (p + storeIdx).initialize(to: v)
       }
     }
     return p

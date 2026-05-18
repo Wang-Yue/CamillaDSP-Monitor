@@ -16,8 +16,8 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
     public let name: String
   }
 
-  private var idx: Int = 0
-  private var prevY: Double = 0.0
+  @usableFromInline var idx: Int = 0
+  @usableFromInline var prevY: Double = 0.0
 
   /// Heap-backed fixed storage for the non-trellis path's two-state
   /// ping-pong. Layout: `nonTrellisState[0..7]` is slot 0,
@@ -29,10 +29,10 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
   /// `cachedA` / `cachedG` mirror the selected filter's `a` and `g`
   /// coefficients into pointer storage so the hot loop avoids re-copying
   /// the SDMFilter struct (and its `[Double]` ARC traffic) on every call.
-  private let nonTrellisState: UnsafeMutablePointer<Double>
-  private let cachedA: UnsafeMutablePointer<Double>
-  private let cachedG: UnsafeMutablePointer<Double>
-  private let cachedOrder: Int
+  @usableFromInline let nonTrellisState: UnsafeMutablePointer<Double>
+  @usableFromInline let cachedA: UnsafeMutablePointer<Double>
+  @usableFromInline let cachedG: UnsafeMutablePointer<Double>
+  @usableFromInline let cachedOrder: Int
 
   public static let sdmFilters: [SDMFilter] = [
     // MARK: - 256x Rate Filters
@@ -322,37 +322,210 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
     cachedG.deallocate()
   }
 
-  private func sdmSample(_ x: Double) -> Double {
-    // Pointer-only hot path loop. Reads the current state slot, writes
-    // the next slot, flips `idx`. 100% allocation-free.
+  // MARK: - Public Specialized Math Helpers
+
+  @inlinable
+  @inline(__always)
+  public func sdmSample4(_ x: Double) -> Double {
     let currentIdx = idx
     let s = nonTrellisState.advanced(by: currentIdx * 8)
     let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
     let a = cachedA
     let g = cachedG
-    let order = cachedOrder
     let y = prevY
 
     d[0] = s[0] - g[0] * s[1] + x - y
     var v = x + a[0] * d[0]
-    var i = 1
-    while i < order - 1 {
-      d[i] = s[i] + s[i - 1] - g[i] * s[i + 1]
-      v += a[i] * d[i]
-      i += 1
-    }
-    d[i] = s[i] + s[i - 1]
-    v += a[i] * d[i]
+
+    d[1] = s[1] + s[0] - g[1] * s[2]
+    v += a[1] * d[1]
+
+    d[2] = s[2] + s[1] - g[2] * s[3]
+    v += a[2] * d[2]
+
+    d[3] = s[3] + s[2]
+    v += a[3] * d[3]
 
     let yNew = (v.sign == .minus) ? -1.0 : 1.0
     idx = currentIdx ^ 1
     prevY = yNew
-    return yNew * SAMPLE_MAX
+    return yNew
   }
 
-  /// Modulate one PCM input sample (scaled to ±SAMPLE_MAX) and return the
-  /// corresponding ±SAMPLE_MAX DSD bit.
-  public func processSample(_ x: Double) -> Double {
-    return sdmSample(x * (0.5 / SAMPLE_MAX))
+  @inlinable
+  @inline(__always)
+  public func sdmSample5(_ x: Double) -> Double {
+    let currentIdx = idx
+    let s = nonTrellisState.advanced(by: currentIdx * 8)
+    let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
+    let a = cachedA
+    let g = cachedG
+    let y = prevY
+
+    d[0] = s[0] - g[0] * s[1] + x - y
+    var v = x + a[0] * d[0]
+
+    d[1] = s[1] + s[0] - g[1] * s[2]
+    v += a[1] * d[1]
+
+    d[2] = s[2] + s[1] - g[2] * s[3]
+    v += a[2] * d[2]
+
+    d[3] = s[3] + s[2] - g[3] * s[4]
+    v += a[3] * d[3]
+
+    d[4] = s[4] + s[3]
+    v += a[4] * d[4]
+
+    let yNew = (v.sign == .minus) ? -1.0 : 1.0
+    idx = currentIdx ^ 1
+    prevY = yNew
+    return yNew
+  }
+
+  @inlinable
+  @inline(__always)
+  public func sdmSample6(_ x: Double) -> Double {
+    let currentIdx = idx
+    let s = nonTrellisState.advanced(by: currentIdx * 8)
+    let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
+    let a = cachedA
+    let g = cachedG
+    let y = prevY
+
+    d[0] = s[0] - g[0] * s[1] + x - y
+    var v = x + a[0] * d[0]
+
+    d[1] = s[1] + s[0] - g[1] * s[2]
+    v += a[1] * d[1]
+
+    d[2] = s[2] + s[1] - g[2] * s[3]
+    v += a[2] * d[2]
+
+    d[3] = s[3] + s[2] - g[3] * s[4]
+    v += a[3] * d[3]
+
+    d[4] = s[4] + s[3] - g[4] * s[5]
+    v += a[4] * d[4]
+
+    d[5] = s[5] + s[4]
+    v += a[5] * d[5]
+
+    let yNew = (v.sign == .minus) ? -1.0 : 1.0
+    idx = currentIdx ^ 1
+    prevY = yNew
+    return yNew
+  }
+
+  @inlinable
+  @inline(__always)
+  public func sdmSample7(_ x: Double) -> Double {
+    let currentIdx = idx
+    let s = nonTrellisState.advanced(by: currentIdx * 8)
+    let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
+    let a = cachedA
+    let g = cachedG
+    let y = prevY
+
+    d[0] = s[0] - g[0] * s[1] + x - y
+    var v = x + a[0] * d[0]
+
+    d[1] = s[1] + s[0] - g[1] * s[2]
+    v += a[1] * d[1]
+
+    d[2] = s[2] + s[1] - g[2] * s[3]
+    v += a[2] * d[2]
+
+    d[3] = s[3] + s[2] - g[3] * s[4]
+    v += a[3] * d[3]
+
+    d[4] = s[4] + s[3] - g[4] * s[5]
+    v += a[4] * d[4]
+
+    d[5] = s[5] + s[4] - g[5] * s[6]
+    v += a[5] * d[5]
+
+    d[6] = s[6] + s[5]
+    v += a[6] * d[6]
+
+    let yNew = (v.sign == .minus) ? -1.0 : 1.0
+    idx = currentIdx ^ 1
+    prevY = yNew
+    return yNew
+  }
+
+  @inlinable
+  @inline(__always)
+  public func sdmSample8(_ x: Double) -> Double {
+    let currentIdx = idx
+    let s = nonTrellisState.advanced(by: currentIdx * 8)
+    let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
+    let a = cachedA
+    let g = cachedG
+    let y = prevY
+
+    d[0] = s[0] - g[0] * s[1] + x - y
+    var v = x + a[0] * d[0]
+
+    d[1] = s[1] + s[0] - g[1] * s[2]
+    v += a[1] * d[1]
+
+    d[2] = s[2] + s[1] - g[2] * s[3]
+    v += a[2] * d[2]
+
+    d[3] = s[3] + s[2] - g[3] * s[4]
+    v += a[3] * d[3]
+
+    d[4] = s[4] + s[3] - g[4] * s[5]
+    v += a[4] * d[4]
+
+    d[5] = s[5] + s[4] - g[5] * s[6]
+    v += a[5] * d[5]
+
+    d[6] = s[6] + s[5] - g[6] * s[7]
+    v += a[6] * d[6]
+
+    d[7] = s[7] + s[6]
+    v += a[7] * d[7]
+
+    let yNew = (v.sign == .minus) ? -1.0 : 1.0
+    idx = currentIdx ^ 1
+    prevY = yNew
+    return yNew
+  }
+
+  @inlinable
+  @inline(__always)
+  public func sdmSample(_ x: Double) -> Double {
+    switch cachedOrder {
+    case 4: return sdmSample4(x)
+    case 5: return sdmSample5(x)
+    case 6: return sdmSample6(x)
+    case 7: return sdmSample7(x)
+    case 8: return sdmSample8(x)
+    default:
+      let currentIdx = idx
+      let s = nonTrellisState.advanced(by: currentIdx * 8)
+      let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
+      let a = cachedA
+      let g = cachedG
+      let y = prevY
+
+      d[0] = s[0] - g[0] * s[1] + x - y
+      var v = x + a[0] * d[0]
+      var i = 1
+      while i < cachedOrder - 1 {
+        d[i] = s[i] + s[i - 1] - g[i] * s[i + 1]
+        v += a[i] * d[i]
+        i += 1
+      }
+      d[i] = s[i] + s[i - 1]
+      v += a[i] * d[i]
+
+      let yNew = (v.sign == .minus) ? -1.0 : 1.0
+      idx = currentIdx ^ 1
+      prevY = yNew
+      return yNew
+    }
   }
 }
