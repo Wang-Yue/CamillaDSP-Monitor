@@ -18,6 +18,11 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   /// when `bypassDoP` is true.
   public var dopCutoffHz: Double
 
+  /// Whether to encode output PCM into DSD-over-PCM (DoP)
+  public var outputDoP: Bool
+  /// Selected sigma-delta modulator noise-shaping filter or "auto"
+  public var dopEncoderFilter: String
+
   /// `nil` -> system default (capabilities.name is "").
   /// Setting this replaces capabilities with a bare descriptor (capability_sets cleared),
   /// signalling that a fetch is needed.
@@ -40,11 +45,14 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.format = "F32"
     self.bypassDoP = false
     self.dopCutoffHz = 20_000
+    self.outputDoP = false
+    self.dopEncoderFilter = "auto"
   }
 
   // Custom decode tolerates configs persisted before `dopCutoffHz` / `outputDoP` existed.
   private enum CodingKeys: String, CodingKey {
-    case capabilities, channels, sampleRate, format, bypassDoP, dopCutoffHz
+    case capabilities, channels, sampleRate, format, bypassDoP, dopCutoffHz, outputDoP,
+      dopEncoderFilter
   }
 
   public init(from decoder: Decoder) throws {
@@ -55,7 +63,8 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.format = try c.decode(String.self, forKey: .format)
     self.bypassDoP = try c.decode(Bool.self, forKey: .bypassDoP)
     self.dopCutoffHz = try c.decodeIfPresent(Double.self, forKey: .dopCutoffHz) ?? 20_000
-
+    self.outputDoP = try c.decodeIfPresent(Bool.self, forKey: .outputDoP) ?? false
+    self.dopEncoderFilter = try c.decodeIfPresent(String.self, forKey: .dopEncoderFilter) ?? "auto"
   }
 
   // MARK: - Capabilities Logic

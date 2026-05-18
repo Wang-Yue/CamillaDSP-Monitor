@@ -204,9 +204,13 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
   public var channels: Int
   public var device: String?
   public var exclusive: Bool?
+  public var outputDoP: Bool?
+  public var dopEncoderFilter: String?
 
   enum CodingKeys: String, CodingKey {
     case type, channels, device, exclusive
+    case outputDoP = "output_dop"
+    case dopEncoderFilter = "dop_encoder_filter"
   }
   public init(
     type: AudioBackendType, channels: Int, device: String? = nil,
@@ -216,6 +220,20 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
     self.channels = channels
     self.device = device
     self.exclusive = exclusive
+    self.outputDoP = nil
+    self.dopEncoderFilter = nil
+  }
+
+  public init(
+    type: AudioBackendType, channels: Int, device: String? = nil,
+    exclusive: Bool? = nil, outputDoP: Bool? = nil, dopEncoderFilter: String? = nil
+  ) {
+    self.type = type
+    self.channels = channels
+    self.device = device
+    self.exclusive = exclusive
+    self.outputDoP = outputDoP
+    self.dopEncoderFilter = dopEncoderFilter
   }
 }
 

@@ -140,6 +140,46 @@ struct DevicePickerView: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            if DSPEngine.isSwiftEngine {
+              let isCapable = [176_400, 352_800, 705_600, 192_000, 384_000, 768_000].contains(
+                bindableDevices.playbackConfig.sampleRate)
+
+              Divider()
+                .padding(.vertical, 2)
+
+              Toggle("Output DoP (DSD-over-PCM)", isOn: $bindableDevices.playbackConfig.outputDoP)
+                .disabled(!isCapable)
+
+              HStack {
+                Text("SDM Filter")
+                  .frame(width: 100, alignment: .leading)
+                Picker("", selection: $bindableDevices.playbackConfig.dopEncoderFilter) {
+                  Text("Auto").tag("auto")
+                  Divider()
+                  Text("sdm-4").tag("sdm-4")
+                  Text("clans-4").tag("clans-4")
+                  Text("sdm-5").tag("sdm-5")
+                  Text("clans-5").tag("clans-5")
+                  Text("sdm-6").tag("sdm-6")
+                  Text("clans-6").tag("clans-6")
+                  Text("sdm-7").tag("sdm-7")
+                  Text("clans-7").tag("clans-7")
+                  Text("sdm-8").tag("sdm-8")
+                  Text("clans-8").tag("clans-8")
+                }
+                .labelsHidden()
+                .disabled(!bindableDevices.playbackConfig.outputDoP || !isCapable)
+              }
+
+              if !isCapable {
+                Text(
+                  "Sample rate must be a DSD carrier rate (176.4 / 192 / 352.8 / 384 / 705.6 / 768 kHz) to enable DoP output"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              }
+            }
           }
         }
 

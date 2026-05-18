@@ -91,12 +91,16 @@ final class DSPEngineController {
       captureConfig.dopCutoffHz = devices.captureConfig.dopCutoffHz
     }
 
-    let playbackConfig = PlaybackDeviceConfig(
+    var playbackConfig = PlaybackDeviceConfig(
       type: .coreAudio,
       channels: 2,
       device: devices.playbackConfig.deviceName,
       exclusive: devices.exclusiveMode
     )
+    if DSPEngine.isSwiftEngine {
+      playbackConfig.outputDoP = devices.playbackConfig.outputDoP
+      playbackConfig.dopEncoderFilter = devices.playbackConfig.dopEncoderFilter
+    }
 
     var devicesConfig = DevicesConfig(
       samplerate: devices.playbackConfig.sampleRate,

@@ -172,7 +172,7 @@ ifeq ($(ENGINE),rust)
 	$(error Tests are only supported for the pure Swift engine (ENGINE=swift))
 else
 	@echo "🧪 Running Swift tests..."
-	$(SWIFT) test --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests
+	$(SWIFT) test --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests
 endif
 
 ## test: Build the Rust harnesses and run the full Swift test suite (pure Swift path only)
@@ -182,7 +182,7 @@ ifeq ($(ENGINE),rust)
 else
 	@$(MAKE) test-rust-build
 	@echo "🧪 Running Swift tests (with Rust harness comparison tests enabled)..."
-	$(SWIFT) test -c release --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests
+	$(SWIFT) test -c release --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests
 endif
 
 ## bench: Run the resampler benchmark suite in release mode (pure Swift path only)
@@ -195,6 +195,8 @@ else
 	$(SWIFT) test -c release --filter FilterBenchmarkTests
 	@echo "⏱️  Running Resampler benchmarks in release mode..."
 	$(SWIFT) test -c release --filter ResamplerComparisonMatrix
+	@echo "⏱️  Running DoP benchmarks in release mode..."
+	$(SWIFT) test -c release --filter DoPBenchmarkTests
 endif
 
 ## clean: Remove all build artifacts

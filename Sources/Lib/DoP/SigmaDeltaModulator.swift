@@ -2,19 +2,18 @@
 // The per-sample `processSample` entry point lets
 // the encoder feed one oversampled value at a time cleanly and efficiently.
 
+import DSPAudio
 import Foundation
 
-@testable import DSPAudio
+public let SAMPLE_MAX: Double = 2147483647.0
 
-let SAMPLE_MAX: Double = 2147483647.0
-
-final class SigmaDeltaModulator {
-  struct SDMFilter: Sendable {
-    let a: [Double]
-    let g: [Double]
-    let order: Int32
-    let freq: UInt32
-    let name: String
+public final class SigmaDeltaModulator: @unchecked Sendable {
+  public struct SDMFilter: Sendable {
+    public let a: [Double]
+    public let g: [Double]
+    public let order: Int32
+    public let freq: UInt32
+    public let name: String
   }
 
   private var idx: Int = 0
@@ -35,7 +34,7 @@ final class SigmaDeltaModulator {
   private let cachedG: UnsafeMutablePointer<Double>
   private let cachedOrder: Int
 
-  static let sdmFilters: [SDMFilter] = [
+  public static let sdmFilters: [SDMFilter] = [
     // MARK: - 256x Rate Filters
     SDMFilter(
       a: [
@@ -283,13 +282,13 @@ final class SigmaDeltaModulator {
       name: "sdm-8"),
   ]
 
-  static func sdmFindFilter(name: String?, freq: UInt32) -> SDMFilter? {
+  public static func sdmFindFilter(name: String?, freq: UInt32) -> SDMFilter? {
     return SigmaDeltaModulator.sdmFilters.first { f in
       (name == nil || f.name == name) && f.freq <= freq
     }
   }
 
-  init?(
+  public init?(
     filterName: String?, freq: UInt32
   ) {
     guard let selectedFilter = SigmaDeltaModulator.sdmFindFilter(name: filterName, freq: freq)
@@ -326,8 +325,9 @@ final class SigmaDeltaModulator {
   private func sdmSample(_ x: Double) -> Double {
     // Pointer-only hot path loop. Reads the current state slot, writes
     // the next slot, flips `idx`. 100% allocation-free.
-    let s = nonTrellisState.advanced(by: idx * 8)
-    let d = nonTrellisState.advanced(by: (idx ^ 1) * 8)
+    let currentIdx = idx
+    let s = nonTrellisState.advanced(by: currentIdx * 8)
+    let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
     let a = cachedA
     let g = cachedG
     let order = cachedOrder
@@ -345,14 +345,14 @@ final class SigmaDeltaModulator {
     v += a[i] * d[i]
 
     let yNew = (v.sign == .minus) ? -1.0 : 1.0
-    idx ^= 1
+    idx = currentIdx ^ 1
     prevY = yNew
     return yNew * SAMPLE_MAX
   }
 
   /// Modulate one PCM input sample (scaled to ±SAMPLE_MAX) and return the
   /// corresponding ±SAMPLE_MAX DSD bit.
-  func processSample(_ x: Double) -> Double {
+  public func processSample(_ x: Double) -> Double {
     return sdmSample(x * (0.5 / SAMPLE_MAX))
   }
 }

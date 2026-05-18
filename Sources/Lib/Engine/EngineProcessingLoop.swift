@@ -23,6 +23,7 @@
 
 import DSPAudio
 import DSPConfig
+import DSPDoP
 import DSPLogging
 import DSPPipeline
 import DSPResampler
@@ -43,6 +44,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
   private let processingParams: ProcessingParameters
   private let pipelineRate: Int
   private let resampler: AudioResampler?
+  private let dopEncoder: DoPEncoder
   private let pipelineQueue = SPSCQueue<Pipeline>(minimumCapacity: 2)
   private var activePipeline: Pipeline
   private var resamplerScratch: AudioChunk
@@ -60,6 +62,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
     pipelineRate: Int,
     resampler: AudioResampler?,
     pipeline: Pipeline,
+    dopEncoder: DoPEncoder,
     resamplerScratch: AudioChunk,
     pipelineScratch: AudioChunk,
     onChunkCaptured: (@Sendable (AudioChunk) -> Void)?,
@@ -72,6 +75,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
     self.pipelineRate = pipelineRate
     self.resampler = resampler
     self.activePipeline = pipeline
+    self.dopEncoder = dopEncoder
     self.resamplerScratch = resamplerScratch
     self.pipelineScratch = pipelineScratch
     self.onChunkCaptured = onChunkCaptured
@@ -143,6 +147,9 @@ final class EngineProcessingLoop: @unchecked Sendable {
           _ = processingParams.updatePlaybackLevels(from: chunk)
 
           onChunkProcessed?(chunk)
+
+          // Encode PCM to DoP in place if enabled
+          dopEncoder.encode(chunk: &chunk)
 
           if !shared.processedQueue.enqueue(chunk) {
             logger.warning(

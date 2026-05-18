@@ -60,6 +60,7 @@ internal final class DSPEngineCore {
   private var playback: PlaybackBackend?
   private var processingLoop: EngineProcessingLoop?
   private var dopDecoder: DoPDecoder
+  private var dopEncoder: DoPEncoder
 
   /// Playback-side chunk size — `resampler.maxOutputFrames` when a
   /// resampler is in use, otherwise `effectiveChunkSize`.
@@ -95,6 +96,13 @@ internal final class DSPEngineCore {
       sampleRate: captureRate,
       bypassDoP: config.devices.capture.bypassDoP ?? false,
       cutoffHz: config.devices.capture.dopCutoffHz ?? 20_000.0
+    )
+    let playbackRate = Double(config.devices.samplerate)
+    self.dopEncoder = DoPEncoder(
+      channels: config.devices.playback.channels,
+      sampleRate: playbackRate,
+      outputDoP: config.devices.playback.outputDoP ?? false,
+      filterName: config.devices.playback.dopEncoderFilter ?? "auto"
     )
   }
 
@@ -183,6 +191,13 @@ internal final class DSPEngineCore {
       sampleRate: captureRateForDoP,
       bypassDoP: newConfig.devices.capture.bypassDoP ?? false,
       cutoffHz: newConfig.devices.capture.dopCutoffHz ?? 20_000.0
+    )
+    let playbackRate = Double(newConfig.devices.samplerate)
+    dopEncoder = DoPEncoder(
+      channels: newConfig.devices.playback.channels,
+      sampleRate: playbackRate,
+      outputDoP: newConfig.devices.playback.outputDoP ?? false,
+      filterName: newConfig.devices.playback.dopEncoderFilter ?? "auto"
     )
 
     guard state != .inactive else { return }
@@ -306,6 +321,7 @@ internal final class DSPEngineCore {
       pipelineRate: runtime.pipelineRate,
       resampler: runtime.resampler,
       pipeline: runtime.pipeline,
+      dopEncoder: dopEncoder,
       resamplerScratch: runtime.resamplerScratch,
       pipelineScratch: runtime.pipelineScratch,
       onChunkCaptured: onChunkCaptured,

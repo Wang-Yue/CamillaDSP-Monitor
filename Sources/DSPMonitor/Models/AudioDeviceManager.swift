@@ -75,7 +75,11 @@ final class AudioDeviceManager {
       // open(). Clear it here so the next config push is internally
       // consistent. The chained `playbackConfig.didSet` fires
       // onConfigChanged exactly once on this path.
-      onConfigChanged?()
+      if !exclusiveMode && playbackConfig.outputDoP {
+        playbackConfig.outputDoP = false
+      } else {
+        onConfigChanged?()
+      }
     }
   }
 

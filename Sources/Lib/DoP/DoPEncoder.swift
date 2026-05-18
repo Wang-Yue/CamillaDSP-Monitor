@@ -21,15 +21,14 @@
 // the polyphase coefficient table is shared across channels and built
 // once at init.
 
+import DSPAudio
+import DSPLogging
 import Foundation
 
-@testable import DSPAudio
-@testable import DSPLogging
-
-final class DoPEncoder {
+public final class DoPEncoder: @unchecked Sendable {
   private let logger = Logger(label: "dsp.dop.encode")
 
-  static let phases = 16  // 16× DSD oversampling per PCM frame
+  public static let phases = 16  // 16× DSD oversampling per PCM frame
   private static let realTaps = 511
   private static let numTaps = 512  // padded to multiple of phases
   private static let subFilterTaps = numTaps / phases  // 32 — must be power of 2
@@ -40,12 +39,12 @@ final class DoPEncoder {
   /// can't be DoP-encoded: the modulator's filter table only has entries
   /// for these specific DSD rates, and a downstream DAC won't recognize
   /// the marker pattern at any other carrier rate.
-  static let supportedCarrierRates: Set<Int> = [
+  public static let supportedCarrierRates: Set<Int> = [
     176_400, 352_800, 705_600,  // 44.1 kHz family — DSD64 / 128 / 256
     192_000, 384_000, 768_000,  // 48 kHz   family — DSD64 / 128 / 256
   ]
 
-  private final class ChannelState {
+  private final class ChannelState: @unchecked Sendable {
     var fifo: [Double]
     var fifoPos: Int = 0
     var marker: UInt8 = 0x05
@@ -61,8 +60,8 @@ final class DoPEncoder {
   /// `true` iff the constructor was asked to encode AND the carrier rate
   /// is in `supportedCarrierRates`. `encode(...)` is an unconditional
   /// no-op when this is `false`.
-  let enabled: Bool
-  private var channelStates: [ChannelState]
+  public let enabled: Bool
+  private let channelStates: [ChannelState]
 
   /// Polyphase coefficient table laid out as `coeffs[phase * subFilterTaps + tap]`.
   /// Each phase is normalized to unit DC gain; with a constant input sequence
@@ -77,11 +76,13 @@ final class DoPEncoder {
   /// `supportedCarrierRates`. The mismatched case is logged once at
   /// construction and reduces `encode(...)` to a no-op.
   ///
+  /// - Parameter filterName: noise-shaper filter name (e.g. "sdm-4", "sdm-5", "sdm-6", or "auto").
   /// - Parameter cutoffHz: passband cutoff of the interpolation filter
   ///   (default 20 kHz). Lower values trade ultrasonic passband for
   ///   sharper image rejection. Ignored when `enabled` is false.
-  init(
-    channels: Int, sampleRate: Double, outputDoP: Bool, cutoffHz: Double = 20_000.0
+  public init(
+    channels: Int, sampleRate: Double, outputDoP: Bool, filterName: String = "auto",
+    cutoffHz: Double = 20_000.0
   ) {
     self.channels = channels
     self.coeffs = DoPEncoder.buildCoeffs(sampleRate: sampleRate, cutoffHz: cutoffHz)
@@ -104,13 +105,14 @@ final class DoPEncoder {
     }
 
     let dsdRate = sampleRate * 16.0
-    let filterName = DoPEncoder.pickSDMFilter(dsdRate: dsdRate)
+    let selectedFilter =
+      filterName == "auto" ? DoPEncoder.pickSDMFilter(dsdRate: dsdRate) : filterName
     var states: [ChannelState] = []
     states.reserveCapacity(channels)
     for _ in 0..<channels {
       guard
         let modulator = SigmaDeltaModulator(
-          filterName: filterName, freq: UInt32(dsdRate.rounded()))
+          filterName: selectedFilter, freq: UInt32(dsdRate.rounded()))
       else {
         // The supported-rate gate above guarantees a matching SDM filter
         // exists in the table; reaching this would mean the table itself
@@ -121,7 +123,7 @@ final class DoPEncoder {
         ChannelState(fifoSize: DoPEncoder.subFilterTaps, modulator: modulator))
     }
     self.channelStates = states
-    logger.info("DoP encoder active at %d Hz carrier", .int(rateInt))
+    logger.info("DoP encoder active at %d Hz carrier (%s)", .int(rateInt), .string(selectedFilter))
   }
 
   deinit {
@@ -132,7 +134,7 @@ final class DoPEncoder {
   /// Encode the chunk's `validFrames` PCM samples into DoP, in place.
   /// No-op when `enabled` is `false`, the chunk is empty, or the channel
   /// count doesn't match what the encoder was constructed with.
-  func encode(chunk: inout AudioChunk) {
+  public func encode(chunk: inout AudioChunk) {
     guard enabled else { return }
     let n = chunk.validFrames
     guard n > 0, chunk.channels == channels else { return }
