@@ -414,7 +414,7 @@ private func playbackCallback(
       vDSP_vfill(&zero, floatPtr, 1, vDSP_Length(frameCount))
     }
   }
-  if underrunFrames > 0 && underrunFrames < frameCount {
+  if underrunFrames > 0 && underrunFrames <= frameCount {
     playback.logger.warning(
       "Playback underrun: missing %d frames, filling with silence", .int(underrunFrames))
   }

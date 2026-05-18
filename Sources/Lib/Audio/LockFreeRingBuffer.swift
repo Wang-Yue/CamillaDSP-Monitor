@@ -255,8 +255,16 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// takes — so the snapshot is effectively atomic and we don't
   /// pay for a seqlock retry loop.
   public func readLatest(into dest: UnsafeMutablePointer<Float>, count: Int) -> Bool {
-    guard count > 0, count <= capacity else { return false }
     let written = writeIndex.load(ordering: .acquiring)
+    return readLatest(into: dest, count: count, atWrittenIndex: written)
+  }
+
+  public func readLatest(
+    into dest: UnsafeMutablePointer<Float>,
+    count: Int,
+    atWrittenIndex written: UInt64
+  ) -> Bool {
+    guard count > 0, count <= capacity else { return false }
     guard written >= UInt64(count) else { return false }
     let endIdx = Int(written & UInt64(mask))
     let startIdx = (endIdx + capacity - count) & mask

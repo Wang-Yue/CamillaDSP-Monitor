@@ -97,7 +97,21 @@ public final class AudioHistoryBuffer: @unchecked Sendable {
       guard ch >= 0 && ch < channels else {
         throw AudioHistoryBufferError.channelOutOfRange(channel: ch, available: channels)
       }
-      return buffers[ch].readLatest(into: dest, count: count)
+    }
+
+    // Find the minimum written count across all channels to keep them
+    // perfectly phase-aligned in case of concurrent producer writes.
+    var minWritten = UInt64.max
+    for ch in 0..<channels {
+      let w = buffers[ch].totalSamplesWritten
+      if w < minWritten {
+        minWritten = w
+      }
+    }
+    guard minWritten != UInt64.max, minWritten >= UInt64(count) else { return false }
+
+    if let ch = channel {
+      return buffers[ch].readLatest(into: dest, count: count, atWrittenIndex: minWritten)
     }
     // Average across channels into `dest`. Read channel 0 directly into
     // `dest` to avoid a zeroing pass, then accumulate the rest into a
@@ -105,11 +119,11 @@ public final class AudioHistoryBuffer: @unchecked Sendable {
     guard let scratch = averagingScratch, count <= scratch.count else {
       return false
     }
-    guard buffers[0].readLatest(into: dest, count: count) else { return false }
+    guard buffers[0].readLatest(into: dest, count: count, atWrittenIndex: minWritten) else { return false }
     if channels == 1 { return true }
     for ch in 1..<channels {
       guard let scratchPtr = scratch.baseAddress else { return false }
-      guard buffers[ch].readLatest(into: scratchPtr, count: count) else {
+      guard buffers[ch].readLatest(into: scratchPtr, count: count, atWrittenIndex: minWritten) else {
         return false
       }
       // dest += scratch (vectorised, no allocation).
