@@ -362,10 +362,11 @@ public final class CoreAudioCapture: CaptureBackend {
     guard _isDeviceAlive.load(ordering: .acquiring) else {
       throw BackendError.readError("Capture device disconnected")
     }
-    // Wait until every channel has at least `frames` samples queued
-    // — the producer fills all channels in lockstep, so checking
-    // channel 0 is sufficient.
-    guard captureRings[0].availableToRead >= frames else { return false }
+    // Ensure all channels have at least `frames` samples queued to keep
+    // them perfectly phase-aligned in case of context switches during writes.
+    for ch in 0..<channels {
+      guard captureRings[ch].availableToRead >= frames else { return false }
+    }
     guard let scratch = readScratch, scratch.count >= frames else { return false }
 
     guard let scratchPtr = scratch.baseAddress else { return false }
