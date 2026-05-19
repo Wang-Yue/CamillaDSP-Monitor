@@ -102,7 +102,7 @@ internal final class DSPEngineCore {
       channels: config.devices.playback.channels,
       sampleRate: playbackRate,
       outputDoP: config.devices.playback.outputDoP ?? false,
-      filterName: config.devices.playback.dopEncoderFilter ?? "auto"
+      filterName: config.devices.playback.dopEncoderFilter ?? .sdm6
     )
   }
 
@@ -197,7 +197,7 @@ internal final class DSPEngineCore {
       channels: newConfig.devices.playback.channels,
       sampleRate: playbackRate,
       outputDoP: newConfig.devices.playback.outputDoP ?? false,
-      filterName: newConfig.devices.playback.dopEncoderFilter ?? "auto"
+      filterName: newConfig.devices.playback.dopEncoderFilter ?? .sdm6
     )
 
     guard state != .inactive else { return }

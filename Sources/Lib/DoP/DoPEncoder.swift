@@ -22,6 +22,7 @@
 // once at init.
 
 import DSPAudio
+import DSPConfig
 import DSPLogging
 import Foundation
 
@@ -84,12 +85,12 @@ public final class DoPEncoder: @unchecked Sendable {
   /// `supportedCarrierRates`. The mismatched case is logged once at
   /// construction and reduces `encode(...)` to a no-op.
   ///
-  /// - Parameter filterName: noise-shaper filter name (e.g. "sdm-4", "sdm-5", "sdm-6", or "auto").
+  /// - Parameter filterName: noise-shaper filter name.
   /// - Parameter cutoffHz: passband cutoff of the interpolation filter
   ///   (default 20 kHz). Lower values trade ultrasonic passband for
   ///   sharper image rejection. Ignored when `enabled` is false.
   public init(
-    channels: Int, sampleRate: Double, outputDoP: Bool, filterName: String = "auto",
+    channels: Int, sampleRate: Double, outputDoP: Bool, filterName: SDMFilter = .sdm6,
     cutoffHz: Double = 20_000.0
   ) {
     self.channels = channels
@@ -113,8 +114,7 @@ public final class DoPEncoder: @unchecked Sendable {
     }
 
     let dsdRate = sampleRate * 16.0
-    let selectedFilter =
-      filterName == "auto" ? DoPEncoder.pickSDMFilter(dsdRate: dsdRate) : filterName
+    let selectedFilter = filterName
     var states: [ChannelState] = []
     states.reserveCapacity(channels)
     for _ in 0..<channels {
@@ -131,7 +131,8 @@ public final class DoPEncoder: @unchecked Sendable {
         ChannelState(fifoSize: DoPEncoder.subFilterTaps, modulator: modulator))
     }
     self.channelStates = states
-    logger.info("DoP encoder active at %d Hz carrier (%s)", .int(rateInt), .string(selectedFilter))
+    logger.info(
+      "DoP encoder active at %d Hz carrier (%s)", .int(rateInt), .string(selectedFilter.rawValue))
   }
 
   deinit {
@@ -227,20 +228,6 @@ public final class DoPEncoder: @unchecked Sendable {
 
     state.fifoPos = pos
     state.marker = marker
-  }
-
-  // MARK: - SDM filter selection
-
-  /// Pick a noise-shaper aggressive enough for the target DSD rate.
-  /// `sdm-4` is sufficient for DSD64; higher DSD rates afford the
-  /// stability margin needed by the higher-order shapers.
-  private static func pickSDMFilter(dsdRate: Double) -> String {
-    let mult = Int((dsdRate / 44100.0).rounded())
-    switch mult {
-    case ..<128: return "sdm-4"
-    case ..<256: return "sdm-5"
-    default: return "sdm-6"
-    }
   }
 
   // MARK: - Coefficient table construction

@@ -155,18 +155,9 @@ struct DevicePickerView: View {
                 Text("SDM Filter")
                   .frame(width: 100, alignment: .leading)
                 Picker("", selection: $bindableDevices.playbackConfig.dopEncoderFilter) {
-                  Text("Auto").tag("auto")
-                  Divider()
-                  Text("sdm-4").tag("sdm-4")
-                  Text("clans-4").tag("clans-4")
-                  Text("sdm-5").tag("sdm-5")
-                  Text("clans-5").tag("clans-5")
-                  Text("sdm-6").tag("sdm-6")
-                  Text("clans-6").tag("clans-6")
-                  Text("sdm-7").tag("sdm-7")
-                  Text("clans-7").tag("clans-7")
-                  Text("sdm-8").tag("sdm-8")
-                  Text("clans-8").tag("clans-8")
+                  ForEach(SDMFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue).tag(filter)
+                  }
                 }
                 .labelsHidden()
                 .disabled(!bindableDevices.playbackConfig.outputDoP || !isCapable)

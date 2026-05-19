@@ -199,13 +199,34 @@ public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
   }
 }
 
+public enum SDMFilter: String, Codable, CaseIterable, Sendable, ExpressibleByStringLiteral {
+  case clans4 = "clans-4"
+  case sdm4 = "sdm-4"
+  case clans5 = "clans-5"
+  case sdm5 = "sdm-5"
+  case clans6 = "clans-6"
+  case sdm6 = "sdm-6"
+  case clans7 = "clans-7"
+  case sdm7 = "sdm-7"
+  case clans8 = "clans-8"
+  case sdm8 = "sdm-8"
+
+  public init(stringLiteral value: String) {
+    if let val = SDMFilter(rawValue: value) {
+      self = val
+    } else {
+      fatalError("Invalid SDMFilter: \(value)")
+    }
+  }
+}
+
 public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
   public var type: AudioBackendType
   public var channels: Int
   public var device: String?
   public var exclusive: Bool?
   public var outputDoP: Bool?
-  public var dopEncoderFilter: String?
+  public var dopEncoderFilter: SDMFilter?
 
   enum CodingKeys: String, CodingKey {
     case type, channels, device, exclusive
@@ -226,7 +247,7 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
 
   public init(
     type: AudioBackendType, channels: Int, device: String? = nil,
-    exclusive: Bool? = nil, outputDoP: Bool? = nil, dopEncoderFilter: String? = nil
+    exclusive: Bool? = nil, outputDoP: Bool? = nil, dopEncoderFilter: SDMFilter? = nil
   ) {
     self.type = type
     self.channels = channels

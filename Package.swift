@@ -45,7 +45,8 @@ let libTargets: [Target] = [
       .linkedFramework("CoreAudio"),
     ]
   ),
-  .target(name: "DSPDoP", dependencies: ["DSPAudio", "DSPLogging"], path: "Sources/Lib/DoP"),
+  .target(
+    name: "DSPDoP", dependencies: ["DSPConfig", "DSPAudio", "DSPLogging"], path: "Sources/Lib/DoP"),
   .target(
     name: "DSPMeasurement",
     dependencies: ["DSPConfig", "DSPAudio", "DSPFFT", "DSPFilters", "DSPBackend"],

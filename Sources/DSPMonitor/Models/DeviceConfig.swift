@@ -21,7 +21,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   /// Whether to encode output PCM into DSD-over-PCM (DoP)
   public var outputDoP: Bool
   /// Selected sigma-delta modulator noise-shaping filter or "auto"
-  public var dopEncoderFilter: String
+  public var dopEncoderFilter: SDMFilter
 
   /// `nil` -> system default (capabilities.name is "").
   /// Setting this replaces capabilities with a bare descriptor (capability_sets cleared),
@@ -46,7 +46,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.bypassDoP = false
     self.dopCutoffHz = 20_000
     self.outputDoP = false
-    self.dopEncoderFilter = "auto"
+    self.dopEncoderFilter = .sdm6
   }
 
   // Custom decode tolerates configs persisted before `dopCutoffHz` / `outputDoP` existed.
@@ -64,7 +64,8 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.bypassDoP = try c.decode(Bool.self, forKey: .bypassDoP)
     self.dopCutoffHz = try c.decodeIfPresent(Double.self, forKey: .dopCutoffHz) ?? 20_000
     self.outputDoP = try c.decodeIfPresent(Bool.self, forKey: .outputDoP) ?? false
-    self.dopEncoderFilter = try c.decodeIfPresent(String.self, forKey: .dopEncoderFilter) ?? "auto"
+    self.dopEncoderFilter =
+      try c.decodeIfPresent(SDMFilter.self, forKey: .dopEncoderFilter) ?? .sdm6
   }
 
   // MARK: - Capabilities Logic
