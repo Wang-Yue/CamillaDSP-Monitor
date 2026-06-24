@@ -51,8 +51,7 @@ func drawSpectrumBars(
   xOffset: CGFloat = 0,
   spacing: CGFloat = 2,
   minBarWidth: CGFloat = 4,
-  minBarHeight: CGFloat = 2,
-  cornerRadius: CGFloat = 2
+  minBarHeight: CGFloat = 2
 ) {
   let count = bands.count
   guard count > 0 else { return }

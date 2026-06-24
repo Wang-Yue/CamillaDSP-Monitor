@@ -6,15 +6,13 @@ import DSPAudio
 import DSPConfig
 import Foundation
 
-public let SAMPLE_MAX: Double = 2147483647.0
-
-public final class SigmaDeltaModulator: @unchecked Sendable {
-  public struct SDMPreset: Sendable {
-    public let a: [Double]
-    public let g: [Double]
-    public let order: Int32
-    public let freq: UInt32
-    public let name: SDMFilter
+final class SigmaDeltaModulator: @unchecked Sendable {
+  struct SDMPreset: Sendable {
+    let a: [Double]
+    let g: [Double]
+    let order: Int32
+    let freq: UInt32
+    let name: SDMFilter
   }
 
   @usableFromInline var idx: Int = 0
@@ -35,7 +33,7 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
   @usableFromInline let cachedG: UnsafeMutablePointer<Double>
   @usableFromInline let cachedOrder: Int
 
-  public static let sdmFilters: [SDMPreset] = [
+  static let sdmFilters: [SDMPreset] = [
     // MARK: - 256x Rate Filters
     SDMPreset(
       a: [
@@ -283,13 +281,13 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
       name: .sdm8),
   ]
 
-  public static func sdmFindFilter(name: SDMFilter?, freq: UInt32) -> SDMPreset? {
+  static func sdmFindFilter(name: SDMFilter?, freq: UInt32) -> SDMPreset? {
     return SigmaDeltaModulator.sdmFilters.first { f in
       (name == nil || f.name == name) && f.freq <= freq
     }
   }
 
-  public init?(
+  init?(
     filterName: SDMFilter?, freq: UInt32
   ) {
     guard let selectedFilter = SigmaDeltaModulator.sdmFindFilter(name: filterName, freq: freq)
@@ -325,9 +323,8 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
 
   // MARK: - Public Specialized Math Helpers
 
-  @inlinable
   @inline(__always)
-  public func sdmSample4(_ x: Double) -> Double {
+  func sdmSample4(_ x: Double) -> Double {
     let currentIdx = idx
     let s = nonTrellisState.advanced(by: currentIdx * 8)
     let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
@@ -353,9 +350,8 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
     return yNew
   }
 
-  @inlinable
   @inline(__always)
-  public func sdmSample5(_ x: Double) -> Double {
+  func sdmSample5(_ x: Double) -> Double {
     let currentIdx = idx
     let s = nonTrellisState.advanced(by: currentIdx * 8)
     let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
@@ -384,9 +380,8 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
     return yNew
   }
 
-  @inlinable
   @inline(__always)
-  public func sdmSample6(_ x: Double) -> Double {
+  func sdmSample6(_ x: Double) -> Double {
     let currentIdx = idx
     let s = nonTrellisState.advanced(by: currentIdx * 8)
     let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
@@ -418,9 +413,8 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
     return yNew
   }
 
-  @inlinable
   @inline(__always)
-  public func sdmSample7(_ x: Double) -> Double {
+  func sdmSample7(_ x: Double) -> Double {
     let currentIdx = idx
     let s = nonTrellisState.advanced(by: currentIdx * 8)
     let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
@@ -455,9 +449,8 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
     return yNew
   }
 
-  @inlinable
   @inline(__always)
-  public func sdmSample8(_ x: Double) -> Double {
+  func sdmSample8(_ x: Double) -> Double {
     let currentIdx = idx
     let s = nonTrellisState.advanced(by: currentIdx * 8)
     let d = nonTrellisState.advanced(by: (currentIdx ^ 1) * 8)
@@ -495,9 +488,8 @@ public final class SigmaDeltaModulator: @unchecked Sendable {
     return yNew
   }
 
-  @inlinable
   @inline(__always)
-  public func sdmSample(_ x: Double) -> Double {
+  func sdmSample(_ x: Double) -> Double {
     switch cachedOrder {
     case 4: return sdmSample4(x)
     case 5: return sdmSample5(x)

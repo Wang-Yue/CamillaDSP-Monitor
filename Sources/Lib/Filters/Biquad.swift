@@ -56,12 +56,12 @@ extension BiquadParameters {
   }
 }
 
-public final class BiquadFilter: Filter {
+final class BiquadFilter: Filter {
   private var coeffs: BiquadCoefficients
   private var setup: vDSP_biquadm_SetupD?
   private var state = [Double](repeating: 0.0, count: 4)
 
-  public init(coefficients: BiquadCoefficients) {
+  init(coefficients: BiquadCoefficients) {
     self.coeffs = coefficients
     var coefficientsArray: [Double] = [
       coefficients.b0, coefficients.b1, coefficients.b2, coefficients.a1, coefficients.a2,
@@ -75,7 +75,7 @@ public final class BiquadFilter: Filter {
     }
   }
 
-  public func process(waveform: MutableWaveform) {
+  func process(waveform: MutableWaveform) {
     guard let setup = setup, let base = waveform.baseAddress else { return }
 
     var signalPtr = UnsafePointer(base)
@@ -91,7 +91,7 @@ public final class BiquadFilter: Filter {
     )
   }
 
-  public func updateParameters(_ config: FilterConfig, sampleRate: Int) {
+  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
     guard case .biquad(let params) = config else { return }
     if let newCoeffs = try? BiquadFilter.computeCoefficients(
       params, sampleRate: sampleRate)
@@ -105,7 +105,7 @@ public final class BiquadFilter: Filter {
       }
     }
   }
-  public static func computeCoefficients(_ params: BiquadParameters, sampleRate: Int) throws
+  static func computeCoefficients(_ params: BiquadParameters, sampleRate: Int) throws
     -> BiquadCoefficients
   {
     guard params.type != nil else {
@@ -290,22 +290,4 @@ public struct BiquadCoefficients: Sendable {
     return (denMagSq > 0) ? 10.0 * log10(numMagSq / denMagSq) : 0
   }
 
-  /// Phase response in radians at frequency `f` (Hz), wrapped to
-  /// `(−π, π]`. Sign convention matches `atan2(Im(H), Re(H))`.
-  public func phaseRad(atFreqHz f: Double, sampleRate: Int) -> Double {
-    let w = 2.0 * .pi * f / Double(sampleRate)
-    let cosW = cos(w)
-    let sinW = sin(w)
-    let cos2W = cos(2.0 * w)
-    let sin2W = sin(2.0 * w)
-    let numRe = b0 + b1 * cosW + b2 * cos2W
-    let numIm = -b1 * sinW - b2 * sin2W
-    let denRe = 1.0 + a1 * cosW + a2 * cos2W
-    let denIm = -a1 * sinW - a2 * sin2W
-    let denMagSq = denRe * denRe + denIm * denIm
-    if denMagSq <= 0 { return 0 }
-    let hRe = (numRe * denRe + numIm * denIm) / denMagSq
-    let hIm = (numIm * denRe - numRe * denIm) / denMagSq
-    return atan2(hIm, hRe)
-  }
 }

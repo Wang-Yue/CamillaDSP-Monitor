@@ -30,44 +30,6 @@ public enum CoreAudioCapabilities {
   // touch HAL types. Anything beyond a name lives in the capability
   // descriptor (`describe`) below.
 
-  /// Names of all devices visible to the system in the requested
-  /// direction. Empty when no devices match (no mics connected, no
-  /// output devices, etc.).
-  public static func availableDeviceNames(isCapture: Bool) -> [String] {
-    let scope: CoreAudioScope = isCapture ? .input : .output
-    return CoreAudioDevice.devices(scope: scope)
-      .map { $0.name }
-      .filter { !$0.isEmpty }
-  }
-
-  /// Name of the system-default device in the requested direction,
-  /// if one is configured. Useful as the initial value for a picker.
-  public static func defaultDeviceName(isCapture: Bool) -> String? {
-    let scope: CoreAudioScope = isCapture ? .input : .output
-    guard let id = CoreAudioDevice.defaultDeviceID(scope: scope) else { return nil }
-    return CoreAudioDevice.name(of: id)
-  }
-
-  /// Maximum channel count the named device exposes across any of
-  /// its physical formats. When `name` is `nil` the system default
-  /// is queried. Returns `0` if the device can't be located.
-  ///
-  /// Derived from `describe(deviceName:isCapture:)` — no separate HAL
-  /// query — so the answer matches whatever the capability descriptor
-  /// reports. Used by the room-correction UI to populate per-channel
-  /// pickers (e.g. left/right speaker, calibrated mic capsule on a
-  /// stereo interface).
-  public static func channelCount(deviceName name: String?, isCapture: Bool) -> Int {
-    let resolved = name ?? defaultDeviceName(isCapture: isCapture)
-    guard let resolved,
-      let descriptor = describe(deviceName: resolved, isCapture: isCapture)
-    else { return 0 }
-    return descriptor.capability_sets
-      .flatMap { $0.capabilities }
-      .map { $0.channels }
-      .max() ?? 0
-  }
-
   /// Build the capability descriptor for a named device. Returns `nil`
   /// if the device cannot be located. All low-level HAL plumbing is
   /// delegated to `CoreAudioDevice`; this layer only adds the

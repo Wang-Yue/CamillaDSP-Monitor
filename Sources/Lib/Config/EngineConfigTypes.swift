@@ -245,17 +245,6 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
     self.dopEncoderFilter = nil
   }
 
-  public init(
-    type: AudioBackendType, channels: Int, device: String? = nil,
-    exclusive: Bool? = nil, outputDoP: Bool? = nil, dopEncoderFilter: SDMFilter? = nil
-  ) {
-    self.type = type
-    self.channels = channels
-    self.device = device
-    self.exclusive = exclusive
-    self.outputDoP = outputDoP
-    self.dopEncoderFilter = dopEncoderFilter
-  }
 }
 
 public struct DevicesConfig: Codable, Equatable, Sendable {
