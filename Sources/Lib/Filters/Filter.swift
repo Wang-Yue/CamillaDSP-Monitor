@@ -23,8 +23,7 @@ public protocol Filter: AnyObject {
 public enum FilterFactory {
   public static func create(
     config: FilterConfig,
-    sampleRate: Int,
-    chunkSize: Int
+    sampleRate: Int
   ) throws -> Filter {
     try config.validate()
     switch config {

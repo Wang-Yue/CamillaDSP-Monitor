@@ -71,3 +71,9 @@ public struct ResamplerConfig: Codable, Equatable, Sendable {
     self.appleComplexity = appleComplexity
   }
 }
+
+extension ResamplerConfig: CustomStringConvertible {
+  public var description: String {
+    "ResamplerConfig(type: \(type), profile: \(profile ?? "nil"), interpolation: \(interpolation ?? "nil"))"
+  }
+}
