@@ -38,9 +38,7 @@ public enum FilterFactory {
       try p.validate(sampleRate: sampleRate)
       return try BiquadFilter(
         coefficients: BiquadFilter.computeCoefficients(p, sampleRate: sampleRate))
-    case .conv(let p):
-      return try ConvolutionFilter(
-        parameters: p, chunkSize: chunkSize, sampleRate: sampleRate)
+
     }
   }
 }

@@ -171,15 +171,7 @@ final class DSPEngineController {
         for (k, v) in eqFilters { filters[k] = v }
         pipelineSteps.append(contentsOf: eqSteps)
       }
-      if stage.type == .convolution && stage.isActive {
-        let rate = devices.captureConfig.sampleRate
-        let convFilters = stage.buildConvFilters(
-          presets: pipeline.convPresets, sampleRate: rate)
-        let convSteps = stage.buildConvPipelineSteps(
-          presets: pipeline.convPresets, sampleRate: rate)
-        for (k, v) in convFilters { filters[k] = v }
-        pipelineSteps.append(contentsOf: convSteps)
-      }
+
     }
 
     var config = DSPConfiguration(devices: devicesConfig)

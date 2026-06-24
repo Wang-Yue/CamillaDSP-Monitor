@@ -156,31 +156,6 @@ private enum AllocationCounter {
     }
   }
 
-  @Test func Convolution_AllocationFree() {
-    // Multi-segment IR (4 segments at chunkSize 1024 → 4096 taps), so
-    // the hot path exercises both the seg-0 zvmul and the seg≥1 zvma
-    // accumulator branches. Coefficients are an arbitrary slowly-decaying
-    // pattern — values don't affect allocation behaviour.
-    let chunkSize = 1024
-    let irLen = 4096
-    var ir = [PrcFmt](repeating: 0, count: irLen)
-    for i in 0..<irLen {
-      ir[i] = (i == 0 ? 1.0 : 0.0) + 0.001 * cos(PrcFmt(i) * 0.01)
-    }
-    let filter = ConvolutionFilter(coefficients: ir, chunkSize: chunkSize)
-    let buffer = AudioBuffers(channels: 1, capacity: chunkSize)
-    let wave = buffer[0]
-    fillSine(wave, frames: chunkSize, freqHz: 1000, sampleRate: 44100)
-
-    // Prime the rolling input-history with a few warm-up calls so the
-    // measurement covers the steady-state path only.
-    for _ in 0..<3 { filter.process(waveform: wave) }
-
-    assertAllocationFree(label: "Convolution") { _ in
-      filter.process(waveform: wave)
-    }
-  }
-
   @Test func Gain_AllocationFree() {
     var fp = GainParameters()
     fp.gain = -6.0

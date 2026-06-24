@@ -486,61 +486,6 @@ import Testing
     }
   }
 
-  // MARK: - Convolution
-
-  @Test func Convolution_Vs_Rust_RandomIR() throws {
-    let label = "conv-random"
-    let input = makeTestSignal()
-    let inPath = "/tmp/cdsp_conv_\(label)_in.raw"
-    let refPath = "/tmp/cdsp_conv_\(label)_ref.raw"
-    let coeffsPath = "/tmp/cdsp_conv_\(label)_coeffs.raw"
-    try writeRaw(input, to: inPath)
-
-    // Generate random IR coefficients of length 2000.
-    var rng = SeededRNG(seed: 0x1234_5678_9ABC_DEF0)
-    let coeffs = (0..<2000).map { _ in Double.random(in: -1.0...1.0, using: &rng) }
-    try writeRaw(coeffs, to: coeffsPath)
-
-    guard
-      try runHarness([
-        "conv",
-        String(Self.chunkSize), coeffsPath, inPath, refPath,
-      ])
-    else {
-      if true { return }
-      _ = ("harness binary missing")
-    }
-    let ref = try readRaw(from: refPath)
-
-    let filter = ConvolutionFilter(coefficients: coeffs, chunkSize: Self.chunkSize)
-    var swiftOut = input
-    var idx = 0
-    while idx < swiftOut.count {
-      let end = min(idx + Self.chunkSize, swiftOut.count)
-      var slice = Array(swiftOut[idx..<end])
-      filter.process(waveform: &slice)
-      for (i, v) in slice.enumerated() { swiftOut[idx + i] = v }
-      idx = end
-    }
-
-    #expect(swiftOut.count == ref.count)
-    var maxAbsDiff = 0.0
-    var sumSq = 0.0
-    for i in 0..<min(swiftOut.count, ref.count) {
-      let d = swiftOut[i] - ref[i]
-      maxAbsDiff = max(maxAbsDiff, abs(d))
-      sumSq += d * d
-    }
-    let rms = sqrt(sumSq / Double(swiftOut.count))
-    print(
-      String(
-        format: "[conv %@] maxAbsDiff=%.3e rms=%.3e (n=%d)",
-        label, maxAbsDiff, rms, swiftOut.count))
-    // Un-normalised Stockham-style segmented overlap-save convolution using double precision
-    // real FFTs. Slight rounding differences from SIMD/FFT twiddle layout are expected, but should
-    // match closely.
-    #expect(maxAbsDiff < 1e-13)
-  }
 }
 
 /// Deterministic RNG so test signals are bit-reproducible across runs.

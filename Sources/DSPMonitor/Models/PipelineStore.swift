@@ -10,7 +10,6 @@ final class PipelineStore {
 
   var stages: [PipelineStage] = PipelineStage.defaultStages()
   var eqPresets: [EQPreset] = []
-  var convPresets: [ConvolutionPreset] = []
 
   /// Fired after any change that requires a DSP config rebuild (currently only preset deletion).
   var onChanged: (() -> Void)?
@@ -76,53 +75,4 @@ final class PipelineStore {
     onChanged?()
   }
 
-  // MARK: - Convolution Preset Persistence
-
-  func saveConvPresets() {
-    if let data = try? JSONEncoder().encode(convPresets) {
-      defaults.set(data, forKey: "convPresets")
-    }
-  }
-
-  func loadConvPresets() -> [ConvolutionPreset] {
-    guard let data = defaults.data(forKey: "convPresets"),
-      let presets = try? JSONDecoder().decode([ConvolutionPreset].self, from: data)
-    else { return [] }
-    return presets
-  }
-
-  func addConvolutionPreset(_ preset: ConvolutionPreset) {
-    convPresets.append(preset)
-    saveConvPresets()
-  }
-
-  func deleteConvPreset(at index: Int) {
-    guard convPresets.indices.contains(index) else { return }
-    let toDelete = convPresets[index]
-    for stage in stages {
-      if stage.convPresetID == toDelete.id { stage.convPresetID = nil }
-      if stage.convLeftPresetID == toDelete.id { stage.convLeftPresetID = nil }
-      if stage.convRightPresetID == toDelete.id { stage.convRightPresetID = nil }
-    }
-
-    // Delete associated files on disk
-    let fm = FileManager.default
-    for path in toDelete.irPaths.values {
-      if fm.fileExists(atPath: path) {
-        try? fm.removeItem(atPath: path)
-      }
-    }
-
-    convPresets.remove(at: index)
-    saveConvPresets()
-    onChanged?()
-  }
-
-  /// Save the preset's metadata after the user edits its name or
-  /// other fields. Cheap (just re-serialises the array) — fine to
-  /// call from `onChange` UI handlers.
-  func updateConvPreset() {
-    saveConvPresets()
-    onChanged?()
-  }
 }

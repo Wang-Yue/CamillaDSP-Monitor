@@ -20,7 +20,6 @@ extension PipelineStage {
         "cx_lo_gain": .gain(GainParameters(gain: cx.loGain, inverted: false)),
       ]
     case .eq: return [:]
-    case .convolution: return [:]
     case .loudness:
       return [
         "loudness": .loudness(
@@ -166,7 +165,6 @@ extension PipelineStage {
         PipelineStep(type: .mixer, name: "4to2"),
       ]
     case .eq: return []
-    case .convolution: return []
     case .loudness: return [PipelineStep(type: .filter, channels: [0, 1], names: ["loudness"])]
     case .emphasis:
       switch emphasisMode {
@@ -208,79 +206,6 @@ extension PipelineStage {
       }
     }
     return filters
-  }
-
-  // MARK: - Convolution stage
-
-  /// Emit `Conv` filter definitions referencing each selected preset's
-  /// IR file *for the live capture rate*. Each preset stores a
-  /// per-rate IR family; we look up the entry matching `sampleRate`
-  /// and fall back to the closest available.
-  ///
-  /// Format strings match the Rust upstream's `FileSampleFormat`
-  /// Display impl (`camilladsp/src/config/mod.rs:38`): valid set is
-  /// `F32_LE / F64_LE / S16_LE / S24_3_LE / S24_4_LJ_LE / S24_4_RJ_LE
-  /// / S32_LE / TEXT`. The `Conv { ... }` and `Raw { ... }` structs
-  /// are `deny_unknown_fields`, so unknown values get rejected at
-  /// config decode.
-  func buildConvFilters(
-    presets: [ConvolutionPreset], sampleRate: Int
-  ) -> [String: FilterConfig] {
-    guard isActive, type == .convolution else { return [:] }
-    var filters: [String: FilterConfig] = [:]
-    func make(_ preset: ConvolutionPreset) -> FilterConfig? {
-      guard let path = preset.irPath(forSampleRate: sampleRate) else { return nil }
-      return .conv(ConvParameters(type: .raw, filename: path, format: "F64_LE"))
-    }
-    switch convChannelMode {
-    case .same:
-      if let id = convPresetID, let preset = presets.first(where: { $0.id == id }),
-        let f = make(preset)
-      {
-        filters["conv"] = f
-      }
-    case .separate:
-      if let id = convLeftPresetID, let preset = presets.first(where: { $0.id == id }),
-        let f = make(preset)
-      {
-        filters["conv_l"] = f
-      }
-      if let id = convRightPresetID, let preset = presets.first(where: { $0.id == id }),
-        let f = make(preset)
-      {
-        filters["conv_r"] = f
-      }
-    }
-    return filters
-  }
-
-  /// Pipeline steps for the convolution stage. We only emit the step
-  /// when the corresponding preset has an IR for the live rate —
-  /// otherwise the engine would build a filter graph referencing a
-  /// non-existent filter name and fail.
-  func buildConvPipelineSteps(
-    presets: [ConvolutionPreset], sampleRate: Int
-  ) -> [PipelineStep] {
-    guard isActive, type == .convolution else { return [] }
-    var steps: [PipelineStep] = []
-    func hasIR(for id: UUID?) -> Bool {
-      guard let id, let preset = presets.first(where: { $0.id == id }) else { return false }
-      return preset.irPath(forSampleRate: sampleRate) != nil
-    }
-    switch convChannelMode {
-    case .same:
-      if hasIR(for: convPresetID) {
-        steps.append(PipelineStep(type: .filter, channels: [0, 1], names: ["conv"]))
-      }
-    case .separate:
-      if hasIR(for: convLeftPresetID) {
-        steps.append(PipelineStep(type: .filter, channels: [0], names: ["conv_l"]))
-      }
-      if hasIR(for: convRightPresetID) {
-        steps.append(PipelineStep(type: .filter, channels: [1], names: ["conv_r"]))
-      }
-    }
-    return steps
   }
 
   func buildEQPipelineSteps(presets: [EQPreset]) -> [PipelineStep] {

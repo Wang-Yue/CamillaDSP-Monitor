@@ -24,10 +24,6 @@ extension PipelineStage {
     var eqPresetID: String?
     var eqLeftPresetID: String?
     var eqRightPresetID: String?
-    var convChannelMode: String?
-    var convPresetID: String?
-    var convLeftPresetID: String?
-    var convRightPresetID: String?
     var emphasisMode: String
     var cxCustomEnabled: Bool
     var cxFc: Double
@@ -49,10 +45,6 @@ extension PipelineStage {
       eqPresetID: eqPresetID?.uuidString,
       eqLeftPresetID: eqLeftPresetID?.uuidString,
       eqRightPresetID: eqRightPresetID?.uuidString,
-      convChannelMode: convChannelMode.rawValue,
-      convPresetID: convPresetID?.uuidString,
-      convLeftPresetID: convLeftPresetID?.uuidString,
-      convRightPresetID: convRightPresetID?.uuidString,
       emphasisMode: emphasisMode.rawValue,
       cxCustomEnabled: cxCustomEnabled,
       cxFc: cxFc,
@@ -73,12 +65,6 @@ extension PipelineStage {
     eqPresetID = s.eqPresetID.flatMap { UUID(uuidString: $0) }
     eqLeftPresetID = s.eqLeftPresetID.flatMap { UUID(uuidString: $0) }
     eqRightPresetID = s.eqRightPresetID.flatMap { UUID(uuidString: $0) }
-    if let raw = s.convChannelMode, let v = ConvChannelMode(rawValue: raw) {
-      convChannelMode = v
-    }
-    convPresetID = s.convPresetID.flatMap { UUID(uuidString: $0) }
-    convLeftPresetID = s.convLeftPresetID.flatMap { UUID(uuidString: $0) }
-    convRightPresetID = s.convRightPresetID.flatMap { UUID(uuidString: $0) }
     if let v = EmphasisMode(rawValue: s.emphasisMode) { emphasisMode = v }
     cxCustomEnabled = s.cxCustomEnabled
     cxFc = s.cxFc
