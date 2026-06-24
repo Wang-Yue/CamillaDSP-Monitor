@@ -10,7 +10,6 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
   case phaseInvert = "Phase Invert"
   case crossfeed = "Crossfeed"
   case eq = "EQ"
-  case convolution = "Convolution"
   case loudness = "Loudness"
   case emphasis = "Emphasis"
   case dcProtection = "DC Protection"
@@ -23,22 +22,11 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
     case .phaseInvert: return "waveform.path.ecg"
     case .crossfeed: return "headphones"
     case .eq: return "slider.horizontal.3"
-    case .convolution: return "waveform.badge.magnifyingglass"
     case .loudness: return "ear"
     case .emphasis: return "waveform"
     case .dcProtection: return "bolt.shield"
     }
   }
-}
-
-/// Channel routing for the Convolution stage. Mirrors `EQChannelMode`
-/// — the user picks whether L/R share one preset or use independent
-/// ones (per-channel room IRs are common when the room isn't
-/// symmetric).
-enum ConvChannelMode: String, CaseIterable, Identifiable {
-  case same = "Same L/R"
-  case separate = "Separate L/R"
-  var id: String { rawValue }
 }
 
 enum PhaseInvertMode: String, CaseIterable, Identifiable {
@@ -111,10 +99,7 @@ final class PipelineStage: Identifiable {
   var eqPresetID: UUID?
   var eqLeftPresetID: UUID?
   var eqRightPresetID: UUID?
-  var convChannelMode: ConvChannelMode = .same
-  var convPresetID: UUID?
-  var convLeftPresetID: UUID?
-  var convRightPresetID: UUID?
+
   var emphasisMode: EmphasisMode = .deEmphasis
   var cxCustomEnabled: Bool = false
   var cxFc: Double = 650.0
@@ -149,11 +134,7 @@ final class PipelineStage: Identifiable {
     case .phaseInvert: return phaseInvertMode != .off
     case .crossfeed: return crossfeedLevel != .off
     case .emphasis: return emphasisMode != .off
-    case .convolution:
-      switch convChannelMode {
-      case .same: return convPresetID != nil
-      case .separate: return convLeftPresetID != nil || convRightPresetID != nil
-      }
+
     default: return true
     }
   }

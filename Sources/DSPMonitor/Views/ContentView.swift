@@ -8,7 +8,6 @@ struct ContentView: View {
   @State private var selection: SidebarItem? = .devices
   @State private var showAutoEqSearch = false
   @State private var showOratorySearch = false
-  @State private var showImportConv = false
 
   var body: some View {
     if appState.isMiniPlayerActive {
@@ -17,7 +16,7 @@ struct ContentView: View {
       NavigationSplitView {
         SidebarView(
           selection: $selection, showAutoEqSearch: $showAutoEqSearch,
-          showOratorySearch: $showOratorySearch, showImportConv: $showImportConv)
+          showOratorySearch: $showOratorySearch)
       } detail: {
         DetailPanel(selection: selection)
       }
@@ -33,10 +32,7 @@ struct ContentView: View {
         OratoryPresetPickerView()
           .environment(appState.pipeline)
       }
-      .sheet(isPresented: $showImportConv) {
-        ConvolutionImportView()
-          .environment(appState.pipeline)
-      }
+
     }
   }
 }
@@ -60,7 +56,6 @@ enum SidebarItem: Hashable {
   /// transition; an Int index that was valid before deletion
   /// becomes out-of-range after).
   case eqPreset(UUID)
-  case convPreset(UUID)
 }
 
 // MARK: - Toolbar
@@ -115,7 +110,6 @@ struct SidebarView: View {
   @Binding var selection: SidebarItem?
   @Binding var showAutoEqSearch: Bool
   @Binding var showOratorySearch: Bool
-  @Binding var showImportConv: Bool
 
   var body: some View {
     @Bindable var appState = appState
@@ -165,34 +159,6 @@ struct SidebarView: View {
           PipelineSidebarRow(stage: pipeline.stages[index])
             .tag(SidebarItem.stage(index))
         }
-      }
-
-      Section("Convolution") {
-        ForEach(pipeline.convPresets) { preset in
-          ConvolutionPresetSidebarRow(preset: preset)
-            .tag(SidebarItem.convPreset(preset.id))
-            .contextMenu {
-              Button(role: .destructive) {
-                if let idx = pipeline.convPresets.firstIndex(where: { $0.id == preset.id }) {
-                  pipeline.deleteConvPreset(at: idx)
-                }
-              } label: {
-                Label("Delete", systemImage: "trash")
-              }
-            }
-        }
-
-        HStack(spacing: 12) {
-          Button {
-            showImportConv = true
-          } label: {
-            Label("Import IR File(s)…", systemImage: "square.and.arrow.down")
-          }
-        }
-        .foregroundStyle(.secondary)
-        .buttonStyle(.plain)
-        .font(.caption)
-        .padding(.top, 4)
       }
 
       Section("EQ Presets") {
@@ -291,16 +257,7 @@ struct DetailPanel: View {
           )
           .frame(maxHeight: .infinity)
         }
-      case .convPreset(let id):
-        if let preset = pipeline.convPresets.first(where: { $0.id == id }) {
-          ConvolutionPresetDetailView(preset: preset)
-        } else {
-          ContentUnavailableView(
-            "Convolution Preset Deleted", systemImage: "waveform.badge.magnifyingglass",
-            description: Text("Select another preset or measure/import a new one.")
-          )
-          .frame(maxHeight: .infinity)
-        }
+
       case .stage(let index):
         StageDetailView(stageIndex: index)
       }
@@ -635,14 +592,6 @@ struct EQPresetSidebarRow: View {
 
   var body: some View {
     Label(preset.name, systemImage: "slider.horizontal.3")
-  }
-}
-
-struct ConvolutionPresetSidebarRow: View {
-  let preset: ConvolutionPreset
-
-  var body: some View {
-    Label(preset.name, systemImage: "waveform.badge.magnifyingglass")
   }
 }
 

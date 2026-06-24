@@ -7,7 +7,6 @@ public enum FilterType: String, Codable, Sendable {
   case volume = "Volume"
   case loudness = "Loudness"
   case biquad = "Biquad"
-  case conv = "Conv"
 }
 
 public enum GainScale: String, Codable, Sendable {
@@ -131,65 +130,11 @@ public struct BiquadParameters: Codable, Sendable {
   }
 }
 
-public enum ConvType: String, Codable, Sendable {
-  case values = "Values"
-  case wav = "Wav"
-  case raw = "Raw"
-  case dummy = "Dummy"
-}
-
-public struct ConvParameters: Codable, Sendable {
-  public var type: ConvType
-  public var values: [Double]?
-  public var filename: String?
-  public var format: String?
-  public var channel: Int?
-  public var length: Int?
-
-  enum CodingKeys: String, CodingKey {
-    case type, values, filename, format, channel, length
-  }
-
-  public init(
-    type: ConvType,
-    values: [Double]? = nil,
-    filename: String? = nil,
-    format: String? = nil,
-    channel: Int? = nil,
-    length: Int? = nil
-  ) {
-    self.type = type
-    self.values = values
-    self.filename = filename
-    self.format = format
-    self.channel = channel
-    self.length = length
-  }
-
-  public func validate() throws {
-    switch type {
-    case .values:
-      guard let v = values, !v.isEmpty else {
-        throw ConfigError.invalidFilter("Conv 'values' must be non-empty")
-      }
-    case .wav, .raw:
-      guard let f = filename, !f.isEmpty else {
-        throw ConfigError.invalidFilter("Conv '\(type.rawValue)' missing filename")
-      }
-    case .dummy:
-      guard let n = length, n > 0 else {
-        throw ConfigError.invalidFilter("Conv 'dummy' length must be > 0")
-      }
-    }
-  }
-}
-
 public enum FilterConfig: Codable, Sendable {
   case gain(GainParameters)
   case volume
   case loudness(LoudnessParameters)
   case biquad(BiquadParameters)
-  case conv(ConvParameters)
 
   public var type: FilterType {
     switch self {
@@ -197,7 +142,6 @@ public enum FilterConfig: Codable, Sendable {
     case .volume: return .volume
     case .loudness: return .loudness
     case .biquad: return .biquad
-    case .conv: return .conv
     }
   }
 
@@ -210,8 +154,7 @@ public enum FilterConfig: Codable, Sendable {
       try params.validate()
     case .loudness(let params):
       try params.validate()
-    case .conv(let params):
-      try params.validate()
+
     case .volume:
       break
     }
@@ -237,9 +180,7 @@ public enum FilterConfig: Codable, Sendable {
     case .biquad:
       let p = try container.decode(BiquadParameters.self, forKey: .parameters)
       self = .biquad(p)
-    case .conv:
-      let p = try container.decode(ConvParameters.self, forKey: .parameters)
-      self = .conv(p)
+
     }
   }
 
@@ -256,8 +197,7 @@ public enum FilterConfig: Codable, Sendable {
       try container.encode(p, forKey: .parameters)
     case .biquad(let p):
       try container.encode(p, forKey: .parameters)
-    case .conv(let p):
-      try container.encode(p, forKey: .parameters)
+
     }
   }
 }
