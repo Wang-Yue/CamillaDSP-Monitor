@@ -1,3 +1,4 @@
+import Accelerate
 import DSPAudio
 import DSPConfig
 import Foundation
@@ -57,40 +58,37 @@ extension BiquadParameters {
 
 public final class BiquadFilter: Filter {
   private var coeffs: BiquadCoefficients
-
-  private var w1: PrcFmt = 0
-  private var w2: PrcFmt = 0
+  private var setup: vDSP_biquadm_SetupD?
+  private var state = [Double](repeating: 0.0, count: 4)
 
   public init(coefficients: BiquadCoefficients) {
     self.coeffs = coefficients
+    var coefficientsArray: [Double] = [
+      coefficients.b0, coefficients.b1, coefficients.b2, coefficients.a1, coefficients.a2,
+    ]
+    self.setup = vDSP_biquadm_CreateSetupD(&coefficientsArray, 1, 1)
+  }
+
+  deinit {
+    if let setup = setup {
+      vDSP_biquadm_DestroySetupD(setup)
+    }
   }
 
   public func process(waveform: MutableWaveform) {
-    let b0 = coeffs.b0
-    let b1 = coeffs.b1
-    let b2 = coeffs.b2
-    let a1 = coeffs.a1
-    let a2 = coeffs.a2
+    guard let setup = setup, let base = waveform.baseAddress else { return }
 
-    var w1 = self.w1
-    var w2 = self.w2
+    var signalPtr = UnsafePointer(base)
+    var outputPtr = base
 
-    for i in 0..<waveform.count {
-      let input = waveform[i]
-      let w = input - a1 * w1 - a2 * w2
-      let out = b0 * w + b1 * w1 + b2 * w2
-
-      w2 = w1
-      w1 = w
-
-      waveform[i] = out
-    }
-
-    if w1.isSubnormal { w1 = 0 }
-    if w2.isSubnormal { w2 = 0 }
-
-    self.w1 = w1
-    self.w2 = w2
+    vDSP_biquadmD(
+      setup,
+      &signalPtr,
+      1,
+      &outputPtr,
+      1,
+      vDSP_Length(waveform.count)
+    )
   }
 
   public func updateParameters(_ config: FilterConfig, sampleRate: Int) {
@@ -99,6 +97,12 @@ public final class BiquadFilter: Filter {
       params, sampleRate: sampleRate)
     {
       self.coeffs = newCoeffs
+      var coefficientsArray: [Double] = [
+        newCoeffs.b0, newCoeffs.b1, newCoeffs.b2, newCoeffs.a1, newCoeffs.a2,
+      ]
+      if let setup = self.setup {
+        vDSP_biquadm_SetCoefficientsDoubleD(setup, &coefficientsArray, 0, 0, 1, 1)
+      }
     }
   }
   public static func computeCoefficients(_ params: BiquadParameters, sampleRate: Int) throws
