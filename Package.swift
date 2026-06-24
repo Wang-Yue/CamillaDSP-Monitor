@@ -47,11 +47,7 @@ let libTargets: [Target] = [
   ),
   .target(
     name: "DSPDoP", dependencies: ["DSPConfig", "DSPAudio", "DSPLogging"], path: "Sources/Lib/DoP"),
-  .target(
-    name: "DSPMeasurement",
-    dependencies: ["DSPConfig", "DSPAudio", "DSPFFT", "DSPFilters", "DSPBackend"],
-    path: "Sources/Lib/Measurement"
-  ),
+
   .target(
     name: "DSPEngine",
     dependencies: [
@@ -64,7 +60,7 @@ let libTargets: [Target] = [
 
 let commonLibDeps: [Target.Dependency] = [
   "DSPConfig", "DSPAudio", "DSPBackend", "DSPDoP", "DSPEngine", "DSPFFT", "DSPFilters",
-  "DSPLogging", "DSPMeasurement", "DSPMixer", "DSPPipeline", "DSPResampler",
+  "DSPLogging", "DSPMixer", "DSPPipeline", "DSPResampler",
 ]
 
 var targets: [Target] = libTargets

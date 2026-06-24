@@ -53,7 +53,6 @@ enum SidebarItem: Hashable {
   case logs
   case dashboard
   case resampler
-  case roomCorrection
   case stage(Int)
   /// Identified by UUID rather than array index so deleting a
   /// preset doesn't leave stale indices in `ForEach` closures
@@ -124,8 +123,7 @@ struct SidebarView: View {
       Section("Audio") {
         Label("Devices", systemImage: "hifispeaker.2")
           .tag(SidebarItem.devices)
-        Label("Room Correction", systemImage: "speaker.wave.3")
-          .tag(SidebarItem.roomCorrection)
+
         Label("Dashboard", systemImage: "gauge.open.with.lines.needle.33percent")
           .tag(SidebarItem.dashboard)
       }
@@ -282,10 +280,7 @@ struct DetailPanel: View {
           .padding()
           .frame(maxHeight: .infinity, alignment: .top)
           .background(Color(nsColor: .controlBackgroundColor))
-      case .roomCorrection:
-        MeasurementView()
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .background(Color(nsColor: .controlBackgroundColor))
+
       case .eqPreset(let id):
         if let preset = pipeline.eqPresets.first(where: { $0.id == id }) {
           EQPresetDetailView(preset: preset)

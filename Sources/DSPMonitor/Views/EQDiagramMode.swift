@@ -1,7 +1,6 @@
 // EQDiagramMode - Interactive frequency response diagram with draggable band handles
 
 import AppKit
-import DSPMeasurement
 import Observation
 import SwiftUI
 
@@ -51,13 +50,6 @@ struct EQDiagramMode: View {
   @Bindable var preset: EQPreset
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
-  @Environment(DSPEngineController.self) var dsp
-  /// Optional measurement-context overlay drawn beneath the EQ
-  /// curves. Default `nil` keeps EQ Preset Detail's appearance
-  /// unchanged; the Room Correction view passes a populated overlay
-  /// so measured / target / corrected curves render alongside the
-  /// editable EQ.
-  var overlay: EQReferenceOverlay? = nil
 
   var body: some View {
     VStack(spacing: 0) {
@@ -76,8 +68,7 @@ struct EQDiagramMode: View {
       EQFrequencyResponseView(
         preset: preset,
         selectedBandID: $selectedBandID,
-        sampleRate: sampleRate,
-        overlay: overlay
+        sampleRate: sampleRate
       )
       .frame(minHeight: 300)
       .padding()
@@ -91,33 +82,11 @@ struct EQDiagramMode: View {
   }
 }
 
-/// Reference-data overlay drawn beneath the EQ band curves. Used by
-/// the Room Correction view to show the measured response (blue),
-/// the target curve (gray dashed), and the predicted output =
-/// measured + EQ (orange). All three are optional — when `nil`, the
-/// view falls back to its original look-and-feel for the EQ Preset
-/// Detail use-case.
-struct EQReferenceOverlay {
-  /// dB magnitudes sampled at `frequencies` (parallel arrays). Both
-  /// must be the same length and non-empty for the overlay to draw.
-  var measuredMagnitudeDB: [Double] = []
-  var frequencies: [Double] = []
-  /// Target curve to render as a gray dashed line.
-  var target: TargetCurve? = nil
-  /// Show predicted post-EQ response = measured + EQ as an orange
-  /// curve. Requires `measuredMagnitudeDB` and `frequencies` to be
-  /// populated (otherwise the overlay has nothing to add to).
-  var showCorrected: Bool = false
-}
-
 struct EQFrequencyResponseView: View {
   let preset: EQPreset
   @Environment(DSPEngineController.self) var dsp
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
-  /// Optional measurement-context overlay. Default is `nil` so EQ
-  /// Preset Detail view's appearance is unchanged.
-  var overlay: EQReferenceOverlay? = nil
   static let bandColors: [Color] = [
     .red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink, .mint, .teal, .indigo, .brown,
   ]
@@ -146,32 +115,12 @@ struct EQFrequencyResponseView: View {
   }
 
   var body: some View {
-    // Compute overlay reference offset once per body evaluation so
-    // the measured/corrected paths share a consistent baseline.
-    let normDB = overlayReferenceDB
-    return GeometryReader { geo in
+    GeometryReader { geo in
       let w = geo.size.width
       let h = geo.size.height
       ZStack {
         RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor))
         drawGrid(w: w, h: h)
-
-        // Reference overlays sit beneath the EQ curves so the user's
-        // editable bands always render on top.
-        if let target = overlay?.target {
-          targetPath(target, w: w, h: h)
-            .stroke(Color.secondary, style: StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
-        }
-        if let ovl = overlay, !ovl.measuredMagnitudeDB.isEmpty,
-          ovl.measuredMagnitudeDB.count == ovl.frequencies.count
-        {
-          measuredPath(ovl, normDB: normDB, w: w, h: h)
-            .stroke(Color.blue, lineWidth: 1.4)
-          if ovl.showCorrected {
-            correctedPath(ovl, normDB: normDB, w: w, h: h)
-              .stroke(Color.orange, lineWidth: 1.8)
-          }
-        }
 
         ForEach(preset.bands) { band in
           let color = colorFor(band)
@@ -188,97 +137,6 @@ struct EQFrequencyResponseView: View {
       }
       .onScrollGesture { delta in
         adjustSelectedBandQ(delta: delta)
-      }
-    }
-  }
-
-  // MARK: - Reference overlay paths
-
-  /// Median in-band magnitude (200 Hz – 5 kHz) used to anchor the
-  /// measured / corrected curves at ~0 dB so the user is comparing
-  /// shape, not absolute level. Single-bin nulls would otherwise
-  /// blow the offset out by tens of dB.
-  private var overlayReferenceDB: Double {
-    guard let ovl = overlay,
-      !ovl.measuredMagnitudeDB.isEmpty,
-      ovl.measuredMagnitudeDB.count == ovl.frequencies.count
-    else { return 0 }
-    var inBand: [Double] = []
-    inBand.reserveCapacity(ovl.measuredMagnitudeDB.count)
-    for i in 0..<ovl.frequencies.count {
-      let f = ovl.frequencies[i]
-      let m = ovl.measuredMagnitudeDB[i]
-      if f >= 200, f <= 5000, m.isFinite, m > -200 {
-        inBand.append(m)
-      }
-    }
-    if inBand.isEmpty { return 0 }
-    inBand.sort()
-    return inBand[inBand.count / 2]
-  }
-
-  private func clampForPlot(_ db: Double) -> Double {
-    let lo = minDB - 6
-    let hi = maxDB + 6
-    if db.isFinite { return max(lo, min(hi, db)) }
-    return 0
-  }
-
-  private func targetPath(_ target: TargetCurve, w: Double, h: Double) -> Path {
-    Path { path in
-      let n = 256
-      for i in 0...n {
-        let x = w * Double(i) / Double(n)
-        let f = xToFreq(x, width: w)
-        let db = clampForPlot(target.evaluate(atFreqHz: f))
-        let y = dbToY(db, height: h)
-        if i == 0 {
-          path.move(to: CGPoint(x: x, y: y))
-        } else {
-          path.addLine(to: CGPoint(x: x, y: y))
-        }
-      }
-    }
-  }
-
-  private func measuredPath(_ ovl: EQReferenceOverlay, normDB: Double, w: Double, h: Double) -> Path
-  {
-    Path { path in
-      var started = false
-      for i in 0..<ovl.frequencies.count {
-        let x = freqToX(ovl.frequencies[i], width: w)
-        let dB = clampForPlot(ovl.measuredMagnitudeDB[i] - normDB)
-        let y = dbToY(dB, height: h)
-        if !started {
-          path.move(to: CGPoint(x: x, y: y))
-          started = true
-        } else {
-          path.addLine(to: CGPoint(x: x, y: y))
-        }
-      }
-    }
-  }
-
-  /// `measured + EQ` — the predicted post-correction response.
-  /// `preset.combinedResponse` already includes the preamp gain.
-  private func correctedPath(
-    _ ovl: EQReferenceOverlay, normDB: Double, w: Double, h: Double
-  ) -> Path {
-    Path { path in
-      var started = false
-      for i in 0..<ovl.frequencies.count {
-        let f = ovl.frequencies[i]
-        let dB = clampForPlot(
-          ovl.measuredMagnitudeDB[i] - normDB
-            + preset.combinedResponse(atFreq: f, sampleRate: sampleRate))
-        let x = freqToX(f, width: w)
-        let y = dbToY(dB, height: h)
-        if !started {
-          path.move(to: CGPoint(x: x, y: y))
-          started = true
-        } else {
-          path.addLine(to: CGPoint(x: x, y: y))
-        }
       }
     }
   }
