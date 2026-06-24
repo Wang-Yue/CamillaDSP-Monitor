@@ -20,7 +20,6 @@ struct DSPMonitorApp: App {
         .environment(appState.spectroscope)
         .environment(appState.vectorscope)
         .environment(appState.vuSettings)  // Inject persistent VU settings
-        .environment(appState.measurement)
         .frame(minWidth: 960, minHeight: 680)
         .onAppear {
           appDelegate.appState = appState
