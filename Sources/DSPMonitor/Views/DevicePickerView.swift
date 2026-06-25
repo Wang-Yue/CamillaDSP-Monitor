@@ -1,7 +1,6 @@
 // DevicePickerView - Audio device selection and configuration
 
 import DSPConfig
-import DSPLib
 import Observation
 import SwiftUI
 
@@ -64,27 +63,6 @@ struct DevicePickerView: View {
             Divider()
               .padding(.vertical, 2)
 
-            if DSPEngine.isSwiftEngine {
-              Toggle("Bypass DoP Detection", isOn: $bindableDevices.captureConfig.bypassDoP)
-
-              HStack {
-                Text("DoP Cutoff")
-                  .frame(width: 100, alignment: .leading)
-                Picker("", selection: $bindableDevices.captureConfig.dopCutoffHz) {
-                  Text("20 kHz").tag(20_000.0)
-                  Text("25 kHz").tag(25_000.0)
-                  Text("30 kHz").tag(30_000.0)
-                  Text("40 kHz").tag(40_000.0)
-                  Text("50 kHz").tag(50_000.0)
-                }
-                .labelsHidden()
-                .disabled(bindableDevices.captureConfig.bypassDoP)
-              }
-              Text("Lower cutoff = higher SINAD; higher cutoff preserves more ultrasonic content")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            }
-
             if !bindableSettings.resamplerEnabled {
               Text("Follows the playback sample rate (enable Resampler for independent rates)")
                 .font(.caption)
@@ -141,36 +119,6 @@ struct DevicePickerView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
-            if DSPEngine.isSwiftEngine {
-              let isCapable = [176_400, 352_800, 705_600, 192_000, 384_000, 768_000].contains(
-                bindableDevices.playbackConfig.sampleRate)
-
-              Divider()
-                .padding(.vertical, 2)
-
-              Toggle("Output DoP (DSD-over-PCM)", isOn: $bindableDevices.playbackConfig.outputDoP)
-                .disabled(!isCapable)
-
-              HStack {
-                Text("SDM Filter")
-                  .frame(width: 100, alignment: .leading)
-                Picker("", selection: $bindableDevices.playbackConfig.dopEncoderFilter) {
-                  ForEach(SDMFilter.allCases, id: \.self) { filter in
-                    Text(filter.rawValue).tag(filter)
-                  }
-                }
-                .labelsHidden()
-                .disabled(!bindableDevices.playbackConfig.outputDoP || !isCapable)
-              }
-
-              if !isCapable {
-                Text(
-                  "Sample rate must be a DSD carrier rate (176.4 / 192 / 352.8 / 384 / 705.6 / 768 kHz) to enable DoP output"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-              }
-            }
           }
         }
 

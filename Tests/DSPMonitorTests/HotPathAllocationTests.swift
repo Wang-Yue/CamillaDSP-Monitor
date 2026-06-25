@@ -17,7 +17,6 @@ import Testing
 
 @testable import DSPAudio
 @testable import DSPConfig
-@testable import DSPDoP
 @testable import DSPFilters
 @testable import DSPLogging
 @testable import DSPMixer
@@ -126,13 +125,6 @@ private enum AllocationCounter {
 
   // MARK: - Resamplers
 
-  @Test func AppleResampler_AllocationFree_Stereo() throws {
-    let resampler = try AppleResampler(
-      channels: 2, inputRate: 44100, outputRate: 48000,
-      quality: .max, complexity: .normal, chunkSize: 1024)
-    runResamplerHotPath(resampler, channels: 2, label: "AppleResampler stereo")
-  }
-
   @Test func Synchronous_Stereo() {
     let resampler = SynchronousResampler(
       channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
@@ -236,55 +228,6 @@ private enum AllocationCounter {
     }
   }
 
-  // MARK: - DoP
-
-  @Test func DoPEncoder_AllocationFree() {
-    // 176.4 kHz is DSD64's PCM carrier rate — the lowest entry in
-    // `DoPEncoder.supportedCarrierRates`. Picks `sdm-4` internally.
-    let encoder = DoPEncoder(channels: 2, sampleRate: 176_400, outputDoP: true)
-    // Half-amplitude PCM keeps the sigma-delta modulator inside its
-    // stable input range across the test run.
-    let inputs = makeRandomChunks(count: 32, channels: 2, frames: 1024, scale: 0.5)
-
-    let inputCount = inputs.count
-    assertAllocationFree(label: "DoP encoder") { i in
-      var c = inputs[i % inputCount]  // struct copy; shares AudioBuffers
-      encoder.encode(chunk: &c)
-    }
-  }
-
-  @Test func DoPDecoder_AllocationFree() {
-    let decoder = DoPDecoder(channels: 2, sampleRate: 176_400, bypassDoP: false)
-
-    // Pre-build N independent chunks of valid alternating-marker DoP
-    // data. Each chunk has its own `AudioBuffers`, so processing one
-    // doesn't corrupt the others — the decoder sees fresh DoP markers
-    // every iteration and stays locked.
-    let frames = 1024
-    let totalChunks = 36  // warmup(4) + iterations(30) + slack
-    var dopChunks: [AudioChunk] = []
-    var globalFrameIdx = 0
-    for _ in 0..<totalChunks {
-      let chunk = AudioChunk(frames: frames, channels: 2)
-      for t in 0..<frames {
-        let marker: UInt32 = (globalFrameIdx % 2 == 0) ? 0x05 : 0xFA
-        let val24: UInt32 = (marker << 16) | 0x6969  // standard DSD silence pattern
-        let intVal = Int32(bitPattern: val24 << 8) >> 8
-        let f = PrcFmt(intVal) / 8388608.0
-        chunk[0][t] = f
-        chunk[1][t] = f
-        globalFrameIdx += 1
-      }
-      dopChunks.append(chunk)
-    }
-
-    let chunkCount = dopChunks.count
-    assertAllocationFree(label: "DoP decoder") { i in
-      var c = dopChunks[i % chunkCount]
-      _ = try! decoder.detectAndProcess(chunk: &c)
-    }
-  }
-
   @Test func Logger_AllocationFree() {
 
     let logger = Logger(label: "test.alloc.free")
@@ -323,12 +266,11 @@ private enum AllocationCounter {
   // MARK: - ProcessingParameters
 
   @Test func ProcessingParameters_AllocationFree() {
-    let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
+    let params = ProcessingParameters()
     let chunks = makeRandomChunks(count: 32, channels: 2, frames: 1024)
     let chunkCount = chunks.count
     assertAllocationFree(label: "ProcessingParameters updateLevels") { i in
       _ = params.updateCaptureLevels(from: chunks[i % chunkCount])
-      _ = params.updatePlaybackLevels(from: chunks[i % chunkCount])
     }
   }
 

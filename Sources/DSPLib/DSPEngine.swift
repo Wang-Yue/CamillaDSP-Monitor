@@ -14,8 +14,6 @@ import Foundation
 // MARK: - The actor
 
 public actor DSPEngine {
-  public static let isSwiftEngine = true
-
   private let engine = SwiftDSPEngine()
 
   public init() {
@@ -43,25 +41,6 @@ public actor DSPEngine {
 
   public func getStatus() async -> StateUpdate {
     return await engine.getStatus()
-  }
-
-  public func getVuLevels() async -> VuLevels {
-    return await engine.getVuLevels()
-  }
-
-  public func getSpectrum(
-    isCapture: Bool,
-    channel: UInt32?,
-    minFreq: Double,
-    maxFreq: Double,
-    nBins: UInt32
-  ) async throws -> Spectrum {
-    return try await engine.getSpectrum(
-      isCapture: isCapture, channel: channel, minFreq: minFreq, maxFreq: maxFreq, nBins: nBins)
-  }
-
-  public func getSamples(isCapture: Bool, nFrames: UInt32) async throws -> AudioSamples {
-    return try await engine.getSamples(isCapture: isCapture, nFrames: nFrames)
   }
 
   public func getAvailableDevices(backend: String, input: Bool) async -> [AudioDevice] {

@@ -92,8 +92,6 @@ final class SynchronousResampler: AudioResampler {
   /// `M = Fₒ / gcd(Fᵢ, Fₒ)`.
   let outputChunkSize: Int
 
-  private let _ratio: Double
-
   /// Length of the working FFT block on the input side (`= chunkSize`).
   private let inputBlockLen: Int
   /// Length of the working FFT block on the output side (`= outputChunkSize`).
@@ -132,7 +130,6 @@ final class SynchronousResampler: AudioResampler {
   private var relativeRatioWarningEmitted = false
   private let logger = Logger(label: "dsp.resampler.synchronous")
 
-  var ratio: Double { _ratio }
   var maxOutputFrames: Int { outputChunkSize }
 
   init(channels: Int, inputRate: Int, outputRate: Int, chunkSize requestedChunkSize: Int) {
@@ -141,7 +138,6 @@ final class SynchronousResampler: AudioResampler {
     precondition(inputRate > 0 && outputRate > 0, "sample rates must be positive")
 
     self.channels = channels
-    self._ratio = Double(outputRate) / Double(inputRate)
 
     // Block-size selection by rational decomposition.
     //   g = gcd(Fᵢ, Fₒ);   L = Fᵢ/g;   M = Fₒ/g

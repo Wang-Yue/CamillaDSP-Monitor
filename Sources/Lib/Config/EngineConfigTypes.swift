@@ -78,43 +78,6 @@ public enum AudioBackendError: Error, LocalizedError, Sendable {
   }
 }
 
-public struct VuLevels: Sendable {
-  public let playback_rms: [Float]
-  public let playback_peak: [Float]
-  public let capture_rms: [Float]
-  public let capture_peak: [Float]
-
-  public init(
-    playback_rms: [Float], playback_peak: [Float], capture_rms: [Float], capture_peak: [Float]
-  ) {
-    self.playback_rms = playback_rms
-    self.playback_peak = playback_peak
-    self.capture_rms = capture_rms
-    self.capture_peak = capture_peak
-  }
-}
-
-public struct Spectrum: Sendable {
-  public let frequencies: [Float]
-  public let magnitudes: [Float]
-
-  public init(frequencies: [Float], magnitudes: [Float]) {
-    self.frequencies = frequencies
-    self.magnitudes = magnitudes
-  }
-}
-
-public struct AudioSamples: Sendable {
-  public let channels: [[Float]]
-
-  public init(channels: [[Float]]) {
-    self.channels = channels
-  }
-
-  public var left: [Float] { channels.first ?? [] }
-  public var right: [Float] { channels.count > 1 ? channels[1] : (channels.first ?? []) }
-}
-
 // MARK: - Capability data model
 
 public enum SampleFormat: String, Codable, CaseIterable, Sendable {
@@ -173,50 +136,18 @@ public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
   public var type: AudioBackendType
   public var channels: Int
   public var device: String?
-  /// If true, bypass DoP detection and handle signal strictly as PCM. Default is false.
-  public var bypassDoP: Bool?
-  /// DoP decimator passband cutoff in Hz. Lower values give higher SINAD by
-  /// rejecting more DSD shaping noise; higher values widen the audible
-  /// passband (and let through more ultrasonic content). Default 20 kHz.
-  public var dopCutoffHz: Double?
 
   enum CodingKeys: String, CodingKey {
     case type, channels, device
-    case bypassDoP = "bypass_dop"
-    case dopCutoffHz = "dop_cutoff_hz"
   }
 
   public init(
-    type: AudioBackendType, channels: Int, device: String? = nil, format: String? = nil,
-    bypassDoP: Bool? = nil, dopCutoffHz: Double? = nil
+    type: AudioBackendType, channels: Int, device: String? = nil, format: String? = nil
   ) {
     _ = format
     self.type = type
     self.channels = channels
     self.device = device
-    self.bypassDoP = bypassDoP
-    self.dopCutoffHz = dopCutoffHz
-  }
-}
-
-public enum SDMFilter: String, Codable, CaseIterable, Sendable, ExpressibleByStringLiteral {
-  case clans4 = "clans-4"
-  case sdm4 = "sdm-4"
-  case clans5 = "clans-5"
-  case sdm5 = "sdm-5"
-  case clans6 = "clans-6"
-  case sdm6 = "sdm-6"
-  case clans7 = "clans-7"
-  case sdm7 = "sdm-7"
-  case clans8 = "clans-8"
-  case sdm8 = "sdm-8"
-
-  public init(stringLiteral value: String) {
-    if let val = SDMFilter(rawValue: value) {
-      self = val
-    } else {
-      fatalError("Invalid SDMFilter: \(value)")
-    }
   }
 }
 
@@ -225,13 +156,9 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
   public var channels: Int
   public var device: String?
   public var exclusive: Bool?
-  public var outputDoP: Bool?
-  public var dopEncoderFilter: SDMFilter?
 
   enum CodingKeys: String, CodingKey {
     case type, channels, device, exclusive
-    case outputDoP = "output_dop"
-    case dopEncoderFilter = "dop_encoder_filter"
   }
   public init(
     type: AudioBackendType, channels: Int, device: String? = nil,
@@ -241,10 +168,7 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
     self.channels = channels
     self.device = device
     self.exclusive = exclusive
-    self.outputDoP = nil
-    self.dopEncoderFilter = nil
   }
-
 }
 
 public struct DevicesConfig: Codable, Equatable, Sendable {

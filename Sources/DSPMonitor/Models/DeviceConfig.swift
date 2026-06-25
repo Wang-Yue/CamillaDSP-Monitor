@@ -12,16 +12,6 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   public var channels: Int
   public var sampleRate: Int
   public var format: String
-  public var bypassDoP: Bool
-  /// DoP decimator passband cutoff in Hz. 20 kHz keeps SINAD highest;
-  /// 30–50 kHz widens the audible passband at modest SINAD cost. Ignored
-  /// when `bypassDoP` is true.
-  public var dopCutoffHz: Double
-
-  /// Whether to encode output PCM into DSD-over-PCM (DoP)
-  public var outputDoP: Bool
-  /// Selected sigma-delta modulator noise-shaping filter or "auto"
-  public var dopEncoderFilter: SDMFilter
 
   /// `nil` -> system default (capabilities.name is "").
   /// Setting this replaces capabilities with a bare descriptor (capability_sets cleared),
@@ -43,29 +33,6 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.channels = 2
     self.sampleRate = 48000
     self.format = "F32"
-    self.bypassDoP = false
-    self.dopCutoffHz = 20_000
-    self.outputDoP = false
-    self.dopEncoderFilter = .sdm6
-  }
-
-  // Custom decode tolerates configs persisted before `dopCutoffHz` / `outputDoP` existed.
-  private enum CodingKeys: String, CodingKey {
-    case capabilities, channels, sampleRate, format, bypassDoP, dopCutoffHz, outputDoP,
-      dopEncoderFilter
-  }
-
-  public init(from decoder: Decoder) throws {
-    let c = try decoder.container(keyedBy: CodingKeys.self)
-    self.capabilities = try c.decode(AudioDeviceDescriptor.self, forKey: .capabilities)
-    self.channels = try c.decode(Int.self, forKey: .channels)
-    self.sampleRate = try c.decode(Int.self, forKey: .sampleRate)
-    self.format = try c.decode(String.self, forKey: .format)
-    self.bypassDoP = try c.decode(Bool.self, forKey: .bypassDoP)
-    self.dopCutoffHz = try c.decodeIfPresent(Double.self, forKey: .dopCutoffHz) ?? 20_000
-    self.outputDoP = try c.decodeIfPresent(Bool.self, forKey: .outputDoP) ?? false
-    self.dopEncoderFilter =
-      try c.decodeIfPresent(SDMFilter.self, forKey: .dopEncoderFilter) ?? .sdm6
   }
 
   // MARK: - Capabilities Logic

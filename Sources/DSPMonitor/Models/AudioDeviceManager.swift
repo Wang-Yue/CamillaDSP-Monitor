@@ -70,16 +70,7 @@ final class AudioDeviceManager {
     didSet {
       guard !isInitializing else { return }
       defaults.set(exclusiveMode, forKey: "exclusiveMode")
-      // DoP can't run without hog mode — turning hog off would silently
-      // leave a stale `outputDoP=true` that the engine then rejects at
-      // open(). Clear it here so the next config push is internally
-      // consistent. The chained `playbackConfig.didSet` fires
-      // onConfigChanged exactly once on this path.
-      if !exclusiveMode && playbackConfig.outputDoP {
-        playbackConfig.outputDoP = false
-      } else {
-        onConfigChanged?()
-      }
+      onConfigChanged?()
     }
   }
 

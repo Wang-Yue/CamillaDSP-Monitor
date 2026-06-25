@@ -6,7 +6,7 @@ import Testing
 @Suite struct AudioStateTests {
 
   @Test func ProcessingParametersGettersSetters() {
-    let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
+    let params = ProcessingParameters()
 
     params.targetVolume = -10.0
     #expect(params.targetVolume == -10.0)
@@ -16,41 +16,13 @@ import Testing
 
     params.isMuted = true
     #expect(params.isMuted)
-
-    params.captureSignalPeak = [-3.0, -4.0]
-    #expect(params.captureSignalPeak == [-3.0, -4.0])
-
-    params.captureSignalRms = [-10.0, -11.0]
-    #expect(params.captureSignalRms == [-10.0, -11.0])
-
-    params.playbackSignalPeak = [-1.0, -2.0]
-    #expect(params.playbackSignalPeak == [-1.0, -2.0])
-
-    params.playbackSignalRms = [-8.0, -9.0]
-    #expect(params.playbackSignalRms == [-8.0, -9.0])
-  }
-
-  @Test func ProcessingParametersMultiChannelSetters() {
-    let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
-
-    params.captureSignalPeak = [-5.0, -6.0]
-    #expect(params.captureSignalPeak == [-5.0, -6.0])
-
-    params.captureSignalRms = [-15.0, -16.0]
-    #expect(params.captureSignalRms == [-15.0, -16.0])
-
-    params.playbackSignalPeak = [-2.0, -3.0]
-    #expect(params.playbackSignalPeak == [-2.0, -3.0])
-
-    params.playbackSignalRms = [-12.0, -13.0]
-    #expect(params.playbackSignalRms == [-12.0, -13.0])
   }
 
   @Test func ProcessingParametersUpdateLevels() {
-    let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
+    let params = ProcessingParameters()
     let chunk = AudioChunk(frames: 1024, channels: 2)
 
-    // Fill with 1.0 (0dB peak, 0dB RMS)
+    // Fill with 1.0 (0dB peak)
     for ch in 0..<2 {
       for t in 0..<1024 {
         chunk[ch][t] = 1.0
@@ -59,13 +31,6 @@ import Testing
 
     let loudestCapture = params.updateCaptureLevels(from: chunk)
     #expect(abs(loudestCapture - 0.0) <= 1e-3)
-    #expect(abs(params.captureSignalPeak[0] - 0.0) <= 1e-3)
-    #expect(abs(params.captureSignalRms[0] - 0.0) <= 1e-3)
-
-    let loudestPlayback = params.updatePlaybackLevels(from: chunk)
-    #expect(abs(loudestPlayback - 0.0) <= 1e-3)
-    #expect(abs(params.playbackSignalPeak[0] - 0.0) <= 1e-3)
-    #expect(abs(params.playbackSignalRms[0] - 0.0) <= 1e-3)
   }
 
   @Test func DSPOpsScalarMultiply() {

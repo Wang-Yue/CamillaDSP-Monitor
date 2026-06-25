@@ -155,12 +155,4 @@ public enum DSPOps {
   ) -> PrcFmt {
     vDSP.maximumMagnitude(UnsafeBufferPointer(start: buffer.baseAddress, count: count))
   }
-
-  /// RMS over the first `count` samples.
-  @inlinable
-  public static func rms(
-    _ buffer: Waveform, count: Int
-  ) -> PrcFmt {
-    vDSP.rootMeanSquare(UnsafeBufferPointer(start: buffer.baseAddress, count: count))
-  }
 }

@@ -1,6 +1,5 @@
 // StageDetailView - Configuration UI for each pipeline stage
 
-import DSPLib
 import Observation
 import SwiftUI
 
@@ -635,116 +634,12 @@ struct ResamplerDetailView: View {
                   .foregroundStyle(.secondary)
                   .fixedSize()
 
-                Picker("", selection: $settings.resamplerType) {
-                  // Filter the segmented picker per active engine:
-                  //   Swift engine — only `.synchronous` and `.apple`
-                  //                  are implemented natively.
-                  //   Rust engine  — `.apple` is unavailable; the
-                  //                  rubato-native types (asyncSinc /
-                  //                  asyncPoly / synchronous) are.
-                  ForEach(
-                    ResamplerType.allCases.filter { type in
-                      DSPEngine.isSwiftEngine
-                        ? (type == .synchronous || type == .apple)
-                        : (type != .apple)
-                    }
-                  ) { type in
-                    Text(type.rawValue).tag(type)
-                  }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(minWidth: 400)
-                .onChange(of: settings.resamplerType) { _, _ in dsp.applyConfig() }
+                Text("Synchronous")
+                  .font(.body)
+                  .bold()
+                  .frame(maxWidth: .infinity, alignment: .leading)
 
                 Spacer()
-              }
-
-              if settings.resamplerType == .asyncSinc {
-                HStack(spacing: 16) {
-                  Text("Profile")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
-
-                  Picker("", selection: $settings.resamplerProfile) {
-                    ForEach(ResamplerProfile.allCases) { profile in
-                      Text(profile.rawValue).tag(profile)
-                    }
-                  }
-                  .pickerStyle(.segmented)
-                  .labelsHidden()
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .frame(minWidth: 400)
-                  .onChange(of: settings.resamplerProfile) { _, _ in dsp.applyConfig() }
-
-                  Spacer()
-                }
-              }
-
-              if settings.resamplerType == .asyncPoly {
-                HStack(spacing: 16) {
-                  Text("Interp")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
-
-                  Picker("", selection: $settings.resamplerInterpolation) {
-                    ForEach(ResamplerInterpolation.allCases) { interpolation in
-                      Text(interpolation.rawValue).tag(interpolation)
-                    }
-                  }
-                  .pickerStyle(.segmented)
-                  .labelsHidden()
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .frame(minWidth: 400)
-                  .onChange(of: settings.resamplerInterpolation) { _, _ in dsp.applyConfig() }
-
-                  Spacer()
-                }
-              }
-
-              if settings.resamplerType == .apple {
-                HStack(spacing: 16) {
-                  Text("Quality")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
-
-                  Picker("", selection: $settings.resamplerAppleQuality) {
-                    ForEach(ResamplerAppleQuality.allCases) { quality in
-                      Text(quality.rawValue).tag(quality)
-                    }
-                  }
-                  .pickerStyle(.segmented)
-                  .labelsHidden()
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .frame(minWidth: 400)
-                  .onChange(of: settings.resamplerAppleQuality) { _, _ in dsp.applyConfig() }
-
-                  Spacer()
-                }
-
-                HStack(spacing: 16) {
-                  Text("Algorithm")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
-
-                  Picker("", selection: $settings.resamplerAppleComplexity) {
-                    ForEach(ResamplerAppleComplexity.allCases) { complexity in
-                      Text(complexity.rawValue).tag(complexity)
-                    }
-                  }
-                  .pickerStyle(.segmented)
-                  .labelsHidden()
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .frame(minWidth: 400)
-                  .onChange(of: settings.resamplerAppleComplexity) { _, _ in dsp.applyConfig() }
-
-                  Spacer()
-                }
               }
             }
             .padding(.vertical, 4)
