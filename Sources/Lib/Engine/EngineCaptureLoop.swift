@@ -41,7 +41,6 @@ final class EngineCaptureLoop: @unchecked Sendable {
   private let capture: CaptureBackend
   private let playback: PlaybackBackend
   private let processingParams: ProcessingParameters
-  private var dopDecoder: DoPDecoder
 
   private let chunkSize: Int
   private let channels: Int
@@ -60,7 +59,6 @@ final class EngineCaptureLoop: @unchecked Sendable {
     capture: CaptureBackend,
     playback: PlaybackBackend,
     processingParams: ProcessingParameters,
-    dopDecoder: DoPDecoder,
     chunkSize: Int,
     channels: Int,
     samplerate: Int,
@@ -73,7 +71,6 @@ final class EngineCaptureLoop: @unchecked Sendable {
     self.capture = capture
     self.playback = playback
     self.processingParams = processingParams
-    self.dopDecoder = dopDecoder
     self.chunkSize = chunkSize
     self.channels = channels
     self.samplerate = samplerate
@@ -125,17 +122,6 @@ final class EngineCaptureLoop: @unchecked Sendable {
           continue
         }
         watchdog.onSuccessfulRead { logger.info("Capture recovered from stall") }
-
-        // Decode DoP in place before computing capture levels so the
-        // monitoring meters reflect the actual decoded audio rather
-        // than the carrier waveform with its high-frequency marker
-        // bytes (which would otherwise show a tiny ~0.04 amplitude
-        // floor).
-        do {
-          _ = try dopDecoder.detectAndProcess(chunk: &chunk)
-        } catch {
-          logger.error("DoP decode error: %s", .string("\(error)"))
-        }
 
         let loudestPeak = processingParams.updateCaptureLevels(from: chunk)
 

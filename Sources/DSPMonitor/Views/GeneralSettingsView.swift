@@ -6,28 +6,7 @@ struct GeneralSettingsView: View {
   @Environment(MonitoringController.self) var monitoring
 
   var body: some View {
-    @Bindable var bindableMonitoring = monitoring
-
     Form {
-      Section("Polling Rate") {
-        VStack(alignment: .leading, spacing: 10) {
-          HStack {
-            Text("Polling Rate")
-              .frame(width: 120, alignment: .leading)
-            Slider(value: $bindableMonitoring.pollingRate, in: 1...60)
-            Text("\(Int(monitoring.pollingRate)) Hz")
-              .font(.system(.body, design: .monospaced))
-              .foregroundStyle(.secondary)
-              .frame(minWidth: 70, alignment: .trailing)
-          }
-
-          Text("Adjust the frequency of UI updates for meters and spectrum.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 8)
-      }
-
       Section("Silence Detection") {
         VStack(alignment: .leading, spacing: 10) {
           HStack {

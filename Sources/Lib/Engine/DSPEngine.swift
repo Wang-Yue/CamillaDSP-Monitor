@@ -9,9 +9,6 @@ import Synchronization
 public actor SwiftDSPEngine {
   private let logger = Logger(label: "dsp.engine")
   private var core: DSPEngineCore?
-  private let spectrum = SpectrumAnalyzer()
-  private let captureBuffer = AudioHistoryBuffer()
-  private let playbackBuffer = AudioHistoryBuffer()
   private var desiredVolumeDb: PrcFmt = 0.0
   private var desiredMute: Bool = false
   private var lastStopReason: ProcessingStopReason?
@@ -63,14 +60,6 @@ public actor SwiftDSPEngine {
     engine.processingParams.currentVolume = desiredVolumeDb
     engine.processingParams.isMuted = desiredMute
 
-    captureBuffer.reset(channels: parsed.devices.capture.channels)
-    playbackBuffer.reset(channels: parsed.devices.playback.channels)
-
-    let capBuf = self.captureBuffer
-    let pbBuf = self.playbackBuffer
-    engine.onChunkCaptured = { chunk in capBuf.append(chunk: chunk) }
-    engine.onChunkProcessed = { chunk in pbBuf.append(chunk: chunk) }
-
     do {
       try engine.start()
     } catch {
@@ -111,69 +100,6 @@ public actor SwiftDSPEngine {
     return StateUpdate(state: state, stopReason: reason)
   }
 
-  public func getVuLevels() -> VuLevels {
-    guard let core else {
-      return VuLevels(
-        playback_rms: [], playback_peak: [],
-        capture_rms: [], capture_peak: [])
-    }
-    let p = core.processingParams
-    return VuLevels(
-      playback_rms: p.playbackSignalRms.map { Float($0) },
-      playback_peak: p.playbackSignalPeak.map { Float($0) },
-      capture_rms: p.captureSignalRms.map { Float($0) },
-      capture_peak: p.captureSignalPeak.map { Float($0) }
-    )
-  }
-
-  public func getSpectrum(
-    isCapture: Bool,
-    channel: UInt32?,
-    minFreq: Double,
-    maxFreq: Double,
-    nBins: UInt32
-  ) throws -> Spectrum {
-    guard let core else {
-      throw AudioBackendError.engineNotRunning
-    }
-    let samplerate = core.currentConfig.devices.samplerate
-    do {
-      let result = try spectrum.compute(
-        buffer: isCapture ? captureBuffer : playbackBuffer,
-        channel: channel.map { Int($0) },
-        minFreq: minFreq,
-        maxFreq: maxFreq,
-        nBins: Int(nBins),
-        samplerate: samplerate
-      )
-      return Spectrum(frequencies: result.frequencies, magnitudes: result.magnitudes)
-    } catch {
-      throw AudioBackendError.spectrumCompute(message: "\(error)")
-    }
-  }
-
-  public func getSamples(isCapture: Bool, nFrames: UInt32) throws -> AudioSamples {
-    guard core != nil else {
-      throw AudioBackendError.engineNotRunning
-    }
-    let buffer = isCapture ? captureBuffer : playbackBuffer
-    guard buffer.hasData else { throw AudioBackendError.bufferEmpty }
-    let n = Swift.max(0, Swift.min(Int(nFrames), kRingBufferCapacity))
-    let channelCount = buffer.channels
-
-    var result: [[Float]] = []
-    for ch in 0..<channelCount {
-      var chData = [Float](repeating: 0, count: n)
-      do {
-        _ = try buffer.readLatest(into: &chData, count: n, channel: ch)
-      } catch {
-        throw AudioBackendError.bufferEmpty
-      }
-      result.append(chData)
-    }
-
-    return AudioSamples(channels: result)
-  }
   public func setLogLevel(_ level: LogLevel) {
     MutableLogLevel.current = level
   }

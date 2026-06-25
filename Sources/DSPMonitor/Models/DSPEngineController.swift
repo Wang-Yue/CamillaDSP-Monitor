@@ -12,7 +12,6 @@ final class DSPEngineController {
   let devices: AudioDeviceManager
   let settings: AudioSettings
   let pipeline: PipelineStore
-  let levels: LevelState
 
   var status: ProcessingState = .inactive
 
@@ -22,14 +21,12 @@ final class DSPEngineController {
 
   init(
     engine: DSPEngine, devices: AudioDeviceManager, settings: AudioSettings,
-    pipeline: PipelineStore, monitoring: MonitoringController,
-    levels: LevelState
+    pipeline: PipelineStore, monitoring: MonitoringController
   ) {
     self.engine = engine
     self.devices = devices
     self.settings = settings
     self.pipeline = pipeline
-    self.levels = levels
 
     // Wire monitoring → controller callbacks, breaking the circular reference.
     monitoring.onStatusChange = { [weak self] newStatus in
@@ -52,7 +49,6 @@ final class DSPEngineController {
     let applyTask = applyConfigTask
     applyConfigTask = nil
 
-    levels.reset()
     Task {
       await applyTask?.value
       await engine.stop()
@@ -81,26 +77,18 @@ final class DSPEngineController {
   // MARK: - Config Building
 
   func buildConfig() -> DSPConfiguration {
-    var captureConfig = CaptureDeviceConfig(
+    let captureConfig = CaptureDeviceConfig(
       type: .coreAudio,
       channels: 2,
       device: devices.captureConfig.deviceName
     )
-    if DSPEngine.isSwiftEngine {
-      captureConfig.bypassDoP = devices.captureConfig.bypassDoP
-      captureConfig.dopCutoffHz = devices.captureConfig.dopCutoffHz
-    }
 
-    var playbackConfig = PlaybackDeviceConfig(
+    let playbackConfig = PlaybackDeviceConfig(
       type: .coreAudio,
       channels: 2,
       device: devices.playbackConfig.deviceName,
       exclusive: devices.exclusiveMode
     )
-    if DSPEngine.isSwiftEngine {
-      playbackConfig.outputDoP = devices.playbackConfig.outputDoP
-      playbackConfig.dopEncoderFilter = devices.playbackConfig.dopEncoderFilter
-    }
 
     var devicesConfig = DevicesConfig(
       samplerate: devices.playbackConfig.sampleRate,
@@ -116,39 +104,7 @@ final class DSPEngineController {
 
     if settings.resamplerEnabled {
       devicesConfig.captureSamplerate = devices.captureConfig.sampleRate
-      // Per-engine fallbacks for resampler types the running engine
-      // doesn't implement:
-      //   * Swift engine → only `.synchronous` and `.apple` are
-      //     implemented natively. `.asyncSinc` / `.asyncPoly` map onto
-      //     `.synchronous`.
-      //   * Rust engine → only the rubato-native types and
-      //     `.synchronous` are implemented. `.apple` (the Core Audio
-      //     wrapper) maps onto `.asyncSinc`.
-      let effectiveType: ResamplerType
-      if DSPEngine.isSwiftEngine {
-        switch settings.resamplerType {
-        case .asyncSinc, .asyncPoly: effectiveType = .synchronous
-        case .synchronous, .apple: effectiveType = settings.resamplerType
-        }
-      } else {
-        effectiveType = settings.resamplerType == .apple ? .asyncSinc : settings.resamplerType
-      }
-      let configResamplerType =
-        DSPConfig.ResamplerType(rawValue: effectiveType.rawValue) ?? .synchronous
-      var resampler = ResamplerConfig(type: configResamplerType)
-      switch effectiveType {
-      case .asyncSinc:
-        resampler.profile = settings.resamplerProfile.rawValue
-      case .asyncPoly:
-        resampler.interpolation = settings.resamplerInterpolation.rawValue
-      case .synchronous:
-        break
-      case .apple:
-        resampler.appleQuality =
-          AppleResamplerQuality(rawValue: settings.resamplerAppleQuality.rawValue) ?? .high
-        resampler.appleComplexity =
-          AppleResamplerComplexity(rawValue: settings.resamplerAppleComplexity.rawValue) ?? .normal
-      }
+      let resampler = ResamplerConfig(type: .synchronous)
       devicesConfig.resampler = resampler
     }
 

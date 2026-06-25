@@ -29,7 +29,6 @@
 import DSPAudio
 import DSPBackend
 import DSPConfig
-import DSPDoP
 import DSPLogging
 import DSPPipeline
 import DSPResampler
@@ -59,8 +58,6 @@ internal final class DSPEngineCore {
   private var capture: CaptureBackend?
   private var playback: PlaybackBackend?
   private var processingLoop: EngineProcessingLoop?
-  private var dopDecoder: DoPDecoder
-  private var dopEncoder: DoPEncoder
 
   /// Playback-side chunk size — `resampler.maxOutputFrames` when a
   /// resampler is in use, otherwise `effectiveChunkSize`.
@@ -70,40 +67,11 @@ internal final class DSPEngineCore {
 
   private let threadsExitGroup = DispatchGroup()
 
-  // MARK: - Optional taps for visualisation
-
-  /// Optional callback invoked before pipeline processing on the
-  /// processing thread. Set before `start()` and treated as
-  /// immutable thereafter.
-  internal var onChunkCaptured: (@Sendable (AudioChunk) -> Void)?
-
-  /// Optional callback invoked after pipeline processing on the
-  /// processing thread. Set before `start()` and treated as
-  /// immutable thereafter.
-  internal var onChunkProcessed: (@Sendable (AudioChunk) -> Void)?
-
   // MARK: - Init
 
   internal init(config: DSPConfiguration) {
     self.currentConfig = config
-    self.processingParams = ProcessingParameters(
-      captureChannels: config.devices.capture.channels,
-      playbackChannels: config.devices.playback.channels
-    )
-    let captureRate = Double(config.devices.captureSamplerate ?? config.devices.samplerate)
-    self.dopDecoder = DoPDecoder(
-      channels: config.devices.capture.channels,
-      sampleRate: captureRate,
-      bypassDoP: config.devices.capture.bypassDoP ?? false,
-      cutoffHz: config.devices.capture.dopCutoffHz ?? 20_000.0
-    )
-    let playbackRate = Double(config.devices.samplerate)
-    self.dopEncoder = DoPEncoder(
-      channels: config.devices.playback.channels,
-      sampleRate: playbackRate,
-      outputDoP: config.devices.playback.outputDoP ?? false,
-      filterName: config.devices.playback.dopEncoderFilter ?? .sdm6
-    )
+    self.processingParams = ProcessingParameters()
   }
 
   // MARK: - Lifecycle
@@ -184,21 +152,6 @@ internal final class DSPEngineCore {
   /// full teardown when they differ.
   internal func reloadConfig(_ newConfig: DSPConfiguration) throws {
     currentConfig = newConfig
-    let captureRateForDoP = Double(
-      newConfig.devices.captureSamplerate ?? newConfig.devices.samplerate)
-    dopDecoder = DoPDecoder(
-      channels: newConfig.devices.capture.channels,
-      sampleRate: captureRateForDoP,
-      bypassDoP: newConfig.devices.capture.bypassDoP ?? false,
-      cutoffHz: newConfig.devices.capture.dopCutoffHz ?? 20_000.0
-    )
-    let playbackRate = Double(newConfig.devices.samplerate)
-    dopEncoder = DoPEncoder(
-      channels: newConfig.devices.playback.channels,
-      sampleRate: playbackRate,
-      outputDoP: newConfig.devices.playback.outputDoP ?? false,
-      filterName: newConfig.devices.playback.dopEncoderFilter ?? .sdm6
-    )
 
     guard state != .inactive else { return }
     let newPipeline = try Pipeline(
@@ -305,7 +258,6 @@ internal final class DSPEngineCore {
       capture: runtime.capture,
       playback: runtime.playback,
       processingParams: processingParams,
-      dopDecoder: dopDecoder,
       chunkSize: runtime.captureChunkSize,
       channels: currentConfig.devices.capture.channels,
       samplerate: runtime.captureRate,
@@ -317,15 +269,11 @@ internal final class DSPEngineCore {
     let processingLoop = EngineProcessingLoop(
       shared: shared,
       stateMachine: stateMachine,
-      processingParams: processingParams,
       pipelineRate: runtime.pipelineRate,
       resampler: runtime.resampler,
       pipeline: runtime.pipeline,
-      dopEncoder: dopEncoder,
       resamplerScratch: runtime.resamplerScratch,
       pipelineScratch: runtime.pipelineScratch,
-      onChunkCaptured: onChunkCaptured,
-      onChunkProcessed: onChunkProcessed,
       onStop: { [weak self] reason in self?.stop(reason: reason) }
     )
 

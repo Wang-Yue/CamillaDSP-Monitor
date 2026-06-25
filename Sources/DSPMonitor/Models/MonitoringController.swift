@@ -10,12 +10,8 @@ import Observation
 @Observable
 final class MonitoringController {
   let engine: DSPEngine
-  let levels: LevelState
   let devices: AudioDeviceManager
   let settings: AudioSettings
-  let spectrum: SpectrumEngine
-  let spectroscope: SpectrogramEngine
-  let vectorscope: VectorScopeEngine
 
   var pollingRate: Double = 10.0 {
     didSet {
@@ -35,15 +31,10 @@ final class MonitoringController {
   // MARK: - Init
 
   init(
-    engine: DSPEngine, levels: LevelState, spectrum: SpectrumEngine,
-    spectroscope: SpectrogramEngine, vectorscope: VectorScopeEngine,
+    engine: DSPEngine,
     devices: AudioDeviceManager, settings: AudioSettings
   ) {
     self.engine = engine
-    self.levels = levels
-    self.spectrum = spectrum
-    self.spectroscope = spectroscope
-    self.vectorscope = vectorscope
     self.devices = devices
     self.settings = settings
 
@@ -60,91 +51,12 @@ final class MonitoringController {
   }
 
   private func poll() async {
-    // 1. Poll Status
+    // Poll Status
     let update = await engine.getStatus()
     handleStateUpdate(
       state: update.state,
       stopReason: update.stopReason
     )
-
-    // 2. Poll VU Levels
-    if currentStatus != .inactive, currentStatus != .paused, levels.visibilityCount > 0 {
-      let vu = await engine.getVuLevels()
-      levels.update(
-        capturePeak: StereoLevel(from: vu.capture_peak),
-        captureRms: StereoLevel(from: vu.capture_rms),
-        playbackPeak: StereoLevel(from: vu.playback_peak),
-        playbackRms: StereoLevel(from: vu.playback_rms)
-      )
-    } else {
-      levels.reset()
-    }
-
-    // 3. Poll Spectrum Bands
-    if currentStatus != .inactive, currentStatus != .paused, spectrum.visibilityCount > 0,
-      let spectrumData = await fetchSpectrum(for: spectrum)
-    {
-      spectrum.updateSpectrum(
-        frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
-    } else {
-      spectrum.reset()
-    }
-
-    // 4. Poll Spectroscope Bands
-    if currentStatus != .inactive, currentStatus != .paused, spectroscope.visibilityCount > 0,
-      let spectrumData = await fetchSpectroscope(for: spectroscope)
-    {
-      spectroscope.updateSpectrum(
-        frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
-    } else {
-      spectroscope.reset()
-    }
-
-    // 5. Poll Vector Scope Samples
-    if currentStatus != .inactive, currentStatus != .paused, vectorscope.visibilityCount > 0 {
-      do {
-        let samples = try await engine.getSamples(
-          isCapture: vectorscope.isCapture,
-          nFrames: vectorscope.nFrames
-        )
-        vectorscope.updateSamples(left: samples.left, right: samples.right)
-      } catch {
-        print("[MonitoringController] Failed to get samples: \(error.localizedDescription)")
-        vectorscope.reset()
-      }
-    } else {
-      vectorscope.reset()
-    }
-  }
-
-  private func fetchSpectrum(for spectrum: SpectrumEngine) async -> Spectrum? {
-    do {
-      return try await engine.getSpectrum(
-        isCapture: spectrum.isCapture,
-        channel: nil,
-        minFreq: spectrum.minFreq,
-        maxFreq: spectrum.maxFreq,
-        nBins: spectrum.nBins
-      )
-    } catch {
-      print("[MonitoringController] Failed to get spectrum: \(error.localizedDescription)")
-      return nil
-    }
-  }
-
-  private func fetchSpectroscope(for spectroscope: SpectrogramEngine) async -> Spectrum? {
-    do {
-      return try await engine.getSpectrum(
-        isCapture: spectroscope.isCapture,
-        channel: nil,
-        minFreq: spectroscope.minFreq,
-        maxFreq: spectroscope.maxFreq,
-        nBins: spectroscope.nBins
-      )
-    } catch {
-      print("[MonitoringController] Failed to get spectroscope: \(error.localizedDescription)")
-      return nil
-    }
   }
 
   // MARK: - State Change Handling
@@ -153,11 +65,6 @@ final class MonitoringController {
     if state != currentStatus {
       currentStatus = state
       onStatusChange?(state)
-      if state == .inactive || state == .paused {
-        levels.reset()
-        spectrum.reset()
-        spectroscope.reset()
-      }
     }
 
     switch stopReason {

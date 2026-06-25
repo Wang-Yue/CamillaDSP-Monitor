@@ -41,45 +41,33 @@ final class EngineProcessingLoop: @unchecked Sendable {
 
   private let shared: EngineSharedState
   private let stateMachine: EngineStateMachine
-  private let processingParams: ProcessingParameters
   private let pipelineRate: Int
   private let resampler: AudioResampler?
-  private let dopEncoder: DoPEncoder
+
   private let pipelineQueue = SPSCQueue<Pipeline>(minimumCapacity: 2)
   private var activePipeline: Pipeline
   private var resamplerScratch: AudioChunk
   private var pipelineScratch: AudioChunk
-
-  private let onChunkCaptured: (@Sendable (AudioChunk) -> Void)?
-  private let onChunkProcessed: (@Sendable (AudioChunk) -> Void)?
 
   private let onStop: (ProcessingStopReason) -> Void
 
   init(
     shared: EngineSharedState,
     stateMachine: EngineStateMachine,
-    processingParams: ProcessingParameters,
     pipelineRate: Int,
     resampler: AudioResampler?,
     pipeline: Pipeline,
-    dopEncoder: DoPEncoder,
     resamplerScratch: AudioChunk,
     pipelineScratch: AudioChunk,
-    onChunkCaptured: (@Sendable (AudioChunk) -> Void)?,
-    onChunkProcessed: (@Sendable (AudioChunk) -> Void)?,
     onStop: @escaping (ProcessingStopReason) -> Void
   ) {
     self.shared = shared
     self.stateMachine = stateMachine
-    self.processingParams = processingParams
     self.pipelineRate = pipelineRate
     self.resampler = resampler
     self.activePipeline = pipeline
-    self.dopEncoder = dopEncoder
     self.resamplerScratch = resamplerScratch
     self.pipelineScratch = pipelineScratch
-    self.onChunkCaptured = onChunkCaptured
-    self.onChunkProcessed = onChunkProcessed
     self.onStop = onStop
   }
 
@@ -127,9 +115,6 @@ final class EngineProcessingLoop: @unchecked Sendable {
             chunk = resamplerScratch
           }
 
-          // Pre-processing tap for visualisation.
-          onChunkCaptured?(chunk)
-
           // Run through the pipeline using pre-allocated output
           // scratch.
           if let nextPipeline = pipelineQueue.dequeue() {
@@ -143,13 +128,6 @@ final class EngineProcessingLoop: @unchecked Sendable {
           var currentScratch = scratchPool.next()
           try activePipeline.process(input: chunk, into: &currentScratch)
           chunk = currentScratch
-
-          _ = processingParams.updatePlaybackLevels(from: chunk)
-
-          onChunkProcessed?(chunk)
-
-          // Encode PCM to DoP in place if enabled
-          dopEncoder.encode(chunk: &chunk)
 
           if !shared.processedQueue.enqueue(chunk) {
             logger.warning(

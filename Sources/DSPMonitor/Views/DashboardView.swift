@@ -73,23 +73,6 @@ struct DashboardView: View {
     ScrollView {
       VStack(spacing: 20) {
         PipelineOverview()
-
-        if appState.showLevelMetersInDashboard {
-          LevelMetersCard()
-        }
-        if appState.showAnalogVUInDashboard {
-          AnalogVUCard()
-        }
-        if appState.showSpectrumInDashboard {
-          SpectrumCard()
-        }
-        if appState.showSpectrogramInDashboard {
-          SpectrogramCard()
-        }
-        if appState.showVectorScopeInDashboard {
-          VectorScopeView()
-            .frame(height: 700)
-        }
       }
       .padding()
     }
@@ -196,70 +179,5 @@ struct StageChipButton: View {
         color: stage.isEnabled ? Color.accentColor : .gray,
         isActive: stage.isEnabled, compact: compact)
     }.buttonStyle(.plain)
-  }
-}
-
-struct LevelMetersCard: View {
-  @Environment(LevelState.self) var levels
-  var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack(alignment: .firstTextBaseline) {
-        Text("Levels").font(.headline)
-        Spacer()
-        Text("RMS / Peak").font(.caption).foregroundStyle(.tertiary)
-      }
-      HStack(spacing: 24) {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Capture").font(.subheadline).foregroundStyle(.secondary)
-          DualLevelMeterView(
-            label: "L", peak: levels.capturePeak.left, rms: levels.captureRms.left)
-          DualLevelMeterView(
-            label: "R", peak: levels.capturePeak.right, rms: levels.captureRms.right)
-        }
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Playback").font(.subheadline).foregroundStyle(.secondary)
-          DualLevelMeterView(
-            label: "L", peak: levels.playbackPeak.left, rms: levels.playbackRms.left)
-          DualLevelMeterView(
-            label: "R", peak: levels.playbackPeak.right, rms: levels.playbackRms.right)
-        }
-      }
-    }
-    .padding()
-    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-    .onAppear { levels.visibilityCount += 1 }
-    .onDisappear { levels.visibilityCount -= 1 }
-  }
-}
-
-struct SpectrumCard: View {
-  @Environment(SpectrumEngine.self) var spectrum
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("Spectrum").font(.headline)
-      SpectrumView(bands: spectrum.bands, frequencies: spectrum.frequencies).frame(height: 160)
-    }
-    .padding()
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-    .onAppear { spectrum.visibilityCount += 1 }
-    .onDisappear { spectrum.visibilityCount -= 1 }
-  }
-}
-
-struct SpectrogramCard: View {
-  @Environment(SpectrogramEngine.self) var spectroscope
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("Spectroscope").font(.headline)
-      SpectrogramView()
-        .frame(height: 480)
-        .cornerRadius(8)
-    }
-    .padding()
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-    .onAppear { spectroscope.visibilityCount += 1 }
-    .onDisappear { spectroscope.visibilityCount -= 1 }
   }
 }

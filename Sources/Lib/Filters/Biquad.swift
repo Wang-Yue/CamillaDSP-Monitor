@@ -57,12 +57,9 @@ extension BiquadParameters {
 }
 
 final class BiquadFilter: Filter {
-  private var coeffs: BiquadCoefficients
   private var setup: vDSP_biquadm_SetupD?
-  private var state = [Double](repeating: 0.0, count: 4)
 
   init(coefficients: BiquadCoefficients) {
-    self.coeffs = coefficients
     var coefficientsArray: [Double] = [
       coefficients.b0, coefficients.b1, coefficients.b2, coefficients.a1, coefficients.a2,
     ]
@@ -96,7 +93,6 @@ final class BiquadFilter: Filter {
     if let newCoeffs = try? BiquadFilter.computeCoefficients(
       params, sampleRate: sampleRate)
     {
-      self.coeffs = newCoeffs
       var coefficientsArray: [Double] = [
         newCoeffs.b0, newCoeffs.b1, newCoeffs.b2, newCoeffs.a1, newCoeffs.a2,
       ]

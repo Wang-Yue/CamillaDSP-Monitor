@@ -1,15 +1,10 @@
 # Build Mode: release or debug
 MODE ?= release
 
-# Engine: swift or rust
-ENGINE ?= swift
-
 ifeq ($(MODE),release)
-	CARGO_FLAGS = --release
 	SWIFT_FLAGS = -c release
 	BUILD_DIR = release
 else
-	CARGO_FLAGS =
 	SWIFT_FLAGS = -c debug
 	BUILD_DIR = debug
 endif
@@ -24,96 +19,17 @@ EXECUTABLE = .build/$(BUILD_DIR)/$(APP_NAME)
 
 # Tools
 SWIFT := swift
+SWIFT_SRCS := $(shell find Sources -type f -name "*.swift")
 
-ifeq ($(GITHUB_ACTIONS),true)
-	CARGO_CMD := MACOSX_DEPLOYMENT_TARGET=15.0 cargo
-else
-	CARGO_CMD := MACOSX_DEPLOYMENT_TARGET=15.0 RUSTFLAGS='-C target-cpu=native' cargo
-endif
-
-
-ifeq ($(ENGINE),swift)
-	export USE_PURE_SWIFT=1
-	SWIFT_SRCS := $(shell find Sources -type f -name "*.swift" -not -name "CamillaDSP.swift" -not -name "camilladsp_ffi.swift")
-else
-	export USE_PURE_SWIFT=0
-	# Rust FFI path
-	ROOT_DIR := $(shell pwd)
-	RUST_BRIDGE_DIR := $(ROOT_DIR)/RustBridge
-	UDL_FILE := $(RUST_BRIDGE_DIR)/src/api.udl
-	RUST_SRCS := $(shell find $(RUST_BRIDGE_DIR)/src -type f) $(RUST_BRIDGE_DIR)/Cargo.toml
-	SWIFT_SRCS := $(shell find Sources -type f -name "*.swift")
-	
-
-	UNIFFI_BINDGEN := $(CARGO_CMD) run $(CARGO_FLAGS) --bin uniffi-bindgen --
-endif
-
-# Rust harness layout (tests against rubato + camilladsp upstream).
-RUST_HARNESS_DIR := Tests/RustHarnesses
-RUST_HARNESS_BINS := \
-	$(RUST_HARNESS_DIR)/target/release/cdsp_resampler_compare \
-	$(RUST_HARNESS_DIR)/target/release/cdsp_filter_compare
-RUST_HARNESS_SRCS := $(shell find $(RUST_HARNESS_DIR) -type f \
-	\( -name "*.rs" -o -name "Cargo.toml" \) 2>/dev/null)
-
-.PHONY: all build app run clean install help test test-swift test-rust-build bench
+.PHONY: all build app run clean install help test bench
 
 # Default target
 all: app
 
-ifeq ($(ENGINE),rust)
-# 1. Build Rust library
-$(RUST_BRIDGE_DIR)/target/$(BUILD_DIR)/libcamilladsp_ffi.a: $(RUST_SRCS)
-	@echo "🦀 Building Rust bridge ($(MODE))..."
-	cd $(RUST_BRIDGE_DIR) && $(CARGO_CMD) build $(CARGO_FLAGS)
-
-# 2. Generate UniFFI bindings
-$(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift: $(UDL_FILE)
-	@echo "🧬 Generating UniFFI bindings..."
-	@mkdir -p $(RUST_BRIDGE_DIR)/generated/swift
-	cd $(RUST_BRIDGE_DIR) && $(UNIFFI_BINDGEN) generate src/api.udl --language swift --out-dir generated/swift
-
-# 3. Sync artifacts to Swift project (Only if changed to preserve timestamps)
-lib/libcamilladsp_ffi.a: $(RUST_BRIDGE_DIR)/target/$(BUILD_DIR)/libcamilladsp_ffi.a
-	@mkdir -p lib
-	@if ! cmp -s $< $@; then \
-		echo "📂 Updating library artifact..."; \
-		cp $< $@; \
-		ranlib $@; \
-	fi
-
-Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h: $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffiFFI.h
-	@mkdir -p Sources/CamillaDSPFFI/include
-	@if ! cmp -s $< $@; then \
-		echo "📂 Updating C header..."; \
-		cp $< $@; \
-	fi
-
-Sources/CamillaDSPFFI/include/module.modulemap: $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffiFFI.modulemap
-	@mkdir -p Sources/CamillaDSPFFI/include
-	@if ! cmp -s $< $@; then \
-		echo "📂 Updating module map..."; \
-		cp $< $@; \
-	fi
-
-Sources/DSPLib/camilladsp_ffi.swift: $(RUST_BRIDGE_DIR)/generated/swift/camilladsp_ffi.swift
-	@mkdir -p Sources/DSPLib
-	@if ! cmp -s $< $@; then \
-		echo "📂 Updating Swift bindings..."; \
-		cp $< $@; \
-	fi
-
-# 4. Build Swift application (Rust path)
-$(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/DSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS) Package.swift
-	@echo "🍎 Building Swift application with Rust library ($(MODE))..."
-	$(SWIFT) build $(SWIFT_FLAGS)
-
-else
-# Build Swift application (Swift path)
+# Build Swift application
 $(EXECUTABLE): $(SWIFT_SRCS) Package.swift
-	@echo "🍎 Building Swift application with pure Swift library ($(MODE))..."
+	@echo "🍎 Building Swift application ($(MODE))..."
 	$(SWIFT) build $(SWIFT_FLAGS)
-endif
 
 ## build: Build the binary with incremental tracking
 build: $(EXECUTABLE)
@@ -151,72 +67,26 @@ run: app
 	@echo "🚀 Running $(APP_NAME)..."
 	open $(APP_BUNDLE)
 
-
-## test-rust-build: Build the Rust harness binaries used by Swift tests
-##                  (rubato + camilladsp upstream). Pure Swift only.
-test-rust-build:
-ifeq ($(ENGINE),rust)
-	$(error Tests are only supported for the pure Swift engine (ENGINE=swift))
-else
-	@$(MAKE) $(RUST_HARNESS_BINS)
-endif
-
-$(RUST_HARNESS_BINS): $(RUST_HARNESS_SRCS)
-	@echo "🦀 Building Rust harness binaries..."
-	cd $(RUST_HARNESS_DIR) && $(CARGO_CMD) build --release
-	@touch $(RUST_HARNESS_BINS)
-
-## test-swift: Run only the Swift test suite (pure Swift path only)
-test-swift:
-ifeq ($(ENGINE),rust)
-	$(error Tests are only supported for the pure Swift engine (ENGINE=swift))
-else
-	@echo "🧪 Running Swift tests..."
-	$(SWIFT) test --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests
-endif
-
-## test: Build the Rust harnesses and run the full Swift test suite (pure Swift path only)
+## test: Run the Swift test suite
 test:
-ifeq ($(ENGINE),rust)
-	$(error Tests are only supported for the pure Swift engine (ENGINE=swift))
-else
-	@$(MAKE) test-rust-build
-	@echo "🧪 Running Swift tests (with Rust harness comparison tests enabled)..."
-	$(SWIFT) test -c release --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests
-endif
+	@echo "🧪 Running Swift tests..."
+	$(SWIFT) test --skip FilterBenchmarkTests
 
-## bench: Run the resampler benchmark suite in release mode (pure Swift path only)
+## bench: Run the resampler benchmark suite in release mode
 bench:
-ifeq ($(ENGINE),rust)
-	$(error Benchmarks are only supported for the pure Swift engine (ENGINE=swift))
-else
-	@$(MAKE) test-rust-build
 	@echo "⏱️  Running Filter benchmarks in release mode..."
 	$(SWIFT) test -c release --filter FilterBenchmarkTests
-	@echo "⏱️  Running Resampler benchmarks in release mode..."
-	$(SWIFT) test -c release --filter ResamplerComparisonMatrix
-	@echo "⏱️  Running DoP benchmarks in release mode..."
-	$(SWIFT) test -c release --filter DoPBenchmarkTests
-endif
 
 ## clean: Remove all build artifacts
 clean:
 	@echo "🧹 Cleaning up..."
 	rm -rf .build
 	rm -rf $(APP_BUNDLE)
-	rm -rf $(RUST_HARNESS_DIR)/target
-	rm -rf lib
-	rm -rf Sources/CamillaDSPFFI/include
-	rm -f Sources/DSPLib/camilladsp_ffi.swift
-	@if [ -d RustBridge ]; then \
-		echo "🧹 Cleaning Rust bridge..."; \
-		cd RustBridge && $(CARGO_CMD) clean && rm -rf generated; \
-	fi
 	@echo "✨ Cleaned!"
 
 ## help: Show this help message
 help:
-	@echo "Usage: make [target] [ENGINE=swift|rust] [MODE=release|debug]"
+	@echo "Usage: make [target] [MODE=release|debug]"
 	@echo ""
 	@echo "Targets:"
 	@sed -n 's/^##//p' Makefile | column -t -s ':' |  sed -e 's/^/ /'

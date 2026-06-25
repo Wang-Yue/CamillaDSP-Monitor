@@ -1,7 +1,6 @@
 // Resampler protocol + shared types.
-// Two resampler implementations conform to `AudioResampler`:
+// The resampler implementation conforms to `AudioResampler`:
 //   * `SynchronousResampler` — FFT-based fixed-ratio.
-//   * `AppleResampler`       — Core Audio AudioConverter wrapper.
 
 import DSPAudio
 import DSPConfig
@@ -19,12 +18,6 @@ public func createResampler(
     throw ResamplerError.invalidParameter(
       message: "Resampler type \(config.type.rawValue) is not supported by the native Swift engine"
     )
-  case .apple:
-    return try AppleResampler(
-      channels: channels, inputRate: inputRate, outputRate: outputRate,
-      quality: config.appleQuality ?? .max,
-      complexity: config.appleComplexity ?? .normal,
-      chunkSize: chunkSize)
   }
 }
 
@@ -61,9 +54,6 @@ public protocol AudioResampler: AnyObject {
   /// Worst-case output frames across the resampler's allowed ratio range —
   /// use this to size the output `AudioChunk` once at startup.
   var maxOutputFrames: Int { get }
-
-  /// Current effective ratio (`base * relative`).
-  var ratio: Double { get }
 
   /// Apply a multiplicative correction on top of the base ratio.
   /// `SynchronousResampler` ignores this (its ratio is fixed by

@@ -10,20 +10,14 @@ struct DSPMonitorApp: App {
     Window("DSPMonitor", id: "main") {
       ContentView()
         .environment(appState)
-        .environment(appState.levels)
         .environment(appState.dsp)
         .environment(appState.settings)
         .environment(appState.devices)
         .environment(appState.pipeline)
         .environment(appState.monitoring)
-        .environment(appState.spectrum)
-        .environment(appState.spectroscope)
-        .environment(appState.vectorscope)
-        .environment(appState.vuSettings)  // Inject persistent VU settings
         .frame(minWidth: 960, minHeight: 680)
         .onAppear {
           appDelegate.appState = appState
-          setupWindowIntercept()
         }
     }
     .windowStyle(.titleBar)
@@ -37,23 +31,6 @@ struct DSPMonitorApp: App {
     }
   }
 
-  /// Directly overrides the minimize button action to enter PiP mode.
-  private func setupWindowIntercept() {
-    // Slight delay to ensure the NSWindow and its titlebar buttons are ready.
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-      guard
-        let window = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "main" }
-        )
-      else {
-        return
-      }
-
-      if let minimizeButton = window.standardWindowButton(.miniaturizeButton) {
-        minimizeButton.target = appDelegate
-        minimizeButton.action = #selector(AppDelegate.customMinimizeAction(_:))
-      }
-    }
-  }
 }
 
 @MainActor
@@ -72,26 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     return false
   }
 
-  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool
-  {
-    if MiniPlayerWindowController.shared.isMiniPlayerVisible {
-      MiniPlayerWindowController.shared.closeMiniPlayer()
-      return false
-    }
-    return true
-  }
-
   func applicationWillTerminate(_ notification: Notification) {
     print("[AppDelegate] applicationWillTerminate")
     appState?.savePipelineStages()
     appState?.saveEQPresets()
   }
 
-  // MARK: - Custom Actions
-
-  @objc func customMinimizeAction(_: Any?) {
-    if let appState = appState {
-      MiniPlayerWindowController.shared.showMiniPlayer(appState: appState)
-    }
-  }
 }
