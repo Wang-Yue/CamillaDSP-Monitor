@@ -129,20 +129,71 @@ public final class SpectrumAnalyzer: @unchecked Sendable {
 
     // 3. Compute magnitudes in dB directly into preallocated arrays
     let scale = 2.0 / Float(fftN)
-    // DC bin
-    self.magnitudes[0] = abs(self.realp[0]) * (1.0 / Float(fftN))
-    // Nyquist bin (packed in imagp[0])
-    self.magnitudes[fftN / 2] = abs(self.imagp[0]) * (1.0 / Float(fftN))
-    // All other bins
-    for i in 1..<(fftN / 2) {
-      self.magnitudes[i] =
-        sqrt(self.realp[i] * self.realp[i] + self.imagp[i] * self.imagp[i]) * scale
-    }
-
-    // Convert to dB without allocating new arrays via map
+    let halfN = fftN / 2
     let floorVal: Float = 1e-10
-    for i in 0..<self.magnitudes.count {
-      self.dbMagnitudes[i] = 20.0 * log10(max(self.magnitudes[i], floorVal))
+
+    try self.realp.withUnsafeMutableBufferPointer { realPtr in
+      guard let realBase = realPtr.baseAddress else {
+        throw SpectrumError.invalidParameters("FFT real-part buffer has no base address")
+      }
+      try self.imagp.withUnsafeMutableBufferPointer { imagPtr in
+        guard let imagBase = imagPtr.baseAddress else {
+          throw SpectrumError.invalidParameters("FFT imag-part buffer has no base address")
+        }
+        try self.magnitudes.withUnsafeMutableBufferPointer { magPtr in
+          guard let magBase = magPtr.baseAddress else {
+            throw SpectrumError.invalidParameters("Magnitudes buffer has no base address")
+          }
+          try self.dbMagnitudes.withUnsafeMutableBufferPointer { dbPtr in
+            guard let dbBase = dbPtr.baseAddress else {
+              throw SpectrumError.invalidParameters("dbMagnitudes buffer has no base address")
+            }
+
+            // Calculate magnitudes of complex bins [1 .. halfN - 1] via vector absolute value
+            var splitComplex = DSPSplitComplex(
+              realp: realBase.advanced(by: 1),
+              imagp: imagBase.advanced(by: 1)
+            )
+            vDSP_zvabs(
+              &splitComplex, 1,
+              magBase.advanced(by: 1), 1,
+              vDSP_Length(halfN - 1)
+            )
+
+            // Scale the complex bins
+            var nonConstScale = scale
+            vDSP_vsmul(
+              magBase.advanced(by: 1), 1,
+              &nonConstScale,
+              magBase.advanced(by: 1), 1,
+              vDSP_Length(halfN - 1)
+            )
+
+            // Set DC and Nyquist bins
+            magBase[0] = abs(realBase[0]) / Float(fftN)
+            magBase[halfN] = abs(imagBase[0]) / Float(fftN)
+
+            // Threshold the entire magnitudes array to floorVal in-place
+            var nonConstFloor = floorVal
+            vDSP_vthr(
+              magBase, 1,
+              &nonConstFloor,
+              magBase, 1,
+              vDSP_Length(halfN + 1)
+            )
+
+            // Convert the entire magnitudes array to decibels (dBFS)
+            var ref: Float = 1.0
+            vDSP_vdbcon(
+              magBase, 1,
+              &ref,
+              dbBase, 1,
+              vDSP_Length(halfN + 1),
+              1
+            )
+          }
+        }
+      }
     }
 
     // 4. Geometric Binning via Cached Plan
