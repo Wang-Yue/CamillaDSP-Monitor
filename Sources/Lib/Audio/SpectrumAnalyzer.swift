@@ -243,20 +243,24 @@ public final class SpectrumAnalyzer: @unchecked Sendable {
     }
 
     var outMags = [Float](repeating: 0, count: nBins)
-    for i in 0..<nBins {
-      let range = plan.ranges[i]
-      var maxVal: Float = -200.0
-      var count = 0
-      for k in max(0, range.lowK)..<min(fftN / 2 + 1, range.highK) {
-        maxVal = max(maxVal, self.dbMagnitudes[k])
-        count += 1
+    try self.dbMagnitudes.withUnsafeBufferPointer { dbPtr in
+      guard let dbBase = dbPtr.baseAddress else {
+        throw SpectrumError.invalidParameters("dbMagnitudes buffer has no base address")
       }
+      for i in 0..<nBins {
+        let range = plan.ranges[i]
+        let start = max(0, range.lowK)
+        let end = min(fftN / 2 + 1, range.highK)
+        let len = end - start
 
-      if count > 0 {
-        outMags[i] = maxVal
-      } else {
-        let k = max(0, min(fftN / 2, range.nearestK))
-        outMags[i] = self.dbMagnitudes[k]
+        if len > 0 {
+          var maxVal: Float = -200.0
+          vDSP_maxv(dbBase + start, 1, &maxVal, vDSP_Length(len))
+          outMags[i] = maxVal
+        } else {
+          let k = max(0, min(fftN / 2, range.nearestK))
+          outMags[i] = dbBase[k]
+        }
       }
     }
 
