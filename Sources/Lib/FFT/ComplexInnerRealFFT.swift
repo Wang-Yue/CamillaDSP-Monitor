@@ -99,37 +99,11 @@ final class ComplexInnerRealFFT: RealFFTBackend {
     //   O[k] = -½·i · (Z[k] - conj(Z[N-k]))
     //   X[k] = E[k] + W^k · O[k],  W^k = exp(-iπk/N)
     //
-    // SIMD2 path processes consecutive `k` pairs. The partners (N-k, N-k-1)
-    // are also adjacent in memory but in reversed order — we build the
-    // SIMD2 explicitly to keep lane 0 = `k` and lane 1 = `k+1`.
-    let pairEnd = ((n - 1) & ~1) + 1  // last odd k handled by SIMD2 = pairEnd - 1
-    var k = 1
-    while k < pairEnd {
-      let zkR = ldSIMD2(zFRe, k)
-      let zkI = ldSIMD2(zFIm, k)
-      let zmR = SIMD2<Double>(zFRe[n - k], zFRe[n - k - 1])
-      let zmI = SIMD2<Double>(zFIm[n - k], zFIm[n - k - 1])
-      let eRe = 0.5 * (zkR + zmR)
-      let eIm = 0.5 * (zkI - zmI)
-      let diffRe = zkR - zmR
-      let diffIm = zkI + zmI
-      let oRe = 0.5 * diffIm
-      let oIm = -0.5 * diffRe
-      let twR = ldSIMD2(twiddleRe, k)
-      let twI = ldSIMD2(twiddleIm, k)
-      let woRe = twR * oRe - twI * oIm
-      let woIm = twR * oIm + twI * oRe
-      let outRe = eRe + woRe
-      let outIm = eIm + woIm
-      stSIMD2(specRe, k, outRe)
-      stSIMD2(specIm, k, outIm)
-      k += 2
-    }
-    while k < n {
+    for k in 1..<n {
       let zkR = zFRe[k]
       let zkI = zFIm[k]
-      let zmR = zFRe[n - k]
-      let zmI = zFIm[n - k]
+      let zmR = zFRe[n &- k]
+      let zmI = zFIm[n &- k]
       let eRe = 0.5 * (zkR + zmR)
       let eIm = 0.5 * (zkI - zmI)
       let diffRe = zkR - zmR
@@ -142,7 +116,6 @@ final class ComplexInnerRealFFT: RealFFTBackend {
       let woIm = twR * oIm + twI * oRe
       specRe[k] = eRe + woRe
       specIm[k] = eIm + woIm
-      k += 1
     }
   }
 
@@ -165,33 +138,11 @@ final class ComplexInnerRealFFT: RealFFTBackend {
     //   O[k] = ½·conj(W^k)·(X[k] - conj(X[N-k]))
     //   z[k] = E[k] + i·O[k]
     //
-    // SIMD2 path: same partner-mirror trick as in `forward()`.
-    let pairEnd = ((n - 1) & ~1) + 1
-    var k = 1
-    while k < pairEnd {
-      let xkR = ldSIMD2(specRe, k)
-      let xkI = ldSIMD2(specIm, k)
-      let xmR = SIMD2<Double>(specRe[n - k], specRe[n - k - 1])
-      let xmI = SIMD2<Double>(specIm[n - k], specIm[n - k - 1])
-      let eRe = 0.5 * (xkR + xmR)
-      let eIm = 0.5 * (xkI - xmI)
-      let halfDiffRe = 0.5 * (xkR - xmR)
-      let halfDiffIm = 0.5 * (xkI + xmI)
-      let twR = ldSIMD2(twiddleRe, k)
-      let twI = ldSIMD2(twiddleIm, k)
-      let oRe = halfDiffRe * twR + halfDiffIm * twI
-      let oIm = halfDiffIm * twR - halfDiffRe * twI
-      let zR = eRe - oIm
-      let zI = eIm + oRe
-      stSIMD2(zRe, k, zR)
-      stSIMD2(zIm, k, zI)
-      k += 2
-    }
-    while k < n {
+    for k in 1..<n {
       let xkR = specRe[k]
       let xkI = specIm[k]
-      let xmR = specRe[n - k]
-      let xmI = specIm[n - k]
+      let xmR = specRe[n &- k]
+      let xmI = specIm[n &- k]
       let eRe = 0.5 * (xkR + xmR)
       let eIm = 0.5 * (xkI - xmI)
       let halfDiffRe = 0.5 * (xkR - xmR)
@@ -202,7 +153,6 @@ final class ComplexInnerRealFFT: RealFFTBackend {
       let oIm = halfDiffIm * twR - halfDiffRe * twI
       zRe[k] = eRe - oIm
       zIm[k] = eIm + oRe
-      k += 1
     }
 
     // Inner inverse FFT. The inner returns the unnormalised N-point IFFT,

@@ -241,40 +241,19 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
 
   /// Apply radix-2 butterflies across `n / (m·2)` blocks of size `m·2`.
   /// Twiddle table layout: twRe[j·m + k] for j ∈ {0, 1}, k ∈ [0, m). The
-  /// SIMD2 path processes pairs of `k` for `m ≥ 2`; the scalar tail handles
-  /// odd `m` (and the m=1 stages where the k loop has just one iteration).
+  /// compiler will automatically vectorize this loop.
   @inline(__always)
   private func stageRadix2(
     m: Int, twRe: UnsafePointer<Double>, twIm: UnsafePointer<Double>
   ) {
     let blockSize = m * 2
-    let mPairs = m & ~1
     var b = 0
     while b < n {
-      var k = 0
-      while k < mPairs {
-        let i0 = b + k
-        let i1 = i0 + m
-        let mk = m + k
-        let twR = ldSIMD2(twRe, mk)
-        let twI = ldSIMD2(twIm, mk)
-        let v0r = ldSIMD2(workRe, i0)
-        let v0i = ldSIMD2(workIm, i0)
-        let v1rRaw = ldSIMD2(workRe, i1)
-        let v1iRaw = ldSIMD2(workIm, i1)
-        let v1r = v1rRaw * twR - v1iRaw * twI
-        let v1i = v1rRaw * twI + v1iRaw * twR
-        stSIMD2(workRe, i0, v0r + v1r)
-        stSIMD2(workIm, i0, v0i + v1i)
-        stSIMD2(workRe, i1, v0r - v1r)
-        stSIMD2(workIm, i1, v0i - v1i)
-        k += 2
-      }
-      while k < m {
-        let i0 = b + k
-        let i1 = i0 + m
-        let twR = twRe[m + k]
-        let twI = twIm[m + k]
+      for k in 0..<m {
+        let i0 = b &+ k
+        let i1 = i0 &+ m
+        let twR = twRe[m &+ k]
+        let twI = twIm[m &+ k]
         let v1r = workRe[i1] * twR - workIm[i1] * twI
         let v1i = workRe[i1] * twI + workIm[i1] * twR
         let v0r = workRe[i0]
@@ -283,9 +262,8 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         workIm[i0] = v0i + v1i
         workRe[i1] = v0r - v1r
         workIm[i1] = v0i - v1i
-        k += 1
       }
-      b += blockSize
+      b = b &+ blockSize
     }
   }
 
@@ -297,60 +275,16 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
     let blockSize = m * 3
     // W3 = exp(-2π i / 3) = (-1/2, -√3/2). The constant `√3/2` recurs below.
     let s32 = sin(2.0 * .pi / 3.0)  // √3/2 ≈ 0.86602540378
-    let mPairs = m & ~1
-    let m2 = m << 1
     var b = 0
     while b < n {
-      var k = 0
-      while k < mPairs {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let mk = m + k
-        let m2k = m2 + k
-
-        let t1R = ldSIMD2(twRe, mk)
-        let t1I = ldSIMD2(twIm, mk)
-        let t2R = ldSIMD2(twRe, m2k)
-        let t2I = ldSIMD2(twIm, m2k)
-
-        let r0r = ldSIMD2(workRe, i0)
-        let r0i = ldSIMD2(workIm, i0)
-        let r1rRaw = ldSIMD2(workRe, i1)
-        let r1iRaw = ldSIMD2(workIm, i1)
-        let r2rRaw = ldSIMD2(workRe, i2)
-        let r2iRaw = ldSIMD2(workIm, i2)
-
-        let v1r = r1rRaw * t1R - r1iRaw * t1I
-        let v1i = r1rRaw * t1I + r1iRaw * t1R
-        let v2r = r2rRaw * t2R - r2iRaw * t2I
-        let v2i = r2rRaw * t2I + r2iRaw * t2R
-
-        let sR = v1r + v2r
-        let sI = v1i + v2i
-        let dR = v1r - v2r
-        let dI = v1i - v2i
-        let aR = r0r - 0.5 * sR
-        let aI = r0i - 0.5 * sI
-        let bR = s32 * dR
-        let bI = s32 * dI
-
-        stSIMD2(workRe, i0, r0r + sR)
-        stSIMD2(workIm, i0, r0i + sI)
-        stSIMD2(workRe, i1, aR + bI)
-        stSIMD2(workIm, i1, aI - bR)
-        stSIMD2(workRe, i2, aR - bI)
-        stSIMD2(workIm, i2, aI + bR)
-        k += 2
-      }
-      while k < m {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let tw1R = twRe[m + k]
-        let tw1I = twIm[m + k]
-        let tw2R = twRe[2 * m + k]
-        let tw2I = twIm[2 * m + k]
+      for k in 0..<m {
+        let i0 = b &+ k
+        let i1 = i0 &+ m
+        let i2 = i1 &+ m
+        let tw1R = twRe[m &+ k]
+        let tw1I = twIm[m &+ k]
+        let tw2R = twRe[2 &* m &+ k]
+        let tw2I = twIm[2 &* m &+ k]
         // Twiddle.
         let v1r = workRe[i1] * tw1R - workIm[i1] * tw1I
         let v1i = workRe[i1] * tw1I + workIm[i1] * tw1R
@@ -373,9 +307,8 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         workIm[i1] = aI - bR
         workRe[i2] = aR - bI
         workIm[i2] = aI + bR
-        k += 1
       }
-      b += blockSize
+      b = b &+ blockSize
     }
   }
 
@@ -383,85 +316,24 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
   /// the four 4th-roots of unity are `{1, -i, -1, i}`, so the inner
   /// stage is just adds and ±i swaps. Only the 3 outer-stage twiddles
   /// (`v[1], v[2], v[3]`) cost real multiplies.
-  ///
-  /// SIMD2 path over consecutive `k` pairs; scalar tail for odd `m`.
   @inline(__always)
   private func stageRadix4(
     m: Int, twRe: UnsafePointer<Double>, twIm: UnsafePointer<Double>
   ) {
     let blockSize = m * 4
-    let mPairs = m & ~1
     var b = 0
     while b < n {
-      var k = 0
-      while k < mPairs {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let i3 = i2 + m
-        let mk = m + k
-        let m2k = (m << 1) + k
-        let m3k = (m + (m << 1)) + k
-        let t1R = ldSIMD2(twRe, mk)
-        let t1I = ldSIMD2(twIm, mk)
-        let t2R = ldSIMD2(twRe, m2k)
-        let t2I = ldSIMD2(twIm, m2k)
-        let t3R = ldSIMD2(twRe, m3k)
-        let t3I = ldSIMD2(twIm, m3k)
-        let v0r = ldSIMD2(workRe, i0)
-        let v0i = ldSIMD2(workIm, i0)
-        let r1r = ldSIMD2(workRe, i1)
-        let r1i = ldSIMD2(workIm, i1)
-        let r2r = ldSIMD2(workRe, i2)
-        let r2i = ldSIMD2(workIm, i2)
-        let r3r = ldSIMD2(workRe, i3)
-        let r3i = ldSIMD2(workIm, i3)
-        let v1r = r1r * t1R - r1i * t1I
-        let v1i = r1r * t1I + r1i * t1R
-        let v2r = r2r * t2R - r2i * t2I
-        let v2i = r2r * t2I + r2i * t2R
-        let v3r = r3r * t3R - r3i * t3I
-        let v3i = r3r * t3I + r3i * t3R
-        // Inner radix-4 DFT: T0=v0+v2, T1=v0-v2, T2=v1+v3, T3=v1-v3
-        // O[0]=T0+T2, O[1]=T1-i·T3, O[2]=T0-T2, O[3]=T1+i·T3
-        // -i·z = (z.im, -z.re); +i·z = (-z.im, z.re).
-        let t0r = v0r + v2r
-        let t0i = v0i + v2i
-        let t1r = v0r - v2r
-        let t1i = v0i - v2i
-        let t2r = v1r + v3r
-        let t2i = v1i + v3i
-        let t3r = v1r - v3r
-        let t3i = v1i - v3i
-        let o0r = t0r + t2r
-        let o0i = t0i + t2i
-        let o1r = t1r + t3i
-        let o1i = t1i - t3r
-        let o2r = t0r - t2r
-        let o2i = t0i - t2i
-        let o3r = t1r - t3i
-        let o3i = t1i + t3r
-        stSIMD2(workRe, i0, o0r)
-        stSIMD2(workIm, i0, o0i)
-        stSIMD2(workRe, i1, o1r)
-        stSIMD2(workIm, i1, o1i)
-        stSIMD2(workRe, i2, o2r)
-        stSIMD2(workIm, i2, o2i)
-        stSIMD2(workRe, i3, o3r)
-        stSIMD2(workIm, i3, o3i)
-        k += 2
-      }
-      while k < m {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let i3 = i2 + m
-        let t1R = twRe[m + k]
-        let t1I = twIm[m + k]
-        let t2R = twRe[2 * m + k]
-        let t2I = twIm[2 * m + k]
-        let t3R = twRe[3 * m + k]
-        let t3I = twIm[3 * m + k]
+      for k in 0..<m {
+        let i0 = b &+ k
+        let i1 = i0 &+ m
+        let i2 = i1 &+ m
+        let i3 = i2 &+ m
+        let t1R = twRe[m &+ k]
+        let t1I = twIm[m &+ k]
+        let t2R = twRe[2 &* m &+ k]
+        let t2I = twIm[2 &* m &+ k]
+        let t3R = twRe[3 &* m &+ k]
+        let t3I = twIm[3 &* m &+ k]
         let v0r = workRe[i0]
         let v0i = workIm[i0]
         let v1r = workRe[i1] * t1R - workIm[i1] * t1I
@@ -486,191 +358,43 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         workIm[i2] = t0i - t2i2
         workRe[i3] = t1r2 - t3i2
         workIm[i3] = t1i2 + t3r2
-        k += 1
       }
-      b += blockSize
+      b = b &+ blockSize
     }
   }
 
-  /// Apply radix-8 butterflies. The inner DFT is computed via DIT
-  /// decomposition into two radix-4s (even-indexed and odd-indexed),
-  /// then combined with the trivial 8th-root twiddles
-  /// `W_8^k = exp(-2πi·k/8)`. Multiplications cost only the constant
-  /// `√2/2` for the k=1 and k=3 inner twiddles — k=0 is free, k=2 is
-  /// `-i` (free), so no real-coefficient multiplies on the inner DFT
-  /// beyond the two `√2/2` cross-terms.
+  /// Apply radix-8 butterflies.
   @inline(__always)
   private func stageRadix8(
     m: Int, twRe: UnsafePointer<Double>, twIm: UnsafePointer<Double>
   ) {
     let blockSize = m * 8
-    let mPairs = m & ~1
     let s2 = 0.7071067811865476  // √2/2
     var b = 0
     while b < n {
-      var k = 0
-      while k < mPairs {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let i3 = i2 + m
-        let i4 = i3 + m
-        let i5 = i4 + m
-        let i6 = i5 + m
-        let i7 = i6 + m
-        let mk = m + k
-        let m2k = (m << 1) + k
-        let m3k = m2k + m  // 3m + k
-        let m4k = (m << 2) + k  // 4m + k
-        let m5k = m4k + m  // 5m + k
-        let m6k = m4k + (m << 1)  // 6m + k
-        let m7k = m6k + m  // 7m + k
-        let t1R = ldSIMD2(twRe, mk)
-        let t1I = ldSIMD2(twIm, mk)
-        let t2R = ldSIMD2(twRe, m2k)
-        let t2I = ldSIMD2(twIm, m2k)
-        let t3R = ldSIMD2(twRe, m3k)
-        let t3I = ldSIMD2(twIm, m3k)
-        let t4R = ldSIMD2(twRe, m4k)
-        let t4I = ldSIMD2(twIm, m4k)
-        let t5R = ldSIMD2(twRe, m5k)
-        let t5I = ldSIMD2(twIm, m5k)
-        let t6R = ldSIMD2(twRe, m6k)
-        let t6I = ldSIMD2(twIm, m6k)
-        let t7R = ldSIMD2(twRe, m7k)
-        let t7I = ldSIMD2(twIm, m7k)
-        let v0r = ldSIMD2(workRe, i0)
-        let v0i = ldSIMD2(workIm, i0)
-        let r1r = ldSIMD2(workRe, i1)
-        let r1i = ldSIMD2(workIm, i1)
-        let r2r = ldSIMD2(workRe, i2)
-        let r2i = ldSIMD2(workIm, i2)
-        let r3r = ldSIMD2(workRe, i3)
-        let r3i = ldSIMD2(workIm, i3)
-        let r4r = ldSIMD2(workRe, i4)
-        let r4i = ldSIMD2(workIm, i4)
-        let r5r = ldSIMD2(workRe, i5)
-        let r5i = ldSIMD2(workIm, i5)
-        let r6r = ldSIMD2(workRe, i6)
-        let r6i = ldSIMD2(workIm, i6)
-        let r7r = ldSIMD2(workRe, i7)
-        let r7i = ldSIMD2(workIm, i7)
-        let v1r = r1r * t1R - r1i * t1I
-        let v1i = r1r * t1I + r1i * t1R
-        let v2r = r2r * t2R - r2i * t2I
-        let v2i = r2r * t2I + r2i * t2R
-        let v3r = r3r * t3R - r3i * t3I
-        let v3i = r3r * t3I + r3i * t3R
-        let v4r = r4r * t4R - r4i * t4I
-        let v4i = r4r * t4I + r4i * t4R
-        let v5r = r5r * t5R - r5i * t5I
-        let v5i = r5r * t5I + r5i * t5R
-        let v6r = r6r * t6R - r6i * t6I
-        let v6i = r6r * t6I + r6i * t6R
-        let v7r = r7r * t7R - r7i * t7I
-        let v7i = r7r * t7I + r7i * t7R
-        // Even radix-4: DFT of (v0, v2, v4, v6).
-        let eA0r = v0r + v4r
-        let eA0i = v0i + v4i
-        let eA1r = v0r - v4r
-        let eA1i = v0i - v4i
-        let eA2r = v2r + v6r
-        let eA2i = v2i + v6i
-        let eA3r = v2r - v6r
-        let eA3i = v2i - v6i
-        let e0r = eA0r + eA2r
-        let e0i = eA0i + eA2i
-        let e1r = eA1r + eA3i
-        let e1i = eA1i - eA3r
-        let e2r = eA0r - eA2r
-        let e2i = eA0i - eA2i
-        let e3r = eA1r - eA3i
-        let e3i = eA1i + eA3r
-        // Odd radix-4: DFT of (v1, v3, v5, v7).
-        let oA0r = v1r + v5r
-        let oA0i = v1i + v5i
-        let oA1r = v1r - v5r
-        let oA1i = v1i - v5i
-        let oA2r = v3r + v7r
-        let oA2i = v3i + v7i
-        let oA3r = v3r - v7r
-        let oA3i = v3i - v7i
-        let oo0r = oA0r + oA2r
-        let oo0i = oA0i + oA2i
-        let oo1r = oA1r + oA3i
-        let oo1i = oA1i - oA3r
-        let oo2r = oA0r - oA2r
-        let oo2i = oA0i - oA2i
-        let oo3r = oA1r - oA3i
-        let oo3i = oA1i + oA3r
-        // Apply W_8^k to odd outputs:
-        //   W_8^0 = 1; W_8^1 = (s2, -s2); W_8^2 = -i; W_8^3 = (-s2, -s2).
-        let w0r = oo0r
-        let w0i = oo0i
-        let w1r = s2 * (oo1r + oo1i)
-        let w1i = s2 * (oo1i - oo1r)
-        let w2r = oo2i
-        let w2i = -oo2r
-        let w3r = s2 * (oo3i - oo3r)
-        let w3i = -s2 * (oo3r + oo3i)
-        // O[k] = E[k] + W_8^k·O_odd[k], O[k+4] = E[k] - W_8^k·O_odd[k].
-        let o0r = e0r + w0r
-        let o0i = e0i + w0i
-        let o1r = e1r + w1r
-        let o1i = e1i + w1i
-        let o2r = e2r + w2r
-        let o2i = e2i + w2i
-        let o3r = e3r + w3r
-        let o3i = e3i + w3i
-        let o4r = e0r - w0r
-        let o4i = e0i - w0i
-        let o5r = e1r - w1r
-        let o5i = e1i - w1i
-        let o6r = e2r - w2r
-        let o6i = e2i - w2i
-        let o7r = e3r - w3r
-        let o7i = e3i - w3i
-        stSIMD2(workRe, i0, o0r)
-        stSIMD2(workIm, i0, o0i)
-        stSIMD2(workRe, i1, o1r)
-        stSIMD2(workIm, i1, o1i)
-        stSIMD2(workRe, i2, o2r)
-        stSIMD2(workIm, i2, o2i)
-        stSIMD2(workRe, i3, o3r)
-        stSIMD2(workIm, i3, o3i)
-        stSIMD2(workRe, i4, o4r)
-        stSIMD2(workIm, i4, o4i)
-        stSIMD2(workRe, i5, o5r)
-        stSIMD2(workIm, i5, o5i)
-        stSIMD2(workRe, i6, o6r)
-        stSIMD2(workIm, i6, o6i)
-        stSIMD2(workRe, i7, o7r)
-        stSIMD2(workIm, i7, o7i)
-        k += 2
-      }
-      while k < m {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let i3 = i2 + m
-        let i4 = i3 + m
-        let i5 = i4 + m
-        let i6 = i5 + m
-        let i7 = i6 + m
-        let t1R = twRe[m + k]
-        let t1I = twIm[m + k]
-        let t2R = twRe[2 * m + k]
-        let t2I = twIm[2 * m + k]
-        let t3R = twRe[3 * m + k]
-        let t3I = twIm[3 * m + k]
-        let t4R = twRe[4 * m + k]
-        let t4I = twIm[4 * m + k]
-        let t5R = twRe[5 * m + k]
-        let t5I = twIm[5 * m + k]
-        let t6R = twRe[6 * m + k]
-        let t6I = twIm[6 * m + k]
-        let t7R = twRe[7 * m + k]
-        let t7I = twIm[7 * m + k]
+      for k in 0..<m {
+        let i0 = b &+ k
+        let i1 = i0 &+ m
+        let i2 = i1 &+ m
+        let i3 = i2 &+ m
+        let i4 = i3 &+ m
+        let i5 = i4 &+ m
+        let i6 = i5 &+ m
+        let i7 = i6 &+ m
+        let t1R = twRe[m &+ k]
+        let t1I = twIm[m &+ k]
+        let t2R = twRe[2 &* m &+ k]
+        let t2I = twIm[2 &* m &+ k]
+        let t3R = twRe[3 &* m &+ k]
+        let t3I = twIm[3 &* m &+ k]
+        let t4R = twRe[4 &* m &+ k]
+        let t4I = twIm[4 &* m &+ k]
+        let t5R = twRe[5 &* m &+ k]
+        let t5I = twIm[5 &* m &+ k]
+        let t6R = twRe[6 &* m &+ k]
+        let t6I = twIm[6 &* m &+ k]
+        let t7R = twRe[7 &* m &+ k]
+        let t7I = twIm[7 &* m &+ k]
         let v0r = workRe[i0]
         let v0i = workIm[i0]
         let v1r = workRe[i1] * t1R - workIm[i1] * t1I
@@ -743,137 +467,37 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         workIm[i6] = e2i - w2i
         workRe[i7] = e3r - w3r
         workIm[i7] = e3i - w3i
-        k += 1
       }
-      b += blockSize
+      b = b &+ blockSize
     }
   }
 
   /// Apply radix-5 butterflies.
-  ///
-  /// Output layout uses the conjugate-pair factoring trick:
-  ///
-  ///     O[k] = v0 + Σ_p W^(p·k) · v_p,  W = exp(-2πi/5)
-  ///
-  /// Outputs `O[1]` and `O[4]` differ only in the sign of the `W^(p·k)·v_p`
-  /// imaginary parts (since `W^4 = conj(W)`); same for `O[2]` and `O[3]`
-  /// (since `W^3 = conj(W²)`). Pre-compute a "common" w_R-weighted sum and
-  /// a "twist" w_I-weighted sum once per pair, then assemble the four
-  /// outputs as `r0 ± common ± twist`. Cuts the multiplies per butterfly
-  /// from ~48 to ~32 (-33 %) without changing the scalar tail's
-  /// arithmetic identity.
   @inline(__always)
   private func stageRadix5(
     m: Int, twRe: UnsafePointer<Double>, twIm: UnsafePointer<Double>
   ) {
     let blockSize = m * 5
-    // Radix-5 uses these inner DFT constants. tw_5^k = exp(-2πi·k/5).
     let w1R = MixedRadixFFT.c5_1Re
     let w1I = MixedRadixFFT.c5_1Im
     let w2R = MixedRadixFFT.c5_2Re
     let w2I = MixedRadixFFT.c5_2Im
-    let mPairs = m & ~1
-    let m2 = m << 1
-    let m3 = m2 + m
-    let m4 = m << 2
     var b = 0
     while b < n {
-      var k = 0
-      while k < mPairs {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let i3 = i2 + m
-        let i4 = i3 + m
-
-        let mk = m + k
-        let m2k = m2 + k
-        let m3k = m3 + k
-        let m4k = m4 + k
-
-        let t1R = ldSIMD2(twRe, mk)
-        let t1I = ldSIMD2(twIm, mk)
-        let t2R = ldSIMD2(twRe, m2k)
-        let t2I = ldSIMD2(twIm, m2k)
-        let t3R = ldSIMD2(twRe, m3k)
-        let t3I = ldSIMD2(twIm, m3k)
-        let t4R = ldSIMD2(twRe, m4k)
-        let t4I = ldSIMD2(twIm, m4k)
-
-        let r0r = ldSIMD2(workRe, i0)
-        let r0i = ldSIMD2(workIm, i0)
-        let r1rRaw = ldSIMD2(workRe, i1)
-        let r1iRaw = ldSIMD2(workIm, i1)
-        let r2rRaw = ldSIMD2(workRe, i2)
-        let r2iRaw = ldSIMD2(workIm, i2)
-        let r3rRaw = ldSIMD2(workRe, i3)
-        let r3iRaw = ldSIMD2(workIm, i3)
-        let r4rRaw = ldSIMD2(workRe, i4)
-        let r4iRaw = ldSIMD2(workIm, i4)
-
-        let v1r = r1rRaw * t1R - r1iRaw * t1I
-        let v1i = r1rRaw * t1I + r1iRaw * t1R
-        let v2r = r2rRaw * t2R - r2iRaw * t2I
-        let v2i = r2rRaw * t2I + r2iRaw * t2R
-        let v3r = r3rRaw * t3R - r3iRaw * t3I
-        let v3i = r3rRaw * t3I + r3iRaw * t3R
-        let v4r = r4rRaw * t4R - r4iRaw * t4I
-        let v4i = r4rRaw * t4I + r4iRaw * t4R
-
-        let sum14R = v1r + v4r
-        let sum14I = v1i + v4i
-        let diff14R = v1r - v4r
-        let diff14I = v1i - v4i
-        let sum23R = v2r + v3r
-        let sum23I = v2i + v3i
-        let diff23R = v2r - v3r
-        let diff23I = v2i - v3i
-
-        // O[0] = v0 + Σ sums (no twist).
-        stSIMD2(workRe, i0, r0r + sum14R + sum23R)
-        stSIMD2(workIm, i0, r0i + sum14I + sum23I)
-
-        // Conjugate pair (1, 4). Common = w_R-weighted sums, twist =
-        // w_I-weighted diffs. O[1] = r0 + common - twist, O[4] = r0 +
-        // common + twist (real parts; imag flips the twist sign).
-        let cR14 = w1R * sum14R + w2R * sum23R
-        let cI14 = w1R * sum14I + w2R * sum23I
-        let tR14 = w1I * diff14I + w2I * diff23I
-        let tI14 = w1I * diff14R + w2I * diff23R
-        stSIMD2(workRe, i1, r0r + cR14 - tR14)
-        stSIMD2(workIm, i1, r0i + cI14 + tI14)
-        stSIMD2(workRe, i4, r0r + cR14 + tR14)
-        stSIMD2(workIm, i4, r0i + cI14 - tI14)
-
-        // Conjugate pair (2, 3). Same factoring, w-roles swapped; the
-        // (-) on diff23 in `tR23`/`tI23` comes from the conj(w_n)
-        // entries that appear in the original direct-DFT outputs.
-        let cR23 = w2R * sum14R + w1R * sum23R
-        let cI23 = w2R * sum14I + w1R * sum23I
-        let tR23 = w2I * diff14I - w1I * diff23I
-        let tI23 = w2I * diff14R - w1I * diff23R
-        stSIMD2(workRe, i2, r0r + cR23 - tR23)
-        stSIMD2(workIm, i2, r0i + cI23 + tI23)
-        stSIMD2(workRe, i3, r0r + cR23 + tR23)
-        stSIMD2(workIm, i3, r0i + cI23 - tI23)
-
-        k += 2
-      }
-      while k < m {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let i3 = i2 + m
-        let i4 = i3 + m
-        // Outer-stage twiddle on samples 1..4.
-        let t1R = twRe[m + k]
-        let t1I = twIm[m + k]
-        let t2R = twRe[2 * m + k]
-        let t2I = twIm[2 * m + k]
-        let t3R = twRe[3 * m + k]
-        let t3I = twIm[3 * m + k]
-        let t4R = twRe[4 * m + k]
-        let t4I = twIm[4 * m + k]
+      for k in 0..<m {
+        let i0 = b &+ k
+        let i1 = i0 &+ m
+        let i2 = i1 &+ m
+        let i3 = i2 &+ m
+        let i4 = i3 &+ m
+        let t1R = twRe[m &+ k]
+        let t1I = twIm[m &+ k]
+        let t2R = twRe[2 &* m &+ k]
+        let t2I = twIm[2 &* m &+ k]
+        let t3R = twRe[3 &* m &+ k]
+        let t3I = twIm[3 &* m &+ k]
+        let t4R = twRe[4 &* m &+ k]
+        let t4I = twIm[4 &* m &+ k]
         let v1r = workRe[i1] * t1R - workIm[i1] * t1I
         let v1i = workRe[i1] * t1I + workIm[i1] * t1R
         let v2r = workRe[i2] * t2R - workIm[i2] * t2I
@@ -884,18 +508,6 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         let v4i = workRe[i4] * t4I + workIm[i4] * t4R
         let v0r = workRe[i0]
         let v0i = workIm[i0]
-        // Radix-5 DFT (direct, not Winograd). 4 unique inner products plus
-        // the DC term — straightforward and lets the compiler issue plenty
-        // of FMAs.
-        //
-        //   O[0] = v0 + v1 + v2 + v3 + v4
-        //   O[k] = v0 + W^k·v1 + W^(2k)·v2 + W^(3k)·v3 + W^(4k)·v4,
-        //          W = exp(-2πi/5).
-        //
-        // Since W^4 = conj(W) and W^3 = conj(W²), the four non-DC outputs
-        // come in two conjugate pairs: (O[1], O[4]) and (O[2], O[3]). Each
-        // pair shares a "common" (w_R · sum) term and a "twist"
-        // (w_I · diff) term — see the SIMD2 body above for the derivation.
         let sum14R = v1r + v4r
         let sum14I = v1i + v4i
         let diff14R = v1r - v4r
@@ -904,11 +516,8 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         let sum23I = v2i + v3i
         let diff23R = v2r - v3r
         let diff23I = v2i - v3i
-        // O[0]
         workRe[i0] = v0r + sum14R + sum23R
         workIm[i0] = v0i + sum14I + sum23I
-
-        // Conjugate pair (1, 4).
         let cR14 = w1R * sum14R + w2R * sum23R
         let cI14 = w1R * sum14I + w2R * sum23I
         let tR14 = w1I * diff14I + w2I * diff23I
@@ -917,8 +526,6 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         workIm[i1] = v0i + cI14 + tI14
         workRe[i4] = v0r + cR14 + tR14
         workIm[i4] = v0i + cI14 - tI14
-
-        // Conjugate pair (2, 3).
         let cR23 = w2R * sum14R + w1R * sum23R
         let cI23 = w2R * sum14I + w1R * sum23I
         let tR23 = w2I * diff14I - w1I * diff23I
@@ -927,183 +534,45 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         workIm[i2] = v0i + cI23 + tI23
         workRe[i3] = v0r + cR23 + tR23
         workIm[i3] = v0i + cI23 - tI23
-        k += 1
       }
-      b += blockSize
+      b = b &+ blockSize
     }
   }
 
-  /// Apply radix-7 butterflies. Direct DFT — 6 unique pairs of conjugate
-  /// twiddles. Compute each output as `v0 + Σ pair-products`.
-  ///
-  /// The six non-DC outputs come in three conjugate pairs:
-  /// `(O[1], O[6])`, `(O[2], O[5])`, `(O[3], O[4])` — each pair shares a
-  /// w_R-weighted "common" term and a w_I-weighted "twist" term, with
-  /// only the twist's sign (and the imag flip) distinguishing the two
-  /// outputs in a pair. This factoring cuts the multiplies per butterfly
-  /// from ~96 to ~60 (-38 %) versus computing each output from scratch.
-  ///
-  /// Two paths: for `m ≥ 2`, the inner `k` loop is unrolled by 2 with NEON
-  /// `SIMD2<Double>` so each butterfly's 6 twiddle multiplies + 6 sum/diff
-  /// pairs + 7 outputs run on 2 lanes simultaneously. The scalar tail
-  /// applies the same conjugate-pair factoring without SIMD2 loads/stores.
+  /// Apply radix-7 butterflies.
   @inline(__always)
   private func stageRadix7(
     m: Int, twRe: UnsafePointer<Double>, twIm: UnsafePointer<Double>
   ) {
     let blockSize = m * 7
-    let mPairs = m & ~1  // largest even ≤ m
     let w1R = MixedRadixFFT.c7_1Re
     let w1I = MixedRadixFFT.c7_1Im
     let w2R = MixedRadixFFT.c7_2Re
     let w2I = MixedRadixFFT.c7_2Im
     let w3R = MixedRadixFFT.c7_3Re
     let w3I = MixedRadixFFT.c7_3Im
-    // Cache the m-multiples once per stage call so the inner loop
-    // computes each twiddle base address with one `add` instead of
-    // a `mul` per iteration.
-    let m2 = m << 1
-    let m3 = m2 + m
-    let m4 = m << 2
-    let m5 = m4 + m
-    let m6 = m3 << 1
     var b = 0
     while b < n {
-      // SIMD2 path over consecutive `k` pairs.
-      var k = 0
-      while k < mPairs {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let i3 = i2 + m
-        let i4 = i3 + m
-        let i5 = i4 + m
-        let i6 = i5 + m
-        // 6 twiddles loaded as SIMD2 from contiguous (k, k+1) entries.
-        let mk = m + k
-        let m2k = m2 + k
-        let m3k = m3 + k
-        let m4k = m4 + k
-        let m5k = m5 + k
-        let m6k = m6 + k
-        let t1R = ldSIMD2(twRe, mk)
-        let t1I = ldSIMD2(twIm, mk)
-        let t2R = ldSIMD2(twRe, m2k)
-        let t2I = ldSIMD2(twIm, m2k)
-        let t3R = ldSIMD2(twRe, m3k)
-        let t3I = ldSIMD2(twIm, m3k)
-        let t4R = ldSIMD2(twRe, m4k)
-        let t4I = ldSIMD2(twIm, m4k)
-        let t5R = ldSIMD2(twRe, m5k)
-        let t5I = ldSIMD2(twIm, m5k)
-        let t6R = ldSIMD2(twRe, m6k)
-        let t6I = ldSIMD2(twIm, m6k)
-        let r0r = ldSIMD2(workRe, i0)
-        let r0i = ldSIMD2(workIm, i0)
-        let r1rRaw = ldSIMD2(workRe, i1)
-        let r1iRaw = ldSIMD2(workIm, i1)
-        let r2rRaw = ldSIMD2(workRe, i2)
-        let r2iRaw = ldSIMD2(workIm, i2)
-        let r3rRaw = ldSIMD2(workRe, i3)
-        let r3iRaw = ldSIMD2(workIm, i3)
-        let r4rRaw = ldSIMD2(workRe, i4)
-        let r4iRaw = ldSIMD2(workIm, i4)
-        let r5rRaw = ldSIMD2(workRe, i5)
-        let r5iRaw = ldSIMD2(workIm, i5)
-        let r6rRaw = ldSIMD2(workRe, i6)
-        let r6iRaw = ldSIMD2(workIm, i6)
-        // Apply twiddles (complex multiply per lane).
-        let r1r = r1rRaw * t1R - r1iRaw * t1I
-        let r1i = r1rRaw * t1I + r1iRaw * t1R
-        let r2r = r2rRaw * t2R - r2iRaw * t2I
-        let r2i = r2rRaw * t2I + r2iRaw * t2R
-        let r3r = r3rRaw * t3R - r3iRaw * t3I
-        let r3i = r3rRaw * t3I + r3iRaw * t3R
-        let r4r = r4rRaw * t4R - r4iRaw * t4I
-        let r4i = r4rRaw * t4I + r4iRaw * t4R
-        let r5r = r5rRaw * t5R - r5iRaw * t5I
-        let r5i = r5rRaw * t5I + r5iRaw * t5R
-        let r6r = r6rRaw * t6R - r6iRaw * t6I
-        let r6i = r6rRaw * t6I + r6iRaw * t6R
-        // Pair sums/diffs.
-        let ps16R = r1r + r6r
-        let ps16I = r1i + r6i
-        let pd16R = r1r - r6r
-        let pd16I = r1i - r6i
-        let ps25R = r2r + r5r
-        let ps25I = r2i + r5i
-        let pd25R = r2r - r5r
-        let pd25I = r2i - r5i
-        let ps34R = r3r + r4r
-        let ps34I = r3i + r4i
-        let pd34R = r3r - r4r
-        let pd34I = r3i - r4i
-        // O[0] = v0 + Σ sums.
-        stSIMD2(workRe, i0, r0r + ps16R + ps25R + ps34R)
-        stSIMD2(workIm, i0, r0i + ps16I + ps25I + ps34I)
-
-        // Conjugate pair (1, 6). Coefficients (w1, w2, w3) for O[1],
-        // all conjugated for O[6] — twist signs invert.
-        let cR16 = w1R * ps16R + w2R * ps25R + w3R * ps34R
-        let cI16 = w1R * ps16I + w2R * ps25I + w3R * ps34I
-        let tR16 = w1I * pd16I + w2I * pd25I + w3I * pd34I
-        let tI16 = w1I * pd16R + w2I * pd25R + w3I * pd34R
-        stSIMD2(workRe, i1, r0r + cR16 - tR16)
-        stSIMD2(workIm, i1, r0i + cI16 + tI16)
-        stSIMD2(workRe, i6, r0r + cR16 + tR16)
-        stSIMD2(workIm, i6, r0i + cI16 - tI16)
-
-        // Conjugate pair (2, 5). Coefficients for O[2] are (w2, w3, w1)
-        // on the w_R side, but on the w_I side ps25 and ps34 are
-        // conjugated relative to ps16 — so the twist gets `+w2I` for
-        // pd16 and `-w3I`/`-w1I` for pd25/pd34.
-        let cR25 = w2R * ps16R + w3R * ps25R + w1R * ps34R
-        let cI25 = w2R * ps16I + w3R * ps25I + w1R * ps34I
-        let tR25 = w2I * pd16I - w3I * pd25I - w1I * pd34I
-        let tI25 = w2I * pd16R - w3I * pd25R - w1I * pd34R
-        stSIMD2(workRe, i2, r0r + cR25 - tR25)
-        stSIMD2(workIm, i2, r0i + cI25 + tI25)
-        stSIMD2(workRe, i5, r0r + cR25 + tR25)
-        stSIMD2(workIm, i5, r0i + cI25 - tI25)
-
-        // Conjugate pair (3, 4). Coefficients on w_R are (w3, w1, w2);
-        // the twist signs come from W^(3·k) cycling through 3, 6≡-1, 9≡2
-        // (mod 7), so pd25 picks up the conj sign.
-        let cR34 = w3R * ps16R + w1R * ps25R + w2R * ps34R
-        let cI34 = w3R * ps16I + w1R * ps25I + w2R * ps34I
-        let tR34 = w3I * pd16I - w1I * pd25I + w2I * pd34I
-        let tI34 = w3I * pd16R - w1I * pd25R + w2I * pd34R
-        stSIMD2(workRe, i3, r0r + cR34 - tR34)
-        stSIMD2(workIm, i3, r0i + cI34 + tI34)
-        stSIMD2(workRe, i4, r0r + cR34 + tR34)
-        stSIMD2(workIm, i4, r0i + cI34 - tI34)
-        k += 2
-      }
-      // Scalar tail for odd `m` (or the entire stage when m == 1).
-      while k < m {
-        let i0 = b + k
-        let i1 = i0 + m
-        let i2 = i1 + m
-        let i3 = i2 + m
-        let i4 = i3 + m
-        let i5 = i4 + m
-        let i6 = i5 + m
-        // Outer-stage twiddles on samples 1..6. Reuse the cached
-        // `m2..m6` from above so the twiddle base addresses are
-        // single `+` ops instead of `Int` multiplies with overflow
-        // traps.
-        let t1R = twRe[m + k]
-        let t1I = twIm[m + k]
-        let t2R = twRe[m2 + k]
-        let t2I = twIm[m2 + k]
-        let t3R = twRe[m3 + k]
-        let t3I = twIm[m3 + k]
-        let t4R = twRe[m4 + k]
-        let t4I = twIm[m4 + k]
-        let t5R = twRe[m5 + k]
-        let t5I = twIm[m5 + k]
-        let t6R = twRe[m6 + k]
-        let t6I = twIm[m6 + k]
+      for k in 0..<m {
+        let i0 = b &+ k
+        let i1 = i0 &+ m
+        let i2 = i1 &+ m
+        let i3 = i2 &+ m
+        let i4 = i3 &+ m
+        let i5 = i4 &+ m
+        let i6 = i5 &+ m
+        let t1R = twRe[m &+ k]
+        let t1I = twIm[m &+ k]
+        let t2R = twRe[2 &* m &+ k]
+        let t2I = twIm[2 &* m &+ k]
+        let t3R = twRe[3 &* m &+ k]
+        let t3I = twIm[3 &* m &+ k]
+        let t4R = twRe[4 &* m &+ k]
+        let t4I = twIm[4 &* m &+ k]
+        let t5R = twRe[5 &* m &+ k]
+        let t5I = twIm[5 &* m &+ k]
+        let t6R = twRe[6 &* m &+ k]
+        let t6I = twIm[6 &* m &+ k]
         let v1r = workRe[i1] * t1R - workIm[i1] * t1I
         let v1i = workRe[i1] * t1I + workIm[i1] * t1R
         let v2r = workRe[i2] * t2R - workIm[i2] * t2I
@@ -1118,10 +587,6 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         let v6i = workRe[i6] * t6I + workIm[i6] * t6R
         let v0r = workRe[i0]
         let v0i = workIm[i0]
-        // Build pair sums/diffs with conjugate-symmetric partners.
-        // {1,6}: W^1, W^6 = W^-1 → coef pair (w1, conj(w1))
-        // {2,5}: W^2, W^5 = W^-2 → (w2, conj(w2))
-        // {3,4}: W^3, W^4 = W^-3 → (w3, conj(w3))
         let s16R = v1r + v6r
         let s16I = v1i + v6i
         let d16R = v1r - v6r
@@ -1134,14 +599,8 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         let s34I = v3i + v4i
         let d34R = v3r - v4r
         let d34I = v3i - v4i
-        // O[0] = v0 + sum of all sums.
         workRe[i0] = v0r + s16R + s25R + s34R
         workIm[i0] = v0i + s16I + s25I + s34I
-
-        // Conjugate-pair factoring. See the SIMD2 body above for the
-        // sign-pattern derivation; the per-pair (common, twist) values
-        // are identical in scalar and SIMD2.
-        // Pair (1, 6).
         let cR16 = w1R * s16R + w2R * s25R + w3R * s34R
         let cI16 = w1R * s16I + w2R * s25I + w3R * s34I
         let tR16 = w1I * d16I + w2I * d25I + w3I * d34I
@@ -1150,8 +609,6 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         workIm[i1] = v0i + cI16 + tI16
         workRe[i6] = v0r + cR16 + tR16
         workIm[i6] = v0i + cI16 - tI16
-
-        // Pair (2, 5).
         let cR25 = w2R * s16R + w3R * s25R + w1R * s34R
         let cI25 = w2R * s16I + w3R * s25I + w1R * s34I
         let tR25 = w2I * d16I - w3I * d25I - w1I * d34I
@@ -1160,8 +617,6 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         workIm[i2] = v0i + cI25 + tI25
         workRe[i5] = v0r + cR25 + tR25
         workIm[i5] = v0i + cI25 - tI25
-
-        // Pair (3, 4).
         let cR34 = w3R * s16R + w1R * s25R + w2R * s34R
         let cI34 = w3R * s16I + w1R * s25I + w2R * s34I
         let tR34 = w3I * d16I - w1I * d25I + w2I * d34I
@@ -1170,9 +625,8 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
         workIm[i3] = v0i + cI34 + tI34
         workRe[i4] = v0r + cR34 + tR34
         workIm[i4] = v0i + cI34 - tI34
-        k += 1
       }
-      b += blockSize
+      b = b &+ blockSize
     }
   }
 }
