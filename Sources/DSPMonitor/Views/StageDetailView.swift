@@ -1089,23 +1089,23 @@ struct MatrixCell: View {
 
     let isConnected = sourceIndex != nil
 
-    VStack(spacing: 4) {
-      Toggle(
-        "",
-        isOn: Binding(
-          get: { isConnected },
-          set: { connected in
-            updateConnection(connected: connected)
-          }
-        )
-      )
-      .toggleStyle(.checkbox)
-      .labelsHidden()
-
+    VStack(spacing: 0) {
       if isConnected, let mappingIndex, let sourceIndex {
+        // Connected state: Checkbox at the top, inputs below
+        Image(systemName: "checkmark.square.fill")
+          .font(.system(size: 12))
+          .foregroundStyle(Color.accentColor)
+          .frame(width: 90, height: 24)
+          .contentShape(Rectangle())
+          .highPriorityGesture(
+            TapGesture().onEnded {
+              updateConnection(connected: false)
+            }
+          )
+
         let source = stage.mixerMappings[mappingIndex].sources[sourceIndex]
 
-        VStack(spacing: 2) {
+        VStack(spacing: 3) {
           TextField(
             "",
             value: Binding(
@@ -1123,24 +1123,72 @@ struct MatrixCell: View {
           .multilineTextAlignment(.center)
           .frame(width: 60)
 
-          Button(action: {
-            var mappings = stage.mixerMappings
-            let inv = mappings[mappingIndex].sources[sourceIndex].inverted ?? false
-            mappings[mappingIndex].sources[sourceIndex].inverted = !inv
-            stage.mixerMappings = mappings
-            dsp.applyConfig()
-          }) {
-            Text("Ø")
-              .font(.system(size: 10, weight: .bold))
-              .foregroundStyle((source.inverted ?? false) ? Color.orange : Color.secondary)
+          HStack(spacing: 8) {
+            Button(action: {
+              var mappings = stage.mixerMappings
+              let inv = mappings[mappingIndex].sources[sourceIndex].inverted ?? false
+              mappings[mappingIndex].sources[sourceIndex].inverted = !inv
+              stage.mixerMappings = mappings
+              dsp.applyConfig()
+            }) {
+              Text("Ø")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle((source.inverted ?? false) ? Color.orange : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Invert Phase")
+
+            Button(action: {
+              var mappings = stage.mixerMappings
+              let muted = mappings[mappingIndex].sources[sourceIndex].mute ?? false
+              mappings[mappingIndex].sources[sourceIndex].mute = !muted
+              stage.mixerMappings = mappings
+              dsp.applyConfig()
+            }) {
+              Image(systemName: (source.mute ?? false) ? "speaker.slash.fill" : "speaker.fill")
+                .font(.system(size: 8))
+                .foregroundStyle((source.mute ?? false) ? Color.red : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Mute Source")
+
+            Button(action: {
+              var mappings = stage.mixerMappings
+              let current = mappings[mappingIndex].sources[sourceIndex].scale ?? .dB
+              mappings[mappingIndex].sources[sourceIndex].scale = (current == .dB) ? .linear : .dB
+              stage.mixerMappings = mappings
+              dsp.applyConfig()
+            }) {
+              Text((source.scale ?? .dB) == .dB ? "dB" : "lin")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(
+                  (source.scale ?? .dB) == .linear ? Color.accentColor : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Toggle Gain Scale (dB / Linear)")
           }
-          .buttonStyle(.plain)
         }
+        .frame(height: 56)
+      } else {
+        // Unconnected state: Checkbox fills the entire cell
+        VStack {
+          Spacer()
+          Image(systemName: "square")
+            .font(.system(size: 12))
+            .foregroundStyle(Color.secondary)
+          Spacer()
+        }
+        .frame(width: 90, height: 80)
+        .contentShape(Rectangle())
+        .highPriorityGesture(
+          TapGesture().onEnded {
+            updateConnection(connected: true)
+          }
+        )
       }
     }
-    .frame(height: 70)
+    .frame(width: 90, height: 80)
     .background(isConnected ? Color.accentColor.opacity(0.05) : Color.clear)
-    .contentShape(Rectangle())
   }
 
   private func updateConnection(connected: Bool) {
