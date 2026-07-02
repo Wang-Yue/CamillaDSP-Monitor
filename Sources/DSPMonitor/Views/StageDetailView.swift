@@ -1454,36 +1454,6 @@ struct RACEOptions: View {
         .padding(.bottom, 4)
 
         HStack(spacing: 16) {
-          Text("Channels")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .frame(width: 90, alignment: .leading)
-
-          HStack(spacing: 12) {
-            Picker("Left", selection: $stage.leftChannel) {
-              ForEach(0..<max(2, dsp.devices.playbackConfig.channels), id: \.self) { ch in
-                Text("Ch \(ch + 1)").tag(ch)
-              }
-            }
-            .frame(width: 90)
-            .onChange(of: stage.leftChannel) { _, _ in dsp.applyConfig() }
-
-            Text("and")
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-
-            Picker("Right", selection: $stage.rightChannel) {
-              ForEach(0..<max(2, dsp.devices.playbackConfig.channels), id: \.self) { ch in
-                Text("Ch \(ch + 1)").tag(ch)
-              }
-            }
-            .frame(width: 90)
-            .onChange(of: stage.rightChannel) { _, _ in dsp.applyConfig() }
-          }
-          Spacer()
-        }
-
-        HStack(spacing: 16) {
           Text("Delay Unit")
             .font(.subheadline)
             .foregroundStyle(.secondary)
