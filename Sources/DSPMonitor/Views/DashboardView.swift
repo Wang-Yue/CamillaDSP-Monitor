@@ -211,17 +211,23 @@ struct LevelMetersCard: View {
       HStack(spacing: 24) {
         VStack(alignment: .leading, spacing: 8) {
           Text("Capture").font(.subheadline).foregroundStyle(.secondary)
-          DualLevelMeterView(
-            label: "L", peak: levels.capturePeak.left, rms: levels.captureRms.left)
-          DualLevelMeterView(
-            label: "R", peak: levels.capturePeak.right, rms: levels.captureRms.right)
+          ForEach(0..<levels.capturePeak.count, id: \.self) { ch in
+            DualLevelMeterView(
+              label: channelLabel(for: ch, totalCount: levels.capturePeak.count),
+              peak: levels.capturePeak[ch],
+              rms: levels.captureRms[ch]
+            )
+          }
         }
         VStack(alignment: .leading, spacing: 8) {
           Text("Playback").font(.subheadline).foregroundStyle(.secondary)
-          DualLevelMeterView(
-            label: "L", peak: levels.playbackPeak.left, rms: levels.playbackRms.left)
-          DualLevelMeterView(
-            label: "R", peak: levels.playbackPeak.right, rms: levels.playbackRms.right)
+          ForEach(0..<levels.playbackPeak.count, id: \.self) { ch in
+            DualLevelMeterView(
+              label: channelLabel(for: ch, totalCount: levels.playbackPeak.count),
+              peak: levels.playbackPeak[ch],
+              rms: levels.playbackRms[ch]
+            )
+          }
         }
       }
     }
@@ -229,6 +235,15 @@ struct LevelMetersCard: View {
     .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
     .onAppear { levels.visibilityCount += 1 }
     .onDisappear { levels.visibilityCount -= 1 }
+  }
+
+  private func channelLabel(for index: Int, totalCount: Int) -> String {
+    if totalCount == 2 {
+      return index == 0 ? "L" : "R"
+    }
+    if index == 0 { return "L" }
+    if index == 1 { return "R" }
+    return "\(index + 1)"
   }
 }
 

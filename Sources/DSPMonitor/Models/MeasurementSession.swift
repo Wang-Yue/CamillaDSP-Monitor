@@ -592,54 +592,65 @@ final class MeasurementSession {
   /// support; the auto-fitter only emits peaking, so this is a thin
   /// safety net rather than a hot path.
   static func eqBand(from p: BiquadParameters) -> EQBand? {
-    guard let kind = p.type, let f = p.freq else { return nil }
-    let mapped: EQBandType
-    switch kind {
-    case .peaking: mapped = .peaking
-    case .lowshelf: mapped = .lowshelf
-    case .highshelf: mapped = .highshelf
-    case .lowpass: mapped = .lowpass
-    case .highpass: mapped = .highpass
-    case .lowpassFO: mapped = .lowpassFO
-    case .highpassFO: mapped = .highpassFO
-    case .lowshelfFO: mapped = .lowshelfFO
-    case .highshelfFO: mapped = .highshelfFO
-    case .notch: mapped = .notch
-    case .bandpass: mapped = .bandpass
-    case .allpass: mapped = .allpass
-    case .allpassFO: mapped = .allpassFO
-    case .free, .generalNotch, .linkwitzTransform:
-      return nil
+    guard let kind = p.type else { return nil }
+    guard let mapped = EQBandType(rawValue: kind.rawValue) else { return nil }
+
+    let band = EQBand(type: mapped)
+    switch mapped {
+    case .free:
+      band.b0 = p.b0 ?? 1.0
+      band.b1 = p.b1 ?? 0.0
+      band.b2 = p.b2 ?? 0.0
+      band.a1 = p.a1 ?? 0.0
+      band.a2 = p.a2 ?? 0.0
+    case .generalNotch:
+      band.freqNotch = p.freqNotch ?? 1000.0
+      band.freqPole = p.freqPole ?? 1000.0
+      band.normalizeAtDc = p.normalizeAtDc ?? true
+    case .linkwitzTransform:
+      band.freqAct = p.freqAct ?? 50.0
+      band.qAct = p.qAct ?? 0.707
+      band.freqTarget = p.freqTarget ?? 20.0
+      band.qTarget = p.qTarget ?? 0.707
+    default:
+      guard let f = p.freq else { return nil }
+      band.freq = f
+      band.gain = p.gain ?? 0.0
+      band.q = p.q ?? 0.707
     }
-    return EQBand(
-      type: mapped,
-      freq: f,
-      gain: p.gain ?? 0,
-      q: p.q ?? 0.707,
-      isEnabled: true)
+    return band
   }
 
   /// Inverse of `eqBand(from:)`: drop a band into the FIR designer's
   /// `BiquadParameters` shape.
   static func biquadParameters(from band: EQBand) -> BiquadParameters {
-    let mapped: BiquadType
-    switch band.type {
-    case .peaking: mapped = .peaking
-    case .lowshelf: mapped = .lowshelf
-    case .highshelf: mapped = .highshelf
-    case .lowpass: mapped = .lowpass
-    case .highpass: mapped = .highpass
-    case .lowpassFO: mapped = .lowpassFO
-    case .highpassFO: mapped = .highpassFO
-    case .lowshelfFO: mapped = .lowshelfFO
-    case .highshelfFO: mapped = .highshelfFO
-    case .notch: mapped = .notch
-    case .bandpass: mapped = .bandpass
-    case .allpass: mapped = .allpass
-    case .allpassFO: mapped = .allpassFO
+    guard let mapped = BiquadType(rawValue: band.type.rawValue) else {
+      return BiquadParameters(type: .peaking)
     }
-    return BiquadParameters(
-      type: mapped, freq: band.freq, gain: band.gain, q: band.q)
+
+    var params = BiquadParameters(type: mapped)
+    switch band.type {
+    case .free:
+      params.b0 = band.b0
+      params.b1 = band.b1
+      params.b2 = band.b2
+      params.a1 = band.a1
+      params.a2 = band.a2
+    case .generalNotch:
+      params.freqNotch = band.freqNotch
+      params.freqPole = band.freqPole
+      params.normalizeAtDc = band.normalizeAtDc
+    case .linkwitzTransform:
+      params.freqAct = band.freqAct
+      params.qAct = band.qAct
+      params.freqTarget = band.freqTarget
+      params.qTarget = band.qTarget
+    default:
+      params.freq = band.freq
+      params.gain = band.type.hasGain ? band.gain : nil
+      params.q = band.type.hasQ ? band.q : nil
+    }
+    return params
   }
 
   /// Build a randomised "untreated room" biquad chain so each Mock

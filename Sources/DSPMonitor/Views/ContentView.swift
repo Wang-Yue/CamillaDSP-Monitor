@@ -54,7 +54,7 @@ enum SidebarItem: Hashable {
   case dashboard
   case resampler
   case roomCorrection
-  case stage(Int)
+  case stage(UUID)
   /// Identified by UUID rather than array index so deleting a
   /// preset doesn't leave stale indices in `ForEach` closures
   /// (SwiftUI keeps the closures around briefly during the
@@ -163,10 +163,40 @@ struct SidebarView: View {
         ResamplerSidebarRow()
           .tag(SidebarItem.resampler)
 
-        ForEach(pipeline.stages.indices, id: \.self) { index in
-          PipelineSidebarRow(stage: pipeline.stages[index])
-            .tag(SidebarItem.stage(index))
+        ForEach(pipeline.stages) { stage in
+          PipelineSidebarRow(stage: stage)
+            .tag(SidebarItem.stage(stage.id))
+            .contextMenu {
+              Button(role: .destructive) {
+                pipeline.deleteStage(id: stage.id)
+              } label: {
+                Label("Delete", systemImage: "trash")
+              }
+            }
         }
+        .onMove { indices, newOffset in
+          pipeline.moveStages(from: indices, to: newOffset)
+        }
+        .onDelete { indices in
+          for index in indices {
+            pipeline.deleteStage(id: pipeline.stages[index].id)
+          }
+        }
+
+        Menu {
+          ForEach(StageType.allCases) { type in
+            Button(type.rawValue) {
+              pipeline.addStage(type: type)
+            }
+          }
+        } label: {
+          Label("Add Stage…", systemImage: "plus")
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .font(.caption)
+        .padding(.top, 4)
       }
 
       Section("Convolution") {
@@ -306,8 +336,16 @@ struct DetailPanel: View {
           )
           .frame(maxHeight: .infinity)
         }
-      case .stage(let index):
-        StageDetailView(stageIndex: index)
+      case .stage(let id):
+        if let index = pipeline.stages.firstIndex(where: { $0.id == id }) {
+          StageDetailView(stageIndex: index)
+        } else {
+          ContentUnavailableView(
+            "Stage Deleted", systemImage: "waveform.path.ecg",
+            description: Text("Select another stage or add a new one.")
+          )
+          .frame(maxHeight: .infinity)
+        }
       }
     }
   }
@@ -417,9 +455,12 @@ struct AnalogVUDetailView: View {
 
 struct SpectrumDetailView: View {
   @Environment(SpectrumEngine.self) var spectrum
+  @Environment(AudioDeviceManager.self) var devices
 
   var body: some View {
     @Bindable var spectrum = spectrum
+    let channelCount =
+      spectrum.isCapture ? devices.captureConfig.channels : devices.playbackConfig.channels
     VStack(spacing: 0) {
       ScrollView {
         SpectrumCard()
@@ -453,6 +494,17 @@ struct SpectrumDetailView: View {
           }
 
           VStack(alignment: .leading, spacing: 4) {
+            Text("Channel").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: $spectrum.channel) {
+              Text("Average").tag(Int?.none)
+              ForEach(0..<channelCount, id: \.self) { ch in
+                Text("Channel \(ch + 1)").tag(Int?.some(ch))
+              }
+            }
+            .frame(width: 120)
+          }
+
+          VStack(alignment: .leading, spacing: 4) {
             Text("Bins").font(.caption).foregroundStyle(.secondary)
             Stepper("\(Int(spectrum.nBins))", value: $spectrum.nBins, in: 2...100)
               .frame(width: 100)
@@ -482,9 +534,12 @@ struct SpectrumDetailView: View {
 
 struct SpectroscopeDetailView: View {
   @Environment(SpectrogramEngine.self) var spectroscope
+  @Environment(AudioDeviceManager.self) var devices
 
   var body: some View {
     @Bindable var spectroscope = spectroscope
+    let channelCount =
+      spectroscope.isCapture ? devices.captureConfig.channels : devices.playbackConfig.channels
     VStack(spacing: 0) {
       ScrollView {
         SpectrogramCard()
@@ -515,6 +570,17 @@ struct SpectroscopeDetailView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 140)
+          }
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Channel").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: $spectroscope.channel) {
+              Text("Average").tag(Int?.none)
+              ForEach(0..<channelCount, id: \.self) { ch in
+                Text("Channel \(ch + 1)").tag(Int?.some(ch))
+              }
+            }
+            .frame(width: 120)
           }
 
           VStack(alignment: .leading, spacing: 4) {

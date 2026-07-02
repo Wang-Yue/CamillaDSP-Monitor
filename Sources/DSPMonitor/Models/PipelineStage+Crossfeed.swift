@@ -2,10 +2,19 @@
 
 import Foundation
 
+struct CrossfeedPresetValue: Sendable {
+  let fc: Double
+  let db: Double
+}
+
 extension PipelineStage {
 
-  static let crossfeedPresets: [CrossfeedLevel: (fc: Double, db: Double)] = [
-    .l1: (650, 13.5), .l2: (650, 9.5), .l3: (700, 6.0), .l4: (700, 4.5), .l5: (700, 3.0),
+  static let crossfeedPresets: [CrossfeedLevel: CrossfeedPresetValue] = [
+    .l1: CrossfeedPresetValue(fc: 650, db: 13.5),
+    .l2: CrossfeedPresetValue(fc: 650, db: 9.5),
+    .l3: CrossfeedPresetValue(fc: 700, db: 6.0),
+    .l4: CrossfeedPresetValue(fc: 700, db: 4.5),
+    .l5: CrossfeedPresetValue(fc: 700, db: 3.0),
   ]
 
   static func computeCrossfeed(fc: Double, db: Double) -> (
@@ -24,7 +33,7 @@ extension PipelineStage {
     (hiFreq: Double, hiGain: Double, hiQ: Double, loFreq: Double, loGain: Double)
   {
     if cxCustomEnabled { return Self.computeCrossfeed(fc: cxFc, db: cxDb) }
-    let p = Self.crossfeedPresets[crossfeedLevel] ?? (700, 6.0)
+    let p = Self.crossfeedPresets[crossfeedLevel] ?? CrossfeedPresetValue(fc: 700, db: 6.0)
     return Self.computeCrossfeed(fc: p.fc, db: p.db)
   }
 }

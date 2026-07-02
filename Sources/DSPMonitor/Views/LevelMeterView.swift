@@ -190,14 +190,14 @@ struct CompactLevelMeterBar: View {
         Image(systemName: "mic")
           .font(.caption2)
           .foregroundStyle(.secondary)
-        CompactStereoMeter(left: levels.capturePeak.left, right: levels.capturePeak.right)
+        CompactMultiChannelMeter(levels: levels.capturePeak)
       }
 
       HStack(spacing: 6) {
         Image(systemName: "hifispeaker")
           .font(.caption2)
           .foregroundStyle(.secondary)
-        CompactStereoMeter(left: levels.playbackPeak.left, right: levels.playbackPeak.right)
+        CompactMultiChannelMeter(levels: levels.playbackPeak)
       }
 
       Spacer()
@@ -208,40 +208,37 @@ struct CompactLevelMeterBar: View {
   }
 }
 
-/// A batched renderer for two horizontal level bars, maintaining the original look.
-struct CompactStereoMeter: View {
-  let left: Float
-  let right: Float
+/// A batched renderer for multiple horizontal level bars, maintaining the original look.
+struct CompactMultiChannelMeter: View {
+  let levels: [Float]
 
   var body: some View {
+    let count = levels.count
+    let barW: CGFloat = count > 4 ? 40 : 80
+    let spacing: CGFloat = 4
+    let totalWidth = count > 0 ? (barW + spacing) * CGFloat(count) - spacing : 0
+
     Canvas { context, size in
-      let barW: CGFloat = 80
-      let barH: CGFloat = 6
-      let spacing: CGFloat = 6
-      let r = CGSize(width: 2, height: 2)
+      guard count > 0 else { return }
 
-      let leftRect = CGRect(x: 0, y: 0, width: barW, height: barH)
-      let rightRect = CGRect(x: barW + spacing, y: 0, width: barW, height: barH)
+      for i in 0..<count {
+        let x = CGFloat(i) * (barW + spacing)
+        let rect = CGRect(x: x, y: 0, width: barW, height: size.height)
 
-      var bgPath = Path()
-      bgPath.addRoundedRect(in: leftRect, cornerSize: r)
-      bgPath.addRoundedRect(in: rightRect, cornerSize: r)
-      context.fill(bgPath, with: .color(Color.primary.opacity(0.06)))
+        context.fill(
+          Path(roundedRect: rect, cornerRadius: 1.5),
+          with: .color(Color.primary.opacity(0.06)))
 
-      drawForeground(context: &context, rect: leftRect, level: left)
-      drawForeground(context: &context, rect: rightRect, level: right)
+        let fillW = barW * normalizedDB(levels[i])
+        if fillW > 0 {
+          let fillRect = CGRect(x: rect.minX, y: rect.minY, width: fillW, height: rect.height)
+          context.fill(
+            Path(roundedRect: fillRect, cornerRadius: 1.5),
+            with: .color(appThemeColor(Float(normalizedDB(levels[i])))))
+        }
+      }
     }
-    .frame(width: 80 * 2 + 6, height: 6)
-  }
-
-  private func drawForeground(context: inout GraphicsContext, rect: CGRect, level: Float) {
-    let fillW = rect.width * normalizedDB(level)
-    if fillW > 0 {
-      let fillRect = CGRect(x: rect.minX, y: rect.minY, width: fillW, height: rect.height)
-      context.fill(
-        Path(roundedRect: fillRect, cornerRadius: 2),
-        with: .color(appThemeColor(Float(normalizedDB(level)))))
-    }
+    .frame(width: totalWidth, height: 6)
   }
 }
 

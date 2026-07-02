@@ -27,6 +27,15 @@ final class SpectrumEngine {
   var isCapture: Bool = true {
     didSet { defaults.set(isCapture, forKey: "spectrum_is_capture") }
   }
+  var channel: Int? = nil {
+    didSet {
+      if let ch = channel {
+        defaults.set(ch, forKey: "spectrum_channel")
+      } else {
+        defaults.removeObject(forKey: "spectrum_channel")
+      }
+    }
+  }
 
   init() {
     let savedMin = defaults.double(forKey: "spectrum_min_freq")
@@ -40,6 +49,12 @@ final class SpectrumEngine {
 
     if defaults.object(forKey: "spectrum_is_capture") != nil {
       self.isCapture = defaults.bool(forKey: "spectrum_is_capture")
+    }
+
+    if let chObj = defaults.object(forKey: "spectrum_channel") as? Int {
+      self.channel = chObj
+    } else {
+      self.channel = nil
     }
   }
 

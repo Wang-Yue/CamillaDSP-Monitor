@@ -8,14 +8,18 @@ import Observation
 final class PipelineStore {
   let defaults = UserDefaults.standard
 
-  var stages: [PipelineStage] = PipelineStage.defaultStages()
+  var stages: [PipelineStage] = []
   var eqPresets: [EQPreset] = []
   var convPresets: [ConvolutionPreset] = []
 
-  /// Fired after any change that requires a DSP config rebuild (currently only preset deletion).
+  /// Fired after any change that requires a DSP config rebuild.
   var onChanged: (() -> Void)?
 
-  // MARK: - Pipeline Stage Persistence
+  init() {
+    // Loaded by AppState during bootstrap
+  }
+
+  // MARK: - Pipeline Stage Management & Persistence
 
   func savePipelineStages() {
     let snapshots = stages.map { $0.toSnapshot() }
@@ -27,12 +31,42 @@ final class PipelineStore {
   func loadPipelineStages() {
     guard let data = defaults.data(forKey: "pipelineStages"),
       let snapshots = try? JSONDecoder().decode([PipelineStage.Snapshot].self, from: data)
-    else { return }
-    for stage in stages {
-      if let snap = snapshots.first(where: { $0.stageType == stage.type.rawValue }) {
-        stage.restore(from: snap)
-      }
+    else {
+      // Fallback to default stages if none are saved
+      self.stages = PipelineStage.defaultStages()
+      return
     }
+    self.stages = snapshots.map { snap in
+      let type = StageType(rawValue: snap.stageType) ?? .eq
+      let stage = PipelineStage(
+        id: snap.id,
+        type: type,
+        name: snap.name,
+        isEnabled: snap.isEnabled,
+        channels: Set(snap.channels)
+      )
+      stage.restore(from: snap)
+      return stage
+    }
+  }
+
+  func addStage(type: StageType) {
+    let stage = PipelineStage(type: type, isEnabled: true)
+    stages.append(stage)
+    savePipelineStages()
+    onChanged?()
+  }
+
+  func deleteStage(id: UUID) {
+    stages.removeAll { $0.id == id }
+    savePipelineStages()
+    onChanged?()
+  }
+
+  func moveStages(from source: IndexSet, to destination: Int) {
+    stages.move(fromOffsets: source, toOffset: destination)
+    savePipelineStages()
+    onChanged?()
   }
 
   // MARK: - EQ Preset Persistence
@@ -68,8 +102,6 @@ final class PipelineStore {
     let presetToDelete = eqPresets[index]
     for stage in stages {
       if stage.eqPresetID == presetToDelete.id { stage.eqPresetID = nil }
-      if stage.eqLeftPresetID == presetToDelete.id { stage.eqLeftPresetID = nil }
-      if stage.eqRightPresetID == presetToDelete.id { stage.eqRightPresetID = nil }
     }
     eqPresets.remove(at: index)
     saveEQPresets()
@@ -101,8 +133,6 @@ final class PipelineStore {
     let toDelete = convPresets[index]
     for stage in stages {
       if stage.convPresetID == toDelete.id { stage.convPresetID = nil }
-      if stage.convLeftPresetID == toDelete.id { stage.convLeftPresetID = nil }
-      if stage.convRightPresetID == toDelete.id { stage.convRightPresetID = nil }
     }
 
     // Delete associated files on disk
@@ -118,11 +148,20 @@ final class PipelineStore {
     onChanged?()
   }
 
-  /// Save the preset's metadata after the user edits its name or
-  /// other fields. Cheap (just re-serialises the array) — fine to
-  /// call from `onChange` UI handlers.
   func updateConvPreset() {
     saveConvPresets()
     onChanged?()
+  }
+
+  func channelCount(beforeStageAtIndex index: Int, captureChannels: Int) -> Int {
+    var current = captureChannels
+    for i in 0..<index {
+      guard i < stages.count else { break }
+      let stage = stages[i]
+      if stage.isEnabled && stage.type == .mixer {
+        current = stage.mixerChannelsOut
+      }
+    }
+    return current
   }
 }

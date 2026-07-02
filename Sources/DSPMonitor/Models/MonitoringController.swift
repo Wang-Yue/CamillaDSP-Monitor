@@ -71,13 +71,16 @@ final class MonitoringController {
     if currentStatus != .inactive, currentStatus != .paused, levels.visibilityCount > 0 {
       let vu = await engine.getVuLevels()
       levels.update(
-        capturePeak: StereoLevel(from: vu.capture_peak),
-        captureRms: StereoLevel(from: vu.capture_rms),
-        playbackPeak: StereoLevel(from: vu.playback_peak),
-        playbackRms: StereoLevel(from: vu.playback_rms)
+        capturePeak: vu.capture_peak.map { max(-100.0, $0) },
+        captureRms: vu.capture_rms.map { max(-100.0, $0) },
+        playbackPeak: vu.playback_peak.map { max(-100.0, $0) },
+        playbackRms: vu.playback_rms.map { max(-100.0, $0) }
       )
     } else {
-      levels.reset()
+      levels.reset(
+        captureChannels: devices.captureConfig.channels,
+        playbackChannels: devices.playbackConfig.channels
+      )
     }
 
     // 3. Poll Spectrum Bands
@@ -154,7 +157,10 @@ final class MonitoringController {
       currentStatus = state
       onStatusChange?(state)
       if state == .inactive || state == .paused {
-        levels.reset()
+        levels.reset(
+          captureChannels: devices.captureConfig.channels,
+          playbackChannels: devices.playbackConfig.channels
+        )
         spectrum.reset()
         spectroscope.reset()
       }

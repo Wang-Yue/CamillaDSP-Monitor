@@ -52,7 +52,10 @@ final class DSPEngineController {
     let applyTask = applyConfigTask
     applyConfigTask = nil
 
-    levels.reset()
+    levels.reset(
+      captureChannels: devices.captureConfig.channels,
+      playbackChannels: devices.playbackConfig.channels
+    )
     Task {
       await applyTask?.value
       await engine.stop()
@@ -83,7 +86,7 @@ final class DSPEngineController {
   func buildConfig() -> DSPConfiguration {
     var captureConfig = CaptureDeviceConfig(
       type: .coreAudio,
-      channels: 2,
+      channels: devices.captureConfig.channels,
       device: devices.captureConfig.deviceName
     )
     if DSPEngine.isSwiftEngine {
@@ -93,7 +96,7 @@ final class DSPEngineController {
 
     var playbackConfig = PlaybackDeviceConfig(
       type: .coreAudio,
-      channels: 2,
+      channels: devices.playbackConfig.channels,
       device: devices.playbackConfig.deviceName,
       exclusive: devices.exclusiveMode
     )
@@ -156,35 +159,40 @@ final class DSPEngineController {
 
     var filters: [String: FilterConfig] = [:]
     var mixers: [String: MixerConfig] = [:]
+    var processors: [String: ProcessorConfig] = [:]
     var pipelineSteps: [PipelineStep] = []
+    var currentChannels = devices.captureConfig.channels
+
+    let rate = devices.captureConfig.sampleRate
 
     for stage in pipeline.stages {
-      let stageFilters = stage.buildFilters()
-      let stageMixers = stage.buildMixers()
-      let stageSteps = stage.buildPipelineSteps()
+      let stageFilters = stage.buildFilters(
+        eqPresets: pipeline.eqPresets,
+        convPresets: pipeline.convPresets,
+        sampleRate: rate
+      )
+      let stageMixers = stage.buildMixers(channels: currentChannels)
+      let stageProcessors = stage.buildProcessors(channels: currentChannels)
+      let stageSteps = stage.buildPipelineSteps(
+        eqPresets: pipeline.eqPresets,
+        convPresets: pipeline.convPresets,
+        sampleRate: rate
+      )
       for (k, v) in stageFilters { filters[k] = v }
       for (k, v) in stageMixers { mixers[k] = v }
+      for (k, v) in stageProcessors { processors[k] = v }
       pipelineSteps.append(contentsOf: stageSteps)
-      if stage.type == .eq && stage.isActive {
-        let eqFilters = stage.buildEQFilters(presets: pipeline.eqPresets)
-        let eqSteps = stage.buildEQPipelineSteps(presets: pipeline.eqPresets)
-        for (k, v) in eqFilters { filters[k] = v }
-        pipelineSteps.append(contentsOf: eqSteps)
-      }
-      if stage.type == .convolution && stage.isActive {
-        let rate = devices.captureConfig.sampleRate
-        let convFilters = stage.buildConvFilters(
-          presets: pipeline.convPresets, sampleRate: rate)
-        let convSteps = stage.buildConvPipelineSteps(
-          presets: pipeline.convPresets, sampleRate: rate)
-        for (k, v) in convFilters { filters[k] = v }
-        pipelineSteps.append(contentsOf: convSteps)
+
+      // Track channel count changes through active mixers
+      if stage.isActive && stage.type == .mixer {
+        currentChannels = stage.mixerChannelsOut
       }
     }
 
     var config = DSPConfiguration(devices: devicesConfig)
     if !filters.isEmpty { config.filters = filters }
     if !mixers.isEmpty { config.mixers = mixers }
+    if !processors.isEmpty { config.processors = processors }
     if !pipelineSteps.isEmpty { config.pipeline = pipelineSteps }
 
     return config

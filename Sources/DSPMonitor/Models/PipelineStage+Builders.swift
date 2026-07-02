@@ -5,32 +5,84 @@ import Foundation
 
 extension PipelineStage {
 
-  func buildFilters() -> [String: FilterConfig] {
+  func buildFilters(
+    eqPresets: [EQPreset],
+    convPresets: [ConvolutionPreset],
+    sampleRate: Int
+  ) -> [String: FilterConfig] {
     guard isActive else { return [:] }
+    let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
+
     switch type {
-    case .balance, .width, .msProc: return [:]
+    case .balance, .width, .msProc, .mixer, .compressor, .noiseGate, .race:
+      return [:]
+
     case .phaseInvert:
-      return ["invert": .gain(GainParameters(gain: 0.0, inverted: true))]
+      return ["\(prefix)_invert": .gain(GainParameters(gain: 0.0, inverted: true))]
+
     case .crossfeed:
       let cx = activeCrossfeedParams
       return [
-        "cx_hi": .biquad(
+        "\(prefix)_hi": .biquad(
           BiquadParameters(type: .lowshelf, freq: cx.hiFreq, gain: cx.hiGain, q: cx.hiQ)),
-        "cx_lo": .biquad(BiquadParameters(type: .lowpassFO, freq: cx.loFreq)),
-        "cx_lo_gain": .gain(GainParameters(gain: cx.loGain, inverted: false)),
+        "\(prefix)_lo": .biquad(BiquadParameters(type: .lowpassFO, freq: cx.loFreq)),
+        "\(prefix)_lo_gain": .gain(GainParameters(gain: cx.loGain, inverted: false)),
       ]
-    case .eq: return [:]
-    case .convolution: return [:]
+
+    case .eq:
+      guard let presetID = eqPresetID, let preset = eqPresets.first(where: { $0.id == presetID })
+      else { return [:] }
+      var filters: [String: FilterConfig] = [:]
+      filters["\(prefix)_preamp"] = .gain(GainParameters(gain: preset.preampGain, inverted: false))
+
+      for (i, band) in preset.bands.enumerated() where band.isEnabled {
+        let biquadType = BiquadType(rawValue: band.type.rawValue) ?? .peaking
+        var params = BiquadParameters(type: biquadType)
+
+        switch band.type {
+        case .free:
+          params.b0 = band.b0
+          params.b1 = band.b1
+          params.b2 = band.b2
+          params.a1 = band.a1
+          params.a2 = band.a2
+        case .generalNotch:
+          params.freqNotch = band.freqNotch
+          params.freqPole = band.freqPole
+          params.normalizeAtDc = band.normalizeAtDc
+        case .linkwitzTransform:
+          params.freqAct = band.freqAct
+          params.qAct = band.qAct
+          params.freqTarget = band.freqTarget
+          params.qTarget = band.qTarget
+        default:
+          params.freq = band.freq
+          params.gain = band.type.hasGain ? band.gain : nil
+          params.q = band.type.hasQ ? band.q : nil
+        }
+
+        filters["\(prefix)_\(i + 1)"] = .biquad(params)
+      }
+      return filters
+
+    case .convolution:
+      guard let presetID = convPresetID,
+        let preset = convPresets.first(where: { $0.id == presetID }),
+        let path = preset.irPath(forSampleRate: sampleRate)
+      else { return [:] }
+      return ["\(prefix)_conv": .conv(ConvParameters(type: .raw, filename: path, format: "F64_LE"))]
+
     case .loudness:
       return [
-        "loudness": .loudness(
+        "\(prefix)_loudness": .loudness(
           LoudnessParameters(
             referenceLevel: loudnessReference,
             highBoost: loudnessHighBoost,
-            lowBoost: loudnessLowBoost,
+            lowBoost: loudnessLowBoost
           )
         )
       ]
+
     case .emphasis:
       let subtype = BiquadType.highshelf
       let freq = 5200.0
@@ -39,36 +91,113 @@ extension PipelineStage {
       case .off: return [:]
       case .deEmphasis:
         return [
-          "deemphasis": .biquad(BiquadParameters(type: subtype, freq: freq, gain: -9.5, q: q))
+          "\(prefix)_deemphasis": .biquad(
+            BiquadParameters(type: subtype, freq: freq, gain: -9.5, q: q))
         ]
       case .preEmphasis:
         return [
-          "preemphasis": .biquad(BiquadParameters(type: subtype, freq: freq, gain: 9.5, q: q))
+          "\(prefix)_preemphasis": .biquad(
+            BiquadParameters(type: subtype, freq: freq, gain: 9.5, q: q))
         ]
       }
+
     case .dcProtection:
-      return ["dcp": .biquad(BiquadParameters(type: .highpassFO, freq: 7.0))]
+      return ["\(prefix)_dcp": .biquad(BiquadParameters(type: .highpassFO, freq: 7.0))]
+
+    case .gain:
+      return [
+        "\(prefix)_gain": .gain(
+          GainParameters(gain: gainValue, scale: .dB, inverted: gainInverted, mute: gainMuted))
+      ]
+
+    case .delay:
+      return ["\(prefix)_delay": .delay(DelayParameters(delay: delayValue, unit: delayUnit))]
+
+    case .limiter:
+      return [
+        "\(prefix)_limiter": .lookaheadLimiter(
+          LookaheadLimiterParameters(
+            limit: limiterLimit, attack: limiterAttack, release: limiterRelease, unit: .ms))
+      ]
+
+    case .dither:
+      return [
+        "\(prefix)_dither": .dither(
+          DitherParameters(type: ditherType, bits: ditherBits, amplitude: ditherAmplitude))
+      ]
+
+    case .diffEq:
+      let aVals = diffEqA.components(separatedBy: ",").compactMap {
+        Double($0.trimmingCharacters(in: .whitespaces))
+      }
+      let bVals = diffEqB.components(separatedBy: ",").compactMap {
+        Double($0.trimmingCharacters(in: .whitespaces))
+      }
+      return [
+        "\(prefix)_diffeq": .diffEq(
+          DiffEqParameters(a: aVals.isEmpty ? nil : aVals, b: bVals.isEmpty ? nil : bVals))
+      ]
+
+    case .biquadCombo:
+      var params = BiquadComboParameters(type: comboType)
+      switch comboType {
+      case .butterworthHighpass, .butterworthLowpass, .linkwitzRileyHighpass, .linkwitzRileyLowpass:
+        params.freq = comboFreq
+        params.order = comboOrder
+      case .tilt:
+        params.freq = comboFreq
+        params.gain = comboGain
+      default:
+        break
+      }
+      return ["\(prefix)_combo": .biquadCombo(params)]
+
+    case .clipper:
+      return [
+        "\(prefix)_clipper": .limiter(
+          LimiterParameters(clipLimit: clipperLimit, softClip: clipperSoftClip))
+      ]
+
+    case .graphicEQ:
+      var params = BiquadComboParameters(type: .graphicEqualizer)
+      params.freqMin = graphicEQFreqMin
+      params.freqMax = graphicEQFreqMax
+      params.gains = graphicEQGains
+      return ["\(prefix)_geq": .biquadCombo(params)]
     }
   }
 
-  func buildMixers() -> [String: MixerConfig] {
+  func buildMixers(channels: Int) -> [String: MixerConfig] {
     guard isActive else { return [:] }
+    let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
+
     switch type {
     case .balance:
       let leftLin = 1.0 - max(0.0, balancePosition)
       let rightLin = 1.0 + min(0.0, balancePosition)
       let leftDB = leftLin > 0 ? 20.0 * log10(leftLin) : -100.0
       let rightDB = rightLin > 0 ? 20.0 * log10(rightLin) : -100.0
+
+      var mapping: [MixerMapping] = []
+      for i in 0..<channels {
+        if i == leftChannel {
+          mapping.append(
+            MixerMapping(dest: i, sources: [MixerSource(channel: leftChannel, gain: leftDB)]))
+        } else if i == rightChannel {
+          mapping.append(
+            MixerMapping(dest: i, sources: [MixerSource(channel: rightChannel, gain: rightDB)]))
+        } else {
+          mapping.append(MixerMapping(dest: i, sources: [MixerSource(channel: i, gain: 0.0)]))
+        }
+      }
       return [
-        "balance": MixerConfig(
-          channelsIn: 2,
-          channelsOut: 2,
-          mapping: [
-            MixerMapping(dest: 0, sources: [MixerSource(channel: 0, gain: leftDB)]),
-            MixerMapping(dest: 1, sources: [MixerSource(channel: 1, gain: rightDB)]),
-          ]
+        prefix: MixerConfig(
+          channelsIn: channels,
+          channelsOut: channels,
+          mapping: mapping
         )
       ]
+
     case .width:
       let w = widthAmount
       let ll = (1.0 + w) / 2.0
@@ -78,242 +207,320 @@ extension PipelineStage {
       func makeSources(ch0: Double, ch1: Double) -> [MixerSource] {
         var sources: [MixerSource] = []
         if abs(ch0) > threshold {
-          sources.append(MixerSource(channel: 0, gain: 20.0 * log10(abs(ch0)), inverted: ch0 < 0))
+          sources.append(
+            MixerSource(channel: leftChannel, gain: 20.0 * log10(abs(ch0)), inverted: ch0 < 0))
         }
         if abs(ch1) > threshold {
-          sources.append(MixerSource(channel: 1, gain: 20.0 * log10(abs(ch1)), inverted: ch1 < 0))
+          sources.append(
+            MixerSource(channel: rightChannel, gain: 20.0 * log10(abs(ch1)), inverted: ch1 < 0))
         }
         return sources
       }
 
+      var mapping: [MixerMapping] = []
+      for i in 0..<channels {
+        if i == leftChannel {
+          mapping.append(MixerMapping(dest: i, sources: makeSources(ch0: ll, ch1: lr)))
+        } else if i == rightChannel {
+          mapping.append(MixerMapping(dest: i, sources: makeSources(ch0: lr, ch1: ll)))
+        } else {
+          mapping.append(MixerMapping(dest: i, sources: [MixerSource(channel: i, gain: 0.0)]))
+        }
+      }
       return [
-        "width": MixerConfig(
-          channelsIn: 2,
-          channelsOut: 2,
-          mapping: [
-            MixerMapping(dest: 0, sources: makeSources(ch0: ll, ch1: lr)),
-            MixerMapping(dest: 1, sources: makeSources(ch0: lr, ch1: ll)),
-          ]
+        prefix: MixerConfig(
+          channelsIn: channels,
+          channelsOut: channels,
+          mapping: mapping
         )
       ]
+
     case .msProc:
-      return [
-        "msproc": MixerConfig(
-          channelsIn: 2,
-          channelsOut: 2,
-          mapping: [
+      var mapping: [MixerMapping] = []
+      for i in 0..<channels {
+        if i == leftChannel {
+          mapping.append(
             MixerMapping(
-              dest: 0,
-              sources: [MixerSource(channel: 0, gain: -6.02), MixerSource(channel: 1, gain: -6.02)]),
-            MixerMapping(
-              dest: 1,
+              dest: i,
               sources: [
-                MixerSource(channel: 0, gain: -6.02),
-                MixerSource(channel: 1, gain: -6.02, inverted: true),
-              ]),
-          ]
+                MixerSource(channel: leftChannel, gain: -6.02),
+                MixerSource(channel: rightChannel, gain: -6.02),
+              ]))
+        } else if i == rightChannel {
+          mapping.append(
+            MixerMapping(
+              dest: i,
+              sources: [
+                MixerSource(channel: leftChannel, gain: -6.02),
+                MixerSource(channel: rightChannel, gain: -6.02, inverted: true),
+              ]))
+        } else {
+          mapping.append(MixerMapping(dest: i, sources: [MixerSource(channel: i, gain: 0.0)]))
+        }
+      }
+      return [
+        prefix: MixerConfig(
+          channelsIn: channels,
+          channelsOut: channels,
+          mapping: mapping
         )
       ]
+
     case .crossfeed:
       guard crossfeedLevel != .off else { return [:] }
+
+      var otherChannels: [Int] = []
+      for i in 0..<channels {
+        if i != leftChannel && i != rightChannel {
+          otherChannels.append(i)
+        }
+      }
+
+      var mapping2to4 = [
+        MixerMapping(dest: 0, sources: [MixerSource(channel: leftChannel, gain: 0.0)]),
+        MixerMapping(dest: 1, sources: [MixerSource(channel: leftChannel, gain: 0.0)]),
+        MixerMapping(dest: 2, sources: [MixerSource(channel: rightChannel, gain: 0.0)]),
+        MixerMapping(dest: 3, sources: [MixerSource(channel: rightChannel, gain: 0.0)]),
+      ]
+      for (idx, ch) in otherChannels.enumerated() {
+        mapping2to4.append(
+          MixerMapping(dest: idx + 4, sources: [MixerSource(channel: ch, gain: 0.0)]))
+      }
+
+      var mapping4to2: [MixerMapping] = Array(
+        repeating: MixerMapping(dest: 0, sources: []), count: channels)
+      mapping4to2[leftChannel] = MixerMapping(
+        dest: leftChannel,
+        sources: [
+          MixerSource(channel: 0, gain: 0.0),
+          MixerSource(channel: 2, gain: 0.0),
+        ])
+      mapping4to2[rightChannel] = MixerMapping(
+        dest: rightChannel,
+        sources: [
+          MixerSource(channel: 1, gain: 0.0),
+          MixerSource(channel: 3, gain: 0.0),
+        ])
+      for (idx, ch) in otherChannels.enumerated() {
+        mapping4to2[ch] = MixerMapping(
+          dest: idx + 4, sources: [MixerSource(channel: idx + 4, gain: 0.0)])
+      }
+
       return [
-        "2to4": MixerConfig(
-          channelsIn: 2,
-          channelsOut: 4,
-          mapping: [
-            MixerMapping(dest: 0, sources: [MixerSource(channel: 0, gain: 0.0)]),
-            MixerMapping(dest: 1, sources: [MixerSource(channel: 0, gain: 0.0)]),
-            MixerMapping(dest: 2, sources: [MixerSource(channel: 1, gain: 0.0)]),
-            MixerMapping(dest: 3, sources: [MixerSource(channel: 1, gain: 0.0)]),
-          ]
+        "\(prefix)_2to4": MixerConfig(
+          channelsIn: channels,
+          channelsOut: channels + 2,
+          mapping: mapping2to4
         ),
-        "4to2": MixerConfig(
-          channelsIn: 4,
-          channelsOut: 2,
-          mapping: [
-            MixerMapping(
-              dest: 0,
-              sources: [MixerSource(channel: 0, gain: 0.0), MixerSource(channel: 2, gain: 0.0)]),
-            MixerMapping(
-              dest: 1,
-              sources: [MixerSource(channel: 1, gain: 0.0), MixerSource(channel: 3, gain: 0.0)]),
-          ]
+        "\(prefix)_4to2": MixerConfig(
+          channelsIn: channels + 2,
+          channelsOut: channels,
+          mapping: mapping4to2
         ),
       ]
-    default: return [:]
+
+    case .mixer:
+      var mapping = mixerMappings
+      if mapping.isEmpty {
+        mapping = (0..<mixerChannelsOut).map { i in
+          let src = i < mixerChannelsIn ? i : 0
+          return MixerMapping(dest: i, sources: [MixerSource(channel: src, gain: 0.0)])
+        }
+      } else if mapping.count < mixerChannelsOut {
+        for i in mapping.count..<mixerChannelsOut {
+          let src = i < mixerChannelsIn ? i : 0
+          mapping.append(MixerMapping(dest: i, sources: [MixerSource(channel: src, gain: 0.0)]))
+        }
+      } else if mapping.count > mixerChannelsOut {
+        mapping = Array(mapping.prefix(mixerChannelsOut))
+      }
+
+      let cleanedMapping = mapping.map { map in
+        let cleanedSources = map.sources.filter { $0.channel < mixerChannelsIn }
+        return MixerMapping(dest: map.dest, sources: cleanedSources)
+      }
+
+      return [
+        prefix: MixerConfig(
+          channelsIn: mixerChannelsIn,
+          channelsOut: mixerChannelsOut,
+          mapping: cleanedMapping
+        )
+      ]
+
+    case .compressor, .noiseGate, .race:
+      return [:]
+    default:
+      return [:]
     }
   }
 
-  func buildPipelineSteps() -> [PipelineStep] {
-    guard isActive else { return [] }
+  func buildProcessors(channels: Int) -> [String: ProcessorConfig] {
+    guard isActive else { return [:] }
+    let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
+    let chList = self.channels.sorted()
+
     switch type {
-    case .balance: return [PipelineStep(type: .mixer, name: "balance")]
-    case .width: return [PipelineStep(type: .mixer, name: "width")]
-    case .msProc: return [PipelineStep(type: .mixer, name: "msproc")]
+    case .compressor:
+      let params = CompressorParameters(
+        channels: channels,
+        monitorChannels: chList,
+        processChannels: chList,
+        attack: compressorAttack,
+        release: compressorRelease,
+        threshold: compressorThreshold,
+        factor: compressorRatio,
+        makeupGain: compressorMakeupGain,
+        softClip: compressorSoftClip,
+        clipLimit: compressorClipLimit
+      )
+      return [prefix: .compressor(params)]
+
+    case .noiseGate:
+      let params = NoiseGateParameters(
+        channels: channels,
+        monitorChannels: chList,
+        processChannels: chList,
+        attack: gateAttack,
+        release: gateRelease,
+        threshold: gateThreshold,
+        attenuation: gateAttenuation
+      )
+      return [prefix: .noiseGate(params)]
+
+    case .race:
+      let params = RACEParameters(
+        channels: channels,
+        channelA: leftChannel,
+        channelB: rightChannel,
+        delay: raceDelay,
+        subsampleDelay: false,
+        delayUnit: .ms,
+        attenuation: raceAttenuation
+      )
+      return [prefix: .race(params)]
+
+    default:
+      return [:]
+    }
+  }
+
+  func buildPipelineSteps(
+    eqPresets: [EQPreset],
+    convPresets: [ConvolutionPreset],
+    sampleRate: Int
+  ) -> [PipelineStep] {
+    guard isActive else { return [] }
+    let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
+    let chList = self.channels.sorted()
+
+    switch type {
+    case .balance, .width, .msProc, .mixer:
+      return [PipelineStep(type: .mixer, name: prefix)]
+
     case .phaseInvert:
-      switch phaseInvertMode {
-      case .off: return []
-      case .left: return [PipelineStep(type: .filter, channels: [0], names: ["invert"])]
-      case .right: return [PipelineStep(type: .filter, channels: [1], names: ["invert"])]
-      case .both: return [PipelineStep(type: .filter, channels: [0, 1], names: ["invert"])]
-      }
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_invert"])]
+
     case .crossfeed:
       guard crossfeedLevel != .off else { return [] }
       return [
-        PipelineStep(type: .mixer, name: "2to4"),
-        PipelineStep(type: .filter, channels: [0, 3], names: ["cx_hi"]),
-        PipelineStep(type: .filter, channels: [1, 2], names: ["cx_lo", "cx_lo_gain"]),
-        PipelineStep(type: .mixer, name: "4to2"),
+        PipelineStep(type: .mixer, name: "\(prefix)_2to4"),
+        PipelineStep(type: .filter, channels: [0, 3], names: ["\(prefix)_hi"]),
+        PipelineStep(
+          type: .filter, channels: [1, 2], names: ["\(prefix)_lo", "\(prefix)_lo_gain"]),
+        PipelineStep(type: .mixer, name: "\(prefix)_4to2"),
       ]
-    case .eq: return []
-    case .convolution: return []
-    case .loudness: return [PipelineStep(type: .filter, channels: [0, 1], names: ["loudness"])]
+
+    case .eq:
+      guard let presetID = eqPresetID, let preset = eqPresets.first(where: { $0.id == presetID }),
+        !channels.isEmpty
+      else { return [] }
+      var names = ["\(prefix)_preamp"]
+      names.append(
+        contentsOf: preset.bands.enumerated().compactMap { i, b in
+          b.isEnabled ? "\(prefix)_\(i + 1)" : nil
+        })
+      return [PipelineStep(type: .filter, channels: chList, names: names)]
+
+    case .convolution:
+      guard let presetID = convPresetID,
+        let preset = convPresets.first(where: { $0.id == presetID }),
+        preset.irPath(forSampleRate: sampleRate) != nil, !channels.isEmpty
+      else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_conv"])]
+
+    case .loudness:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_loudness"])]
+
     case .emphasis:
+      guard !channels.isEmpty else { return [] }
       switch emphasisMode {
       case .off: return []
       case .deEmphasis:
-        return [PipelineStep(type: .filter, channels: [0, 1], names: ["deemphasis"])]
+        return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_deemphasis"])]
       case .preEmphasis:
-        return [PipelineStep(type: .filter, channels: [0, 1], names: ["preemphasis"])]
+        return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_preemphasis"])]
       }
-    case .dcProtection: return [PipelineStep(type: .filter, channels: [0, 1], names: ["dcp"])]
+
+    case .dcProtection:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_dcp"])]
+
+    case .gain:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_gain"])]
+
+    case .delay:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_delay"])]
+
+    case .limiter:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_limiter"])]
+
+    case .compressor, .noiseGate, .race:
+      return [PipelineStep(type: .processor, name: prefix)]
+
+    case .dither:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_dither"])]
+
+    case .diffEq:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_diffeq"])]
+
+    case .biquadCombo:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_combo"])]
+
+    case .clipper:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_clipper"])]
+
+    case .graphicEQ:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_geq"])]
     }
   }
+}
 
-  func buildEQFilters(presets: [EQPreset]) -> [String: FilterConfig] {
-    guard isActive, type == .eq else { return [:] }
-    var filters: [String: FilterConfig] = [:]
-    func addPresetFilters(_ preset: EQPreset, prefix: String) {
-      filters["\(prefix)_preamp"] = .gain(GainParameters(gain: preset.preampGain, inverted: false))
-      for (i, band) in preset.bands.enumerated() where band.isEnabled {
-        let biquadType = BiquadType(rawValue: band.type.rawValue) ?? .peaking
-        let gainVal = band.type.hasGain ? band.gain : nil
-        let qVal = band.type.hasQ ? band.q : nil
-        filters["\(prefix)_\(i + 1)"] = .biquad(
-          BiquadParameters(type: biquadType, freq: band.freq, gain: gainVal, q: qVal)
-        )
-      }
+// MARK: - BiquadType Helpers
+
+extension BiquadType {
+  var hasGain: Bool {
+    switch self {
+    case .peaking, .lowshelf, .highshelf, .lowshelfFO, .highshelfFO: return true
+    default: return false
     }
-    switch eqChannelMode {
-    case .same:
-      if let id = eqPresetID, let preset = presets.first(where: { $0.id == id }) {
-        addPresetFilters(preset, prefix: "eq")
-      }
-    case .separate:
-      if let id = eqLeftPresetID, let preset = presets.first(where: { $0.id == id }) {
-        addPresetFilters(preset, prefix: "eq_l")
-      }
-      if let id = eqRightPresetID, let preset = presets.first(where: { $0.id == id }) {
-        addPresetFilters(preset, prefix: "eq_r")
-      }
-    }
-    return filters
   }
-
-  // MARK: - Convolution stage
-
-  /// Emit `Conv` filter definitions referencing each selected preset's
-  /// IR file *for the live capture rate*. Each preset stores a
-  /// per-rate IR family; we look up the entry matching `sampleRate`
-  /// and fall back to the closest available.
-  ///
-  /// Format strings match the Rust upstream's `FileSampleFormat`
-  /// Display impl (`camilladsp/src/config/mod.rs:38`): valid set is
-  /// `F32_LE / F64_LE / S16_LE / S24_3_LE / S24_4_LJ_LE / S24_4_RJ_LE
-  /// / S32_LE / TEXT`. The `Conv { ... }` and `Raw { ... }` structs
-  /// are `deny_unknown_fields`, so unknown values get rejected at
-  /// config decode.
-  func buildConvFilters(
-    presets: [ConvolutionPreset], sampleRate: Int
-  ) -> [String: FilterConfig] {
-    guard isActive, type == .convolution else { return [:] }
-    var filters: [String: FilterConfig] = [:]
-    func make(_ preset: ConvolutionPreset) -> FilterConfig? {
-      guard let path = preset.irPath(forSampleRate: sampleRate) else { return nil }
-      return .conv(ConvParameters(type: .raw, filename: path, format: "F64_LE"))
+  var hasQ: Bool {
+    switch self {
+    case .peaking, .lowpass, .highpass, .lowshelf, .highshelf, .notch, .bandpass, .allpass,
+      .generalNotch, .linkwitzTransform:
+      return true
+    default: return false
     }
-    switch convChannelMode {
-    case .same:
-      if let id = convPresetID, let preset = presets.first(where: { $0.id == id }),
-        let f = make(preset)
-      {
-        filters["conv"] = f
-      }
-    case .separate:
-      if let id = convLeftPresetID, let preset = presets.first(where: { $0.id == id }),
-        let f = make(preset)
-      {
-        filters["conv_l"] = f
-      }
-      if let id = convRightPresetID, let preset = presets.first(where: { $0.id == id }),
-        let f = make(preset)
-      {
-        filters["conv_r"] = f
-      }
-    }
-    return filters
-  }
-
-  /// Pipeline steps for the convolution stage. We only emit the step
-  /// when the corresponding preset has an IR for the live rate —
-  /// otherwise the engine would build a filter graph referencing a
-  /// non-existent filter name and fail.
-  func buildConvPipelineSteps(
-    presets: [ConvolutionPreset], sampleRate: Int
-  ) -> [PipelineStep] {
-    guard isActive, type == .convolution else { return [] }
-    var steps: [PipelineStep] = []
-    func hasIR(for id: UUID?) -> Bool {
-      guard let id, let preset = presets.first(where: { $0.id == id }) else { return false }
-      return preset.irPath(forSampleRate: sampleRate) != nil
-    }
-    switch convChannelMode {
-    case .same:
-      if hasIR(for: convPresetID) {
-        steps.append(PipelineStep(type: .filter, channels: [0, 1], names: ["conv"]))
-      }
-    case .separate:
-      if hasIR(for: convLeftPresetID) {
-        steps.append(PipelineStep(type: .filter, channels: [0], names: ["conv_l"]))
-      }
-      if hasIR(for: convRightPresetID) {
-        steps.append(PipelineStep(type: .filter, channels: [1], names: ["conv_r"]))
-      }
-    }
-    return steps
-  }
-
-  func buildEQPipelineSteps(presets: [EQPreset]) -> [PipelineStep] {
-    guard isActive, type == .eq else { return [] }
-    var steps: [PipelineStep] = []
-    switch eqChannelMode {
-    case .same:
-      if let id = eqPresetID, let preset = presets.first(where: { $0.id == id }) {
-        var names = ["eq_preamp"]
-        names.append(
-          contentsOf: preset.bands.enumerated().compactMap { i, b in
-            b.isEnabled ? "eq_\(i + 1)" : nil
-          })
-        steps.append(PipelineStep(type: .filter, channels: [0, 1], names: names))
-      }
-    case .separate:
-      if let id = eqLeftPresetID, let preset = presets.first(where: { $0.id == id }) {
-        var names = ["eq_l_preamp"]
-        names.append(
-          contentsOf: preset.bands.enumerated().compactMap { i, b in
-            b.isEnabled ? "eq_l_\(i + 1)" : nil
-          })
-        steps.append(PipelineStep(type: .filter, channels: [0], names: names))
-      }
-      if let id = eqRightPresetID, let preset = presets.first(where: { $0.id == id }) {
-        var names = ["eq_r_preamp"]
-        names.append(
-          contentsOf: preset.bands.enumerated().compactMap { i, b in
-            b.isEnabled ? "eq_r_\(i + 1)" : nil
-          })
-        steps.append(PipelineStep(type: .filter, channels: [1], names: names))
-      }
-    }
-    return steps
   }
 }

@@ -19,19 +19,37 @@ enum EQBandType: String, CaseIterable, Codable, Identifiable {
   case bandpass = "Bandpass"
   case allpass = "Allpass"
   case allpassFO = "AllpassFO"
+
+  // Advanced biquads incorporated into EQ
+  case free = "Free"
+  case generalNotch = "GeneralNotch"
+  case linkwitzTransform = "LinkwitzTransform"
+
   var id: String { rawValue }
+
+  var isStandard: Bool {
+    switch self {
+    case .free, .generalNotch, .linkwitzTransform: return false
+    default: return true
+    }
+  }
+
   var hasGain: Bool {
     switch self {
     case .peaking, .lowshelf, .highshelf, .lowshelfFO, .highshelfFO: return true
     default: return false
     }
   }
+
   var hasQ: Bool {
     switch self {
-    case .lowpassFO, .highpassFO, .lowshelfFO, .highshelfFO, .allpassFO: return false
+    case .lowpassFO, .highpassFO, .lowshelfFO, .highshelfFO, .allpassFO, .free, .generalNotch,
+      .linkwitzTransform:
+      return false
     default: return true
     }
   }
+
   private static let shortNameMap: [String: EQBandType] = [
     "PK": .peaking, "LS": .lowshelf, "HS": .highshelf, "LP": .lowpass,
     "HP": .highpass, "NO": .notch, "BP": .bandpass, "AP": .allpass,
@@ -48,6 +66,12 @@ final class EQBand: Identifiable, Codable, Equatable {
   static func == (lhs: EQBand, rhs: EQBand) -> Bool {
     lhs.id == rhs.id && lhs.type == rhs.type && lhs.freq == rhs.freq && lhs.gain == rhs.gain
       && lhs.q == rhs.q && lhs.isEnabled == rhs.isEnabled
+      && lhs.b0 == rhs.b0 && lhs.b1 == rhs.b1 && lhs.b2 == rhs.b2
+      && lhs.a1 == rhs.a1 && lhs.a2 == rhs.a2
+      && lhs.freqNotch == rhs.freqNotch && lhs.freqPole == rhs.freqPole
+      && lhs.normalizeAtDc == rhs.normalizeAtDc
+      && lhs.freqAct == rhs.freqAct && lhs.qAct == rhs.qAct
+      && lhs.freqTarget == rhs.freqTarget && lhs.qTarget == rhs.qTarget
   }
 
   let id: UUID
@@ -56,14 +80,33 @@ final class EQBand: Identifiable, Codable, Equatable {
   var gain: Double { didSet { invalidateCache() } }
   var q: Double { didSet { invalidateCache() } }
   var isEnabled: Bool
+
+  // Free Biquad coefficients
+  var b0: Double = 1.0 { didSet { invalidateCache() } }
+  var b1: Double = 0.0 { didSet { invalidateCache() } }
+  var b2: Double = 0.0 { didSet { invalidateCache() } }
+  var a1: Double = 0.0 { didSet { invalidateCache() } }
+  var a2: Double = 0.0 { didSet { invalidateCache() } }
+
+  // General Notch parameters
+  var freqNotch: Double = 1000.0 { didSet { invalidateCache() } }
+  var freqPole: Double = 1000.0 { didSet { invalidateCache() } }
+  var normalizeAtDc: Bool = true { didSet { invalidateCache() } }
+
+  // Linkwitz Transform parameters
+  var freqAct: Double = 50.0 { didSet { invalidateCache() } }
+  var qAct: Double = 0.707 { didSet { invalidateCache() } }
+  var freqTarget: Double = 20.0 { didSet { invalidateCache() } }
+  var qTarget: Double = 0.707 { didSet { invalidateCache() } }
+
   // Cached biquad coefficients — invalidated when band parameters change.
-  // Avoids recomputing trig-heavy coefficients on every frequency sample during curve drawing.
   private var cachedCoeffs: BiquadCoefficients?
   private var cachedSampleRate: Int = 0
   private func invalidateCache() {
     cachedCoeffs = nil
     cachedSampleRate = 0
   }
+
   init(
     type: EQBandType = .peaking, freq: Double = 1000, gain: Double = 0, q: Double = 0.707,
     isEnabled: Bool = true
@@ -75,7 +118,14 @@ final class EQBand: Identifiable, Codable, Equatable {
     self.q = q
     self.isEnabled = isEnabled
   }
-  enum CodingKeys: String, CodingKey { case id, type, freq, gain, q, isEnabled }
+
+  enum CodingKeys: String, CodingKey {
+    case id, type, freq, gain, q, isEnabled
+    case b0, b1, b2, a1, a2
+    case freqNotch, freqPole, normalizeAtDc
+    case freqAct, qAct, freqTarget, qTarget
+  }
+
   required init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     id = try c.decode(UUID.self, forKey: .id)
@@ -84,7 +134,24 @@ final class EQBand: Identifiable, Codable, Equatable {
     gain = try c.decode(Double.self, forKey: .gain)
     q = try c.decode(Double.self, forKey: .q)
     isEnabled = try c.decode(Bool.self, forKey: .isEnabled)
+
+    // Robust decoding of new fields with defaults for backward compatibility
+    b0 = try c.decodeIfPresent(Double.self, forKey: .b0) ?? 1.0
+    b1 = try c.decodeIfPresent(Double.self, forKey: .b1) ?? 0.0
+    b2 = try c.decodeIfPresent(Double.self, forKey: .b2) ?? 0.0
+    a1 = try c.decodeIfPresent(Double.self, forKey: .a1) ?? 0.0
+    a2 = try c.decodeIfPresent(Double.self, forKey: .a2) ?? 0.0
+
+    freqNotch = try c.decodeIfPresent(Double.self, forKey: .freqNotch) ?? 1000.0
+    freqPole = try c.decodeIfPresent(Double.self, forKey: .freqPole) ?? 1000.0
+    normalizeAtDc = try c.decodeIfPresent(Bool.self, forKey: .normalizeAtDc) ?? true
+
+    freqAct = try c.decodeIfPresent(Double.self, forKey: .freqAct) ?? 50.0
+    qAct = try c.decodeIfPresent(Double.self, forKey: .qAct) ?? 0.707
+    freqTarget = try c.decodeIfPresent(Double.self, forKey: .freqTarget) ?? 20.0
+    qTarget = try c.decodeIfPresent(Double.self, forKey: .qTarget) ?? 0.707
   }
+
   func encode(to encoder: Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encode(id, forKey: .id)
@@ -93,24 +160,61 @@ final class EQBand: Identifiable, Codable, Equatable {
     try c.encode(gain, forKey: .gain)
     try c.encode(q, forKey: .q)
     try c.encode(isEnabled, forKey: .isEnabled)
+
+    try c.encode(b0, forKey: .b0)
+    try c.encode(b1, forKey: .b1)
+    try c.encode(b2, forKey: .b2)
+    try c.encode(a1, forKey: .a1)
+    try c.encode(a2, forKey: .a2)
+
+    try c.encode(freqNotch, forKey: .freqNotch)
+    try c.encode(freqPole, forKey: .freqPole)
+    try c.encode(normalizeAtDc, forKey: .normalizeAtDc)
+
+    try c.encode(freqAct, forKey: .freqAct)
+    try c.encode(qAct, forKey: .qAct)
+    try c.encode(freqTarget, forKey: .freqTarget)
+    try c.encode(qTarget, forKey: .qTarget)
   }
+
   func coefficients(sampleRate: Int) -> BiquadCoefficients? {
     if cachedSampleRate == sampleRate, let cached = cachedCoeffs { return cached }
     guard let biquadType = BiquadType(rawValue: type.rawValue) else { return nil }
-    let params = BiquadParameters(type: biquadType, freq: freq, gain: gain, q: q)
+
+    var params = BiquadParameters(type: biquadType)
+    switch type {
+    case .free:
+      params.b0 = b0
+      params.b1 = b1
+      params.b2 = b2
+      params.a1 = a1
+      params.a2 = a2
+    case .generalNotch:
+      params.freqNotch = freqNotch
+      params.freqPole = freqPole
+      params.normalizeAtDc = normalizeAtDc
+    case .linkwitzTransform:
+      params.freqAct = freqAct
+      params.qAct = qAct
+      params.freqTarget = freqTarget
+      params.qTarget = qTarget
+    default:
+      params.freq = freq
+      params.gain = type.hasGain ? gain : nil
+      params.q = type.hasQ ? q : nil
+    }
+
     let result = BiquadCoefficients.compute(parameters: params, sampleRate: sampleRate)
     cachedCoeffs = result
     cachedSampleRate = sampleRate
     return result
   }
-  /// Magnitude in dB at frequency `f`. Disabled bands contribute 0.
+
   func response(atFreq f: Double, sampleRate: Int) -> Double {
     guard isEnabled, let coeffs = coefficients(sampleRate: sampleRate) else { return 0 }
     return coeffs.gainDB(atFreqHz: f, sampleRate: sampleRate)
   }
 
-  /// Phase in radians at frequency `f`. Disabled bands contribute 0
-  /// (no phase shift).
   func phaseResponse(atFreq f: Double, sampleRate: Int) -> Double {
     guard isEnabled, let coeffs = coefficients(sampleRate: sampleRate) else { return 0 }
     return coeffs.phaseRad(atFreqHz: f, sampleRate: sampleRate)
@@ -158,9 +262,6 @@ final class EQPreset: Identifiable, Codable, Equatable {
       }
   }
 
-  /// Combined phase response in radians. Per linear systems theory,
-  /// cascaded biquads add their phase contributions; the preamp is
-  /// scalar so it doesn't shift phase.
   func combinedPhase(atFreq f: Double, sampleRate: Int) -> Double {
     bands.filter(\.isEnabled).reduce(0.0) {
       $0 + $1.phaseResponse(atFreq: f, sampleRate: sampleRate)
@@ -200,7 +301,6 @@ final class EQPreset: Identifiable, Codable, Equatable {
         continue
       }
 
-      // Try AutoEq / EqualizerAPO format: "Filter 1: ON PK Fc 20 Hz Gain -3.0 dB Q 1.41"
       if trimmed.lowercased().hasPrefix("filter") {
         let content =
           trimmed.components(separatedBy: ":").last?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -213,7 +313,6 @@ final class EQPreset: Identifiable, Codable, Equatable {
           var gain = 0.0
           var q = 0.707
 
-          // Simple scan
           for i in 0..<words.count - 1 {
             let key = words[i].lowercased()
             let val = Double(words[i + 1]) ?? 0.0
@@ -227,9 +326,7 @@ final class EQPreset: Identifiable, Codable, Equatable {
           }
           bands.append(EQBand(type: type, freq: freq, gain: gain, q: q, isEnabled: isEnabled))
         }
-      }
-      // Try generic CSV: "PK, 1000, -3.0, 1.41"
-      else if trimmed.contains(",") {
+      } else if trimmed.contains(",") {
         let parts = trimmed.components(separatedBy: ",").map {
           $0.trimmingCharacters(in: .whitespaces)
         }
@@ -245,5 +342,4 @@ final class EQPreset: Identifiable, Codable, Equatable {
 
     return bands.isEmpty ? nil : (preamp, bands)
   }
-
 }

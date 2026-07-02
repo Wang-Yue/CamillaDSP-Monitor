@@ -156,7 +156,11 @@ final class AudioDeviceManager {
       print("[AudioDeviceManager] Playback \(name): channels \(newPlayback.supportedChannels)")
     }
 
-    captureConfig = newCapture.enforced()
+    let enforcedCapture = newCapture.enforced()
+    print(
+      "[AudioDeviceManager] enforcedCapture channels: \(enforcedCapture.channels) (from supported: \(enforcedCapture.supportedChannels))"
+    )
+    captureConfig = enforcedCapture
     playbackConfig = newPlayback.enforced()
   }
 

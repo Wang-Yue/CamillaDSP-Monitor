@@ -40,6 +40,16 @@ final class SpectrogramEngine {
       history.removeAll()
     }
   }
+  var channel: Int? = nil {
+    didSet {
+      if let ch = channel {
+        defaults.set(ch, forKey: "spectroscope_channel")
+      } else {
+        defaults.removeObject(forKey: "spectroscope_channel")
+      }
+      history.removeAll()
+    }
+  }
 
   init() {
     let bins = defaults.integer(forKey: "spectroscope_n_bins")
@@ -49,6 +59,11 @@ final class SpectrogramEngine {
       self.isCapture = defaults.bool(forKey: "spectroscope_is_capture")
     }
 
+    if let chObj = defaults.object(forKey: "spectroscope_channel") as? Int {
+      self.channel = chObj
+    } else {
+      self.channel = nil
+    }
   }
 
   /// Update the spectrum with pre-computed values from the library.

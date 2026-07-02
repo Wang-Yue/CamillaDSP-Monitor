@@ -59,12 +59,26 @@ struct MiniMetersView: View {
 
   var body: some View {
     VStack(spacing: 6) {
-      MiniMeterRow(label: "L", peak: levels.playbackPeak.left, rms: levels.playbackRms.left)
-      MiniMeterRow(label: "R", peak: levels.playbackPeak.right, rms: levels.playbackRms.right)
+      ForEach(0..<levels.playbackPeak.count, id: \.self) { ch in
+        MiniMeterRow(
+          label: channelLabel(for: ch, totalCount: levels.playbackPeak.count),
+          peak: levels.playbackPeak[ch],
+          rms: levels.playbackRms[ch]
+        )
+      }
     }
     .frame(minHeight: 60, maxHeight: .infinity)
     .onAppear { levels.visibilityCount += 1 }
     .onDisappear { levels.visibilityCount -= 1 }
+  }
+
+  private func channelLabel(for index: Int, totalCount: Int) -> String {
+    if totalCount == 2 {
+      return index == 0 ? "L" : "R"
+    }
+    if index == 0 { return "L" }
+    if index == 1 { return "R" }
+    return "\(index + 1)"
   }
 }
 
@@ -106,18 +120,30 @@ struct MiniAnalogVUView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      HStack(spacing: 8) {
-        AnalogVUMeter(
-          level: levels.playbackRms.left, label: "L", params: vuSettings.params,
-          height: geometry.size.height)
-        AnalogVUMeter(
-          level: levels.playbackRms.right, label: "R", params: vuSettings.params,
-          height: geometry.size.height)
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+          ForEach(0..<levels.playbackRms.count, id: \.self) { ch in
+            AnalogVUMeter(
+              level: levels.playbackRms[ch],
+              label: channelLabel(for: ch, totalCount: levels.playbackRms.count),
+              params: vuSettings.params
+            )
+          }
+        }
       }
     }
     .frame(minHeight: 60, maxHeight: .infinity)
     .onAppear { levels.visibilityCount += 1 }
     .onDisappear { levels.visibilityCount -= 1 }
+  }
+
+  private func channelLabel(for index: Int, totalCount: Int) -> String {
+    if totalCount == 2 {
+      return index == 0 ? "L" : "R"
+    }
+    if index == 0 { return "L" }
+    if index == 1 { return "R" }
+    return "\(index + 1)"
   }
 }
 

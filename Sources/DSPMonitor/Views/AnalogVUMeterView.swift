@@ -27,7 +27,6 @@ class VUSettings {
   }
 
   init() {
-    // Provide defaults if not already set
     radiusScale = UserDefaults.standard.object(forKey: "vu_radius_scale") as? Double ?? 1.20
     pivotY = UserDefaults.standard.object(forKey: "vu_pivot_y") as? Double ?? 1.55
     needleExtension = UserDefaults.standard.object(forKey: "vu_needle_extension") as? Double ?? 45.0
@@ -57,7 +56,6 @@ class VUSettings {
   }
 }
 
-// Internal struct for passing parameters to the renderer
 struct VUParams {
   var radiusScale: Double
   var pivotY: Double
@@ -73,7 +71,6 @@ struct AnalogVUMeter: View {
   let level: Float  // dBFS (-60...0)
   let label: String
   var params: VUParams
-  var height: CGFloat = 160
 
   private let bulbHotSpotColor = Color(red: 1.0, green: 0.98, blue: 0.88)
   private let bulbAmberColor = Color(red: 1.0, green: 0.82, blue: 0.40)
@@ -85,44 +82,49 @@ struct AnalogVUMeter: View {
   ]
 
   var body: some View {
-    let scale = height / 160.0
-    let vintageFont = Font.custom("Rockwell", size: 10 * scale)
+    GeometryReader { geometry in
+      let h = geometry.size.height
+      let scale = h / 160.0
+      let vintageFont = Font.custom("Rockwell", size: 10 * scale)
 
-    VStack(spacing: 8 * scale) {
-      Canvas(
-        renderer: { context, size in
-          drawVURenderer(context: &context, size: size, level: level, scale: scale)
-        },
-        symbols: {
-          ForEach(0..<vuMarks.count, id: \.self) { i in
-            if let text = vuMarks[i].l {
-              let color = vuMarks[i].v >= 0 ? Color.red : Color.primary
-              Text(text)
+      VStack(spacing: 6 * scale) {
+        Canvas(
+          renderer: { context, size in
+            drawVURenderer(context: &context, size: size, level: level, scale: scale)
+          },
+          symbols: {
+            ForEach(0..<vuMarks.count, id: \.self) { i in
+              if let text = vuMarks[i].l {
+                let color = vuMarks[i].v >= 0 ? Color.red : Color.primary
+                Text(text)
+                  .font(vintageFont)
+                  .foregroundColor(color.opacity(0.6))
+                  .tag(i)
+              }
+            }
+            ForEach([0, 20, 40, 60, 80, 100], id: \.self) { p in
+              Text("\(p)")
                 .font(vintageFont)
-                .foregroundColor(color.opacity(0.6))
-                .tag(i)
+                .foregroundColor(.primary.opacity(0.3))
+                .tag(1000 + p)
             }
           }
-          ForEach([0, 20, 40, 60, 80, 100], id: \.self) { p in
-            Text("\(p)")
-              .font(vintageFont)
-              .foregroundColor(.primary.opacity(0.3))
-              .tag(1000 + p)
-          }
-        }
-      )
-      .frame(height: height)
-      .overlay(
-        RoundedRectangle(cornerRadius: 6 * scale).stroke(
-          Color.primary.opacity(0.2), lineWidth: 1.2 * scale)
-      )
-      .clipShape(RoundedRectangle(cornerRadius: 6 * scale))
+        )
+        .frame(maxHeight: .infinity)
+        .overlay(
+          RoundedRectangle(cornerRadius: 6 * scale).stroke(
+            Color.primary.opacity(0.2), lineWidth: 1.2 * scale)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 6 * scale))
 
-      Text(label)
-        .font(.system(size: 11 * scale, weight: .black))
-        .foregroundStyle(.secondary.opacity(0.8))
+        Text(label)
+          .font(.system(size: 11 * scale, weight: .black))
+          .foregroundStyle(.secondary.opacity(0.8))
+          .lineLimit(1)
+      }
+      .padding(4 * scale)
     }
-    .padding(6 * scale)
+    .aspectRatio(1.6, contentMode: .fit)
   }
 
   private func drawVURenderer(
@@ -179,8 +181,6 @@ struct AnalogVUMeter: View {
       }, with: .color(.primary.opacity(0.6)), lineWidth: 1.8 * scale)
 
     // 4. Marks Drawing
-
-    // VU Markings (ABOVE)
     for (i, m) in vuMarks.enumerated() {
       let angDeg = angleForVU(m.v)
       let angRad = angDeg * .pi / 180
@@ -286,14 +286,48 @@ struct AnalogVUCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text("Analog VU").font(.headline)
-      HStack(spacing: 24) {
-        AnalogVUMeter(level: levels.playbackRms.left, label: "LEFT", params: vuSettings.params)
-        AnalogVUMeter(level: levels.playbackRms.right, label: "RIGHT", params: vuSettings.params)
+
+      let chCount = levels.playbackRms.count
+      if chCount <= 4 {
+        // Equal horizontal division for 1-4 channels
+        HStack(spacing: 16) {
+          ForEach(0..<chCount, id: \.self) { ch in
+            AnalogVUMeter(
+              level: levels.playbackRms[ch],
+              label: channelLabel(for: ch, totalCount: chCount),
+              params: vuSettings.params
+            )
+            .frame(maxWidth: .infinity)
+          }
+        }
+      } else {
+        // Scrollview for many channels so they don't shrink too much
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: 16) {
+            ForEach(0..<chCount, id: \.self) { ch in
+              AnalogVUMeter(
+                level: levels.playbackRms[ch],
+                label: channelLabel(for: ch, totalCount: chCount),
+                params: vuSettings.params
+              )
+              .frame(width: 220)
+            }
+          }
+        }
       }
     }
     .padding()
     .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
     .onAppear { levels.visibilityCount += 1 }
     .onDisappear { levels.visibilityCount -= 1 }
+  }
+
+  private func channelLabel(for index: Int, totalCount: Int) -> String {
+    if totalCount == 2 {
+      return index == 0 ? "LEFT" : "RIGHT"
+    }
+    if index == 0 { return "LEFT" }
+    if index == 1 { return "RIGHT" }
+    return "CH \(index + 1)"
   }
 }
