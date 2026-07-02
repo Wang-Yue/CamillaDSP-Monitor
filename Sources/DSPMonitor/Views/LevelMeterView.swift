@@ -186,21 +186,25 @@ struct CompactLevelMeterBar: View {
 
   var body: some View {
     HStack(spacing: 16) {
-      HStack(spacing: 6) {
-        Image(systemName: "mic")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-        CompactMultiChannelMeter(levels: levels.capturePeak)
-      }
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 16) {
+          HStack(spacing: 6) {
+            Image(systemName: "mic")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+            CompactMultiChannelMeter(levels: levels.capturePeak)
+          }
 
-      HStack(spacing: 6) {
-        Image(systemName: "hifispeaker")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-        CompactMultiChannelMeter(levels: levels.playbackPeak)
+          HStack(spacing: 6) {
+            Image(systemName: "hifispeaker")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+            CompactMultiChannelMeter(levels: levels.playbackPeak)
+          }
+        }
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
 
-      Spacer()
       CompactStatusIndicator()
     }
     .onAppear { levels.visibilityCount += 1 }
@@ -253,7 +257,9 @@ private struct CompactStatusIndicator: View {
       Text(statusLabel)
         .font(.caption2)
         .foregroundStyle(.secondary)
+        .fixedSize(horizontal: true, vertical: false)
     }
+    .fixedSize()
   }
 
   private var statusColor: Color {

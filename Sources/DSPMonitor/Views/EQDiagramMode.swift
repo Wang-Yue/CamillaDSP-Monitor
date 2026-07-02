@@ -478,7 +478,8 @@ struct EQBandChip: View {
             return nil
           }()
           if let qVal = displayQ {
-            let label = band.type == .generalNotch ? "Qp" : (band.type == .linkwitzTransform ? "Qt" : "Q")
+            let label =
+              band.type == .generalNotch ? "Qp" : (band.type == .linkwitzTransform ? "Qt" : "Q")
             Text(String(format: "\(label) %.2f", qVal)).font(.system(size: 8, design: .monospaced))
           }
         }
