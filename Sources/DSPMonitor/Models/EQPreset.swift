@@ -69,6 +69,7 @@ final class EQBand: Identifiable, Codable, Equatable {
       && lhs.b0 == rhs.b0 && lhs.b1 == rhs.b1 && lhs.b2 == rhs.b2
       && lhs.a1 == rhs.a1 && lhs.a2 == rhs.a2
       && lhs.freqNotch == rhs.freqNotch && lhs.freqPole == rhs.freqPole
+      && lhs.qPole == rhs.qPole
       && lhs.normalizeAtDc == rhs.normalizeAtDc
       && lhs.freqAct == rhs.freqAct && lhs.qAct == rhs.qAct
       && lhs.freqTarget == rhs.freqTarget && lhs.qTarget == rhs.qTarget
@@ -91,6 +92,7 @@ final class EQBand: Identifiable, Codable, Equatable {
   // General Notch parameters
   var freqNotch: Double = 1000.0 { didSet { invalidateCache() } }
   var freqPole: Double = 1000.0 { didSet { invalidateCache() } }
+  var qPole: Double = 0.707 { didSet { invalidateCache() } }
   var normalizeAtDc: Bool = true { didSet { invalidateCache() } }
 
   // Linkwitz Transform parameters
@@ -122,7 +124,7 @@ final class EQBand: Identifiable, Codable, Equatable {
   enum CodingKeys: String, CodingKey {
     case id, type, freq, gain, q, isEnabled
     case b0, b1, b2, a1, a2
-    case freqNotch, freqPole, normalizeAtDc
+    case freqNotch, freqPole, qPole, normalizeAtDc
     case freqAct, qAct, freqTarget, qTarget
   }
 
@@ -144,6 +146,7 @@ final class EQBand: Identifiable, Codable, Equatable {
 
     freqNotch = try c.decodeIfPresent(Double.self, forKey: .freqNotch) ?? 1000.0
     freqPole = try c.decodeIfPresent(Double.self, forKey: .freqPole) ?? 1000.0
+    qPole = try c.decodeIfPresent(Double.self, forKey: .qPole) ?? 0.707
     normalizeAtDc = try c.decodeIfPresent(Bool.self, forKey: .normalizeAtDc) ?? true
 
     freqAct = try c.decodeIfPresent(Double.self, forKey: .freqAct) ?? 50.0
@@ -169,6 +172,7 @@ final class EQBand: Identifiable, Codable, Equatable {
 
     try c.encode(freqNotch, forKey: .freqNotch)
     try c.encode(freqPole, forKey: .freqPole)
+    try c.encode(qPole, forKey: .qPole)
     try c.encode(normalizeAtDc, forKey: .normalizeAtDc)
 
     try c.encode(freqAct, forKey: .freqAct)
@@ -192,6 +196,7 @@ final class EQBand: Identifiable, Codable, Equatable {
     case .generalNotch:
       params.freqNotch = freqNotch
       params.freqPole = freqPole
+      params.qP = qPole
       params.normalizeAtDc = normalizeAtDc
     case .linkwitzTransform:
       params.freqAct = freqAct

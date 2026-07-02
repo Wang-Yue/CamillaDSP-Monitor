@@ -49,6 +49,7 @@ extension PipelineStage {
         case .generalNotch:
           params.freqNotch = band.freqNotch
           params.freqPole = band.freqPole
+          params.qP = band.qPole
           params.normalizeAtDc = band.normalizeAtDc
         case .linkwitzTransform:
           params.freqAct = band.freqAct

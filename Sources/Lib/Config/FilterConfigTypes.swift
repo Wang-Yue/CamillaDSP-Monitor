@@ -57,23 +57,27 @@ public struct LoudnessParameters: Codable, Sendable, Equatable {
   public var highBoost: Double?
   public var lowBoost: Double?
   public var attenuateMid: Bool?
+  public var fader: Fader?
 
   enum CodingKeys: String, CodingKey {
     case referenceLevel = "reference_level"
     case highBoost = "high_boost"
     case lowBoost = "low_boost"
     case attenuateMid = "attenuate_mid"
+    case fader
   }
 
   public init(
     referenceLevel: Double? = nil, highBoost: Double? = nil,
     lowBoost: Double? = nil,
-    attenuateMid: Bool? = nil
+    attenuateMid: Bool? = nil,
+    fader: Fader? = nil
   ) {
     self.referenceLevel = referenceLevel
     self.highBoost = highBoost
     self.lowBoost = lowBoost
     self.attenuateMid = attenuateMid
+    self.fader = fader
   }
 
   public func validate() throws {
@@ -132,6 +136,7 @@ public struct BiquadParameters: Codable, Sendable, Equatable {
   // GeneralNotch parameters
   public var freqNotch: Double?
   public var freqPole: Double?
+  public var qP: Double?
   public var normalizeAtDc: Bool?
 
   // LinkwitzTransform parameters
@@ -143,8 +148,9 @@ public struct BiquadParameters: Codable, Sendable, Equatable {
   enum CodingKeys: String, CodingKey {
     case type, freq, gain, q, bandwidth, slope
     case a1, a2, b0, b1, b2
-    case freqNotch = "freq_notch"
-    case freqPole = "freq_pole"
+    case freqNotch = "freq_z"
+    case freqPole = "freq_p"
+    case qP = "q_p"
     case normalizeAtDc = "normalize_at_dc"
     case freqAct = "freq_act"
     case qAct = "q_act"
@@ -157,7 +163,8 @@ public struct BiquadParameters: Codable, Sendable, Equatable {
     q: Double? = nil,
     bandwidth: Double? = nil, slope: Double? = nil,
     a1: Double? = nil, a2: Double? = nil, b0: Double? = nil, b1: Double? = nil, b2: Double? = nil,
-    freqNotch: Double? = nil, freqPole: Double? = nil, normalizeAtDc: Bool? = nil,
+    freqNotch: Double? = nil, freqPole: Double? = nil, qP: Double? = nil,
+    normalizeAtDc: Bool? = nil,
     freqAct: Double? = nil, qAct: Double? = nil, freqTarget: Double? = nil, qTarget: Double? = nil
   ) {
     _ = name
@@ -174,6 +181,7 @@ public struct BiquadParameters: Codable, Sendable, Equatable {
     self.b2 = b2
     self.freqNotch = freqNotch
     self.freqPole = freqPole
+    self.qP = qP
     self.normalizeAtDc = normalizeAtDc
     self.freqAct = freqAct
     self.qAct = qAct
@@ -196,9 +204,13 @@ public struct ConvParameters: Codable, Sendable, Equatable {
   public var format: String?
   public var channel: Int?
   public var length: Int?
+  public var skipBytesLines: Int?
+  public var readBytesLines: Int?
 
   enum CodingKeys: String, CodingKey {
     case type, values, filename, format, channel, length
+    case skipBytesLines = "skip_bytes_lines"
+    case readBytesLines = "read_bytes_lines"
   }
 
   public init(
@@ -207,7 +219,9 @@ public struct ConvParameters: Codable, Sendable, Equatable {
     filename: String? = nil,
     format: String? = nil,
     channel: Int? = nil,
-    length: Int? = nil
+    length: Int? = nil,
+    skipBytesLines: Int? = nil,
+    readBytesLines: Int? = nil
   ) {
     self.type = type
     self.values = values
@@ -215,6 +229,8 @@ public struct ConvParameters: Codable, Sendable, Equatable {
     self.format = format
     self.channel = channel
     self.length = length
+    self.skipBytesLines = skipBytesLines
+    self.readBytesLines = readBytesLines
   }
 
   public func validate() throws {

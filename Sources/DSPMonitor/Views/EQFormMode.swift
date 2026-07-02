@@ -244,6 +244,15 @@ struct GeneralNotchFields: View {
         Text("\(Int(band.freqPole)) Hz").font(.system(.caption, design: .monospaced)).frame(
           width: 80, alignment: .trailing)
       }
+      HStack(spacing: 12) {
+        Text("Pole Q").font(.caption).foregroundStyle(.secondary).frame(
+          width: 80, alignment: .leading)
+        Slider(value: $band.qPole, in: 0.05...10.0, step: 0.05).onChange(of: band.qPole) { _, _ in
+          dsp.applyConfig()
+        }
+        Text(String(format: "%.2f", band.qPole)).font(.system(.caption, design: .monospaced)).frame(
+          width: 80, alignment: .trailing)
+      }
       Toggle("Normalize at DC", isOn: $band.normalizeAtDc)
         .font(.caption)
         .onChange(of: band.normalizeAtDc) { _, _ in dsp.applyConfig() }

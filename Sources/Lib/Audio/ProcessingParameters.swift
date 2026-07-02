@@ -7,12 +7,48 @@
 
 import Synchronization
 
-public enum Fader: Int, Codable, Sendable {
+public enum Fader: Int, Sendable {
   case main = 0
   case aux1 = 1
   case aux2 = 2
   case aux3 = 3
   case aux4 = 4
+}
+
+extension Fader: Codable {
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    if let intValue = try? container.decode(Int.self) {
+      if let fader = Fader(rawValue: intValue) {
+        self = fader
+        return
+      }
+    }
+    let stringValue = try container.decode(String.self)
+    switch stringValue.lowercased() {
+    case "main": self = .main
+    case "aux1": self = .aux1
+    case "aux2": self = .aux2
+    case "aux3": self = .aux3
+    case "aux4": self = .aux4
+    default:
+      throw DecodingError.dataCorruptedError(
+        in: container,
+        debugDescription: "Cannot decode Fader from \(stringValue)"
+      )
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    switch self {
+    case .main: try container.encode("Main")
+    case .aux1: try container.encode("Aux1")
+    case .aux2: try container.encode("Aux2")
+    case .aux3: try container.encode("Aux3")
+    case .aux4: try container.encode("Aux4")
+    }
+  }
 }
 
 public final class ProcessingParameters: Sendable {
