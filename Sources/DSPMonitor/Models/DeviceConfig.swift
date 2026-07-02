@@ -10,6 +10,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   public var capabilities: AudioDeviceDescriptor
 
   public var channels: Int
+  public var deviceChannels: Int
   public var sampleRate: Int
   public var format: String
   public var bypassDoP: Bool
@@ -41,6 +42,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   public init() {
     self.capabilities = AudioDeviceDescriptor()
     self.channels = 2
+    self.deviceChannels = 2
     self.sampleRate = 48000
     self.format = "F32"
     self.bypassDoP = false
@@ -51,7 +53,8 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
 
   // Custom decode tolerates configs persisted before `dopCutoffHz` / `outputDoP` existed.
   private enum CodingKeys: String, CodingKey {
-    case capabilities, channels, sampleRate, format, bypassDoP, dopCutoffHz, outputDoP,
+    case capabilities, channels, deviceChannels, sampleRate, format, bypassDoP, dopCutoffHz,
+      outputDoP,
       dopEncoderFilter
   }
 
@@ -59,6 +62,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     self.capabilities = try c.decode(AudioDeviceDescriptor.self, forKey: .capabilities)
     self.channels = try c.decode(Int.self, forKey: .channels)
+    self.deviceChannels = try c.decodeIfPresent(Int.self, forKey: .deviceChannels) ?? self.channels
     self.sampleRate = try c.decode(Int.self, forKey: .sampleRate)
     self.format = try c.decode(String.self, forKey: .format)
     self.bypassDoP = try c.decode(Bool.self, forKey: .bypassDoP)
@@ -83,7 +87,8 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   /// Falls back to the union across all channel counts if the count is not found.
   public var supportedRates: [Int] {
     guard let set = capabilities.capability_sets.first else { return [] }
-    let cap = set.capabilities.first(where: { $0.channels == channels }) ?? set.capabilities.first
+    let cap =
+      set.capabilities.first(where: { $0.channels == deviceChannels }) ?? set.capabilities.first
     let rates: [Int]
     if let cap = cap {
       rates = cap.samplerates.map { $0.samplerate }
@@ -96,7 +101,8 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   /// Available sample formats for a given channel count and sample rate, sorted best-first.
   public var supportedFormats: [String] {
     guard let set = capabilities.capability_sets.first else { return [] }
-    let cap = set.capabilities.first(where: { $0.channels == channels }) ?? set.capabilities.first
+    let cap =
+      set.capabilities.first(where: { $0.channels == deviceChannels }) ?? set.capabilities.first
     let formats = cap?.samplerates.first(where: { $0.samplerate == sampleRate })?.formats ?? []
     return formats.sorted { (Self.formatPriority[$0] ?? -1) > (Self.formatPriority[$1] ?? -1) }
   }
@@ -106,9 +112,11 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   public func enforced() -> DeviceConfig {
     var result = self
     let ch = result.supportedChannels
-    if !ch.isEmpty && !ch.contains(result.channels) {
-      result.channels = ch.contains(2) ? 2 : ch[0]
+    if !ch.isEmpty && !ch.contains(result.deviceChannels) {
+      result.deviceChannels = ch.contains(2) ? 2 : ch[0]
     }
+    result.channels = max(1, min(result.deviceChannels, result.channels))
+
     let rates = result.supportedRates
     if !rates.isEmpty && !rates.contains(result.sampleRate) {
       result.sampleRate = Self.bestRate(from: rates, preferring: result.sampleRate)

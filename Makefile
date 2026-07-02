@@ -106,13 +106,13 @@ Sources/DSPLib/camilladsp_ffi.swift: $(RUST_BRIDGE_DIR)/generated/swift/camillad
 # 4. Build Swift application (Rust path)
 $(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/DSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS) Package.swift
 	@echo "🍎 Building Swift application with Rust library ($(MODE))..."
-	$(SWIFT) build $(SWIFT_FLAGS)
+	$(SWIFT) build $(SWIFT_FLAGS) --product DSPMonitor
 
 else
 # Build Swift application (Swift path)
 $(EXECUTABLE): $(SWIFT_SRCS) Package.swift
 	@echo "🍎 Building Swift application with pure Swift library ($(MODE))..."
-	$(SWIFT) build $(SWIFT_FLAGS)
+	$(SWIFT) build $(SWIFT_FLAGS) --product DSPMonitor
 endif
 
 ## build: Build the binary with incremental tracking

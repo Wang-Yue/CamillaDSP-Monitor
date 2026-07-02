@@ -24,6 +24,7 @@ struct DevicePickerView: View {
             get: { bindableDevices.captureConfig.deviceName },
             set: { bindableDevices.captureConfig.deviceName = $0 }),
           channels: $bindableDevices.captureConfig.channels,
+          deviceChannels: $bindableDevices.captureConfig.deviceChannels,
           supportedChannels: bindableDevices.captureConfig.supportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
@@ -103,6 +104,7 @@ struct DevicePickerView: View {
             get: { bindableDevices.playbackConfig.deviceName },
             set: { bindableDevices.playbackConfig.deviceName = $0 }),
           channels: $bindableDevices.playbackConfig.channels,
+          deviceChannels: $bindableDevices.playbackConfig.deviceChannels,
           supportedChannels: bindableDevices.playbackConfig.supportedChannels
         ) {
           VStack(alignment: .leading, spacing: 8) {
@@ -269,12 +271,13 @@ struct DeviceSection<ExtraContent: View>: View {
   let devices: [AudioDevice]
   @Binding var selectedDevice: String?
   @Binding var channels: Int
+  @Binding var deviceChannels: Int
   let supportedChannels: [Int]
   let extraContent: ExtraContent
 
   init(
     title: String, icon: String, iconColor: Color, devices: [AudioDevice],
-    selectedDevice: Binding<String?>, channels: Binding<Int>,
+    selectedDevice: Binding<String?>, channels: Binding<Int>, deviceChannels: Binding<Int>,
     supportedChannels: [Int] = [],
     @ViewBuilder extraContent: () -> ExtraContent
   ) {
@@ -284,6 +287,7 @@ struct DeviceSection<ExtraContent: View>: View {
     self.devices = devices
     self._selectedDevice = selectedDevice
     self._channels = channels
+    self._deviceChannels = deviceChannels
     self.supportedChannels = supportedChannels
     self.extraContent = extraContent()
   }
@@ -322,19 +326,28 @@ struct DeviceSection<ExtraContent: View>: View {
           }
         }
 
-        HStack {
-          Text("Channels")
-            .frame(width: 100, alignment: .leading)
-          if supportedChannels.isEmpty {
-            Stepper("\(channels)", value: $channels, in: 1...32)
-              .frame(width: 120)
-          } else {
-            Picker("", selection: $channels) {
-              ForEach(supportedChannels, id: \.self) { ch in
-                Text("\(ch)").tag(ch)
+        HStack(spacing: 24) {
+          HStack(spacing: 8) {
+            Text("Device Channels")
+              .frame(width: 110, alignment: .leading)
+            if supportedChannels.isEmpty {
+              Stepper("\(deviceChannels)", value: $deviceChannels, in: 1...32)
+                .frame(width: 100)
+            } else {
+              Picker("", selection: $deviceChannels) {
+                ForEach(supportedChannels, id: \.self) { ch in
+                  Text("\(ch)").tag(ch)
+                }
               }
+              .labelsHidden()
             }
-            .labelsHidden()
+          }
+
+          HStack(spacing: 8) {
+            Text("Stream Channels")
+              .frame(width: 110, alignment: .leading)
+            Stepper("\(channels)", value: $channels, in: 1...deviceChannels)
+              .frame(width: 100)
           }
         }
 

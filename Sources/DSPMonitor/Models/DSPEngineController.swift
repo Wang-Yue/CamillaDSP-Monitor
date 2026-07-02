@@ -243,13 +243,6 @@ final class DSPEngineController {
       await engine.setMute(settings.isMuted)
       await engine.setVolume(settings.volume)
 
-      if devices.captureConfig.channels < 2 || devices.playbackConfig.channels < 2 {
-        throw AudioBackendError.configParse(
-          message:
-            "Capture and Playback devices must have at least 2 channels selected for 2in-2out flow (Capture: \(devices.captureConfig.channels), Playback: \(devices.playbackConfig.channels))."
-        )
-      }
-
       let config = buildConfig()
       try await apply(config: config)
     } catch {
