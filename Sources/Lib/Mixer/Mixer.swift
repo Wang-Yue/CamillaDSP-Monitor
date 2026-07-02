@@ -27,6 +27,7 @@ enum MixerError: Error, Sendable, CustomStringConvertible {
 public final class AudioMixer {
 
   public let chunkSize: Int
+  public let name: String
   public let channelsIn: Int
   public let channelsOut: Int
 
@@ -36,7 +37,8 @@ public final class AudioMixer {
   }
   private var mapping: [[PreparedSource]]
 
-  public init(config: MixerConfig, chunkSize: Int) {
+  public init(name: String = "mixer", config: MixerConfig, chunkSize: Int) {
+    self.name = name
     self.chunkSize = chunkSize
     self.channelsIn = config.channelsIn
     self.channelsOut = config.channelsOut
@@ -107,5 +109,34 @@ public final class AudioMixer {
       }
     }
     output.validFrames = frames
+  }
+
+  public func updateParameters(_ config: MixerConfig) {
+    self.mapping = [[PreparedSource]](repeating: [], count: config.channelsOut)
+
+    for map in config.mapping {
+      let dest = map.dest
+      guard dest < config.channelsOut else { continue }
+
+      if map.mute == true {
+        continue
+      }
+
+      var sources: [PreparedSource] = []
+      for src in map.sources {
+        if src.mute == true { continue }
+
+        let gain = src.gainValue
+        let isLinear = src.scale == .linear
+        var linGain = isLinear ? gain : PrcFmt.fromDB(gain)
+
+        if src.inverted == true {
+          linGain *= -1.0
+        }
+
+        sources.append(PreparedSource(inChannel: src.channel, gain: linGain))
+      }
+      self.mapping[dest] = sources
+    }
   }
 }

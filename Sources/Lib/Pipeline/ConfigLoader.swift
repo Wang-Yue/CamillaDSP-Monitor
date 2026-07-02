@@ -60,6 +60,16 @@ public enum ConfigLoader {
       }
     }
 
+    if let processors = config.processors {
+      for (name, processorConfig) in processors {
+        do {
+          try processorConfig.validate()
+        } catch {
+          throw ConfigError.invalidFilter("Processor '\(name)': \(error)")
+        }
+      }
+    }
+
     try validatePipeline(config)
 
     logger.info("Configuration validated successfully")
@@ -136,6 +146,26 @@ public enum ConfigLoader {
             )
           }
           numChannels = mixerConfig.channelsOut
+
+        case .processor:
+          guard let name = step.name else {
+            throw ConfigError.invalidPipeline("Processor step \(i) must have 'name'")
+          }
+          guard let processorConfig = config.processors?[name] else {
+            throw ConfigError.invalidPipeline(
+              "Processor '\(name)' referenced in pipeline but not defined")
+          }
+          let expectedChannels: Int
+          switch processorConfig {
+          case .compressor(let p): expectedChannels = p.channels
+          case .noiseGate(let p): expectedChannels = p.channels
+          case .race(let p): expectedChannels = p.channels
+          }
+          guard expectedChannels == numChannels else {
+            throw ConfigError.invalidPipeline(
+              "Processor '\(name)' expects \(expectedChannels) channel(s) but pipeline has \(numChannels) at this point"
+            )
+          }
         }
       }
     }

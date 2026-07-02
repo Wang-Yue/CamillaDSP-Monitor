@@ -185,11 +185,13 @@ import Testing
   }
 
   @Test func PipelineVolumeChange() throws {
-    let config = DSPConfiguration(
-      devices: DevicesConfig(
-        samplerate: 44100, chunksize: 1024,
-        capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+    var devices = DevicesConfig(
+      samplerate: 44100, chunksize: 1024,
+      capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)
+    )
+    devices.volumeRampTime = 0.0
+    let config = DSPConfiguration(devices: devices)
     let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
     let pipeline = try Pipeline(config: config, processingParams: params)
 
@@ -212,11 +214,13 @@ import Testing
   }
 
   @Test func PipelineMute() throws {
-    let config = DSPConfiguration(
-      devices: DevicesConfig(
-        samplerate: 44100, chunksize: 1024,
-        capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+    var devices = DevicesConfig(
+      samplerate: 44100, chunksize: 1024,
+      capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)
+    )
+    devices.volumeRampTime = 0.0
+    let config = DSPConfiguration(devices: devices)
     let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
     let pipeline = try Pipeline(config: config, processingParams: params)
 
@@ -236,6 +240,36 @@ import Testing
     // Output should be zero!
     #expect(abs(output.waveforms[0][0] - 0.0) <= 1e-5)
     #expect(abs(output.waveforms[0][1023] - 0.0) <= 1e-5)
+  }
+
+  @Test func PipelineVolumePresetBeforeBuild() throws {
+    let devices = DevicesConfig(
+      samplerate: 44100, chunksize: 1024,
+      capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)
+    )
+    let config = DSPConfiguration(devices: devices)
+
+    let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
+    params.targetVolume = -100.0
+
+    let pipeline = try Pipeline(config: config, processingParams: params)
+
+    let chunk = AudioChunk(frames: 1024, channels: 2)
+    for ch in 0..<2 {
+      for t in 0..<1024 {
+        chunk[ch][t] = 1.0
+      }
+    }
+
+    var output = AudioChunk(frames: 1024, channels: 2)
+    try pipeline.process(input: chunk, into: &output)
+
+    for ch in 0..<2 {
+      for t in 0..<1024 {
+        #expect(output[ch][t] < 1e-4)
+      }
+    }
   }
 
   @Test func PipelineInitFilterMissingNames() {

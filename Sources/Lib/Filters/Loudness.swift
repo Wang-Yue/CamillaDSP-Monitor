@@ -7,6 +7,7 @@ import DSPConfig
 import Foundation
 
 final class LoudnessFilter: Filter {
+  let name: String
   private let sampleRate: Int
   private var params: LoudnessParameters
 
@@ -19,7 +20,8 @@ final class LoudnessFilter: Filter {
 
   var processingParameters: ProcessingParameters?
 
-  init(parameters: LoudnessParameters, sampleRate: Int) {
+  init(name: String = "loudness", parameters: LoudnessParameters, sampleRate: Int) {
+    self.name = name
     self.sampleRate = sampleRate
     self.params = parameters
 
@@ -72,5 +74,11 @@ final class LoudnessFilter: Filter {
     // High shelf at 3500 Hz, 12 dB/oct slope
     let hpParams = BiquadParameters(type: .highshelf, freq: 3500.0, gain: highBoost, slope: 12.0)
     highShelfFilter.updateParameters(.biquad(hpParams), sampleRate: sampleRate)
+  }
+
+  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
+    guard case .loudness(let p) = config else { return }
+    self.params = p
+    self.isProcessingActive = false
   }
 }

@@ -21,6 +21,7 @@ import Testing
 @testable import DSPFilters
 @testable import DSPLogging
 @testable import DSPMixer
+@testable import DSPProcessors
 @testable import DSPResampler
 
 // MARK: - Allocation counter
@@ -199,13 +200,19 @@ private enum AllocationCounter {
     let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
     params.targetVolume = -6.0
     params.isMuted = false
-    let filter = VolumeFilter(processingParameters: params)
+    let filter = VolumeFilter(
+      sampleRate: 44100,
+      chunkSize: 1024,
+      processingParameters: params
+    )
     let buffer = AudioBuffers(channels: 1, capacity: 1024)
     let wave = buffer[0]
     fillSine(wave, frames: 1024, freqHz: 1000, sampleRate: 44100)
 
     assertAllocationFree(label: "Volume") { _ in
+      filter.prepareChunk()
       filter.process(waveform: wave)
+      filter.advanceRamp()
     }
   }
 
@@ -230,6 +237,143 @@ private enum AllocationCounter {
 
     assertAllocationFree(label: "Loudness") { _ in
       filter.process(waveform: wave)
+    }
+  }
+
+  @Test func Delay_AllocationFree() {
+    let params = DelayParameters(delay: 5.5, unit: .samples, subsample: true)
+    let filter = DelayFilter(parameters: params, sampleRate: 44100)
+    let buffer = AudioBuffers(channels: 1, capacity: 1024)
+    let wave = buffer[0]
+    assertAllocationFree(label: "Delay") { _ in
+      filter.process(waveform: wave)
+    }
+  }
+
+  @Test func BiquadCombo_AllocationFree() throws {
+    let params = BiquadComboParameters(
+      type: .fivePointPeq,
+      fls: 80.0, qls: 0.707, gls: 3.0,
+      fp1: 250.0, qp1: 1.5, gp1: -2.0,
+      fp2: 1000.0, qp2: 2.0, gp2: 1.5,
+      fp3: 4000.0, qp3: 1.0, gp3: -1.0,
+      fhs: 12000.0, qhs: 0.707, ghs: 2.5
+    )
+    let filter = try BiquadComboFilter(parameters: params, sampleRate: 44100)
+    let buffer = AudioBuffers(channels: 1, capacity: 1024)
+    let wave = buffer[0]
+    assertAllocationFree(label: "BiquadCombo") { _ in
+      filter.process(waveform: wave)
+    }
+  }
+
+  @Test func DiffEq_AllocationFree() {
+    let params = DiffEqParameters(
+      a: [1.0, -1.864844640491105, 0.8818236057002321],
+      b: [0.004244741301241303, 0.008489482602482605, 0.004244741301241303]
+    )
+    let filter = DiffEqFilter(parameters: params)
+    let buffer = AudioBuffers(channels: 1, capacity: 1024)
+    let wave = buffer[0]
+    assertAllocationFree(label: "DiffEq") { _ in
+      filter.process(waveform: wave)
+    }
+  }
+
+  @Test func Dither_AllocationFree() {
+    let params = DitherParameters(type: .gesemann441, bits: 16)
+    let filter = DitherFilter(parameters: params)
+    let buffer = AudioBuffers(channels: 1, capacity: 1024)
+    let wave = buffer[0]
+    assertAllocationFree(label: "Dither") { _ in
+      filter.process(waveform: wave)
+    }
+  }
+
+  @Test func Limiter_AllocationFree() {
+    let params = LimiterParameters(clipLimit: -1.5, softClip: true)
+    let filter = LimiterFilter(parameters: params)
+    let buffer = AudioBuffers(channels: 1, capacity: 1024)
+    let wave = buffer[0]
+    assertAllocationFree(label: "Limiter") { _ in
+      filter.process(waveform: wave)
+    }
+  }
+
+  @Test func LookaheadLimiter_AllocationFree() {
+    let params = LookaheadLimiterParameters(limit: -1.0, attack: 4.0, release: 20.0, unit: .samples)
+    let filter = LookaheadLimiterFilter(parameters: params, sampleRate: 44100, chunkSize: 1024)
+    let buffer = AudioBuffers(channels: 1, capacity: 1024)
+    let wave = buffer[0]
+    assertAllocationFree(label: "LookaheadLimiter") { _ in
+      filter.process(waveform: wave)
+    }
+  }
+
+  // MARK: - Processors
+
+  @Test func Compressor_AllocationFree() {
+    let params = CompressorParameters(
+      channels: 2,
+      monitorChannels: [0],
+      processChannels: [0, 1],
+      attack: 0.005,
+      release: 0.05,
+      threshold: -10.0,
+      factor: 3.0,
+      makeupGain: 2.0,
+      softClip: true,
+      clipLimit: -1.0
+    )
+    let compressor = CompressorProcessor(
+      parameters: params, sampleRate: 44100, chunkSize: 1024)
+    var chunk = AudioChunk(
+      waveforms: Array(repeating: [Double](repeating: 0.5, count: 1024), count: 2),
+      validFrames: 1024
+    )
+    assertAllocationFree(label: "Compressor") { _ in
+      try! compressor.process(chunk: &chunk)
+    }
+  }
+
+  @Test func NoiseGate_AllocationFree() {
+    let params = NoiseGateParameters(
+      channels: 2,
+      monitorChannels: [0],
+      processChannels: [0, 1],
+      attack: 0.005,
+      release: 0.05,
+      threshold: -20.0,
+      attenuation: 12.0
+    )
+    let gate = NoiseGateProcessor(
+      parameters: params, sampleRate: 44100, chunkSize: 1024)
+    var chunk = AudioChunk(
+      waveforms: Array(repeating: [Double](repeating: 0.5, count: 1024), count: 2),
+      validFrames: 1024
+    )
+    assertAllocationFree(label: "NoiseGate") { _ in
+      try! gate.process(chunk: &chunk)
+    }
+  }
+
+  @Test func RACE_AllocationFree() throws {
+    let params = RACEParameters(
+      channels: 2,
+      channelA: 0,
+      channelB: 1,
+      delay: 12.0,
+      subsampleDelay: false,
+      delayUnit: .samples,
+      attenuation: 6.0
+    )
+    let race = try RACEProcessor(parameters: params, sampleRate: 44100)
+    var chunk = AudioChunk(
+      waveforms: Array(repeating: [Double](repeating: 0.5, count: 1024), count: 2),
+      validFrames: 1024
+    )
+    assertAllocationFree(label: "RACE") { _ in
+      try! race.process(chunk: &chunk)
     }
   }
 

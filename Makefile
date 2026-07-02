@@ -56,7 +56,7 @@ RUST_HARNESS_BINS := \
 RUST_HARNESS_SRCS := $(shell find $(RUST_HARNESS_DIR) -type f \
 	\( -name "*.rs" -o -name "Cargo.toml" \) 2>/dev/null)
 
-.PHONY: all build app run clean install help test test-swift test-rust-build bench
+.PHONY: all build app run clean install help test test-swift test-rust-build bench cli
 
 # Default target
 all: app
@@ -119,6 +119,11 @@ endif
 build: $(EXECUTABLE)
 	@echo "\n✅ Build Complete!"
 	@echo "📍 Binary location: $(EXECUTABLE)"
+
+## cli: Build the standalone command-line executable (dsp-cli)
+cli:
+	@echo "🍎 Building dsp-cli CLI..."
+	$(SWIFT) build $(SWIFT_FLAGS) --product dsp-cli
 
 ## app: Build and package as a macOS Application (.app)
 app: build

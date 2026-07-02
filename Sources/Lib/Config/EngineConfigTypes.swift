@@ -78,7 +78,7 @@ public enum AudioBackendError: Error, LocalizedError, Sendable {
   }
 }
 
-public struct VuLevels: Sendable {
+public struct VuLevels: Codable, Sendable {
   public let playback_rms: [Float]
   public let playback_peak: [Float]
   public let capture_rms: [Float]
@@ -94,7 +94,7 @@ public struct VuLevels: Sendable {
   }
 }
 
-public struct Spectrum: Sendable {
+public struct Spectrum: Codable, Sendable {
   public let frequencies: [Float]
   public let magnitudes: [Float]
 
@@ -104,7 +104,7 @@ public struct Spectrum: Sendable {
   }
 }
 
-public struct AudioSamples: Sendable {
+public struct AudioSamples: Codable, Sendable {
   public let channels: [[Float]]
 
   public init(channels: [[Float]]) {
@@ -245,17 +245,6 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
     self.dopEncoderFilter = nil
   }
 
-  public init(
-    type: AudioBackendType, channels: Int, device: String? = nil,
-    exclusive: Bool? = nil, outputDoP: Bool? = nil, dopEncoderFilter: SDMFilter? = nil
-  ) {
-    self.type = type
-    self.channels = channels
-    self.device = device
-    self.exclusive = exclusive
-    self.outputDoP = outputDoP
-    self.dopEncoderFilter = dopEncoderFilter
-  }
 }
 
 public struct DevicesConfig: Codable, Equatable, Sendable {
@@ -273,6 +262,8 @@ public struct DevicesConfig: Codable, Equatable, Sendable {
   public var silenceThreshold: Double?
   /// Silence detection timeout (seconds). 0 = disabled.
   public var silenceTimeout: Double?
+  public var volumeRampTime: Double?
+  public var volumeLimit: Double?
 
   enum CodingKeys: String, CodingKey {
     case samplerate, chunksize, resampler, capture, playback
@@ -282,6 +273,8 @@ public struct DevicesConfig: Codable, Equatable, Sendable {
     case captureSamplerate = "capture_samplerate"
     case silenceThreshold = "silence_threshold"
     case silenceTimeout = "silence_timeout"
+    case volumeRampTime = "volume_ramp_time"
+    case volumeLimit = "volume_limit"
   }
 
   public init(

@@ -6,11 +6,12 @@
 import Foundation
 
 /// Top-level configuration consumed by the DSP engine.
-public struct DSPConfiguration: Codable, Sendable {
+public struct DSPConfiguration: Codable, Sendable, Equatable {
 
   public var devices: DevicesConfig
   public var filters: [String: FilterConfig]?
   public var mixers: [String: MixerConfig]?
+  public var processors: [String: ProcessorConfig]?
   public var pipeline: [PipelineStep]?
 
   public init(devices: DevicesConfig) { self.devices = devices }
@@ -19,7 +20,7 @@ public struct DSPConfiguration: Codable, Sendable {
 /// One step in the user-defined processing pipeline. Either a named
 /// filter chain applied to one or more channels, or a mixer that
 /// changes the channel layout.
-public struct PipelineStep: Codable, Sendable {
+public struct PipelineStep: Codable, Sendable, Equatable {
   public var type: PipelineStepType
   public var channel: Int?
   public var channels: [Int]?
@@ -43,4 +44,5 @@ public struct PipelineStep: Codable, Sendable {
 public enum PipelineStepType: String, Codable, Sendable {
   case filter = "Filter"
   case mixer = "Mixer"
+  case processor = "Processor"
 }

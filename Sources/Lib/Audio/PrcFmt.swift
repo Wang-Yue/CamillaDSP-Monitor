@@ -163,4 +163,18 @@ public enum DSPOps {
   ) -> PrcFmt {
     vDSP.rootMeanSquare(UnsafeBufferPointer(start: buffer.baseAddress, count: count))
   }
+
+  /// Element-wise vector multiplication: `b[i] *= a[i]` for `i < count`.
+  @inlinable
+  public static func multiply(
+    _ a: [PrcFmt],
+    _ b: MutableWaveform,
+    count: Int
+  ) {
+    a.withUnsafeBufferPointer { aPtr in
+      let aSub = UnsafeBufferPointer(start: aPtr.baseAddress, count: count)
+      var bSub = UnsafeMutableBufferPointer(start: b.baseAddress, count: count)
+      vDSP.multiply(aSub, bSub, result: &bSub)
+    }
+  }
 }

@@ -48,10 +48,17 @@ func isCloseRelative(_ left: Double, _ right: Double, _ maxdiff: Double) -> Bool
     type: BiquadType,
     freq: Double? = nil, q: Double? = nil, gain: Double? = nil,
     slope: Double? = nil, bandwidth: Double? = nil,
+    a1: Double? = nil, a2: Double? = nil, b0: Double? = nil, b1: Double? = nil, b2: Double? = nil,
+    freqNotch: Double? = nil, freqPole: Double? = nil, normalizeAtDc: Bool? = nil,
+    freqAct: Double? = nil, qAct: Double? = nil, freqTarget: Double? = nil, qTarget: Double? = nil,
     sampleRate: Int? = nil
   ) throws -> BiquadCoefficients {
     let params = BiquadParameters(
-      type: type, freq: freq, gain: gain, q: q, bandwidth: bandwidth, slope: slope)
+      type: type, freq: freq, gain: gain, q: q, bandwidth: bandwidth, slope: slope,
+      a1: a1, a2: a2, b0: b0, b1: b1, b2: b2,
+      freqNotch: freqNotch, freqPole: freqPole, normalizeAtDc: normalizeAtDc,
+      freqAct: freqAct, qAct: qAct, freqTarget: freqTarget, qTarget: qTarget
+    )
     let sr = sampleRate ?? Int(fs)
     let config = FilterConfig.biquad(params)
     try config.validate()
@@ -331,5 +338,65 @@ func isCloseRelative(_ left: Double, _ right: Double, _ maxdiff: Double) -> Bool
     } catch {
       // expected exception
     }
+  }
+
+  @Test func FreeBiquad() throws {
+    let coeffs = try makeCoeffs(
+      type: .free,
+      a1: -0.5, a2: 0.1, b0: 0.25, b1: 0.5, b2: 0.25
+    )
+    #expect(coeffs.b0 == 0.25)
+    #expect(coeffs.b1 == 0.5)
+    #expect(coeffs.b2 == 0.25)
+    #expect(coeffs.a1 == -0.5)
+    #expect(coeffs.a2 == 0.1)
+  }
+
+  @Test func GeneralNotchHP() throws {
+    let coeffs = try makeCoeffs(
+      type: .generalNotch,
+      q: 1.0,
+      freqNotch: 1000.0,
+      freqPole: 2000.0,
+      normalizeAtDc: false
+    )
+    let (gainFp, _) = gainAndPhase(coeffs: coeffs, f: 1000.0, fs: fs)
+    let (gainHf, _) = gainAndPhase(coeffs: coeffs, f: 20000.0, fs: fs)
+    let (gainLf, _) = gainAndPhase(coeffs: coeffs, f: 1.0, fs: fs)
+    #expect(gainFp < -40.0)
+    #expect(isClose(gainLf, -12.1, 0.1))
+    #expect(isClose(gainHf, 0.0, 0.1))
+  }
+
+  @Test func GeneralNotchLP() throws {
+    let coeffs = try makeCoeffs(
+      type: .generalNotch,
+      q: 1.0,
+      freqNotch: 1000.0,
+      freqPole: 500.0,
+      normalizeAtDc: true
+    )
+    let (gainFp, _) = gainAndPhase(coeffs: coeffs, f: 1000.0, fs: fs)
+    let (gainHf, _) = gainAndPhase(coeffs: coeffs, f: 20000.0, fs: fs)
+    let (gainLf, _) = gainAndPhase(coeffs: coeffs, f: 1.0, fs: fs)
+    #expect(gainFp < -40.0)
+    #expect(isClose(gainLf, 0.0, 0.1))
+    #expect(isClose(gainHf, -12.1, 0.1))
+  }
+
+  @Test func LinkwitzTransform() throws {
+    let coeffs = try makeCoeffs(
+      type: .linkwitzTransform,
+      freqAct: 100.0, qAct: 1.2,
+      freqTarget: 25.0, qTarget: 0.7
+    )
+    let (gain10, _) = gainAndPhase(coeffs: coeffs, f: 10.0, fs: fs)
+    let (gain87, _) = gainAndPhase(coeffs: coeffs, f: 87.0, fs: fs)
+    let (gain123, _) = gainAndPhase(coeffs: coeffs, f: 123.0, fs: fs)
+    let (gainHf, _) = gainAndPhase(coeffs: coeffs, f: 10000.0, fs: fs)
+    #expect(isClose(gain10, 23.9, 0.1))
+    #expect(isClose(gain87, 0.0, 0.1))
+    #expect(isClose(gain123, -2.4, 0.1))
+    #expect(isClose(gainHf, 0.0, 0.1))
   }
 }

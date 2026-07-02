@@ -15,7 +15,7 @@ struct MiniSpectrumView: View {
           drawSpectrumBars(
             context: &context, bands: bands,
             maxHeight: size.height, totalWidth: size.width,
-            spacing: 1.5, minBarWidth: 2, minBarHeight: 1, cornerRadius: 1)
+            spacing: 1.5, minBarWidth: 2, minBarHeight: 1)
         }
       }
     }

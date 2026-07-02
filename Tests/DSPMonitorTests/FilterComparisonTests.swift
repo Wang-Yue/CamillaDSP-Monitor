@@ -13,6 +13,7 @@ import Testing
 @testable import DSPConfig
 @testable import DSPFilters
 @testable import DSPMixer
+@testable import DSPProcessors
 
 @Suite struct FilterComparisonTests {
 
@@ -285,14 +286,22 @@ import Testing
     params.targetVolume = currentVolumeDB
     params.isMuted = mute
     params.currentVolume = mute ? -100.0 : currentVolumeDB
-    let filter = VolumeFilter(processingParameters: params)
+    let volParams = VolumeParameters(rampTime: 0.0, limit: 50.0, fader: .main)
+    let filter = VolumeFilter(
+      parameters: volParams,
+      sampleRate: Self.sampleRate,
+      chunkSize: Self.chunkSize,
+      processingParameters: params
+    )
 
     var swiftOut = input
     var idx = 0
     while idx < swiftOut.count {
       let end = min(idx + Self.chunkSize, swiftOut.count)
       var slice = Array(swiftOut[idx..<end])
+      filter.prepareChunk()
       filter.process(waveform: &slice)
+      filter.advanceRamp()
       for (i, v) in slice.enumerated() { swiftOut[idx + i] = v }
       idx = end
     }
@@ -540,6 +549,556 @@ import Testing
     // real FFTs. Slight rounding differences from SIMD/FFT twiddle layout are expected, but should
     // match closely.
     #expect(maxAbsDiff < 1e-13)
+  }
+
+  // MARK: - Delay
+
+  @Test func Delay_IntegerSamples() throws {
+    try compareDelay(delay: 50.0, unit: .samples, subsample: false, label: "50samples")
+  }
+
+  @Test func Delay_Subsample_FirstOrder() throws {
+    // 0.6 samples delay -> exercises 1st order Thiran allpass
+    try compareDelay(delay: 0.6, unit: .samples, subsample: true, label: "0.6samples")
+  }
+
+  @Test func Delay_Subsample_SecondOrder() throws {
+    // 2.3 samples delay -> exercises 2nd order Thiran allpass
+    try compareDelay(delay: 2.3, unit: .samples, subsample: true, label: "2.3samples")
+  }
+
+  @Test func Delay_Milliseconds() throws {
+    try compareDelay(delay: 1.5, unit: .ms, subsample: true, label: "1.5ms")
+  }
+
+  private func compareDelay(delay: Double, unit: DelayUnit, subsample: Bool, label: String) throws {
+    let input = makeTestSignal()
+    let inPath = "/tmp/cdsp_delay_\(label)_in.raw"
+    let refPath = "/tmp/cdsp_delay_\(label)_ref.raw"
+    try writeRaw(input, to: inPath)
+
+    guard
+      try runHarness([
+        "delay",
+        String(delay), unit.rawValue, subsample ? "1" : "0",
+        String(Self.sampleRate), String(Self.chunkSize),
+        inPath, refPath,
+      ])
+    else {
+      return
+    }
+    let ref = try readRaw(from: refPath)
+
+    let params = DelayParameters(delay: delay, unit: unit, subsample: subsample)
+    let filter = DelayFilter(parameters: params, sampleRate: Self.sampleRate)
+
+    var swiftOut = input
+    var idx = 0
+    while idx < swiftOut.count {
+      let end = min(idx + Self.chunkSize, swiftOut.count)
+      var slice = Array(swiftOut[idx..<end])
+      filter.process(waveform: &slice)
+      for (i, v) in slice.enumerated() { swiftOut[idx + i] = v }
+      idx = end
+    }
+
+    #expect(swiftOut.count == ref.count)
+    var maxAbsDiff = 0.0
+    for i in 0..<min(swiftOut.count, ref.count) {
+      maxAbsDiff = max(maxAbsDiff, abs(swiftOut[i] - ref[i]))
+    }
+    print(String(format: "[delay %@] maxAbsDiff=%.3e", label, maxAbsDiff))
+    #expect(maxAbsDiff < 1e-12)
+  }
+
+  // MARK: - Biquad Combo
+
+  @Test func BiquadCombo_ButterworthLowpass() throws {
+    try compareBiquadCombo(type: .butterworthLowpass, freq: 1200.0, order: 4, label: "bw-lp")
+  }
+
+  @Test func BiquadCombo_ButterworthHighpass() throws {
+    try compareBiquadCombo(type: .butterworthHighpass, freq: 600.0, order: 3, label: "bw-hp")
+  }
+
+  @Test func BiquadCombo_LinkwitzRileyLowpass() throws {
+    try compareBiquadCombo(type: .linkwitzRileyLowpass, freq: 2000.0, order: 4, label: "lr-lp")
+  }
+
+  @Test func BiquadCombo_LinkwitzRileyHighpass() throws {
+    try compareBiquadCombo(type: .linkwitzRileyHighpass, freq: 1500.0, order: 2, label: "lr-hp")
+  }
+
+  @Test func BiquadCombo_Tilt() throws {
+    try compareBiquadCombo(type: .tilt, gain: 4.5, label: "tilt")
+  }
+
+  @Test func BiquadCombo_GraphicEqualizer() throws {
+    let gains = [1.0, -2.0, 3.0, -1.5, 0.5]
+    try compareBiquadCombo(
+      type: .graphicEqualizer, freqMin: 20.0, freqMax: 20000.0, gains: gains, label: "geq",
+      epsilon: 1e-7)
+  }
+
+  @Test func BiquadCombo_FivePointPeq() throws {
+    try compareBiquadCombo(
+      type: .fivePointPeq,
+      fls: 80.0, qls: 0.707, gls: 3.0,
+      fp1: 250.0, qp1: 1.5, gp1: -2.0,
+      fp2: 1000.0, qp2: 2.0, gp2: 1.5,
+      fp3: 4000.0, qp3: 1.0, gp3: -1.0,
+      fhs: 12000.0, qhs: 0.707, ghs: 2.5,
+      label: "peq5"
+    )
+  }
+
+  private func compareBiquadCombo(
+    type: BiquadComboType,
+    freq: Double? = nil,
+    order: Int? = nil,
+    gain: Double? = nil,
+    fls: Double? = nil, qls: Double? = nil, gls: Double? = nil,
+    fp1: Double? = nil, qp1: Double? = nil, gp1: Double? = nil,
+    fp2: Double? = nil, qp2: Double? = nil, gp2: Double? = nil,
+    fp3: Double? = nil, qp3: Double? = nil, gp3: Double? = nil,
+    fhs: Double? = nil, qhs: Double? = nil, ghs: Double? = nil,
+    freqMin: Double? = nil, freqMax: Double? = nil, gains: [Double]? = nil,
+    label: String,
+    epsilon: Double = 1e-12
+  ) throws {
+    let input = makeTestSignal()
+    let inPath = "/tmp/cdsp_combo_\(label)_in.raw"
+    let refPath = "/tmp/cdsp_combo_\(label)_ref.raw"
+    try writeRaw(input, to: inPath)
+
+    var harnessArgs: [String] = ["biquad_combo"]
+    switch type {
+    case .butterworthLowpass:
+      harnessArgs.append(contentsOf: ["butterworth_lowpass", String(freq!), String(order!)])
+    case .butterworthHighpass:
+      harnessArgs.append(contentsOf: ["butterworth_highpass", String(freq!), String(order!)])
+    case .linkwitzRileyLowpass:
+      harnessArgs.append(contentsOf: ["linkwitz_riley_lowpass", String(freq!), String(order!)])
+    case .linkwitzRileyHighpass:
+      harnessArgs.append(contentsOf: ["linkwitz_riley_highpass", String(freq!), String(order!)])
+    case .tilt:
+      harnessArgs.append(contentsOf: ["tilt", String(gain!)])
+    case .fivePointPeq:
+      harnessArgs.append(contentsOf: [
+        "five_point_peq",
+        String(fls!), String(qls!), String(gls!),
+        String(fp1!), String(qp1!), String(gp1!),
+        String(fp2!), String(qp2!), String(gp2!),
+        String(fp3!), String(qp3!), String(gp3!),
+        String(fhs!), String(qhs!), String(ghs!),
+      ])
+    case .graphicEqualizer:
+      let gainsStr = gains!.map { String($0) }.reduce("") { $0.isEmpty ? $1 : $0 + "," + $1 }
+      harnessArgs.append(contentsOf: [
+        "graphic_equalizer", String(freqMin!), String(freqMax!), gainsStr,
+      ])
+    }
+    harnessArgs.append(contentsOf: [
+      String(Self.sampleRate), String(Self.chunkSize), inPath, refPath,
+    ])
+
+    guard try runHarness(harnessArgs) else { return }
+    let ref = try readRaw(from: refPath)
+
+    let params = BiquadComboParameters(
+      type: type, freq: freq, order: order, gain: gain,
+      fls: fls, qls: qls, gls: gls,
+      fp1: fp1, qp1: qp1, gp1: gp1,
+      fp2: fp2, qp2: qp2, gp2: gp2,
+      fp3: fp3, qp3: qp3, gp3: gp3,
+      fhs: fhs, qhs: qhs, ghs: ghs,
+      freqMin: freqMin, freqMax: freqMax, gains: gains
+    )
+    let filter = try BiquadComboFilter(parameters: params, sampleRate: Self.sampleRate)
+
+    var swiftOut = input
+    var idx = 0
+    while idx < swiftOut.count {
+      let end = min(idx + Self.chunkSize, swiftOut.count)
+      var slice = Array(swiftOut[idx..<end])
+      filter.process(waveform: &slice)
+      for (i, v) in slice.enumerated() { swiftOut[idx + i] = v }
+      idx = end
+    }
+
+    #expect(swiftOut.count == ref.count)
+    var maxAbsDiff = 0.0
+    for i in 0..<min(swiftOut.count, ref.count) {
+      maxAbsDiff = max(maxAbsDiff, abs(swiftOut[i] - ref[i]))
+    }
+    print(String(format: "[biquad_combo %@] maxAbsDiff=%.3e", label, maxAbsDiff))
+    #expect(maxAbsDiff < epsilon)
+  }
+
+  // MARK: - DiffEq
+
+  @Test func DiffEq_SimpleIIR() throws {
+    let a = [1.0, -1.864844640491105, 0.8818236057002321]
+    let b = [0.004244741301241303, 0.008489482602482605, 0.004244741301241303]
+    let input = makeTestSignal()
+    let inPath = "/tmp/cdsp_diffeq_in.raw"
+    let refPath = "/tmp/cdsp_diffeq_ref.raw"
+    try writeRaw(input, to: inPath)
+
+    let aStr = a.map { String($0) }.reduce("") { $0.isEmpty ? $1 : $0 + "," + $1 }
+    let bStr = b.map { String($0) }.reduce("") { $0.isEmpty ? $1 : $0 + "," + $1 }
+    guard
+      try runHarness([
+        "diff_eq",
+        aStr, bStr,
+        String(Self.chunkSize), inPath, refPath,
+      ])
+    else {
+      return
+    }
+    let ref = try readRaw(from: refPath)
+
+    let params = DiffEqParameters(a: a, b: b)
+    let filter = DiffEqFilter(parameters: params)
+
+    var swiftOut = input
+    var idx = 0
+    while idx < swiftOut.count {
+      let end = min(idx + Self.chunkSize, swiftOut.count)
+      var slice = Array(swiftOut[idx..<end])
+      filter.process(waveform: &slice)
+      for (i, v) in slice.enumerated() { swiftOut[idx + i] = v }
+      idx = end
+    }
+
+    #expect(swiftOut.count == ref.count)
+    var maxAbsDiff = 0.0
+    for i in 0..<min(swiftOut.count, ref.count) {
+      maxAbsDiff = max(maxAbsDiff, abs(swiftOut[i] - ref[i]))
+    }
+    print(String(format: "[diffeq] maxAbsDiff=%.3e", maxAbsDiff))
+    #expect(maxAbsDiff < 1e-12)
+  }
+
+  // MARK: - Dither
+
+  @Test func Dither_None() throws {
+    let input = makeTestSignal()
+    let inPath = "/tmp/cdsp_dither_none_in.raw"
+    let refPath = "/tmp/cdsp_dither_none_ref.raw"
+    try writeRaw(input, to: inPath)
+
+    guard
+      try runHarness([
+        "dither",
+        "none", "16",
+        String(Self.chunkSize), inPath, refPath,
+      ])
+    else {
+      return
+    }
+    let ref = try readRaw(from: refPath)
+
+    let params = DitherParameters(type: .none, bits: 16)
+    let filter = DitherFilter(parameters: params)
+
+    var swiftOut = input
+    var idx = 0
+    while idx < swiftOut.count {
+      let end = min(idx + Self.chunkSize, swiftOut.count)
+      var slice = Array(swiftOut[idx..<end])
+      filter.process(waveform: &slice)
+      for (i, v) in slice.enumerated() { swiftOut[idx + i] = v }
+      idx = end
+    }
+
+    #expect(swiftOut.count == ref.count)
+    var maxAbsDiff = 0.0
+    for i in 0..<min(swiftOut.count, ref.count) {
+      maxAbsDiff = max(maxAbsDiff, abs(swiftOut[i] - ref[i]))
+    }
+    print(String(format: "[dither none] maxAbsDiff=%.3e", maxAbsDiff))
+    #expect(maxAbsDiff < 1e-12)
+  }
+
+  // MARK: - Limiter
+
+  @Test func Limiter_HardClip() throws {
+    try compareLimiter(clipLimit: -3.0, softClip: false, label: "hard")
+  }
+
+  @Test func Limiter_SoftClip() throws {
+    try compareLimiter(clipLimit: -1.5, softClip: true, label: "soft")
+  }
+
+  private func compareLimiter(clipLimit: Double, softClip: Bool, label: String) throws {
+    let input = makeTestSignal()
+    let inPath = "/tmp/cdsp_limiter_\(label)_in.raw"
+    let refPath = "/tmp/cdsp_limiter_\(label)_ref.raw"
+    try writeRaw(input, to: inPath)
+
+    guard
+      try runHarness([
+        "limiter",
+        String(clipLimit), softClip ? "1" : "0",
+        String(Self.chunkSize), inPath, refPath,
+      ])
+    else {
+      return
+    }
+    let ref = try readRaw(from: refPath)
+
+    let params = LimiterParameters(clipLimit: clipLimit, softClip: softClip)
+    let filter = LimiterFilter(parameters: params)
+
+    var swiftOut = input
+    var idx = 0
+    while idx < swiftOut.count {
+      let end = min(idx + Self.chunkSize, swiftOut.count)
+      var slice = Array(swiftOut[idx..<end])
+      filter.process(waveform: &slice)
+      for (i, v) in slice.enumerated() { swiftOut[idx + i] = v }
+      idx = end
+    }
+
+    #expect(swiftOut.count == ref.count)
+    var maxAbsDiff = 0.0
+    for i in 0..<min(swiftOut.count, ref.count) {
+      maxAbsDiff = max(maxAbsDiff, abs(swiftOut[i] - ref[i]))
+    }
+    print(String(format: "[limiter %@] maxAbsDiff=%.3e", label, maxAbsDiff))
+    #expect(maxAbsDiff < 1e-12)
+  }
+
+  // MARK: - Lookahead Limiter
+
+  @Test func LookaheadLimiter_Basic() throws {
+    try compareLookaheadLimiter(
+      limit: -1.0, attack: 4.0, release: 20.0, unit: .samples, label: "basic")
+  }
+
+  @Test func LookaheadLimiter_Instant() throws {
+    try compareLookaheadLimiter(
+      limit: -2.0, attack: 0.0, release: 0.0, unit: .samples, label: "instant")
+  }
+
+  private func compareLookaheadLimiter(
+    limit: Double, attack: Double, release: Double, unit: DelayUnit, label: String
+  ) throws {
+    let input = makeTestSignal()
+    let inPath = "/tmp/cdsp_lookahead_\(label)_in.raw"
+    let refPath = "/tmp/cdsp_lookahead_\(label)_ref.raw"
+    try writeRaw(input, to: inPath)
+
+    guard
+      try runHarness([
+        "lookahead_limiter",
+        String(limit), String(attack), String(release), unit.rawValue,
+        String(Self.sampleRate), String(Self.chunkSize),
+        inPath, refPath,
+      ])
+    else {
+      return
+    }
+    let ref = try readRaw(from: refPath)
+
+    let params = LookaheadLimiterParameters(
+      limit: limit, attack: attack, release: release, unit: unit)
+    let filter = LookaheadLimiterFilter(
+      parameters: params, sampleRate: Self.sampleRate, chunkSize: Self.chunkSize)
+
+    var swiftOut = input
+    var idx = 0
+    while idx < swiftOut.count {
+      let end = min(idx + Self.chunkSize, swiftOut.count)
+      var slice = Array(swiftOut[idx..<end])
+      filter.process(waveform: &slice)
+      for (i, v) in slice.enumerated() { swiftOut[idx + i] = v }
+      idx = end
+    }
+
+    #expect(swiftOut.count == ref.count)
+    var maxAbsDiff = 0.0
+    for i in 0..<min(swiftOut.count, ref.count) {
+      maxAbsDiff = max(maxAbsDiff, abs(swiftOut[i] - ref[i]))
+    }
+    print(String(format: "[lookahead %@] maxAbsDiff=%.3e", label, maxAbsDiff))
+    #expect(maxAbsDiff < 1e-5)
+  }
+
+  // MARK: - Processors
+
+  @Test func Compressor_Vs_RustReference() throws {
+    let label = "compressor-compare"
+    let input = makeTestSignal()
+    let inPath = "/tmp/cdsp_comp_\(label)_in.raw"
+    let refPath = "/tmp/cdsp_comp_\(label)_ref.raw"
+    try writeRaw(input, to: inPath)
+
+    let attack = 0.005
+    let release = 0.05
+    let threshold = -10.0
+    let factor = 3.0
+    let makeupGain = 2.0
+    let softClip = true
+    let clipLimit = -1.0
+
+    guard
+      try runHarness([
+        "compressor",
+        String(attack), String(release), String(threshold), String(factor), String(makeupGain),
+        "1", String(clipLimit),
+        String(Self.sampleRate), String(Self.chunkSize),
+        inPath, refPath,
+      ])
+    else {
+      return
+    }
+    let ref = try readRaw(from: refPath)
+
+    let params = CompressorParameters(
+      channels: 1,
+      monitorChannels: nil,
+      processChannels: nil,
+      attack: attack,
+      release: release,
+      threshold: threshold,
+      factor: factor,
+      makeupGain: makeupGain,
+      softClip: softClip,
+      clipLimit: clipLimit
+    )
+    let compressor = CompressorProcessor(
+      parameters: params, sampleRate: Self.sampleRate, chunkSize: Self.chunkSize)
+
+    var chunk = AudioChunk(frames: input.count, channels: 1)
+    for i in 0..<input.count {
+      chunk[0][i] = input[i]
+    }
+
+    try! compressor.process(chunk: &chunk)
+
+    #expect(chunk.validFrames == ref.count)
+    var maxAbsDiff = 0.0
+    for i in 0..<min(ref.count, chunk.validFrames) {
+      maxAbsDiff = max(maxAbsDiff, abs(chunk[0][i] - ref[i]))
+    }
+    print(String(format: "[compressor] maxAbsDiff=%.3e", maxAbsDiff))
+    #expect(maxAbsDiff < 1e-12)
+  }
+
+  @Test func NoiseGate_Vs_RustReference() throws {
+    let label = "noisegate-compare"
+    let input = makeTestSignal()
+    let inPath = "/tmp/cdsp_gate_\(label)_in.raw"
+    let refPath = "/tmp/cdsp_gate_\(label)_ref.raw"
+    try writeRaw(input, to: inPath)
+
+    let attack = 0.005
+    let release = 0.05
+    let threshold = -24.0
+    let attenuation = 20.0
+
+    guard
+      try runHarness([
+        "noisegate",
+        String(attack), String(release), String(threshold), String(attenuation),
+        String(Self.sampleRate), String(Self.chunkSize),
+        inPath, refPath,
+      ])
+    else {
+      return
+    }
+    let ref = try readRaw(from: refPath)
+
+    let params = NoiseGateParameters(
+      channels: 1,
+      monitorChannels: nil,
+      processChannels: nil,
+      attack: attack,
+      release: release,
+      threshold: threshold,
+      attenuation: attenuation
+    )
+    let gate = NoiseGateProcessor(
+      parameters: params, sampleRate: Self.sampleRate, chunkSize: Self.chunkSize)
+
+    var chunk = AudioChunk(frames: input.count, channels: 1)
+    for i in 0..<input.count {
+      chunk[0][i] = input[i]
+    }
+
+    try! gate.process(chunk: &chunk)
+
+    #expect(chunk.validFrames == ref.count)
+    var maxAbsDiff = 0.0
+    for i in 0..<min(ref.count, chunk.validFrames) {
+      maxAbsDiff = max(maxAbsDiff, abs(chunk[0][i] - ref[i]))
+    }
+    print(String(format: "[noisegate] maxAbsDiff=%.3e", maxAbsDiff))
+    #expect(maxAbsDiff < 1e-12)
+  }
+
+  @Test func RACE_Vs_RustReference() throws {
+    let label = "race-compare"
+    let input = makeTestSignal()
+
+    let input0 = input
+    let input1 = input.map { $0 * 0.5 }
+
+    let inPath0 = "/tmp/cdsp_race_\(label)_in0.raw"
+    let inPath1 = "/tmp/cdsp_race_\(label)_in1.raw"
+    let refPath0 = "/tmp/cdsp_race_\(label)_ref0.raw"
+    let refPath1 = "/tmp/cdsp_race_\(label)_ref1.raw"
+
+    try writeRaw(input0, to: inPath0)
+    try writeRaw(input1, to: inPath1)
+
+    let delay = 12.0
+    let attenuation = 8.5
+
+    guard
+      try runHarness([
+        "race",
+        "0", "1", String(delay), "samples", "0", String(attenuation),
+        String(Self.sampleRate), String(Self.chunkSize),
+        inPath0, inPath1, refPath0, refPath1,
+      ])
+    else {
+      return
+    }
+    let ref0 = try readRaw(from: refPath0)
+    let ref1 = try readRaw(from: refPath1)
+
+    let params = RACEParameters(
+      channels: 2,
+      channelA: 0,
+      channelB: 1,
+      delay: delay,
+      subsampleDelay: false,
+      delayUnit: .samples,
+      attenuation: attenuation
+    )
+    let race = try! RACEProcessor(parameters: params, sampleRate: Self.sampleRate)
+
+    var chunk = AudioChunk(frames: input0.count, channels: 2)
+    for i in 0..<input0.count {
+      chunk[0][i] = input0[i]
+      chunk[1][i] = input1[i]
+    }
+
+    try! race.process(chunk: &chunk)
+
+    #expect(chunk.validFrames == ref0.count)
+    var maxAbsDiff0 = 0.0
+    var maxAbsDiff1 = 0.0
+    for i in 0..<min(ref0.count, chunk.validFrames) {
+      maxAbsDiff0 = max(maxAbsDiff0, abs(chunk[0][i] - ref0[i]))
+      maxAbsDiff1 = max(maxAbsDiff1, abs(chunk[1][i] - ref1[i]))
+    }
+    print(String(format: "[race] maxAbsDiff ch0=%.3e ch1=%.3e", maxAbsDiff0, maxAbsDiff1))
+    #expect(maxAbsDiff0 < 1e-12)
+    #expect(maxAbsDiff1 < 1e-12)
   }
 }
 

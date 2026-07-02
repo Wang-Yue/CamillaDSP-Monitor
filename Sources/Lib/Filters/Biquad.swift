@@ -30,6 +30,24 @@ extension BiquadParameters {
     if let bw = bandwidth {
       try Self.checkPositive(bw, label: "bandwidth")
     }
+    if let fn = freqNotch {
+      try Self.checkFreq(fn, nyquist: nyquist, label: "freq_notch")
+    }
+    if let fp = freqPole {
+      try Self.checkFreq(fp, nyquist: nyquist, label: "freq_pole")
+    }
+    if let fa = freqAct {
+      try Self.checkFreq(fa, nyquist: nyquist, label: "freq_act")
+    }
+    if let ft = freqTarget {
+      try Self.checkFreq(ft, nyquist: nyquist, label: "freq_target")
+    }
+    if let qa = qAct {
+      try Self.checkPositive(qa, label: "q_act")
+    }
+    if let qt = qTarget {
+      try Self.checkPositive(qt, label: "q_target")
+    }
 
     // Stability check: pole positions of the realised coefficients must
     // lie strictly inside the unit circle.
@@ -57,12 +75,11 @@ extension BiquadParameters {
 }
 
 public final class BiquadFilter: Filter {
-  private var coeffs: BiquadCoefficients
+  public let name: String
   private var setup: vDSP_biquadm_SetupD?
-  private var state = [Double](repeating: 0.0, count: 4)
 
-  public init(coefficients: BiquadCoefficients) {
-    self.coeffs = coefficients
+  public init(name: String = "biquad", coefficients: BiquadCoefficients) {
+    self.name = name
     var coefficientsArray: [Double] = [
       coefficients.b0, coefficients.b1, coefficients.b2, coefficients.a1, coefficients.a2,
     ]
@@ -91,12 +108,25 @@ public final class BiquadFilter: Filter {
     )
   }
 
+  public func processSingle(_ sample: PrcFmt) -> PrcFmt {
+    guard let setup = setup else { return sample }
+    var inVal = sample
+    var outVal = 0.0
+    withUnsafePointer(to: &inVal) { inPtr in
+      withUnsafeMutablePointer(to: &outVal) { outPtr in
+        var signalPtr = inPtr
+        var destPtr = outPtr
+        vDSP_biquadmD(setup, &signalPtr, 1, &destPtr, 1, 1)
+      }
+    }
+    return outVal
+  }
+
   public func updateParameters(_ config: FilterConfig, sampleRate: Int) {
     guard case .biquad(let params) = config else { return }
     if let newCoeffs = try? BiquadFilter.computeCoefficients(
       params, sampleRate: sampleRate)
     {
-      self.coeffs = newCoeffs
       var coefficientsArray: [Double] = [
         newCoeffs.b0, newCoeffs.b1, newCoeffs.b2, newCoeffs.a1, newCoeffs.a2,
       ]
@@ -136,6 +166,7 @@ public struct BiquadCoefficients: Sendable {
     guard let type = parameters.type else { return nil }
 
     let fs = Double(sampleRate)
+
     let freq = parameters.freq ?? 1000.0
     let gain = parameters.gain ?? 0.0
     var q = parameters.q ?? 0.707
@@ -163,6 +194,52 @@ public struct BiquadCoefficients: Sendable {
     var a2: Double
 
     switch type {
+    case .free:
+      b0 = parameters.b0 ?? 1.0
+      b1 = parameters.b1 ?? 0.0
+      b2 = parameters.b2 ?? 0.0
+      a0 = 1.0
+      a1 = parameters.a1 ?? 0.0
+      a2 = parameters.a2 ?? 0.0
+
+    case .generalNotch:
+      let freqZ = parameters.freqNotch ?? 1000.0
+      let freqP = parameters.freqPole ?? 1000.0
+      let qP = parameters.q ?? 0.5
+      let normalize = parameters.normalizeAtDc ?? true
+      let tnZ = tan(.pi * freqZ / fs)
+      let tnP = tan(.pi * freqP / fs)
+      let alphaP = tnP / qP
+      let tn2P = tnP * tnP
+      let tn2Z = tnZ * tnZ
+      let gainNorm = normalize ? tn2P / tn2Z : 1.0
+      b0 = gainNorm * (1.0 + tn2Z)
+      b1 = -2.0 * gainNorm * (1.0 - tn2Z)
+      b2 = gainNorm * (1.0 + tn2Z)
+      a0 = 1.0 + alphaP + tn2P
+      a1 = -2.0 + 2.0 * tn2P
+      a2 = 1.0 - alphaP + tn2P
+
+    case .linkwitzTransform:
+      let freqAct = parameters.freqAct ?? 50.0
+      let qAct = parameters.qAct ?? 0.707
+      let freqTarget = parameters.freqTarget ?? 25.0
+      let qTarget = parameters.qTarget ?? 0.707
+      let d0i = pow(2.0 * .pi * freqAct, 2)
+      let d1i = (2.0 * .pi * freqAct) / qAct
+      let c0i = pow(2.0 * .pi * freqTarget, 2)
+      let c1i = (2.0 * .pi * freqTarget) / qTarget
+      let fc = (freqTarget + freqAct) / 2.0
+      let gn = 2.0 * .pi * fc / tan(.pi * fc / fs)
+      let gn2 = gn * gn
+      let cci = c0i + gn * c1i + gn2
+      b0 = (d0i + gn * d1i + gn2) / cci
+      b1 = 2.0 * (d0i - gn2) / cci
+      b2 = (d0i - gn * d1i + gn2) / cci
+      a0 = 1.0
+      a1 = 2.0 * (c0i - gn2) / cci
+      a2 = (c0i - gn * c1i + gn2) / cci
+
     case .peaking:
       b0 = 1 + alpha * A
       b1 = -2 * cosW0

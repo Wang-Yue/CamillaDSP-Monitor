@@ -1,6 +1,5 @@
 import DSPAudio
 import DSPBackend
-import DSPConfig
 import DSPFilters
 import Foundation
 

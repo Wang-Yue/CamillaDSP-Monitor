@@ -157,6 +157,7 @@ public enum ConvCoefficientLoader {
 }
 
 final class ConvolutionFilter: Filter {
+  let name: String
 
   /// Block length `N` (one input chunk per `process` call).
   private let chunkSize: Int
@@ -199,9 +200,10 @@ final class ConvolutionFilter: Filter {
   ///     Must be non-empty.
   ///   - chunkSize: Per-call block length `N`. Must match the
   ///     `validFrames` the pipeline will hand to `process`.
-  init(coefficients: [PrcFmt], chunkSize: Int) {
+  init(name: String = "convolution", coefficients: [PrcFmt], chunkSize: Int) {
     precondition(chunkSize > 0, "ConvolutionFilter: chunkSize must be > 0")
     precondition(!coefficients.isEmpty, "ConvolutionFilter: coefficients must not be empty")
+    self.name = name
     self.chunkSize = chunkSize
     self.fftSize = 2 * chunkSize
     self.bins = chunkSize + 1
@@ -242,6 +244,7 @@ final class ConvolutionFilter: Filter {
   /// Convenience initialiser that resolves `ConvParameters` to a flat
   /// IR buffer first (control plane only, may touch the filesystem).
   convenience init(
+    name: String = "convolution",
     parameters: ConvParameters,
     chunkSize: Int,
     sampleRate: Int
@@ -251,7 +254,7 @@ final class ConvolutionFilter: Filter {
     guard !coeffs.isEmpty else {
       throw ConfigError.invalidFilter("Conv filter resolved to empty IR")
     }
-    self.init(coefficients: coeffs, chunkSize: chunkSize)
+    self.init(name: name, coefficients: coeffs, chunkSize: chunkSize)
   }
 
   deinit {
@@ -385,5 +388,49 @@ final class ConvolutionFilter: Filter {
           specIm: coeffsFIm + seg * bins)
       }
     }
+  }
+
+  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
+    guard case .conv(let params) = config else { return }
+    guard let coeffs = try? params.loadCoefficients(sampleRate: sampleRate), !coeffs.isEmpty else {
+      return
+    }
+
+    let ns = (coeffs.count + chunkSize - 1) / chunkSize
+
+    if ns != self.nsegments {
+      let oldHistCount = self.nsegments * bins
+      coeffsFRe.deinitialize(count: oldHistCount)
+      coeffsFIm.deinitialize(count: oldHistCount)
+      inputFRe.deinitialize(count: oldHistCount)
+      inputFIm.deinitialize(count: oldHistCount)
+
+      coeffsFRe.deallocate()
+      coeffsFIm.deallocate()
+      inputFRe.deallocate()
+      inputFIm.deallocate()
+
+      self.nsegments = ns
+      let newHistCount = ns * bins
+      coeffsFRe = .allocate(capacity: newHistCount)
+      coeffsFIm = .allocate(capacity: newHistCount)
+      inputFRe = .allocate(capacity: newHistCount)
+      inputFIm = .allocate(capacity: newHistCount)
+
+      coeffsFRe.initialize(repeating: 0, count: newHistCount)
+      coeffsFIm.initialize(repeating: 0, count: newHistCount)
+      inputFRe.initialize(repeating: 0, count: newHistCount)
+      inputFIm.initialize(repeating: 0, count: newHistCount)
+      self.index = 0
+    }
+
+    Self.fftCoefficients(
+      coeffs,
+      chunkSize: chunkSize,
+      nsegments: ns,
+      fft: self.fft,
+      coeffsFRe: self.coeffsFRe,
+      coeffsFIm: self.coeffsFIm
+    )
   }
 }

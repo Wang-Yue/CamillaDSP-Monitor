@@ -26,7 +26,7 @@ import DSPConfig
 import DSPLogging
 import Foundation
 
-public final class DoPEncoder: @unchecked Sendable {
+public final class DoPEncoder {
   private let logger = Logger(label: "dsp.dop.encode")
 
   public static let phases = 16  // 16× DSD oversampling per PCM frame
@@ -45,7 +45,7 @@ public final class DoPEncoder: @unchecked Sendable {
     192_000, 384_000, 768_000,  // 48 kHz   family — DSD64 / 128 / 256
   ]
 
-  private final class ChannelState: @unchecked Sendable {
+  private final class ChannelState {
     let fifo: UnsafeMutablePointer<Double>
     var fifoPos: Int = 0
     var marker: UInt8 = 0x05

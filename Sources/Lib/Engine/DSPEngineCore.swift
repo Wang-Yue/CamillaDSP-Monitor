@@ -177,12 +177,13 @@ internal final class DSPEngineCore {
     logger.info("Engine stopped")
   }
 
-  /// Rebuild the processing pipeline against `newConfig` without
+  /// Rebuild or update the processing pipeline against `newConfig` without
   /// touching the audio devices. The caller is responsible for
   /// verifying that `newConfig.devices == currentConfig.devices` —
   /// the `DSPEngine` actor does this comparison and falls back to a
   /// full teardown when they differ.
   internal func reloadConfig(_ newConfig: DSPConfiguration) throws {
+    let oldConfig = currentConfig
     currentConfig = newConfig
     let captureRateForDoP = Double(
       newConfig.devices.captureSamplerate ?? newConfig.devices.samplerate)
@@ -201,11 +202,77 @@ internal final class DSPEngineCore {
     )
 
     guard state != .inactive else { return }
-    let newPipeline = try Pipeline(
-      config: currentConfig, processingParams: processingParams,
-      explicitChunkSize: effectivePlaybackChunkSize)
-    processingLoop?.setPipeline(newPipeline)
-    logger.info("Pipeline rebuilt without audio-device restart")
+
+    // Check if we can do an in-place parameter update instead of rebuilding the pipeline.
+    var isStructuralChange =
+      oldConfig.pipeline != newConfig.pipeline || oldConfig.filters?.keys != newConfig.filters?.keys
+      || oldConfig.mixers?.keys != newConfig.mixers?.keys
+      || oldConfig.processors?.keys != newConfig.processors?.keys
+
+    // Force rebuild if any mixer channel count changed (since they are immutable in Swift AudioMixer)
+    if !isStructuralChange, let oldMixers = oldConfig.mixers, let newMixers = newConfig.mixers {
+      for (name, newMixer) in newMixers {
+        if let oldMixer = oldMixers[name], oldMixer != newMixer {
+          if oldMixer.channelsIn != newMixer.channelsIn
+            || oldMixer.channelsOut != newMixer.channelsOut
+          {
+            isStructuralChange = true
+            break
+          }
+        }
+      }
+    }
+
+    if !isStructuralChange, let loop = processingLoop {
+      var changedFilters: [String] = []
+      if let oldFilters = oldConfig.filters, let newFilters = newConfig.filters {
+        for (name, newFilter) in newFilters {
+          if let oldFilter = oldFilters[name], oldFilter != newFilter {
+            changedFilters.append(name)
+          }
+        }
+      }
+
+      var changedMixers: [String] = []
+      if let oldMixers = oldConfig.mixers, let newMixers = newConfig.mixers {
+        for (name, newMixer) in newMixers {
+          if let oldMixer = oldMixers[name], oldMixer != newMixer {
+            changedMixers.append(name)
+          }
+        }
+      }
+
+      var changedProcessors: [String] = []
+      if let oldProcessors = oldConfig.processors, let newProcessors = newConfig.processors {
+        for (name, newProcessor) in newProcessors {
+          if let oldProcessor = oldProcessors[name], oldProcessor != newProcessor {
+            changedProcessors.append(name)
+          }
+        }
+      }
+
+      if !changedFilters.isEmpty || !changedMixers.isEmpty || !changedProcessors.isEmpty {
+        let update = PendingUpdate(
+          config: newConfig,
+          filters: changedFilters,
+          mixers: changedMixers,
+          processors: changedProcessors
+        )
+        loop.enqueueUpdate(update)
+        logger.info(
+          "Pipeline parameters updated in-place: filters=%s, mixers=%s, processors=%s",
+          .string("\(changedFilters)"), .string("\(changedMixers)"), .string("\(changedProcessors)")
+        )
+      } else {
+        logger.info("No parameter changes detected")
+      }
+    } else {
+      let newPipeline = try Pipeline(
+        config: currentConfig, processingParams: processingParams,
+        explicitChunkSize: effectivePlaybackChunkSize)
+      processingLoop?.setPipeline(newPipeline)
+      logger.info("Pipeline rebuilt without audio-device restart")
+    }
   }
 
   // MARK: - Private: runtime construction

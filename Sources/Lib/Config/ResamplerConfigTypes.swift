@@ -42,7 +42,7 @@ public enum AppleResamplerComplexity: String, Codable, Sendable, CaseIterable, I
   }
 }
 
-public struct ResamplerConfig: Codable, Equatable, Sendable {
+public struct ResamplerConfig: Codable, Equatable, Sendable, CustomStringConvertible {
   public var type: ResamplerType
   public var profile: String?
   public var interpolation: String?
@@ -69,5 +69,9 @@ public struct ResamplerConfig: Codable, Equatable, Sendable {
     self.interpolation = interpolation
     self.appleQuality = appleQuality
     self.appleComplexity = appleComplexity
+  }
+
+  public var description: String {
+    "ResamplerConfig(type: \(type), profile: \(profile ?? "nil"), interpolation: \(interpolation ?? "nil"))"
   }
 }

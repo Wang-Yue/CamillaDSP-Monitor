@@ -2,6 +2,7 @@ import DSPAudio
 import DSPConfig
 import DSPFilters
 import DSPMixer
+import DSPProcessors
 import Foundation
 
 enum PipelineError: Error, Sendable, CustomStringConvertible {
@@ -27,6 +28,8 @@ enum PipelineExecutionStep {
   case filter(channel: Int, filters: [Filter], bypassed: Bool)
   /// Mixer that changes channel routing.
   case mixer(AudioMixer)
+  /// Audio processor applied to the chunk in-place.
+  case processor(Processor, bypassed: Bool)
 }
 
 /// The main audio processing pipeline.
@@ -60,7 +63,16 @@ public final class Pipeline {
     // fader index 0). Reads its initial state from the shared
     // `processingParameters` so the engine's pre-start
     // `setVolume`/`setMute` calls are honoured without a 0 dB ramp.
-    self.masterVolume = VolumeFilter(processingParameters: processingParams)
+    // Read the volume ramp time and safety limits from the devices configuration.
+    let volumeRampTime = config.devices.volumeRampTime ?? 400.0
+    let volumeLimit = config.devices.volumeLimit ?? 50.0
+
+    self.masterVolume = VolumeFilter(
+      parameters: VolumeParameters(rampTime: volumeRampTime, limit: volumeLimit, fader: .main),
+      sampleRate: rate,
+      chunkSize: framesPerChunk,
+      processingParameters: processingParams
+    )
 
     let inChannels = config.devices.capture.channels
     self.expectedInChannels = inChannels
@@ -97,7 +109,7 @@ public final class Pipeline {
                 throw ConfigError.invalidPipeline("Filter '\(name)' not defined")
               }
               let filter = try FilterFactory.create(
-                config: filterConfig, sampleRate: rate, chunkSize: framesPerChunk)
+                name: name, config: filterConfig, sampleRate: rate, chunkSize: framesPerChunk)
               filters.append(filter)
             }
             processingSteps.append(.filter(channel: ch, filters: filters, bypassed: isBypassed))
@@ -107,11 +119,27 @@ public final class Pipeline {
           guard let mixerName = step.name, let mixerConfig = config.mixers?[mixerName] else {
             throw ConfigError.invalidPipeline("Mixer step missing name or config")
           }
-          let mixer = AudioMixer(config: mixerConfig, chunkSize: framesPerChunk)
+          let mixer = AudioMixer(name: mixerName, config: mixerConfig, chunkSize: framesPerChunk)
           currentChannels = mixerConfig.channelsOut
 
           scratchesForMixers.append(AudioChunk(frames: framesPerChunk, channels: currentChannels))
           processingSteps.append(.mixer(mixer))
+
+        case .processor:
+          guard let processorName = step.name,
+            let processorConfig = config.processors?[processorName]
+          else {
+            throw ConfigError.invalidPipeline("Processor step missing name or config")
+          }
+          let isBypassed = step.bypassed ?? false
+          let processor = try ProcessorFactory.create(
+            name: processorName,
+            config: processorConfig,
+            sampleRate: rate,
+            chunkSize: framesPerChunk
+          )
+          processingSteps.append(
+            .processor(processor, bypassed: isBypassed))
         }
       }
     }
@@ -150,11 +178,13 @@ public final class Pipeline {
     var currentChunk = captureScratch
     // 3. Implicit main volume with smooth ramp (matches Rust volume filter).
     // Mutates workingChunk's samples in place.
+    masterVolume.prepareChunk()
     for ch in 0..<currentChunk.channels {
       let buf = currentChunk[ch]
       let slice = UnsafeMutableBufferPointer(start: buf.baseAddress, count: validFrames)
       masterVolume.process(waveform: slice)
     }
+    masterVolume.advanceRamp()
 
     // 4. Execute pipeline steps sequentially.
     var mixerIdx = 0
@@ -175,6 +205,10 @@ public final class Pipeline {
         try mixer.process(input: currentChunk, into: &scratch)
         currentChunk = scratch
         mixerIdx += 1
+
+      case .processor(let processor, let bypassed):
+        if bypassed { continue }
+        try processor.process(chunk: &currentChunk)
       }
     }
 
@@ -185,6 +219,40 @@ public final class Pipeline {
       let dst = output[ch]
       if let srcBase = src.baseAddress, let dstBase = dst.baseAddress {
         dstBase.update(from: srcBase, count: validFrames)
+      }
+    }
+  }
+
+  public func updateParameters(
+    config: DSPConfiguration,
+    filters: [String],
+    mixers: [String],
+    processors: [String]
+  ) {
+    for i in 0..<processingSteps.count {
+      switch processingSteps[i] {
+      case .filter(_, let filterList, _):
+        for filter in filterList {
+          if filters.contains(filter.name) {
+            if let filterConfig = config.filters?[filter.name] {
+              filter.updateParameters(filterConfig, sampleRate: rate)
+            }
+          }
+        }
+
+      case .mixer(let mixer):
+        if mixers.contains(mixer.name) {
+          if let mixerConfig = config.mixers?[mixer.name] {
+            mixer.updateParameters(mixerConfig)
+          }
+        }
+
+      case .processor(let processor, _):
+        if processors.contains(processor.name) {
+          if let processorConfig = config.processors?[processor.name] {
+            processor.updateParameters(processorConfig, sampleRate: rate)
+          }
+        }
       }
     }
   }

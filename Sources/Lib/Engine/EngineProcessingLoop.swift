@@ -46,6 +46,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
   private let resampler: AudioResampler?
   private let dopEncoder: DoPEncoder
   private let pipelineQueue = SPSCQueue<Pipeline>(minimumCapacity: 2)
+  private let updateQueue = SPSCQueue<PendingUpdate>(minimumCapacity: 8)
   private var activePipeline: Pipeline
   private var resamplerScratch: AudioChunk
   private var pipelineScratch: AudioChunk
@@ -108,6 +109,16 @@ final class EngineProcessingLoop: @unchecked Sendable {
         if shared.shouldStop.load(ordering: .acquiring) { return }
         processedCount += 1
 
+        // Apply any pending parameter updates before processing this chunk
+        while let update = updateQueue.dequeue() {
+          activePipeline.updateParameters(
+            config: update.config,
+            filters: update.filters,
+            mixers: update.mixers,
+            processors: update.processors
+          )
+        }
+
         do {
           // Resample if configured. The desired ratio is published
           // by the rate-adjust controller via `shared.resamplerRatio`;
@@ -169,4 +180,15 @@ final class EngineProcessingLoop: @unchecked Sendable {
   func setPipeline(_ newPipeline: sending Pipeline) {
     _ = pipelineQueue.enqueue(newPipeline)
   }
+
+  func enqueueUpdate(_ update: PendingUpdate) {
+    _ = updateQueue.enqueue(update)
+  }
+}
+
+struct PendingUpdate: Sendable {
+  let config: DSPConfiguration
+  let filters: [String]
+  let mixers: [String]
+  let processors: [String]
 }

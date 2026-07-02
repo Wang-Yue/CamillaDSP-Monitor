@@ -26,7 +26,7 @@ internal enum SpectrumError: Error, Sendable, CustomStringConvertible {
 }
 
 /// Pure spectrum analyzer that operates on an `AudioHistoryBuffer`.
-public final class SpectrumAnalyzer: @unchecked Sendable {
+public final class SpectrumAnalyzer {
   private let fftN: Int = 4096
   private let log2n: vDSP_Length
   private let fftSetup: FFTSetup

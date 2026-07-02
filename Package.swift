@@ -7,7 +7,7 @@ let usePureSwift = ProcessInfo.processInfo.environment["USE_PURE_SWIFT"] != "0"
 var dependencies: [Package.Dependency] = []
 
 let libTargets: [Target] = [
-  .target(name: "DSPConfig", path: "Sources/Lib/Config"),
+  .target(name: "DSPConfig", dependencies: ["DSPAudio"], path: "Sources/Lib/Config"),
   .target(name: "DSPAudio", dependencies: [], path: "Sources/Lib/Audio"),
   .target(
     name: "DSPLogging", dependencies: ["DSPConfig", "DSPAudio"], path: "Sources/Lib/Logging"),
@@ -25,6 +25,11 @@ let libTargets: [Target] = [
     linkerSettings: [.linkedFramework("Accelerate")]
   ),
   .target(
+    name: "DSPProcessors",
+    dependencies: ["DSPConfig", "DSPAudio", "DSPFilters", "DSPLogging"],
+    path: "Sources/Lib/Processors"
+  ),
+  .target(
     name: "DSPResampler",
     dependencies: ["DSPConfig", "DSPAudio", "DSPFFT", "DSPLogging"],
     path: "Sources/Lib/Resampler"
@@ -32,7 +37,7 @@ let libTargets: [Target] = [
   .target(
     name: "DSPPipeline",
     dependencies: [
-      "DSPConfig", "DSPAudio", "DSPFilters", "DSPMixer", "DSPLogging",
+      "DSPConfig", "DSPAudio", "DSPFilters", "DSPMixer", "DSPLogging", "DSPProcessors",
     ],
     path: "Sources/Lib/Pipeline"
   ),
@@ -60,11 +65,18 @@ let libTargets: [Target] = [
     ],
     path: "Sources/Lib/Engine"
   ),
+  .target(
+    name: "DSPServer",
+    dependencies: [
+      "DSPConfig", "DSPAudio", "DSPEngine", "DSPLogging",
+    ],
+    path: "Sources/Lib/Server"
+  ),
 ]
 
 let commonLibDeps: [Target.Dependency] = [
   "DSPConfig", "DSPAudio", "DSPBackend", "DSPDoP", "DSPEngine", "DSPFFT", "DSPFilters",
-  "DSPLogging", "DSPMeasurement", "DSPMixer", "DSPPipeline", "DSPResampler",
+  "DSPLogging", "DSPMeasurement", "DSPMixer", "DSPPipeline", "DSPResampler", "DSPProcessors",
 ]
 
 var targets: [Target] = libTargets
@@ -82,9 +94,14 @@ if usePureSwift {
       dependencies: ["DSPLib"] + commonLibDeps,
       path: "Sources/DSPMonitor"
     ),
+    .executableTarget(
+      name: "DSPCLI",
+      dependencies: ["DSPLib", "DSPServer"] + commonLibDeps,
+      path: "Sources/DSPCLI"
+    ),
     .testTarget(
       name: "DSPMonitorTests",
-      dependencies: ["DSPLib"],
+      dependencies: ["DSPLib", "DSPServer"],
       path: "Tests/DSPMonitorTests"
     ),
   ])
@@ -112,6 +129,11 @@ if usePureSwift {
       dependencies: ["DSPLib"] + commonLibDeps,
       path: "Sources/DSPMonitor"
     ),
+    .executableTarget(
+      name: "DSPCLI",
+      dependencies: ["DSPLib", "DSPServer"] + commonLibDeps,
+      path: "Sources/DSPCLI"
+    ),
   ])
 }
 
@@ -120,6 +142,7 @@ let package = Package(
   platforms: [.macOS(.v15)],
   products: [
     .executable(name: "DSPMonitor", targets: ["DSPMonitor"]),
+    .executable(name: "dsp-cli", targets: ["DSPCLI"]),
     .library(name: "DSPLib", targets: ["DSPLib"]),
   ],
   dependencies: dependencies,

@@ -189,4 +189,12 @@ public actor SwiftDSPEngine {
     guard backend.lowercased() == "coreaudio" else { return nil }
     return CoreAudioCapabilities.describe(deviceName: device, isCapture: isCapture)
   }
+
+  public func getActiveConfig() -> DSPConfiguration? {
+    return core?.currentConfig
+  }
+
+  public func getProcessingParameters() -> ProcessingParameters? {
+    return core?.processingParams
+  }
 }

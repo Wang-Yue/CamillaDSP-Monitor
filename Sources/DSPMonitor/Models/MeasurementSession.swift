@@ -608,6 +608,8 @@ final class MeasurementSession {
     case .bandpass: mapped = .bandpass
     case .allpass: mapped = .allpass
     case .allpassFO: mapped = .allpassFO
+    case .free, .generalNotch, .linkwitzTransform:
+      return nil
     }
     return EQBand(
       type: mapped,

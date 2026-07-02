@@ -2,10 +2,18 @@
 // -----------------
 // Every field is backed by an `Atomic` from the standard `Synchronization`
 // module — no `NSLock`, no `@unchecked Sendable`.
-// per-channel level vectors live in a fixed-size lock-free struct sized
-// for the engine's stereo-only audio path.
+// Target volume, current volume, and mute states are kept for 5 faders (Main, Aux 1-4)
+// as separate inline atomic variables to avoid heap allocation and conform to non-copyable requirements.
 
 import Synchronization
+
+public enum Fader: Int, Codable, Sendable {
+  case main = 0
+  case aux1 = 1
+  case aux2 = 2
+  case aux3 = 3
+  case aux4 = 4
+}
 
 public final class ProcessingParameters: Sendable {
 
@@ -16,12 +24,39 @@ public final class ProcessingParameters: Sendable {
 
   // MARK: - Storage
 
-  /// Target volume (dB) — what the user has asked for. UI thread writes;
+  /// Target volume (dB) for fader 0 (Main) — what the user has asked for. UI thread writes;
   /// VolumeFilter reads on every chunk.
-  private let _targetVolume: AtomicDouble
-  private let _currentVolume: AtomicDouble
-  /// Mute state. UI writes; VolumeFilter reads each chunk.
-  private let _muted: Atomic<Bool>
+  private let _targetVolume0: AtomicDouble
+  /// Target volume (dB) for fader 1 (Aux 1).
+  private let _targetVolume1: AtomicDouble
+  /// Target volume (dB) for fader 2 (Aux 2).
+  private let _targetVolume2: AtomicDouble
+  /// Target volume (dB) for fader 3 (Aux 3).
+  private let _targetVolume3: AtomicDouble
+  /// Target volume (dB) for fader 4 (Aux 4).
+  private let _targetVolume4: AtomicDouble
+
+  /// Current volume (dB) for fader 0 (Main) — tracking ramp progress.
+  private let _currentVolume0: AtomicDouble
+  /// Current volume (dB) for fader 1 (Aux 1).
+  private let _currentVolume1: AtomicDouble
+  /// Current volume (dB) for fader 2 (Aux 2).
+  private let _currentVolume2: AtomicDouble
+  /// Current volume (dB) for fader 3 (Aux 3).
+  private let _currentVolume3: AtomicDouble
+  /// Current volume (dB) for fader 4 (Aux 4).
+  private let _currentVolume4: AtomicDouble
+
+  /// Mute state for fader 0 (Main). UI writes; VolumeFilter reads each chunk.
+  private let _muted0: Atomic<Bool>
+  /// Mute state for fader 1 (Aux 1).
+  private let _muted1: Atomic<Bool>
+  /// Mute state for fader 2 (Aux 2).
+  private let _muted2: Atomic<Bool>
+  /// Mute state for fader 3 (Aux 3).
+  private let _muted3: Atomic<Bool>
+  /// Mute state for fader 4 (Aux 4).
+  private let _muted4: Atomic<Bool>
 
   /// Per-channel signal levels (dB).
   private let _captureSignalPeak: AtomicLevels
@@ -30,9 +65,23 @@ public final class ProcessingParameters: Sendable {
   private let _playbackSignalRms: AtomicLevels
 
   public init(captureChannels: Int, playbackChannels: Int) {
-    self._targetVolume = AtomicDouble(Self.defaultVolume)
-    self._currentVolume = AtomicDouble(Self.defaultVolume)
-    self._muted = Atomic<Bool>(Self.defaultMute)
+    self._targetVolume0 = AtomicDouble(Self.defaultVolume)
+    self._targetVolume1 = AtomicDouble(Self.defaultVolume)
+    self._targetVolume2 = AtomicDouble(Self.defaultVolume)
+    self._targetVolume3 = AtomicDouble(Self.defaultVolume)
+    self._targetVolume4 = AtomicDouble(Self.defaultVolume)
+
+    self._currentVolume0 = AtomicDouble(Self.defaultVolume)
+    self._currentVolume1 = AtomicDouble(Self.defaultVolume)
+    self._currentVolume2 = AtomicDouble(Self.defaultVolume)
+    self._currentVolume3 = AtomicDouble(Self.defaultVolume)
+    self._currentVolume4 = AtomicDouble(Self.defaultVolume)
+
+    self._muted0 = Atomic<Bool>(Self.defaultMute)
+    self._muted1 = Atomic<Bool>(Self.defaultMute)
+    self._muted2 = Atomic<Bool>(Self.defaultMute)
+    self._muted3 = Atomic<Bool>(Self.defaultMute)
+    self._muted4 = Atomic<Bool>(Self.defaultMute)
 
     self._captureSignalPeak = AtomicLevels(channels: captureChannels)
     self._captureSignalRms = AtomicLevels(channels: captureChannels)
@@ -42,19 +91,79 @@ public final class ProcessingParameters: Sendable {
 
   // MARK: - Volume / Mute
 
+  public func targetVolume(for fader: Fader) -> PrcFmt {
+    switch fader {
+    case .main: return _targetVolume0.value
+    case .aux1: return _targetVolume1.value
+    case .aux2: return _targetVolume2.value
+    case .aux3: return _targetVolume3.value
+    case .aux4: return _targetVolume4.value
+    }
+  }
+
+  public func setTargetVolume(_ value: PrcFmt, for fader: Fader) {
+    switch fader {
+    case .main: _targetVolume0.value = value
+    case .aux1: _targetVolume1.value = value
+    case .aux2: _targetVolume2.value = value
+    case .aux3: _targetVolume3.value = value
+    case .aux4: _targetVolume4.value = value
+    }
+  }
+
+  public func currentVolume(for fader: Fader) -> PrcFmt {
+    switch fader {
+    case .main: return _currentVolume0.value
+    case .aux1: return _currentVolume1.value
+    case .aux2: return _currentVolume2.value
+    case .aux3: return _currentVolume3.value
+    case .aux4: return _currentVolume4.value
+    }
+  }
+
+  public func setCurrentVolume(_ value: PrcFmt, for fader: Fader) {
+    switch fader {
+    case .main: _currentVolume0.value = value
+    case .aux1: _currentVolume1.value = value
+    case .aux2: _currentVolume2.value = value
+    case .aux3: _currentVolume3.value = value
+    case .aux4: _currentVolume4.value = value
+    }
+  }
+
+  public func isMuted(for fader: Fader) -> Bool {
+    switch fader {
+    case .main: return _muted0.load(ordering: .acquiring)
+    case .aux1: return _muted1.load(ordering: .acquiring)
+    case .aux2: return _muted2.load(ordering: .acquiring)
+    case .aux3: return _muted3.load(ordering: .acquiring)
+    case .aux4: return _muted4.load(ordering: .acquiring)
+    }
+  }
+
+  public func setMuted(_ value: Bool, for fader: Fader) {
+    switch fader {
+    case .main: _muted0.store(value, ordering: .releasing)
+    case .aux1: _muted1.store(value, ordering: .releasing)
+    case .aux2: _muted2.store(value, ordering: .releasing)
+    case .aux3: _muted3.store(value, ordering: .releasing)
+    case .aux4: _muted4.store(value, ordering: .releasing)
+    }
+  }
+
   public var targetVolume: PrcFmt {
-    get { _targetVolume.value }
-    set { _targetVolume.value = newValue }
+    get { targetVolume(for: .main) }
+    set { setTargetVolume(newValue, for: .main) }
   }
 
   public var currentVolume: PrcFmt {
-    get { _currentVolume.value }
-    set { _currentVolume.value = newValue }
+    get { currentVolume(for: .main) }
+    set { setCurrentVolume(newValue, for: .main) }
   }
 
   public var isMuted: Bool {
-    get { _muted.load(ordering: .acquiring) }
-    set { _muted.store(newValue, ordering: .releasing) }
+    get { isMuted(for: .main) }
+    set { setMuted(newValue, for: .main) }
   }
 
   // MARK: - Metrics
@@ -81,10 +190,14 @@ public final class ProcessingParameters: Sendable {
 
   // MARK: - Chunk-based updates (no-allocation, audio-thread safe)
 
+  /// Asynchronously update the capture-side peak and RMS levels on the audio thread.
+  /// Does not allocate.
   public func updateCaptureLevels(from chunk: AudioChunk) -> PrcFmt {
     return updateLevels(from: chunk, peakStorage: _captureSignalPeak, rmsStorage: _captureSignalRms)
   }
 
+  /// Asynchronously update the playback-side peak and RMS levels on the audio thread.
+  /// Does not allocate.
   public func updatePlaybackLevels(from chunk: AudioChunk) -> PrcFmt {
     return updateLevels(
       from: chunk, peakStorage: _playbackSignalPeak, rmsStorage: _playbackSignalRms)
