@@ -56,6 +56,21 @@ extension PipelineStage {
           params.qAct = band.qAct
           params.freqTarget = band.freqTarget
           params.qTarget = band.qTarget
+        case .lowshelf, .highshelf:
+          params.freq = band.freq
+          params.gain = band.gain
+          if band.useSlope {
+            params.slope = band.slope
+          } else {
+            params.q = band.q
+          }
+        case .notch, .bandpass, .allpass:
+          params.freq = band.freq
+          if band.useBandwidth {
+            params.bandwidth = band.bandwidth
+          } else {
+            params.q = band.q
+          }
         default:
           params.freq = band.freq
           params.gain = band.type.hasGain ? band.gain : nil
@@ -79,7 +94,9 @@ extension PipelineStage {
           LoudnessParameters(
             referenceLevel: loudnessReference,
             highBoost: loudnessHighBoost,
-            lowBoost: loudnessLowBoost
+            lowBoost: loudnessLowBoost,
+            attenuateMid: loudnessAttenuateMid,
+            fader: loudnessFader
           )
         )
       ]
@@ -112,7 +129,21 @@ extension PipelineStage {
       ]
 
     case .delay:
-      return ["\(prefix)_delay": .delay(DelayParameters(delay: delayValue, unit: delayUnit))]
+      return [
+        "\(prefix)_delay": .delay(
+          DelayParameters(delay: delayValue, unit: delayUnit, subsample: delaySubsample))
+      ]
+
+    case .volume:
+      return [
+        "\(prefix)_volume": .volume(
+          VolumeParameters(
+            rampTime: volumeRampTime,
+            limit: volumeLimit,
+            fader: volumeFader
+          )
+        )
+      ]
 
     case .limiter:
       return [
@@ -148,6 +179,22 @@ extension PipelineStage {
       case .tilt:
         params.freq = comboFreq
         params.gain = comboGain
+      case .fivePointPeq:
+        params.fls = peqFls
+        params.gls = peqGls
+        params.qls = peqQls
+        params.fp1 = peqF1
+        params.gp1 = peqG1
+        params.qp1 = peqQ1
+        params.fp2 = peqF2
+        params.gp2 = peqG2
+        params.qp2 = peqQ2
+        params.fp3 = peqF3
+        params.gp3 = peqG3
+        params.qp3 = peqQ3
+        params.fhs = peqFhs
+        params.ghs = peqGhs
+        params.qhs = peqQhs
       default:
         break
       }
@@ -395,8 +442,8 @@ extension PipelineStage {
         channelA: leftChannel,
         channelB: rightChannel,
         delay: raceDelay,
-        subsampleDelay: false,
-        delayUnit: .ms,
+        subsampleDelay: raceSubsampleDelay,
+        delayUnit: raceDelayUnit,
         attenuation: raceAttenuation
       )
       return [prefix: .race(params)]
@@ -476,6 +523,10 @@ extension PipelineStage {
     case .delay:
       guard !channels.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_delay"])]
+
+    case .volume:
+      guard !channels.isEmpty else { return [] }
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_volume"])]
 
     case .limiter:
       guard !channels.isEmpty else { return [] }

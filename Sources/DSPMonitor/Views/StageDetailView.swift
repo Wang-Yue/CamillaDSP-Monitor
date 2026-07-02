@@ -1,5 +1,6 @@
 // StageDetailView - Configuration UI for each pipeline stage
 
+import DSPAudio
 import DSPConfig
 import DSPLib
 import Observation
@@ -66,6 +67,7 @@ private struct StageDetailContent: View {
           case .emphasis: EmphasisOptions(stage: stage)
           case .dcProtection: DCProtectionDescription()
           case .gain: GainOptions(stage: stage)
+          case .volume: VolumeOptions(stage: stage)
           case .delay: DelayOptions(stage: stage)
           case .limiter: LimiterOptions(stage: stage)
           case .mixer: MatrixMixerOptions(stage: stage)
@@ -676,6 +678,26 @@ struct LoudnessOptions: View {
           ).fixedSize()
           Spacer()
         }
+        HStack(spacing: 16) {
+          Text("Fader")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+          Picker("", selection: $stage.loudnessFader) {
+            Text("Main").tag(Fader.main)
+            Text("Aux 1").tag(Fader.aux1)
+            Text("Aux 2").tag(Fader.aux2)
+            Text("Aux 3").tag(Fader.aux3)
+            Text("Aux 4").tag(Fader.aux4)
+          }
+          .frame(width: 150)
+          .labelsHidden()
+          .onChange(of: stage.loudnessFader) { _, _ in dsp.applyConfig() }
+          Spacer()
+        }
+        Toggle("Attenuate Mid (instead of boosting extremes)", isOn: $stage.loudnessAttenuateMid)
+          .font(.subheadline)
+          .onChange(of: stage.loudnessAttenuateMid) { _, _ in dsp.applyConfig() }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.vertical, 4)
@@ -817,7 +839,12 @@ struct DelayOptions: View {
 
           let maxVal: Double =
             stage.delayUnit == .samples ? 96000 : (stage.delayUnit == .us ? 1_000_000 : 1000)
-          let stepVal: Double = stage.delayUnit == .samples ? 1.0 : 0.1
+          let stepVal: Double = {
+            if stage.delayUnit == .samples {
+              return stage.delaySubsample ? 0.01 : 1.0
+            }
+            return 0.1
+          }()
 
           Slider(value: $stage.delayValue, in: 0...maxVal, step: stepVal)
             .onChange(of: stage.delayValue) { _, _ in dsp.applyConfig() }
@@ -832,7 +859,72 @@ struct DelayOptions: View {
           }
           .controlSize(.small)
         }
+        Toggle("Subsample Delay (uses IIR allpass filter)", isOn: $stage.delaySubsample)
+          .font(.subheadline)
+          .onChange(of: stage.delaySubsample) { _, _ in dsp.applyConfig() }
       }
+      .padding(.vertical, 4)
+    }
+  }
+}
+
+// MARK: - Volume
+
+struct VolumeOptions: View {
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
+
+  var body: some View {
+    GroupBox("Volume Control") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(spacing: 16) {
+          Text("Fader")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+          Picker("", selection: $stage.volumeFader) {
+            Text("Aux 1").tag(Fader.aux1)
+            Text("Aux 2").tag(Fader.aux2)
+            Text("Aux 3").tag(Fader.aux3)
+            Text("Aux 4").tag(Fader.aux4)
+          }
+          .frame(width: 150)
+          .labelsHidden()
+          .onChange(of: stage.volumeFader) { _, _ in dsp.applyConfig() }
+          Spacer()
+        }
+
+        HStack(spacing: 16) {
+          Text("Ramp Time")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+          Slider(value: $stage.volumeRampTime, in: 0...2000, step: 50)
+            .frame(maxWidth: .infinity)
+            .frame(minWidth: 200)
+            .onChange(of: stage.volumeRampTime) { _, _ in dsp.applyConfig() }
+          Text("\(Int(stage.volumeRampTime)) ms")
+            .font(.system(.body, design: .monospaced))
+            .fixedSize()
+          Spacer()
+        }
+
+        HStack(spacing: 16) {
+          Text("Limit")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+          Slider(value: $stage.volumeLimit, in: -50...20, step: 0.1)
+            .frame(maxWidth: .infinity)
+            .frame(minWidth: 200)
+            .onChange(of: stage.volumeLimit) { _, _ in dsp.applyConfig() }
+          Text(String(format: "%+.1f dB", stage.volumeLimit))
+            .font(.system(.body, design: .monospaced))
+            .fixedSize()
+          Spacer()
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.vertical, 4)
     }
   }
@@ -1248,15 +1340,58 @@ struct RACEOptions: View {
         .padding(.bottom, 4)
 
         HStack(spacing: 16) {
+          Text("Delay Unit")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(width: 90, alignment: .leading)
+          Picker("", selection: $stage.raceDelayUnit) {
+            Text("Milliseconds (ms)").tag(DelayUnit.ms)
+            Text("Microseconds (μs)").tag(DelayUnit.us)
+            Text("Samples").tag(DelayUnit.samples)
+            Text("Millimeters (mm)").tag(DelayUnit.mm)
+          }
+          .frame(width: 200)
+          .labelsHidden()
+          .onChange(of: stage.raceDelayUnit) { _, _ in dsp.applyConfig() }
+          Spacer()
+        }
+
+        HStack(spacing: 16) {
           Text("Delay")
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .frame(width: 90, alignment: .leading)
-          Slider(value: $stage.raceDelay, in: 0.01...2.0, step: 0.01)
+
+          let maxVal: Double = {
+            switch stage.raceDelayUnit {
+            case .samples: return 100.0
+            case .us: return 2000.0
+            case .mm: return 700.0
+            case .ms: return 2.0
+            }
+          }()
+          let minVal: Double = {
+            switch stage.raceDelayUnit {
+            case .samples: return 1.0
+            case .us: return 5.0
+            case .mm: return 2.0
+            case .ms: return 0.01
+            }
+          }()
+          let stepVal: Double = {
+            switch stage.raceDelayUnit {
+            case .samples: return stage.raceSubsampleDelay ? 0.01 : 1.0
+            case .us: return 1.0
+            case .mm: return 1.0
+            case .ms: return 0.01
+            }
+          }()
+
+          Slider(value: $stage.raceDelay, in: minVal...maxVal, step: stepVal)
             .onChange(of: stage.raceDelay) { _, _ in dsp.applyConfig() }
-          Text(String(format: "%.2f ms", stage.raceDelay))
+          Text("\(String(format: "%.2f", stage.raceDelay)) \(stage.raceDelayUnit.rawValue)")
             .font(.system(.body, design: .monospaced))
-            .frame(width: 70, alignment: .trailing)
+            .frame(width: 75, alignment: .trailing)
         }
 
         HStack(spacing: 16) {
@@ -1268,8 +1403,12 @@ struct RACEOptions: View {
             .onChange(of: stage.raceAttenuation) { _, _ in dsp.applyConfig() }
           Text(String(format: "%.1f dB", stage.raceAttenuation))
             .font(.system(.body, design: .monospaced))
-            .frame(width: 70, alignment: .trailing)
+            .frame(width: 75, alignment: .trailing)
         }
+
+        Toggle("Subsample Delay (uses IIR allpass filter)", isOn: $stage.raceSubsampleDelay)
+          .font(.subheadline)
+          .onChange(of: stage.raceSubsampleDelay) { _, _ in dsp.applyConfig() }
       }
       .padding(.vertical, 4)
     }
@@ -1411,6 +1550,7 @@ struct BiquadComboOptions: View {
             Text("Linkwitz-Riley Lowpass").tag(BiquadComboType.linkwitzRileyLowpass)
             Text("Linkwitz-Riley Highpass").tag(BiquadComboType.linkwitzRileyHighpass)
             Text("Tilt").tag(BiquadComboType.tilt)
+            Text("Five-Point PEQ").tag(BiquadComboType.fivePointPeq)
           }
           .frame(width: 220)
           .labelsHidden()
@@ -1418,16 +1558,18 @@ struct BiquadComboOptions: View {
           Spacer()
         }
 
-        HStack(spacing: 16) {
-          Text("Frequency")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .frame(width: 90, alignment: .leading)
-          Slider(value: $stage.comboFreq, in: 20...20000, step: 1)
-            .onChange(of: stage.comboFreq) { _, _ in dsp.applyConfig() }
-          Text("\(Int(stage.comboFreq)) Hz")
-            .font(.system(.body, design: .monospaced))
-            .frame(width: 75, alignment: .trailing)
+        if stage.comboType != .fivePointPeq {
+          HStack(spacing: 16) {
+            Text("Frequency")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .frame(width: 90, alignment: .leading)
+            Slider(value: $stage.comboFreq, in: 20...20000, step: 1)
+              .onChange(of: stage.comboFreq) { _, _ in dsp.applyConfig() }
+            Text("\(Int(stage.comboFreq)) Hz")
+              .font(.system(.body, design: .monospaced))
+              .frame(width: 75, alignment: .trailing)
+          }
         }
 
         if stage.comboType == .butterworthLowpass || stage.comboType == .butterworthHighpass
@@ -1464,9 +1606,105 @@ struct BiquadComboOptions: View {
               .frame(width: 75, alignment: .trailing)
           }
         }
+
+        if stage.comboType == .fivePointPeq {
+          FivePointPeqFields(stage: stage)
+        }
       }
       .padding(.vertical, 4)
     }
+  }
+}
+
+struct FivePointPeqFields: View {
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("5-Point Parametric EQ").font(.subheadline).bold().padding(.bottom, 4)
+
+      Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+        GridRow {
+          Text("Band").font(.caption).foregroundStyle(.secondary)
+          Text("Frequency (Hz)").font(.caption).foregroundStyle(.secondary)
+          Text("Gain (dB)").font(.caption).foregroundStyle(.secondary)
+          Text("Q").font(.caption).foregroundStyle(.secondary)
+        }
+        Divider()
+
+        // Low Shelf
+        GridRow {
+          Text("Low Shelf").font(.caption)
+          TextField("", value: $stage.peqFls, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 80)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqGls, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqQls, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+        }
+
+        // Peak 1
+        GridRow {
+          Text("PEQ 1").font(.caption)
+          TextField("", value: $stage.peqF1, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 80)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqG1, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqQ1, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+        }
+
+        // Peak 2
+        GridRow {
+          Text("PEQ 2").font(.caption)
+          TextField("", value: $stage.peqF2, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 80)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqG2, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqQ2, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+        }
+
+        // Peak 3
+        GridRow {
+          Text("PEQ 3").font(.caption)
+          TextField("", value: $stage.peqF3, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 80)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqG3, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqQ3, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+        }
+
+        // High Shelf
+        GridRow {
+          Text("High Shelf").font(.caption)
+          TextField("", value: $stage.peqFhs, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 80)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqGhs, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+          TextField("", value: $stage.peqQhs, format: .number)
+            .textFieldStyle(.roundedBorder).frame(width: 60)
+            .onSubmit { dsp.applyConfig() }
+        }
+      }
+    }
+    .padding(.top, 8)
   }
 }
 

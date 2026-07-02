@@ -204,6 +204,47 @@ struct DevicePickerView: View {
             Text("Compensate for clock drift between capture and playback devices")
               .font(.caption)
               .foregroundStyle(.secondary)
+
+            if !DSPEngine.isSwiftEngine {
+              Divider()
+                .padding(.vertical, 4)
+
+              HStack {
+                Text("Queue Limit")
+                  .frame(width: 120, alignment: .leading)
+                Stepper(
+                  "\(bindableSettings.queuelimit)", value: $bindableSettings.queuelimit, in: 1...32
+                )
+                .frame(width: 120)
+              }
+
+              Toggle("Stop on Rate Change", isOn: $bindableSettings.stopOnRateChange)
+
+              HStack {
+                Text("Measure Interval")
+                  .frame(width: 120, alignment: .leading)
+                Slider(value: $bindableSettings.rateMeasureInterval, in: 0.1...10.0, step: 0.1)
+                  .frame(width: 150)
+                Text(String(format: "%.1f s", bindableSettings.rateMeasureInterval))
+                  .font(.system(.body, design: .monospaced))
+              }
+
+              Toggle("Multithreaded", isOn: $bindableSettings.multithreaded)
+
+              if bindableSettings.multithreaded {
+                HStack {
+                  Text("Worker Threads")
+                    .frame(width: 120, alignment: .leading)
+                  Stepper(
+                    bindableSettings.workerThreads == 0
+                      ? "Auto" : "\(bindableSettings.workerThreads)",
+                    value: $bindableSettings.workerThreads, in: 0...32
+                  )
+                  .frame(width: 120)
+                }
+                .padding(.leading, 16)
+              }
+            }
           }
           .padding(4)
           .frame(maxWidth: .infinity, alignment: .leading)

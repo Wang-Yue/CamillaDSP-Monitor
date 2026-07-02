@@ -1,5 +1,6 @@
 // PipelineStage+Defaults - Default stages and persistence (Snapshot)
 
+import DSPAudio
 import DSPConfig
 import Foundation
 
@@ -38,13 +39,19 @@ extension PipelineStage {
     var loudnessReference: Double
     var loudnessHighBoost: Double
     var loudnessLowBoost: Double
+    var loudnessFader: Int
+    var loudnessAttenuateMid: Bool
 
     // New stage parameters
     var gainValue: Double
     var gainInverted: Bool
     var gainMuted: Bool
+    var volumeRampTime: Double
+    var volumeLimit: Double
+    var volumeFader: Int
     var delayValue: Double
     var delayUnit: String
+    var delaySubsample: Bool
     var limiterLimit: Double
     var limiterAttack: Double
     var limiterRelease: Double
@@ -68,6 +75,8 @@ extension PipelineStage {
     var gateAttenuation: Double
     var raceDelay: Double
     var raceAttenuation: Double
+    var raceSubsampleDelay: Bool
+    var raceDelayUnit: String
 
     // Dither parameters
     var ditherType: String
@@ -86,6 +95,23 @@ extension PipelineStage {
     var comboGains: String
     var comboFreqMin: Double
     var comboFreqMax: Double
+
+    // FivePointPeq parameters
+    var peqFls: Double
+    var peqGls: Double
+    var peqQls: Double
+    var peqF1: Double
+    var peqG1: Double
+    var peqQ1: Double
+    var peqF2: Double
+    var peqG2: Double
+    var peqQ2: Double
+    var peqF3: Double
+    var peqG3: Double
+    var peqQ3: Double
+    var peqFhs: Double
+    var peqGhs: Double
+    var peqQhs: Double
 
     // Clipper parameters
     var clipperLimit: Double
@@ -119,13 +145,19 @@ extension PipelineStage {
       loudnessReference: loudnessReference,
       loudnessHighBoost: loudnessHighBoost,
       loudnessLowBoost: loudnessLowBoost,
+      loudnessFader: loudnessFader.rawValue,
+      loudnessAttenuateMid: loudnessAttenuateMid,
 
       // New parameters
       gainValue: gainValue,
       gainInverted: gainInverted,
       gainMuted: gainMuted,
+      volumeRampTime: volumeRampTime,
+      volumeLimit: volumeLimit,
+      volumeFader: volumeFader.rawValue,
       delayValue: delayValue,
       delayUnit: delayUnit.rawValue,
+      delaySubsample: delaySubsample,
       limiterLimit: limiterLimit,
       limiterAttack: limiterAttack,
       limiterRelease: limiterRelease,
@@ -149,6 +181,8 @@ extension PipelineStage {
       gateAttenuation: gateAttenuation,
       raceDelay: raceDelay,
       raceAttenuation: raceAttenuation,
+      raceSubsampleDelay: raceSubsampleDelay,
+      raceDelayUnit: raceDelayUnit.rawValue,
 
       // Dither parameters
       ditherType: ditherType.rawValue,
@@ -167,6 +201,23 @@ extension PipelineStage {
       comboGains: comboGains,
       comboFreqMin: comboFreqMin,
       comboFreqMax: comboFreqMax,
+
+      // FivePointPeq
+      peqFls: peqFls,
+      peqGls: peqGls,
+      peqQls: peqQls,
+      peqF1: peqF1,
+      peqG1: peqG1,
+      peqQ1: peqQ1,
+      peqF2: peqF2,
+      peqG2: peqG2,
+      peqQ2: peqQ2,
+      peqF3: peqF3,
+      peqG3: peqG3,
+      peqQ3: peqQ3,
+      peqFhs: peqFhs,
+      peqGhs: peqGhs,
+      peqQhs: peqQhs,
 
       // Clipper parameters
       clipperLimit: clipperLimit,
@@ -198,13 +249,19 @@ extension PipelineStage {
     loudnessReference = s.loudnessReference
     loudnessHighBoost = s.loudnessHighBoost
     loudnessLowBoost = s.loudnessLowBoost
+    if let v = Fader(rawValue: s.loudnessFader) { loudnessFader = v }
+    loudnessAttenuateMid = s.loudnessAttenuateMid
 
     // New parameters
     gainValue = s.gainValue
     gainInverted = s.gainInverted
     gainMuted = s.gainMuted
+    volumeRampTime = s.volumeRampTime
+    volumeLimit = s.volumeLimit
+    if let v = Fader(rawValue: s.volumeFader) { volumeFader = v }
     delayValue = s.delayValue
     if let v = DelayUnit(rawValue: s.delayUnit) { delayUnit = v }
+    delaySubsample = s.delaySubsample
     limiterLimit = s.limiterLimit
     limiterAttack = s.limiterAttack
     limiterRelease = s.limiterRelease
@@ -228,6 +285,8 @@ extension PipelineStage {
     gateAttenuation = s.gateAttenuation
     raceDelay = s.raceDelay
     raceAttenuation = s.raceAttenuation
+    raceSubsampleDelay = s.raceSubsampleDelay
+    if let v = DelayUnit(rawValue: s.raceDelayUnit) { raceDelayUnit = v }
 
     // Dither parameters
     if let v = DitherType(rawValue: s.ditherType) { ditherType = v }
@@ -246,6 +305,23 @@ extension PipelineStage {
     comboGains = s.comboGains
     comboFreqMin = s.comboFreqMin
     comboFreqMax = s.comboFreqMax
+
+    // FivePointPeq
+    peqFls = s.peqFls
+    peqGls = s.peqGls
+    peqQls = s.peqQls
+    peqF1 = s.peqF1
+    peqG1 = s.peqG1
+    peqQ1 = s.peqQ1
+    peqF2 = s.peqF2
+    peqG2 = s.peqG2
+    peqQ2 = s.peqQ2
+    peqF3 = s.peqF3
+    peqG3 = s.peqG3
+    peqQ3 = s.peqQ3
+    peqFhs = s.peqFhs
+    peqGhs = s.peqGhs
+    peqQhs = s.peqQhs
 
     // Clipper parameters
     clipperLimit = s.clipperLimit

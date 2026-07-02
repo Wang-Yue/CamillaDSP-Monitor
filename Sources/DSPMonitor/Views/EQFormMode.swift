@@ -28,37 +28,18 @@ struct EQFormMode: View {
       List {
         Section("Bands") {
           ForEach(preset.bands) { band in
-            VStack(alignment: .leading, spacing: 8) {
-              BandRow(
-                band: band,
-                onDelete: {
-                  if let idx = preset.bands.firstIndex(where: { $0.id == band.id }) {
-                    preset.bands.remove(at: idx)
-                    if selectedBandID == band.id { selectedBandID = nil }
-                    dsp.applyConfig()
-                  }
+            BandRow(
+              band: band,
+              onDelete: {
+                if let idx = preset.bands.firstIndex(where: { $0.id == band.id }) {
+                  preset.bands.remove(at: idx)
+                  if selectedBandID == band.id { selectedBandID = nil }
+                  dsp.applyConfig()
                 }
-              )
-              .contentShape(Rectangle())
-              .onTapGesture { selectedBandID = band.id }
-
-              if !band.type.isStandard {
-                Group {
-                  switch band.type {
-                  case .free:
-                    FreeBiquadFields(band: band)
-                  case .generalNotch:
-                    GeneralNotchFields(band: band)
-                  case .linkwitzTransform:
-                    LinkwitzTransformFields(band: band)
-                  default:
-                    EmptyView()
-                  }
-                }
-                .padding(.leading, 28)
-                .padding(.bottom, 8)
               }
-            }
+            )
+            .contentShape(Rectangle())
+            .onTapGesture { selectedBandID = band.id }
             .listRowBackground(selectedBandID == band.id ? Color.accentColor.opacity(0.05) : nil)
           }
 
@@ -85,7 +66,7 @@ private struct BandRow: View {
   @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: 8) {
       // Enabled toggle
       Toggle("", isOn: $band.isEnabled)
         .labelsHidden()
@@ -107,57 +88,89 @@ private struct BandRow: View {
         dsp.applyConfig()
       }
 
-      if band.type.isStandard {
-        // Freq
+      // Render edit fields based on type:
+      if band.type == .free {
         HStack(spacing: 4) {
-          TextField("", value: $band.freq, format: .number)
-            .textFieldStyle(.plain)
-            .multilineTextAlignment(.trailing)
-            .font(.system(.body, design: .monospaced))
-            .frame(width: 60)
-            .onChange(of: band.freq) { _, _ in
-              dsp.applyConfig()
-            }
-          Text("Hz").font(.caption2).foregroundStyle(.secondary)
+          coeffField("b0", value: $band.b0)
+          coeffField("b1", value: $band.b1)
+          coeffField("b2", value: $band.b2)
+          coeffField("a1", value: $band.a1)
+          coeffField("a2", value: $band.a2)
         }
-
-        // Gain (conditional)
-        if band.type.hasGain {
-          HStack(spacing: 4) {
-            TextField("", value: $band.gain, format: .number)
-              .textFieldStyle(.plain)
-              .multilineTextAlignment(.trailing)
-              .font(.system(.body, design: .monospaced))
-              .frame(width: 50)
-              .onChange(of: band.gain) { _, _ in
-                dsp.applyConfig()
-              }
-            Text("dB").font(.caption2).foregroundStyle(.secondary)
-          }
-        } else {
-          Spacer().frame(width: 75)  // Maintain alignment
+      } else if band.type == .generalNotch {
+        HStack(spacing: 6) {
+          paramField("Fc", value: $band.freqNotch, unit: "Hz", width: 55)
+          paramField("Fp", value: $band.freqPole, unit: "Hz", width: 55)
+          paramField("Qp", value: $band.qPole, unit: "", width: 45)
+          Toggle("Norm", isOn: $band.normalizeAtDc)
+            .font(.caption2)
+            .controlSize(.mini)
+            .onChange(of: band.normalizeAtDc) { _, _ in dsp.applyConfig() }
         }
-
-        // Q (conditional)
-        if band.type.hasQ {
-          HStack(spacing: 4) {
-            TextField("", value: $band.q, format: .number)
-              .textFieldStyle(.plain)
-              .multilineTextAlignment(.trailing)
-              .font(.system(.body, design: .monospaced))
-              .frame(width: 50)
-              .onChange(of: band.q) { _, _ in
-                dsp.applyConfig()
-              }
-            Text("Q").font(.caption2).foregroundStyle(.secondary)
-          }
-        } else {
-          Spacer().frame(width: 70)
+      } else if band.type == .linkwitzTransform {
+        HStack(spacing: 6) {
+          paramField("Fa", value: $band.freqAct, unit: "Hz", width: 50)
+          paramField("Qa", value: $band.qAct, unit: "", width: 45)
+          paramField("Ft", value: $band.freqTarget, unit: "Hz", width: 50)
+          paramField("Qt", value: $band.qTarget, unit: "", width: 45)
         }
       } else {
-        Text("Configure parameters below")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        // Standard biquads
+        paramField("Fc", value: $band.freq, unit: "Hz", width: 55)
+
+        if band.type.hasGain {
+          paramField("Gain", value: $band.gain, unit: "dB", width: 45)
+        } else if band.type.isStandard {
+          Spacer().frame(width: 65)
+        }
+
+        if band.type.hasQ {
+          if band.type == .lowshelf || band.type == .highshelf {
+            HStack(spacing: 2) {
+              TextField("", value: band.useSlope ? $band.slope : $band.q, format: .number)
+                .textFieldStyle(.plain)
+                .multilineTextAlignment(.trailing)
+                .font(.system(.body, design: .monospaced))
+                .frame(width: 45)
+                .onChange(of: band.q) { _, _ in dsp.applyConfig() }
+                .onChange(of: band.slope) { _, _ in dsp.applyConfig() }
+              Button(action: {
+                band.useSlope.toggle()
+                dsp.applyConfig()
+              }) {
+                Text(band.useSlope ? "dB/o" : "Q")
+                  .font(.caption2)
+                  .foregroundStyle(Color.accentColor)
+                  .underline()
+              }
+              .buttonStyle(.plain)
+            }
+          } else if band.type == .notch || band.type == .bandpass || band.type == .allpass {
+            HStack(spacing: 2) {
+              TextField("", value: band.useBandwidth ? $band.bandwidth : $band.q, format: .number)
+                .textFieldStyle(.plain)
+                .multilineTextAlignment(.trailing)
+                .font(.system(.body, design: .monospaced))
+                .frame(width: 45)
+                .onChange(of: band.q) { _, _ in dsp.applyConfig() }
+                .onChange(of: band.bandwidth) { _, _ in dsp.applyConfig() }
+              Button(action: {
+                band.useBandwidth.toggle()
+                dsp.applyConfig()
+              }) {
+                Text(band.useBandwidth ? "oct" : "Q")
+                  .font(.caption2)
+                  .foregroundStyle(Color.accentColor)
+                  .underline()
+              }
+              .buttonStyle(.plain)
+            }
+          } else {
+            paramField("Q", value: $band.q, unit: "", width: 45)
+          }
+        } else if band.type.isStandard {
+          Spacer().frame(width: 65)
+        }
       }
 
       Spacer()
@@ -175,136 +188,36 @@ private struct BandRow: View {
     }
     .padding(.vertical, 2)
   }
-}
 
-// MARK: - Advanced Fields
-
-struct FreeBiquadFields: View {
-  @Bindable var band: EQBand
-  @Environment(DSPEngineController.self) var dsp
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Text("Coefficients (Direct Form I)").font(.caption.bold()).foregroundStyle(.secondary)
-      Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-        GridRow {
-          Text("b0").font(.caption).foregroundStyle(.secondary)
-          TextField("b0", value: $band.b0, format: .number).textFieldStyle(.roundedBorder).frame(
-            width: 80
-          ).onSubmit { dsp.applyConfig() }
-          Text("a1").font(.caption).foregroundStyle(.secondary)
-          TextField("a1", value: $band.a1, format: .number).textFieldStyle(.roundedBorder).frame(
-            width: 80
-          ).onSubmit { dsp.applyConfig() }
-        }
-        GridRow {
-          Text("b1").font(.caption).foregroundStyle(.secondary)
-          TextField("b1", value: $band.b1, format: .number).textFieldStyle(.roundedBorder).frame(
-            width: 80
-          ).onSubmit { dsp.applyConfig() }
-          Text("a2").font(.caption).foregroundStyle(.secondary)
-          TextField("a2", value: $band.a2, format: .number).textFieldStyle(.roundedBorder).frame(
-            width: 80
-          ).onSubmit { dsp.applyConfig() }
-        }
-        GridRow {
-          Text("b2").font(.caption).foregroundStyle(.secondary)
-          TextField("b2", value: $band.b2, format: .number).textFieldStyle(.roundedBorder).frame(
-            width: 80
-          ).onSubmit { dsp.applyConfig() }
-          Text("")
-          Text("")
-        }
-      }
+  @ViewBuilder
+  private func coeffField(_ label: String, value: Binding<Double>) -> some View {
+    HStack(spacing: 2) {
+      Text(label).font(.caption2).foregroundStyle(.secondary)
+      TextField("", value: value, format: .number)
+        .textFieldStyle(.plain)
+        .multilineTextAlignment(.trailing)
+        .font(.system(.body, design: .monospaced))
+        .frame(width: 45)
+        .onChange(of: value.wrappedValue) { _, _ in dsp.applyConfig() }
     }
   }
-}
 
-struct GeneralNotchFields: View {
-  @Bindable var band: EQBand
-  @Environment(DSPEngineController.self) var dsp
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(spacing: 12) {
-        Text("Notch Freq").font(.caption).foregroundStyle(.secondary).frame(
-          width: 80, alignment: .leading)
-        Slider(value: $band.freqNotch, in: 20...20000, step: 1).onChange(of: band.freqNotch) {
-          _, _ in dsp.applyConfig()
-        }
-        Text("\(Int(band.freqNotch)) Hz").font(.system(.caption, design: .monospaced)).frame(
-          width: 80, alignment: .trailing)
-      }
-      HStack(spacing: 12) {
-        Text("Pole Freq").font(.caption).foregroundStyle(.secondary).frame(
-          width: 80, alignment: .leading)
-        Slider(value: $band.freqPole, in: 20...20000, step: 1).onChange(of: band.freqPole) { _, _ in
-          dsp.applyConfig()
-        }
-        Text("\(Int(band.freqPole)) Hz").font(.system(.caption, design: .monospaced)).frame(
-          width: 80, alignment: .trailing)
-      }
-      HStack(spacing: 12) {
-        Text("Pole Q").font(.caption).foregroundStyle(.secondary).frame(
-          width: 80, alignment: .leading)
-        Slider(value: $band.qPole, in: 0.05...10.0, step: 0.05).onChange(of: band.qPole) { _, _ in
-          dsp.applyConfig()
-        }
-        Text(String(format: "%.2f", band.qPole)).font(.system(.caption, design: .monospaced)).frame(
-          width: 80, alignment: .trailing)
-      }
-      Toggle("Normalize at DC", isOn: $band.normalizeAtDc)
-        .font(.caption)
-        .onChange(of: band.normalizeAtDc) { _, _ in dsp.applyConfig() }
-    }
-    .frame(maxWidth: 450)
-  }
-}
-
-struct LinkwitzTransformFields: View {
-  @Bindable var band: EQBand
-  @Environment(DSPEngineController.self) var dsp
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(spacing: 12) {
-        Text("F(act)").font(.caption).foregroundStyle(.secondary).frame(
-          width: 80, alignment: .leading)
-        Slider(value: $band.freqAct, in: 1...200, step: 0.5).onChange(of: band.freqAct) { _, _ in
-          dsp.applyConfig()
-        }
-        Text(String(format: "%.1f Hz", band.freqAct)).font(.system(.caption, design: .monospaced))
-          .frame(width: 80, alignment: .trailing)
-      }
-      HStack(spacing: 12) {
-        Text("Q(act)").font(.caption).foregroundStyle(.secondary).frame(
-          width: 80, alignment: .leading)
-        Slider(value: $band.qAct, in: 0.1...3.0, step: 0.01).onChange(of: band.qAct) { _, _ in
-          dsp.applyConfig()
-        }
-        Text(String(format: "%.3f", band.qAct)).font(.system(.caption, design: .monospaced)).frame(
-          width: 80, alignment: .trailing)
-      }
-      HStack(spacing: 12) {
-        Text("F(target)").font(.caption).foregroundStyle(.secondary).frame(
-          width: 80, alignment: .leading)
-        Slider(value: $band.freqTarget, in: 1...200, step: 0.5).onChange(of: band.freqTarget) {
-          _, _ in dsp.applyConfig()
-        }
-        Text(String(format: "%.1f Hz", band.freqTarget)).font(
-          .system(.caption, design: .monospaced)
-        ).frame(width: 80, alignment: .trailing)
-      }
-      HStack(spacing: 12) {
-        Text("Q(target)").font(.caption).foregroundStyle(.secondary).frame(
-          width: 80, alignment: .leading)
-        Slider(value: $band.qTarget, in: 0.1...3.0, step: 0.01).onChange(of: band.qTarget) { _, _ in
-          dsp.applyConfig()
-        }
-        Text(String(format: "%.3f", band.qTarget)).font(.system(.caption, design: .monospaced))
-          .frame(width: 80, alignment: .trailing)
+  @ViewBuilder
+  private func paramField(_ label: String, value: Binding<Double>, unit: String, width: CGFloat)
+    -> some View
+  {
+    HStack(spacing: 2) {
+      TextField("", value: value, format: .number)
+        .textFieldStyle(.plain)
+        .multilineTextAlignment(.trailing)
+        .font(.system(.body, design: .monospaced))
+        .frame(width: width)
+        .onChange(of: value.wrappedValue) { _, _ in dsp.applyConfig() }
+      if !unit.isEmpty {
+        Text(unit).font(.caption2).foregroundStyle(.secondary)
+      } else {
+        Text(label).font(.caption2).foregroundStyle(.secondary)
       }
     }
-    .frame(maxWidth: 450)
   }
 }

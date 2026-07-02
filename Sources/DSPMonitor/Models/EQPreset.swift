@@ -71,6 +71,8 @@ final class EQBand: Identifiable, Codable, Equatable {
       && lhs.freqNotch == rhs.freqNotch && lhs.freqPole == rhs.freqPole
       && lhs.qPole == rhs.qPole
       && lhs.normalizeAtDc == rhs.normalizeAtDc
+      && lhs.slope == rhs.slope && lhs.bandwidth == rhs.bandwidth
+      && lhs.useSlope == rhs.useSlope && lhs.useBandwidth == rhs.useBandwidth
       && lhs.freqAct == rhs.freqAct && lhs.qAct == rhs.qAct
       && lhs.freqTarget == rhs.freqTarget && lhs.qTarget == rhs.qTarget
   }
@@ -94,6 +96,12 @@ final class EQBand: Identifiable, Codable, Equatable {
   var freqPole: Double = 1000.0 { didSet { invalidateCache() } }
   var qPole: Double = 0.707 { didSet { invalidateCache() } }
   var normalizeAtDc: Bool = true { didSet { invalidateCache() } }
+
+  // Slope / Bandwidth parameters
+  var slope: Double = 6.0 { didSet { invalidateCache() } }
+  var bandwidth: Double = 1.0 { didSet { invalidateCache() } }
+  var useSlope: Bool = false { didSet { invalidateCache() } }
+  var useBandwidth: Bool = false { didSet { invalidateCache() } }
 
   // Linkwitz Transform parameters
   var freqAct: Double = 50.0 { didSet { invalidateCache() } }
@@ -125,6 +133,7 @@ final class EQBand: Identifiable, Codable, Equatable {
     case id, type, freq, gain, q, isEnabled
     case b0, b1, b2, a1, a2
     case freqNotch, freqPole, qPole, normalizeAtDc
+    case slope, bandwidth, useSlope, useBandwidth
     case freqAct, qAct, freqTarget, qTarget
   }
 
@@ -148,6 +157,11 @@ final class EQBand: Identifiable, Codable, Equatable {
     freqPole = try c.decodeIfPresent(Double.self, forKey: .freqPole) ?? 1000.0
     qPole = try c.decodeIfPresent(Double.self, forKey: .qPole) ?? 0.707
     normalizeAtDc = try c.decodeIfPresent(Bool.self, forKey: .normalizeAtDc) ?? true
+
+    slope = try c.decodeIfPresent(Double.self, forKey: .slope) ?? 6.0
+    bandwidth = try c.decodeIfPresent(Double.self, forKey: .bandwidth) ?? 1.0
+    useSlope = try c.decodeIfPresent(Bool.self, forKey: .useSlope) ?? false
+    useBandwidth = try c.decodeIfPresent(Bool.self, forKey: .useBandwidth) ?? false
 
     freqAct = try c.decodeIfPresent(Double.self, forKey: .freqAct) ?? 50.0
     qAct = try c.decodeIfPresent(Double.self, forKey: .qAct) ?? 0.707
@@ -174,6 +188,11 @@ final class EQBand: Identifiable, Codable, Equatable {
     try c.encode(freqPole, forKey: .freqPole)
     try c.encode(qPole, forKey: .qPole)
     try c.encode(normalizeAtDc, forKey: .normalizeAtDc)
+
+    try c.encode(slope, forKey: .slope)
+    try c.encode(bandwidth, forKey: .bandwidth)
+    try c.encode(useSlope, forKey: .useSlope)
+    try c.encode(useBandwidth, forKey: .useBandwidth)
 
     try c.encode(freqAct, forKey: .freqAct)
     try c.encode(qAct, forKey: .qAct)
@@ -203,6 +222,21 @@ final class EQBand: Identifiable, Codable, Equatable {
       params.qAct = qAct
       params.freqTarget = freqTarget
       params.qTarget = qTarget
+    case .lowshelf, .highshelf:
+      params.freq = freq
+      params.gain = gain
+      if useSlope {
+        params.slope = slope
+      } else {
+        params.q = q
+      }
+    case .notch, .bandpass, .allpass:
+      params.freq = freq
+      if useBandwidth {
+        params.bandwidth = bandwidth
+      } else {
+        params.q = q
+      }
     default:
       params.freq = freq
       params.gain = type.hasGain ? gain : nil
@@ -280,9 +314,22 @@ final class EQPreset: Identifiable, Codable, Equatable {
     for (i, band) in bands.enumerated() {
       let state = band.isEnabled ? "ON" : "OFF"
       let type = band.type.shortName
-      let gainStr = band.type.hasGain ? "Gain \(String(format: "%.1f", band.gain)) dB " : ""
-      let qStr = band.type.hasQ ? "Q \(String(format: "%.2f", band.q))" : ""
-      lines.append("Filter \(i + 1): \(state) \(type) Fc \(Int(band.freq)) Hz \(gainStr)\(qStr)")
+      var extra = ""
+      switch band.type {
+      case .free:
+        extra = "B0 \(band.b0) B1 \(band.b1) B2 \(band.b2) A1 \(band.a1) A2 \(band.a2)"
+      case .generalNotch:
+        extra =
+          "Fc \(Int(band.freqNotch)) Hz Fp \(Int(band.freqPole)) Hz Qp \(String(format: "%.2f", band.qPole)) Norm \(band.normalizeAtDc ? 1 : 0)"
+      case .linkwitzTransform:
+        extra =
+          "Fa \(String(format: "%.1f", band.freqAct)) Hz Qa \(String(format: "%.3f", band.qAct)) Ft \(String(format: "%.1f", band.freqTarget)) Hz Qt \(String(format: "%.3f", band.qTarget))"
+      default:
+        let gainStr = band.type.hasGain ? "Gain \(String(format: "%.1f", band.gain)) dB " : ""
+        let qStr = band.type.hasQ ? "Q \(String(format: "%.2f", band.q))" : ""
+        extra = "Fc \(Int(band.freq)) Hz \(gainStr)\(qStr)"
+      }
+      lines.append("Filter \(i + 1): \(state) \(type) \(extra)")
     }
     return lines.joined(separator: "\n")
   }
@@ -318,18 +365,73 @@ final class EQPreset: Identifiable, Codable, Equatable {
           var gain = 0.0
           var q = 0.707
 
+          var b0 = 1.0
+          var b1 = 0.0
+          var b2 = 0.0
+          var a1 = 0.0
+          var a2 = 0.0
+          var freqNotch = 1000.0
+          var freqPole = 1000.0
+          var qPole = 0.707
+          var normalizeAtDc = true
+          var freqAct = 50.0
+          var qAct = 0.707
+          var freqTarget = 20.0
+          var qTarget = 0.707
+
           for i in 0..<words.count - 1 {
             let key = words[i].lowercased()
-            let val = Double(words[i + 1]) ?? 0.0
             if key == "fc" {
-              freq = val
+              if let val = Double(words[i + 1]) {
+                freq = val
+                freqNotch = val
+              }
             } else if key == "gain" {
-              gain = val
+              if let val = Double(words[i + 1]) { gain = val }
             } else if key == "q" {
-              q = val
+              if let val = Double(words[i + 1]) { q = val }
+            } else if key == "fp" {
+              if let val = Double(words[i + 1]) { freqPole = val }
+            } else if key == "qp" {
+              if let val = Double(words[i + 1]) { qPole = val }
+            } else if key == "norm" {
+              if let val = Double(words[i + 1]) { normalizeAtDc = (val != 0.0) }
+            } else if key == "fa" {
+              if let val = Double(words[i + 1]) { freqAct = val }
+            } else if key == "qa" {
+              if let val = Double(words[i + 1]) { qAct = val }
+            } else if key == "ft" {
+              if let val = Double(words[i + 1]) { freqTarget = val }
+            } else if key == "qt" {
+              if let val = Double(words[i + 1]) { qTarget = val }
+            } else if key == "b0" {
+              if let val = Double(words[i + 1]) { b0 = val }
+            } else if key == "b1" {
+              if let val = Double(words[i + 1]) { b1 = val }
+            } else if key == "b2" {
+              if let val = Double(words[i + 1]) { b2 = val }
+            } else if key == "a1" {
+              if let val = Double(words[i + 1]) { a1 = val }
+            } else if key == "a2" {
+              if let val = Double(words[i + 1]) { a2 = val }
             }
           }
-          bands.append(EQBand(type: type, freq: freq, gain: gain, q: q, isEnabled: isEnabled))
+
+          let band = EQBand(type: type, freq: freq, gain: gain, q: q, isEnabled: isEnabled)
+          band.b0 = b0
+          band.b1 = b1
+          band.b2 = b2
+          band.a1 = a1
+          band.a2 = a2
+          band.freqNotch = freqNotch
+          band.freqPole = freqPole
+          band.qPole = qPole
+          band.normalizeAtDc = normalizeAtDc
+          band.freqAct = freqAct
+          band.qAct = qAct
+          band.freqTarget = freqTarget
+          band.qTarget = qTarget
+          bands.append(band)
         }
       } else if trimmed.contains(",") {
         let parts = trimmed.components(separatedBy: ",").map {

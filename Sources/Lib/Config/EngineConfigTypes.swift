@@ -265,6 +265,12 @@ public struct DevicesConfig: Codable, Equatable, Sendable {
   public var volumeRampTime: Double?
   public var volumeLimit: Double?
 
+  public var queuelimit: Int?
+  public var stopOnRateChange: Bool?
+  public var rateMeasureInterval: Double?
+  public var multithreaded: Bool?
+  public var workerThreads: Int?
+
   enum CodingKeys: String, CodingKey {
     case samplerate, chunksize, resampler, capture, playback
     case enableRateAdjust = "enable_rate_adjust"
@@ -275,6 +281,11 @@ public struct DevicesConfig: Codable, Equatable, Sendable {
     case silenceTimeout = "silence_timeout"
     case volumeRampTime = "volume_ramp_time"
     case volumeLimit = "volume_limit"
+    case queuelimit
+    case stopOnRateChange = "stop_on_rate_change"
+    case rateMeasureInterval = "rate_measure_interval"
+    case multithreaded
+    case workerThreads = "worker_threads"
   }
 
   public init(

@@ -48,6 +48,10 @@ public struct ResamplerConfig: Codable, Equatable, Sendable, CustomStringConvert
   public var interpolation: String?
   public var appleQuality: AppleResamplerQuality?
   public var appleComplexity: AppleResamplerComplexity?
+  public var sincLen: Int?
+  public var oversamplingFactor: Int?
+  public var window: String?
+  public var fCutoff: Double?
 
   enum CodingKeys: String, CodingKey {
     case type
@@ -55,6 +59,10 @@ public struct ResamplerConfig: Codable, Equatable, Sendable, CustomStringConvert
     case interpolation
     case appleQuality = "apple_quality"
     case appleComplexity = "apple_complexity"
+    case sincLen = "sinc_len"
+    case oversamplingFactor = "oversampling_factor"
+    case window
+    case fCutoff = "f_cutoff"
   }
 
   public init(
@@ -62,16 +70,24 @@ public struct ResamplerConfig: Codable, Equatable, Sendable, CustomStringConvert
     profile: String? = nil,
     interpolation: String? = nil,
     appleQuality: AppleResamplerQuality? = nil,
-    appleComplexity: AppleResamplerComplexity? = nil
+    appleComplexity: AppleResamplerComplexity? = nil,
+    sincLen: Int? = nil,
+    oversamplingFactor: Int? = nil,
+    window: String? = nil,
+    fCutoff: Double? = nil
   ) {
     self.type = type
     self.profile = profile
     self.interpolation = interpolation
     self.appleQuality = appleQuality
     self.appleComplexity = appleComplexity
+    self.sincLen = sincLen
+    self.oversamplingFactor = oversamplingFactor
+    self.window = window
+    self.fCutoff = fCutoff
   }
 
   public var description: String {
-    "ResamplerConfig(type: \(type), profile: \(profile ?? "nil"), interpolation: \(interpolation ?? "nil"))"
+    "ResamplerConfig(type: \(type), profile: \(profile ?? "nil"), interpolation: \(interpolation ?? "nil"), sincLen: \(sincLen ?? 0))"
   }
 }

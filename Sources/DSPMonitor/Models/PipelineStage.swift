@@ -1,5 +1,6 @@
 // PipelineStage - Dynamic, reorderable DSP pipeline stages
 
+import DSPAudio
 import DSPConfig
 import Foundation
 import Observation
@@ -19,6 +20,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
   case gain = "Gain"
   case delay = "Delay"
   case limiter = "Limiter"
+  case volume = "Volume"
   case mixer = "Matrix Mixer"
   case compressor = "Compressor"
   case noiseGate = "Noise Gate"
@@ -43,6 +45,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
     case .emphasis: return "waveform"
     case .dcProtection: return "bolt.shield"
     case .gain: return "plus.minus"
+    case .volume: return "speaker.wave.3"
     case .delay: return "clock"
     case .limiter: return "square.slash"
     case .mixer: return "grid"
@@ -120,14 +123,21 @@ final class PipelineStage: Identifiable, Hashable {
   var loudnessReference: Double = -25.0
   var loudnessHighBoost: Double = 7.0
   var loudnessLowBoost: Double = 7.0
+  var loudnessFader: Fader = .main
+  var loudnessAttenuateMid: Bool = false
 
   // New stage parameters
   var gainValue: Double = 0.0
   var gainInverted: Bool = false
   var gainMuted: Bool = false
 
+  var volumeRampTime: Double = 400.0
+  var volumeLimit: Double = 10.0
+  var volumeFader: Fader = .aux1
+
   var delayValue: Double = 0.0
   var delayUnit: DelayUnit = .ms
+  var delaySubsample: Bool = false
 
   var limiterLimit: Double = 0.0
   var limiterAttack: Double = 5.0
@@ -156,6 +166,8 @@ final class PipelineStage: Identifiable, Hashable {
   // RACE parameters
   var raceDelay: Double = 0.25
   var raceAttenuation: Double = 6.0
+  var raceSubsampleDelay: Bool = false
+  var raceDelayUnit: DelayUnit = .ms
 
   // Dither parameters
   var ditherType: DitherType = .flat
@@ -174,6 +186,23 @@ final class PipelineStage: Identifiable, Hashable {
   var comboGains: String = "0.0, 0.0, 0.0, 0.0, 0.0"
   var comboFreqMin: Double = 20.0
   var comboFreqMax: Double = 20000.0
+
+  // FivePointPeq parameters
+  var peqFls: Double = 80.0
+  var peqGls: Double = 0.0
+  var peqQls: Double = 0.707
+  var peqF1: Double = 200.0
+  var peqG1: Double = 0.0
+  var peqQ1: Double = 0.707
+  var peqF2: Double = 1000.0
+  var peqG2: Double = 0.0
+  var peqQ2: Double = 0.707
+  var peqF3: Double = 4000.0
+  var peqG3: Double = 0.0
+  var peqQ3: Double = 0.707
+  var peqFhs: Double = 12000.0
+  var peqGhs: Double = 0.0
+  var peqQhs: Double = 0.707
 
   // Clipper (Simple Limiter) parameters
   var clipperLimit: Double = 0.0

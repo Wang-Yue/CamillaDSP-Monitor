@@ -112,6 +112,14 @@ final class DSPEngineController {
       playback: playbackConfig
     )
 
+    devicesConfig.queuelimit = settings.queuelimit
+    devicesConfig.stopOnRateChange = settings.stopOnRateChange
+    devicesConfig.rateMeasureInterval = settings.rateMeasureInterval
+    devicesConfig.multithreaded = settings.multithreaded
+    if settings.multithreaded, settings.workerThreads > 0 {
+      devicesConfig.workerThreads = settings.workerThreads
+    }
+
     if settings.silenceTimeout > 0 {
       devicesConfig.silenceThreshold = Double(settings.silenceThreshold)
       devicesConfig.silenceTimeout = Double(settings.silenceTimeout)
@@ -141,7 +149,14 @@ final class DSPEngineController {
       var resampler = ResamplerConfig(type: configResamplerType)
       switch effectiveType {
       case .asyncSinc:
-        resampler.profile = settings.resamplerProfile.rawValue
+        if settings.resamplerUseProfile {
+          resampler.profile = settings.resamplerProfile.rawValue
+        } else {
+          resampler.sincLen = settings.resamplerSincLen
+          resampler.oversamplingFactor = settings.resamplerOversamplingFactor
+          resampler.window = settings.resamplerWindow
+          resampler.fCutoff = settings.resamplerFCutoff
+        }
       case .asyncPoly:
         resampler.interpolation = settings.resamplerInterpolation.rawValue
       case .synchronous:

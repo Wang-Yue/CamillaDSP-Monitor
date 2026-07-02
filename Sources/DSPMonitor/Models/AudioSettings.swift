@@ -85,6 +85,36 @@ final class AudioSettings {
       onChanged?()
     }
   }
+  var resamplerUseProfile: Bool = true {
+    didSet {
+      defaults.set(resamplerUseProfile, forKey: "resamplerUseProfile")
+      onChanged?()
+    }
+  }
+  var resamplerSincLen: Int = 256 {
+    didSet {
+      defaults.set(resamplerSincLen, forKey: "resamplerSincLen")
+      onChanged?()
+    }
+  }
+  var resamplerOversamplingFactor: Int = 128 {
+    didSet {
+      defaults.set(resamplerOversamplingFactor, forKey: "resamplerOversamplingFactor")
+      onChanged?()
+    }
+  }
+  var resamplerWindow: String = "BlackmanHarris" {
+    didSet {
+      defaults.set(resamplerWindow, forKey: "resamplerWindow")
+      onChanged?()
+    }
+  }
+  var resamplerFCutoff: Double = 0.95 {
+    didSet {
+      defaults.set(resamplerFCutoff, forKey: "resamplerFCutoff")
+      onChanged?()
+    }
+  }
   var resamplerInterpolation: ResamplerInterpolation = .cubic {
     didSet {
       defaults.set(resamplerInterpolation.rawValue, forKey: "resamplerInterpolation")
@@ -121,6 +151,36 @@ final class AudioSettings {
       onChanged?()
     }
   }
+  var queuelimit: Int = 4 {
+    didSet {
+      defaults.set(queuelimit, forKey: "queuelimit")
+      onChanged?()
+    }
+  }
+  var stopOnRateChange: Bool = false {
+    didSet {
+      defaults.set(stopOnRateChange, forKey: "stopOnRateChange")
+      onChanged?()
+    }
+  }
+  var rateMeasureInterval: Double = 1.0 {
+    didSet {
+      defaults.set(rateMeasureInterval, forKey: "rateMeasureInterval")
+      onChanged?()
+    }
+  }
+  var multithreaded: Bool = false {
+    didSet {
+      defaults.set(multithreaded, forKey: "multithreaded")
+      onChanged?()
+    }
+  }
+  var workerThreads: Int = 0 {
+    didSet {
+      defaults.set(workerThreads, forKey: "workerThreads")
+      onChanged?()
+    }
+  }
 
   /// Fired when a setting that affects the DSP config changes. Volume and mute are excluded
   /// because they are applied as live engine commands by DSPEngineController, not via a full
@@ -137,6 +197,11 @@ final class AudioSettings {
 
     silenceThreshold = defaults.object(forKey: "silenceThreshold") as? Int ?? -60
     silenceTimeout = defaults.object(forKey: "silenceTimeout") as? Int ?? 0
+    queuelimit = defaults.object(forKey: "queuelimit") as? Int ?? 4
+    stopOnRateChange = defaults.bool(forKey: "stopOnRateChange")
+    rateMeasureInterval = defaults.object(forKey: "rateMeasureInterval") as? Double ?? 1.0
+    multithreaded = defaults.bool(forKey: "multithreaded")
+    workerThreads = defaults.object(forKey: "workerThreads") as? Int ?? 0
 
     if let t = defaults.string(forKey: "resamplerType"), let type = ResamplerType(rawValue: t) {
       resamplerType = type
@@ -146,6 +211,13 @@ final class AudioSettings {
     {
       resamplerProfile = profile
     }
+    resamplerUseProfile = defaults.object(forKey: "resamplerUseProfile") as? Bool ?? true
+    resamplerSincLen = defaults.integer(forKey: "resamplerSincLen")
+    if resamplerSincLen == 0 { resamplerSincLen = 256 }
+    resamplerOversamplingFactor = defaults.integer(forKey: "resamplerOversamplingFactor")
+    if resamplerOversamplingFactor == 0 { resamplerOversamplingFactor = 128 }
+    resamplerWindow = defaults.string(forKey: "resamplerWindow") ?? "BlackmanHarris"
+    resamplerFCutoff = defaults.object(forKey: "resamplerFCutoff") as? Double ?? 0.95
     if let i = defaults.string(forKey: "resamplerInterpolation"),
       let interpolation = ResamplerInterpolation(rawValue: i)
     {

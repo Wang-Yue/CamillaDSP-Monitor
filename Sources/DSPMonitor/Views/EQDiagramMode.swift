@@ -352,31 +352,52 @@ struct EQFrequencyResponseView: View {
       }
     }
   }
+  @ViewBuilder
   private func bandHandle(band: EQBand, w: Double, h: Double) -> some View {
-    let x = freqToX(band.freq, width: w)
-    let gain = band.type.hasGain ? band.gain : 0
-    let y = dbToY(gain, height: h)
-    let isSelected = band.id == selectedBandID
-    let color = colorFor(band)
-    return Circle().fill(color).frame(width: isSelected ? 14 : 10, height: isSelected ? 14 : 10)
-      .overlay(Circle().stroke(Color.white, lineWidth: isSelected ? 2.5 : 1)).shadow(
-        color: .black.opacity(0.3), radius: 2
-      ).position(x: x, y: y)
-      .gesture(
-        DragGesture(minimumDistance: 0).onChanged { value in
-          selectedBandID = band.id
-          let newFreq = xToFreq(value.location.x, width: w)
-          band.freq = max(minFreq, min(maxFreq, newFreq))
-          if band.type.hasGain {
-            let newDB = yToDB(value.location.y, height: h)
-            band.gain = max(-20, min(20, (newDB * 2).rounded() / 2))
-          }
-          dsp.applyConfig()
-        }.onEnded { _ in
-          dsp.applyConfig()
+    if band.type == .free {
+      EmptyView()
+    } else {
+      let handleFreq: Double = {
+        switch band.type {
+        case .generalNotch: return band.freqNotch
+        case .linkwitzTransform: return band.freqTarget
+        default: return band.freq
         }
-      )
-      .onTapGesture { selectedBandID = band.id }
+      }()
+      let x = freqToX(handleFreq, width: w)
+      let gain = band.type.hasGain ? band.gain : 0
+      let y = dbToY(gain, height: h)
+      let isSelected = band.id == selectedBandID
+      let color = colorFor(band)
+
+      Circle().fill(color).frame(width: isSelected ? 14 : 10, height: isSelected ? 14 : 10)
+        .overlay(Circle().stroke(Color.white, lineWidth: isSelected ? 2.5 : 1)).shadow(
+          color: .black.opacity(0.3), radius: 2
+        ).position(x: x, y: y)
+        .gesture(
+          DragGesture(minimumDistance: 0).onChanged { value in
+            selectedBandID = band.id
+            let newFreq = xToFreq(value.location.x, width: w)
+            let clampedFreq = max(minFreq, min(maxFreq, newFreq))
+            switch band.type {
+            case .generalNotch:
+              band.freqNotch = clampedFreq
+            case .linkwitzTransform:
+              band.freqTarget = clampedFreq
+            default:
+              band.freq = clampedFreq
+            }
+            if band.type.hasGain {
+              let newDB = yToDB(value.location.y, height: h)
+              band.gain = max(-20, min(20, (newDB * 2).rounded() / 2))
+            }
+            dsp.applyConfig()
+          }.onEnded { _ in
+            dsp.applyConfig()
+          }
+        )
+        .onTapGesture { selectedBandID = band.id }
+    }
   }
 }
 
@@ -429,12 +450,37 @@ struct EQBandChip: View {
       VStack(alignment: .leading, spacing: 1) {
         Text("#\(index) \(band.type.rawValue)").font(
           .system(size: 9, weight: isSelected ? .bold : .regular))
-        Text(String(format: "%.0f Hz", band.freq)).font(.system(size: 8, design: .monospaced))
-        if band.type.hasGain {
-          Text(String(format: "%+.1f dB", band.gain)).font(.system(size: 8, design: .monospaced))
-        }
-        if band.type.hasQ {
-          Text(String(format: "Q %.2f", band.q)).font(.system(size: 8, design: .monospaced))
+
+        if band.type == .free {
+          // Free has no freq/gain/q
+        } else {
+          let displayFreq: Double = {
+            switch band.type {
+            case .generalNotch: return band.freqNotch
+            case .linkwitzTransform: return band.freqTarget
+            default: return band.freq
+            }
+          }()
+          Text(String(format: "%.0f Hz", displayFreq)).font(.system(size: 8, design: .monospaced))
+
+          if band.type.hasGain {
+            Text(String(format: "%+.1f dB", band.gain)).font(.system(size: 8, design: .monospaced))
+          }
+
+          let displayQ: Double? = {
+            if band.type == .generalNotch {
+              return band.qPole
+            } else if band.type == .linkwitzTransform {
+              return band.qTarget
+            } else if band.type.hasQ {
+              return band.q
+            }
+            return nil
+          }()
+          if let qVal = displayQ {
+            let label = band.type == .generalNotch ? "Qp" : (band.type == .linkwitzTransform ? "Qt" : "Q")
+            Text(String(format: "\(label) %.2f", qVal)).font(.system(size: 8, design: .monospaced))
+          }
         }
       }
     }.padding(.horizontal, 6).padding(.vertical, 3).background(

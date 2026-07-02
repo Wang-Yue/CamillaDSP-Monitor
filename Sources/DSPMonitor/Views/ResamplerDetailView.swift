@@ -61,24 +61,89 @@ struct ResamplerDetailView: View {
               }
 
               if settings.resamplerType == .asyncSinc {
-                HStack(spacing: 16) {
-                  Text("Profile")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
+                Toggle("Use Profile", isOn: $settings.resamplerUseProfile)
+                  .font(.subheadline)
+                  .onChange(of: settings.resamplerUseProfile) { _, _ in dsp.applyConfig() }
+                  .padding(.vertical, 2)
 
-                  Picker("", selection: $settings.resamplerProfile) {
-                    ForEach(ResamplerProfile.allCases) { profile in
-                      Text(profile.rawValue).tag(profile)
+                if settings.resamplerUseProfile {
+                  HStack(spacing: 16) {
+                    Text("Profile")
+                      .font(.subheadline)
+                      .foregroundStyle(.secondary)
+                      .fixedSize()
+
+                    Picker("", selection: $settings.resamplerProfile) {
+                      ForEach(ResamplerProfile.allCases) { profile in
+                        Text(profile.rawValue).tag(profile)
+                      }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minWidth: 400)
+                    .onChange(of: settings.resamplerProfile) { _, _ in dsp.applyConfig() }
+
+                    Spacer()
+                  }
+                } else {
+                  VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 16) {
+                      Text("Sinc Length")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 120, alignment: .leading)
+                      TextField("", value: $settings.resamplerSincLen, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .onSubmit { dsp.applyConfig() }
+                      Spacer()
+                    }
+
+                    HStack(spacing: 16) {
+                      Text("Oversampling")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 120, alignment: .leading)
+                      TextField("", value: $settings.resamplerOversamplingFactor, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .onSubmit { dsp.applyConfig() }
+                      Spacer()
+                    }
+
+                    HStack(spacing: 16) {
+                      Text("Window")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 120, alignment: .leading)
+                      Picker("", selection: $settings.resamplerWindow) {
+                        Text("Blackman").tag("Blackman")
+                        Text("Blackman-Harris").tag("BlackmanHarris")
+                        Text("Hann").tag("Hann")
+                        Text("Hamming").tag("Hamming")
+                        Text("Kaiser").tag("Kaiser")
+                      }
+                      .frame(width: 150)
+                      .labelsHidden()
+                      .onChange(of: settings.resamplerWindow) { _, _ in dsp.applyConfig() }
+                      Spacer()
+                    }
+
+                    HStack(spacing: 16) {
+                      Text("Cutoff Freq")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 120, alignment: .leading)
+                      Slider(value: $settings.resamplerFCutoff, in: 0.5...0.99, step: 0.01)
+                        .frame(width: 200)
+                        .onChange(of: settings.resamplerFCutoff) { _, _ in dsp.applyConfig() }
+                      Text(String(format: "%.2f × Fs/2", settings.resamplerFCutoff))
+                        .font(.system(.body, design: .monospaced))
+                      Spacer()
                     }
                   }
-                  .pickerStyle(.segmented)
-                  .labelsHidden()
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .frame(minWidth: 400)
-                  .onChange(of: settings.resamplerProfile) { _, _ in dsp.applyConfig() }
-
-                  Spacer()
+                  .padding(.leading, 16)
                 }
               }
 
