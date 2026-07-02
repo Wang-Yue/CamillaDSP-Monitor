@@ -145,11 +145,11 @@ extension PipelineStage {
         )
       ]
 
-    case .limiter:
+    case .lookaheadLimiter:
       return [
-        "\(prefix)_limiter": .lookaheadLimiter(
+        "\(prefix)_lookahead_limiter": .lookaheadLimiter(
           LookaheadLimiterParameters(
-            limit: limiterLimit, attack: limiterAttack, release: limiterRelease, unit: .ms))
+            limit: lookaheadLimit, attack: lookaheadAttack, release: lookaheadRelease, unit: .ms))
       ]
 
     case .dither:
@@ -200,10 +200,10 @@ extension PipelineStage {
       }
       return ["\(prefix)_combo": .biquadCombo(params)]
 
-    case .clipper:
+    case .limiter:
       return [
-        "\(prefix)_clipper": .limiter(
-          LimiterParameters(clipLimit: clipperLimit, softClip: clipperSoftClip))
+        "\(prefix)_limiter": .limiter(
+          LimiterParameters(clipLimit: limiterLimit, softClip: limiterSoftClip))
       ]
 
     case .graphicEQ:
@@ -405,7 +405,7 @@ extension PipelineStage {
     case .compressor:
       let params = CompressorParameters(
         channels: channels,
-        monitorChannels: chList,
+        monitorChannels: self.monitorChannels.sorted(),
         processChannels: chList,
         attack: compressorAttack,
         release: compressorRelease,
@@ -420,7 +420,7 @@ extension PipelineStage {
     case .noiseGate:
       let params = NoiseGateParameters(
         channels: channels,
-        monitorChannels: chList,
+        monitorChannels: self.monitorChannels.sorted(),
         processChannels: chList,
         attack: gateAttack,
         release: gateRelease,
@@ -521,9 +521,9 @@ extension PipelineStage {
       guard !channels.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_volume"])]
 
-    case .limiter:
+    case .lookaheadLimiter:
       guard !channels.isEmpty else { return [] }
-      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_limiter"])]
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_lookahead_limiter"])]
 
     case .compressor, .noiseGate, .race:
       return [PipelineStep(type: .processor, name: prefix)]
@@ -540,9 +540,9 @@ extension PipelineStage {
       guard !channels.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_combo"])]
 
-    case .clipper:
+    case .limiter:
       guard !channels.isEmpty else { return [] }
-      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_clipper"])]
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_limiter"])]
 
     case .graphicEQ:
       guard !channels.isEmpty else { return [] }

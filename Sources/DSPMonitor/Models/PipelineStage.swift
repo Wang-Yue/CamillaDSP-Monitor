@@ -19,6 +19,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
   case dcProtection = "DC Protection"
   case gain = "Gain"
   case delay = "Delay"
+  case lookaheadLimiter = "Lookahead Limiter"
   case limiter = "Limiter"
   case volume = "Volume"
   case mixer = "Matrix Mixer"
@@ -28,7 +29,6 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
   case dither = "Dither"
   case diffEq = "Differential Equation"
   case biquadCombo = "Biquad Combo"
-  case clipper = "Clipper"
 
   var id: String { rawValue }
   var icon: String {
@@ -47,7 +47,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
     case .gain: return "plus.minus"
     case .volume: return "speaker.wave.3"
     case .delay: return "clock"
-    case .limiter: return "square.slash"
+    case .lookaheadLimiter: return "square.slash"
     case .mixer: return "grid"
     case .compressor: return "arrow.up.right.and.arrow.down.left.rectangle"
     case .noiseGate: return "waveform.badge.minus"
@@ -55,7 +55,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
     case .dither: return "square.grid.3x1.below.line.grid.1x2"
     case .diffEq: return "function"
     case .biquadCombo: return "arrow.up.and.down.and.arrow.left.and.right"
-    case .clipper: return "scissors"
+    case .limiter: return "scissors"
     }
   }
 }
@@ -100,9 +100,11 @@ final class PipelineStage: Identifiable, Hashable {
   let type: StageType
   var name: String
   var isEnabled: Bool
-
   // Dynamic channel mapping
   var channels: Set<Int> = [0, 1]
+
+  // Side-chain / monitor channels (for Compressor, Noise Gate)
+  var monitorChannels: Set<Int> = [0, 1]
 
   // Stereo-specific channel routing (for Balance, Width, M/S, Crossfeed, RACE)
   var leftChannel: Int = 0
@@ -118,7 +120,6 @@ final class PipelineStage: Identifiable, Hashable {
 
   var eqPresetID: UUID?
   var convPresetID: UUID?
-
   var emphasisMode: EmphasisMode = .deEmphasis
   var loudnessReference: Double = -25.0
   var loudnessHighBoost: Double = 7.0
@@ -139,9 +140,9 @@ final class PipelineStage: Identifiable, Hashable {
   var delayUnit: DelayUnit = .ms
   var delaySubsample: Bool = false
 
-  var limiterLimit: Double = 0.0
-  var limiterAttack: Double = 5.0
-  var limiterRelease: Double = 100.0
+  var lookaheadLimit: Double = 0.0
+  var lookaheadAttack: Double = 5.0
+  var lookaheadRelease: Double = 100.0
 
   // Matrix Mixer channel layouts
   var mixerChannelsIn: Int = 2
@@ -204,9 +205,9 @@ final class PipelineStage: Identifiable, Hashable {
   var peqGhs: Double = 0.0
   var peqQhs: Double = 0.707
 
-  // Clipper (Simple Limiter) parameters
-  var clipperLimit: Double = 0.0
-  var clipperSoftClip: Bool = false
+  // Limiter (Simple Peak Limiter) parameters
+  var limiterLimit: Double = 0.0
+  var limiterSoftClip: Bool = false
 
   // Graphic EQ parameters
   var graphicEQFreqMin: Double = 20.0
@@ -234,6 +235,7 @@ final class PipelineStage: Identifiable, Hashable {
     self.name = name ?? type.rawValue
     self.isEnabled = isEnabled
     self.channels = channels
+    self.monitorChannels = channels
 
     // Set default channels based on type
     if type == .balance || type == .width || type == .msProc || type == .crossfeed || type == .race

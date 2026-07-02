@@ -69,6 +69,7 @@ private struct StageDetailContent: View {
           case .gain: GainOptions(stage: stage)
           case .volume: VolumeOptions(stage: stage)
           case .delay: DelayOptions(stage: stage)
+          case .lookaheadLimiter: LookaheadLimiterOptions(stage: stage)
           case .limiter: LimiterOptions(stage: stage)
           case .mixer: MatrixMixerOptions(stage: stage)
           case .compressor: CompressorOptions(stage: stage)
@@ -77,7 +78,6 @@ private struct StageDetailContent: View {
           case .dither: DitherOptions(stage: stage)
           case .diffEq: DiffEqOptions(stage: stage)
           case .biquadCombo: BiquadComboOptions(stage: stage)
-          case .clipper: ClipperOptions(stage: stage)
           case .graphicEQ: GraphicEQOptions(stage: stage)
           }
         }
@@ -930,9 +930,9 @@ struct VolumeOptions: View {
   }
 }
 
-// MARK: - Limiter
+// MARK: - Lookahead Limiter
 
-struct LimiterOptions: View {
+struct LookaheadLimiterOptions: View {
   @Bindable var stage: PipelineStage
   @Environment(DSPEngineController.self) var dsp
 
@@ -945,10 +945,10 @@ struct LimiterOptions: View {
             .foregroundStyle(.secondary)
             .fixedSize()
 
-          Slider(value: $stage.limiterLimit, in: -30...0, step: 0.1)
-            .onChange(of: stage.limiterLimit) { _, _ in dsp.applyConfig() }
+          Slider(value: $stage.lookaheadLimit, in: -30...0, step: 0.1)
+            .onChange(of: stage.lookaheadLimit) { _, _ in dsp.applyConfig() }
 
-          Text(String(format: "%.1f dB", stage.limiterLimit))
+          Text(String(format: "%.1f dB", stage.lookaheadLimit))
             .font(.system(.body, design: .monospaced))
             .fixedSize()
         }
@@ -959,10 +959,10 @@ struct LimiterOptions: View {
             .foregroundStyle(.secondary)
             .fixedSize()
 
-          Slider(value: $stage.limiterAttack, in: 0.1...100.0, step: 0.1)
-            .onChange(of: stage.limiterAttack) { _, _ in dsp.applyConfig() }
+          Slider(value: $stage.lookaheadAttack, in: 0.1...100.0, step: 0.1)
+            .onChange(of: stage.lookaheadAttack) { _, _ in dsp.applyConfig() }
 
-          Text(String(format: "%.1f ms", stage.limiterAttack))
+          Text(String(format: "%.1f ms", stage.lookaheadAttack))
             .font(.system(.body, design: .monospaced))
             .fixedSize()
         }
@@ -973,10 +973,10 @@ struct LimiterOptions: View {
             .foregroundStyle(.secondary)
             .fixedSize()
 
-          Slider(value: $stage.limiterRelease, in: 5...1000, step: 5)
-            .onChange(of: stage.limiterRelease) { _, _ in dsp.applyConfig() }
+          Slider(value: $stage.lookaheadRelease, in: 5...1000, step: 5)
+            .onChange(of: stage.lookaheadRelease) { _, _ in dsp.applyConfig() }
 
-          Text(String(format: "%.0f ms", stage.limiterRelease))
+          Text(String(format: "%.0f ms", stage.lookaheadRelease))
             .font(.system(.body, design: .monospaced))
             .fixedSize()
         }
@@ -1282,6 +1282,39 @@ struct CompressorOptions: View {
             .frame(width: 70, alignment: .trailing)
         }
 
+        HStack(spacing: 16) {
+          Text("Monitor Ch")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(width: 90, alignment: .leading)
+          ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+              ForEach(0..<max(1, dsp.devices.captureConfig.channels), id: \.self) { ch in
+                let isSelected = stage.monitorChannels.contains(ch)
+                Button(action: {
+                  if isSelected {
+                    if stage.monitorChannels.count > 1 {
+                      stage.monitorChannels.remove(ch)
+                    }
+                  } else {
+                    stage.monitorChannels.insert(ch)
+                  }
+                  dsp.applyConfig()
+                }) {
+                  Text("\(ch + 1)")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.1))
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+              }
+            }
+          }
+        }
+
         Divider()
 
         VStack(alignment: .leading, spacing: 8) {
@@ -1365,6 +1398,39 @@ struct NoiseGateOptions: View {
             .font(.system(.body, design: .monospaced))
             .frame(width: 70, alignment: .trailing)
         }
+
+        HStack(spacing: 16) {
+          Text("Monitor Ch")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(width: 90, alignment: .leading)
+          ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+              ForEach(0..<max(1, dsp.devices.captureConfig.channels), id: \.self) { ch in
+                let isSelected = stage.monitorChannels.contains(ch)
+                Button(action: {
+                  if isSelected {
+                    if stage.monitorChannels.count > 1 {
+                      stage.monitorChannels.remove(ch)
+                    }
+                  } else {
+                    stage.monitorChannels.insert(ch)
+                  }
+                  dsp.applyConfig()
+                }) {
+                  Text("\(ch + 1)")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.1))
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+              }
+            }
+          }
+        }
       }
       .padding(.vertical, 4)
     }
@@ -1386,6 +1452,36 @@ struct RACEOptions: View {
         .font(.caption)
         .foregroundStyle(.secondary)
         .padding(.bottom, 4)
+
+        HStack(spacing: 16) {
+          Text("Channels")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(width: 90, alignment: .leading)
+
+          HStack(spacing: 12) {
+            Picker("Left", selection: $stage.leftChannel) {
+              ForEach(0..<max(2, dsp.devices.playbackConfig.channels), id: \.self) { ch in
+                Text("Ch \(ch + 1)").tag(ch)
+              }
+            }
+            .frame(width: 90)
+            .onChange(of: stage.leftChannel) { _, _ in dsp.applyConfig() }
+
+            Text("and")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+
+            Picker("Right", selection: $stage.rightChannel) {
+              ForEach(0..<max(2, dsp.devices.playbackConfig.channels), id: \.self) { ch in
+                Text("Ch \(ch + 1)").tag(ch)
+              }
+            }
+            .frame(width: 90)
+            .onChange(of: stage.rightChannel) { _, _ in dsp.applyConfig() }
+          }
+          Spacer()
+        }
 
         HStack(spacing: 16) {
           Text("Delay Unit")
@@ -1756,29 +1852,29 @@ struct FivePointPeqFields: View {
   }
 }
 
-// MARK: - Clipper
+// MARK: - Limiter (Peak Limiter)
 
-struct ClipperOptions: View {
+struct LimiterOptions: View {
   @Bindable var stage: PipelineStage
   @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
-    GroupBox("Hard / Soft Clipper") {
+    GroupBox("Peak Limiter") {
       VStack(alignment: .leading, spacing: 12) {
         HStack(spacing: 16) {
-          Text("Clip Limit")
+          Text("Limit")
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .frame(width: 90, alignment: .leading)
-          Slider(value: $stage.clipperLimit, in: -30...0, step: 0.1)
-            .onChange(of: stage.clipperLimit) { _, _ in dsp.applyConfig() }
-          Text(String(format: "%.1f dB", stage.clipperLimit))
+          Slider(value: $stage.limiterLimit, in: -30...0, step: 0.1)
+            .onChange(of: stage.limiterLimit) { _, _ in dsp.applyConfig() }
+          Text(String(format: "%.1f dB", stage.limiterLimit))
             .font(.system(.body, design: .monospaced))
             .frame(width: 70, alignment: .trailing)
         }
 
-        Toggle("Enable Soft Clipping", isOn: $stage.clipperSoftClip)
-          .onChange(of: stage.clipperSoftClip) { _, _ in dsp.applyConfig() }
+        Toggle("Enable Soft Clipping", isOn: $stage.limiterSoftClip)
+          .onChange(of: stage.limiterSoftClip) { _, _ in dsp.applyConfig() }
       }
       .padding(.vertical, 4)
     }

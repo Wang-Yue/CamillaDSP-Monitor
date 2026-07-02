@@ -25,6 +25,7 @@ extension PipelineStage {
     var name: String
     var isEnabled: Bool
     var channels: [Int]
+    var monitorChannels: [Int]
     var leftChannel: Int
     var rightChannel: Int
     var balancePosition: Double
@@ -52,9 +53,9 @@ extension PipelineStage {
     var delayValue: Double
     var delayUnit: String
     var delaySubsample: Bool
-    var limiterLimit: Double
-    var limiterAttack: Double
-    var limiterRelease: Double
+    var lookaheadLimit: Double
+    var lookaheadAttack: Double
+    var lookaheadRelease: Double
 
     // Matrix Mixer channel layouts
     var mixerChannelsIn: Int
@@ -113,9 +114,9 @@ extension PipelineStage {
     var peqGhs: Double
     var peqQhs: Double
 
-    // Clipper parameters
-    var clipperLimit: Double
-    var clipperSoftClip: Bool
+    // Limiter parameters
+    var limiterLimit: Double
+    var limiterSoftClip: Bool
 
     // Graphic EQ parameters
     var graphicEQFreqMin: Double
@@ -131,6 +132,7 @@ extension PipelineStage {
       name: name,
       isEnabled: isEnabled,
       channels: Array(channels).sorted(),
+      monitorChannels: Array(monitorChannels).sorted(),
       leftChannel: leftChannel,
       rightChannel: rightChannel,
       balancePosition: balancePosition,
@@ -158,9 +160,9 @@ extension PipelineStage {
       delayValue: delayValue,
       delayUnit: delayUnit.rawValue,
       delaySubsample: delaySubsample,
-      limiterLimit: limiterLimit,
-      limiterAttack: limiterAttack,
-      limiterRelease: limiterRelease,
+      lookaheadLimit: lookaheadLimit,
+      lookaheadAttack: lookaheadAttack,
+      lookaheadRelease: lookaheadRelease,
 
       // Matrix Mixer
       mixerChannelsIn: mixerChannelsIn,
@@ -219,9 +221,9 @@ extension PipelineStage {
       peqGhs: peqGhs,
       peqQhs: peqQhs,
 
-      // Clipper parameters
-      clipperLimit: clipperLimit,
-      clipperSoftClip: clipperSoftClip,
+      // Limiter parameters
+      limiterLimit: limiterLimit,
+      limiterSoftClip: limiterSoftClip,
 
       // Graphic EQ
       graphicEQFreqMin: graphicEQFreqMin,
@@ -235,6 +237,7 @@ extension PipelineStage {
     name = s.name
     isEnabled = s.isEnabled
     channels = Set(s.channels)
+    monitorChannels = Set(s.monitorChannels)
     leftChannel = s.leftChannel
     rightChannel = s.rightChannel
     balancePosition = s.balancePosition
@@ -262,9 +265,9 @@ extension PipelineStage {
     delayValue = s.delayValue
     if let v = DelayUnit(rawValue: s.delayUnit) { delayUnit = v }
     delaySubsample = s.delaySubsample
-    limiterLimit = s.limiterLimit
-    limiterAttack = s.limiterAttack
-    limiterRelease = s.limiterRelease
+    lookaheadLimit = s.lookaheadLimit
+    lookaheadAttack = s.lookaheadAttack
+    lookaheadRelease = s.lookaheadRelease
 
     // Matrix Mixer
     mixerChannelsIn = s.mixerChannelsIn
@@ -323,9 +326,9 @@ extension PipelineStage {
     peqGhs = s.peqGhs
     peqQhs = s.peqQhs
 
-    // Clipper parameters
-    clipperLimit = s.clipperLimit
-    clipperSoftClip = s.clipperSoftClip
+    // Limiter parameters
+    limiterLimit = s.limiterLimit
+    limiterSoftClip = s.limiterSoftClip
 
     // Graphic EQ
     graphicEQFreqMin = s.graphicEQFreqMin
