@@ -109,7 +109,12 @@ public final class Pipeline {
                 throw ConfigError.invalidPipeline("Filter '\(name)' not defined")
               }
               let filter = try FilterFactory.create(
-                name: name, config: filterConfig, sampleRate: rate, chunkSize: framesPerChunk)
+                name: name,
+                config: filterConfig,
+                sampleRate: rate,
+                chunkSize: framesPerChunk,
+                processingParameters: processingParams
+              )
               filters.append(filter)
             }
             processingSteps.append(.filter(channel: ch, filters: filters, bypassed: isBypassed))

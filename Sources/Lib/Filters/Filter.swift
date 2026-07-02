@@ -31,14 +31,24 @@ public enum FilterFactory {
     name: String = "filter",
     config: FilterConfig,
     sampleRate: Int,
-    chunkSize: Int
+    chunkSize: Int,
+    processingParameters: ProcessingParameters? = nil
   ) throws -> Filter {
     try config.validate()
     switch config {
     case .gain(let p):
       return GainFilter(name: name, parameters: p)
-    case .volume:
-      throw ConfigError.invalidFilter("Volume filter cannot be created by the user")
+    case .volume(let p):
+      guard let procParams = processingParameters else {
+        throw ConfigError.invalidFilter("Volume filter requires processing parameters")
+      }
+      return VolumeFilter(
+        name: name,
+        parameters: p,
+        sampleRate: sampleRate,
+        chunkSize: chunkSize,
+        processingParameters: procParams
+      )
     case .loudness(let p):
       return LoudnessFilter(name: name, parameters: p, sampleRate: sampleRate)
     case .biquad(let p):
