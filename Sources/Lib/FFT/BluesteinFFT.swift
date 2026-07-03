@@ -83,12 +83,11 @@ final class BluesteinFFT: ArbitraryComplexFFT {
     var bestM = Int.max
     let factors = [1, 3, 5, 15]
     for f in factors {
+      let minK = (f == 1) ? 4 : 3
       let target = Double(minL) / Double(f)
-      let k = max(0, Int(ceil(log2(target))))
+      let k = max(minK, Int(ceil(log2(target))))
       let mVal = f * (1 << k)
-      if mVal >= 16 {
-        bestM = min(bestM, mVal)
-      }
+      bestM = min(bestM, mVal)
     }
     self.m = bestM
 
