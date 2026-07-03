@@ -194,26 +194,30 @@ public final class Pipeline {
     // 4. Execute pipeline steps sequentially.
     var mixerIdx = 0
 
-    for step in processingSteps {
-      switch step {
-      case .filter(let ch, let filters, let bypassed):
-        if bypassed { continue }
-        guard ch < currentChunk.channels else { continue }
-        let buf = currentChunk[ch]
-        let slice = UnsafeMutableBufferPointer(start: buf.baseAddress, count: validFrames)
-        for filter in filters {
-          filter.process(waveform: slice)
+    try processingSteps.withUnsafeBufferPointer { steps in
+      for i in 0..<steps.count {
+        switch steps[i] {
+        case .filter(let ch, let filters, let bypassed):
+          if bypassed { continue }
+          guard ch < currentChunk.channels else { continue }
+          let buf = currentChunk[ch]
+          let slice = UnsafeMutableBufferPointer(start: buf.baseAddress, count: validFrames)
+          filters.withUnsafeBufferPointer { filterBuf in
+            for j in 0..<filterBuf.count {
+              filterBuf[j].process(waveform: slice)
+            }
+          }
+
+        case .mixer(let mixer):
+          var scratch = scratchesForMixers[mixerIdx]
+          try mixer.process(input: currentChunk, into: &scratch)
+          currentChunk = scratch
+          mixerIdx += 1
+
+        case .processor(let processor, let bypassed):
+          if bypassed { continue }
+          try processor.process(chunk: &currentChunk)
         }
-
-      case .mixer(let mixer):
-        var scratch = scratchesForMixers[mixerIdx]
-        try mixer.process(input: currentChunk, into: &scratch)
-        currentChunk = scratch
-        mixerIdx += 1
-
-      case .processor(let processor, let bypassed):
-        if bypassed { continue }
-        try processor.process(chunk: &currentChunk)
       }
     }
 

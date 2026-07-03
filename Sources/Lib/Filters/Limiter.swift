@@ -16,10 +16,13 @@ public final class LimiterFilter: Filter {
 
   public func process(waveform: MutableWaveform) {
     if softClip {
-      for i in 0..<waveform.count {
-        var scaled = waveform[i] / clipLimit
+      guard let base = waveform.baseAddress else { return }
+      let count = waveform.count
+      let invLimit = 1.0 / clipLimit
+      for i in 0..<count {
+        var scaled = base[i] * invLimit
         scaled = max(-1.5, min(1.5, scaled))
-        waveform[i] = (scaled - (scaled * scaled * scaled) / 6.75) * clipLimit
+        base[i] = (scaled - (scaled * scaled * scaled) / 6.75) * clipLimit
       }
     } else {
       var lowLimit = -clipLimit

@@ -96,15 +96,17 @@ public final class AudioMixer {
         base.update(repeating: 0, count: frames)
       }
 
-      let sources = mapping[outCh]
-      for src in sources {
-        guard src.inChannel < input.channels else { continue }
-        let srcPtr = UnsafeBufferPointer(input[src.inChannel])
+      mapping[outCh].withUnsafeBufferPointer { sources in
+        for i in 0..<sources.count {
+          let src = sources[i]
+          guard src.inChannel < input.channels else { continue }
+          let srcPtr = UnsafeBufferPointer(input[src.inChannel])
 
-        if src.gain == 1.0 {
-          DSPOps.add(srcPtr, dst, count: frames)
-        } else if src.gain != 0.0 {
-          DSPOps.multiplyAdd(srcPtr, src.gain, accumulator: dst, count: frames)
+          if src.gain == 1.0 {
+            DSPOps.add(srcPtr, dst, count: frames)
+          } else if src.gain != 0.0 {
+            DSPOps.multiplyAdd(srcPtr, src.gain, accumulator: dst, count: frames)
+          }
         }
       }
     }

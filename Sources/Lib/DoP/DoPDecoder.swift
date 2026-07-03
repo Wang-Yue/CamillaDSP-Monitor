@@ -64,11 +64,19 @@ public final class DoPDecoder {
     var is32BitContainer: Bool = false
     var containerKnown: Bool = false
 
-    var fifo: [UInt8]
+    let fifo: UnsafeMutablePointer<UInt8>
+    let fifoSize: Int
     var fifoPos: Int = 0
 
     init(fifoSize: Int) {
-      self.fifo = [UInt8](repeating: DoPDecoder.silenceByte, count: fifoSize)
+      self.fifoSize = fifoSize
+      self.fifo = .allocate(capacity: fifoSize)
+      self.fifo.initialize(repeating: DoPDecoder.silenceByte, count: fifoSize)
+    }
+
+    deinit {
+      fifo.deinitialize(count: fifoSize)
+      fifo.deallocate()
     }
   }
 
@@ -159,124 +167,124 @@ public final class DoPDecoder {
     let mask = DoPDecoder.fifoMask
     let ncTables = DoPDecoder.numCtables
     let tables = self.ctables
+    guard let base = buf.baseAddress else { return }
 
-    state.fifo.withUnsafeMutableBufferPointer { fifo in
-      var pos = state.fifoPos
+    let fifo = state.fifo
+    var pos = state.fifoPos
 
-      for t in 0..<frames {
-        let raw = buf[t]
+    for t in 0..<frames {
+      let raw = base[t]
 
-        // Recover both 24- and 32-bit container interpretations. DoP is most
-        // commonly carried as right-aligned 24-bit-in-32-bit (marker at bits
-        // 23..16 of int24). MPD's flavor encodes a true 32-bit value
-        // 0xff05XXXX / 0xfffaXXXX where the top byte sign-extends and the
-        // marker is still at bits 23..16 — same shift, different float scale.
-        var v32 = raw * 2147483648.0
-        v32.round(.toNearestOrEven)
-        let val32: Int32
-        if v32 >= 2147483647.0 {
-          val32 = .max
-        } else if v32 <= -2147483648.0 {
-          val32 = .min
-        } else {
-          val32 = Int32(v32)
-        }
-        let marker32 = UInt8((UInt32(bitPattern: val32) >> 16) & 0xFF)
+      // Recover both 24- and 32-bit container interpretations. DoP is most
+      // commonly carried as right-aligned 24-bit-in-32-bit (marker at bits
+      // 23..16 of int24). MPD's flavor encodes a true 32-bit value
+      // 0xff05XXXX / 0xfffaXXXX where the top byte sign-extends and the
+      // marker is still at bits 23..16 — same shift, different float scale.
+      var v32 = raw * 2147483648.0
+      v32.round(.toNearestOrEven)
+      let val32: Int32
+      if v32 >= 2147483647.0 {
+        val32 = .max
+      } else if v32 <= -2147483648.0 {
+        val32 = .min
+      } else {
+        val32 = Int32(v32)
+      }
+      let marker32 = UInt8((UInt32(bitPattern: val32) >> 16) & 0xFF)
 
-        var v24 = raw * 8388608.0
-        v24.round(.toNearestOrEven)
-        let val24: Int32
-        if v24 >= 8388607.0 {
-          val24 = 8_388_607
-        } else if v24 <= -8388608.0 {
-          val24 = -8_388_608
-        } else {
-          val24 = Int32(v24)
-        }
-        let marker24 = UInt8((UInt32(bitPattern: val24) >> 16) & 0xFF)
+      var v24 = raw * 8388608.0
+      v24.round(.toNearestOrEven)
+      let val24: Int32
+      if v24 >= 8388607.0 {
+        val24 = 8_388_607
+      } else if v24 <= -8388608.0 {
+        val24 = -8_388_608
+      } else {
+        val24 = Int32(v24)
+      }
+      let marker24 = UInt8((UInt32(bitPattern: val24) >> 16) & 0xFF)
 
-        if !state.containerKnown {
-          if marker32 == 0x05 || marker32 == 0xFA {
-            state.is32BitContainer = true
-          } else if marker24 == 0x05 || marker24 == 0xFA {
-            state.is32BitContainer = false
-          }
-        }
-
-        let marker = state.is32BitContainer ? marker32 : marker24
-        let dsdWord: UInt16 =
-          state.is32BitContainer
-          ? UInt16(UInt32(bitPattern: val32) & 0xFFFF)
-          : UInt16(UInt32(bitPattern: val24) & 0xFFFF)
-
-        let isMarkerValid = (marker == 0x05 || marker == 0xFA)
-        // First-ever frame on this channel passes vacuously; subsequent
-        // frames must alternate between 0x05 and 0xFA.
-        let alternates = state.lastMarker == 0 || marker != state.lastMarker
-        let valid = isMarkerValid && alternates
-
-        if valid {
-          state.consecValid &+= 1
-          state.consecInvalid = 0
-          state.lastMarker = marker
-          if !state.containerKnown && state.consecValid >= 4 {
-            state.containerKnown = true
-          }
-          if !state.isActive && state.consecValid >= activate {
-            state.isActive = true
-          }
-        } else {
-          state.consecInvalid &+= 1
-          state.consecValid = 0
-          if state.consecInvalid >= deactivate {
-            state.lastMarker = 0
-            state.containerKnown = false
-            if state.isActive {
-              state.isActive = false
-              for i in 0..<fifo.count { fifo[i] = DoPDecoder.silenceByte }
-              pos = 0
-            }
-          }
-        }
-
-        // Push the frame's two DSD bytes whenever we either have a
-        // current valid marker (warming the filter pre-lock) or are
-        // already locked on (trusting the lock through isolated marker
-        // bit-errors). Either way, by the time `isActive` flips true the
-        // FIFO already holds 32 frames of real DSD data, so the first
-        // decoded sample is not a silence-fill transient.
-        let push = valid || state.isActive
-        if push {
-          let dsdHi = UInt8((dsdWord >> 8) & 0xFF)
-          let dsdLo = UInt8(dsdWord & 0xFF)
-          fifo[pos] = dsdHi
-          pos = (pos &+ 1) & mask
-          fifo[pos] = dsdLo
-          pos = (pos &+ 1) & mask
-        }
-
-        if state.isActive {
-          // y[n] = Σ_{i<numCtables} ctables[i][fifo[(pos-1-i) & mask]].
-          // ctable[i] precomputes the contribution of bits 0..7 of the
-          // byte at offset `i` to filter taps i*8 .. i*8+7 — see
-          // buildCtables for the bit/tap mapping.
-          var acc = 0.0
-          for i in 0..<ncTables {
-            let byteIdx = (pos &- 1 &- i) & mask
-            let b = Int(fifo[byteIdx])
-            acc += tables[i * 256 + b]
-          }
-          // The trellis-friendly sigma-delta modulators in the test suite
-          // pre-scale input by 0.5 for noise-shaper headroom; this 2× compensates
-          // so SINAD compares against full-amplitude sin. Real DoP streams
-          // from DACs that don't pre-scale will be 6 dB hot — handle upstream
-          // if that becomes a problem.
-          buf[t] = PrcFmt(acc * 2.0)
+      if !state.containerKnown {
+        if marker32 == 0x05 || marker32 == 0xFA {
+          state.is32BitContainer = true
+        } else if marker24 == 0x05 || marker24 == 0xFA {
+          state.is32BitContainer = false
         }
       }
 
-      state.fifoPos = pos
+      let marker = state.is32BitContainer ? marker32 : marker24
+      let dsdWord: UInt16 =
+        state.is32BitContainer
+        ? UInt16(UInt32(bitPattern: val32) & 0xFFFF)
+        : UInt16(UInt32(bitPattern: val24) & 0xFFFF)
+
+      let isMarkerValid = (marker == 0x05 || marker == 0xFA)
+      // First-ever frame on this channel passes vacuously; subsequent
+      // frames must alternate between 0x05 and 0xFA.
+      let alternates = state.lastMarker == 0 || marker != state.lastMarker
+      let valid = isMarkerValid && alternates
+
+      if valid {
+        state.consecValid &+= 1
+        state.consecInvalid = 0
+        state.lastMarker = marker
+        if !state.containerKnown && state.consecValid >= 4 {
+          state.containerKnown = true
+        }
+        if !state.isActive && state.consecValid >= activate {
+          state.isActive = true
+        }
+      } else {
+        state.consecInvalid &+= 1
+        state.consecValid = 0
+        if state.consecInvalid >= deactivate {
+          state.lastMarker = 0
+          state.containerKnown = false
+          if state.isActive {
+            state.isActive = false
+            for i in 0..<state.fifoSize { fifo[i] = DoPDecoder.silenceByte }
+            pos = 0
+          }
+        }
+      }
+
+      // Push the frame's two DSD bytes whenever we either have a
+      // current valid marker (warming the filter pre-lock) or are
+      // already locked on (trusting the lock through isolated marker
+      // bit-errors). Either way, by the time `isActive` flips true the
+      // FIFO already holds 32 frames of real DSD data, so the first
+      // decoded sample is not a silence-fill transient.
+      let push = valid || state.isActive
+      if push {
+        let dsdHi = UInt8((dsdWord >> 8) & 0xFF)
+        let dsdLo = UInt8(dsdWord & 0xFF)
+        fifo[pos] = dsdHi
+        pos = (pos &+ 1) & mask
+        fifo[pos] = dsdLo
+        pos = (pos &+ 1) & mask
+      }
+
+      if state.isActive {
+        // y[n] = Σ_{i<numCtables} ctables[i][fifo[(pos-1-i) & mask]].
+        // ctable[i] precomputes the contribution of bits 0..7 of the
+        // byte at offset `i` to filter taps i*8 .. i*8+7 — see
+        // buildCtables for the bit/tap mapping.
+        var acc = 0.0
+        for i in 0..<ncTables {
+          let byteIdx = (pos &- 1 &- i) & mask
+          let b = Int(fifo[byteIdx])
+          acc += tables[i * 256 + b]
+        }
+        // The trellis-friendly sigma-delta modulators in the test suite
+        // pre-scale input by 0.5 for noise-shaper headroom; this 2× compensates
+        // so SINAD compares against full-amplitude sin. Real DoP streams
+        // from DACs that don't pre-scale will be 6 dB hot — handle upstream
+        // if that becomes a problem.
+        base[t] = PrcFmt(acc * 2.0)
+      }
     }
+
+    state.fifoPos = pos
   }
 
   // MARK: - Coefficient table construction

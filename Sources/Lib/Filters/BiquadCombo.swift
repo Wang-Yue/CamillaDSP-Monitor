@@ -12,8 +12,10 @@ final class BiquadComboFilter: Filter {
   }
 
   func process(waveform: MutableWaveform) {
-    for section in sections {
-      section.process(waveform: waveform)
+    sections.withUnsafeBufferPointer { buf in
+      for i in 0..<buf.count {
+        buf[i].process(waveform: waveform)
+      }
     }
   }
 

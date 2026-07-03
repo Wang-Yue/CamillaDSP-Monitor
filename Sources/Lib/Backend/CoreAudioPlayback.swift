@@ -404,7 +404,9 @@ private func playbackCallback(
   let toCopy = minAvailable
   let underrunFrames = frameCount - toCopy
 
-  for (ch, buffer) in buffers.enumerated() {
+  let numBuffers = buffers.count
+  for ch in 0..<numBuffers {
+    let buffer = buffers[ch]
     guard let data = buffer.mData else { continue }
     let floatPtr = data.assumingMemoryBound(to: Float.self)
     if ch < playback.channels {

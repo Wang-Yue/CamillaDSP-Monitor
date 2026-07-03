@@ -38,22 +38,21 @@ final class NoiseGateProcessor: Processor {
     self.factor = PrcFmt.fromDB(-parameters.attenuation)
   }
 
-  private func sumMonitorChannels(from chunk: AudioChunk) {
+  private func sumMonitorChannels(
+    from chunk: AudioChunk, into destBase: UnsafeMutablePointer<PrcFmt>
+  ) {
     let count = chunk.validFrames
     let ch0 = monitorChannels[0]
     guard let src0Base = chunk[ch0].baseAddress else { return }
-    scratch.withUnsafeMutableBufferPointer { destBuf in
-      guard let destBase = destBuf.baseAddress else { return }
-      destBase.update(from: src0Base, count: count)
-      for chIdx in 1..<monitorChannels.count {
-        let ch = monitorChannels[chIdx]
-        guard let srcBase = chunk[ch].baseAddress else { continue }
-        vDSP_vaddD(destBase, 1, srcBase, 1, destBase, 1, vDSP_Length(count))
-      }
+    destBase.update(from: src0Base, count: count)
+    for chIdx in 1..<monitorChannels.count {
+      let ch = monitorChannels[chIdx]
+      guard let srcBase = chunk[ch].baseAddress else { continue }
+      vDSP_vaddD(destBase, 1, srcBase, 1, destBase, 1, vDSP_Length(count))
     }
   }
 
-  private func estimateLoudness(count: Int) {
+  private func estimateLoudness(scratch: UnsafeMutablePointer<PrcFmt>, count: Int) {
     var prev = prevLoudness
     for i in 0..<count {
       var val = 20.0 * log10(abs(scratch[i]) + 1e-9)
@@ -68,7 +67,7 @@ final class NoiseGateProcessor: Processor {
     prevLoudness = prev
   }
 
-  private func calculateLinearGain(count: Int) {
+  private func calculateLinearGain(scratch: UnsafeMutablePointer<PrcFmt>, count: Int) {
     for i in 0..<count {
       if scratch[i] < threshold {
         scratch[i] = factor
@@ -78,12 +77,11 @@ final class NoiseGateProcessor: Processor {
     }
   }
 
-  private func applyGain(to waveform: MutableWaveform, count: Int) {
+  private func applyGain(
+    to waveform: MutableWaveform, from scratchBase: UnsafePointer<PrcFmt>, count: Int
+  ) {
     guard let waveBase = waveform.baseAddress else { return }
-    scratch.withUnsafeBufferPointer { scratchBuf in
-      guard let scratchBase = scratchBuf.baseAddress else { return }
-      vDSP_vmulD(waveBase, 1, scratchBase, 1, waveBase, 1, vDSP_Length(count))
-    }
+    vDSP_vmulD(waveBase, 1, scratchBase, 1, waveBase, 1, vDSP_Length(count))
   }
 
   func process(chunk: inout AudioChunk) throws {
@@ -94,13 +92,16 @@ final class NoiseGateProcessor: Processor {
       scratch = [PrcFmt](repeating: 0.0, count: count)
     }
 
-    sumMonitorChannels(from: chunk)
-    estimateLoudness(count: count)
-    calculateLinearGain(count: count)
+    scratch.withUnsafeMutableBufferPointer { scratchBuf in
+      guard let scratchBase = scratchBuf.baseAddress else { return }
+      sumMonitorChannels(from: chunk, into: scratchBase)
+      estimateLoudness(scratch: scratchBase, count: count)
+      calculateLinearGain(scratch: scratchBase, count: count)
 
-    for ch in processChannels {
-      let wave = chunk[ch]
-      applyGain(to: wave, count: count)
+      for ch in processChannels {
+        let wave = chunk[ch]
+        applyGain(to: wave, from: scratchBase, count: count)
+      }
     }
   }
 

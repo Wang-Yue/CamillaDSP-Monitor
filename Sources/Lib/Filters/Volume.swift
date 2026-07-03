@@ -19,7 +19,7 @@ public final class VolumeFilter: Filter {
   private var rampStep: Int
 
   // Pre-allocated ramp gains for the current chunk to avoid heap allocation on the hot path
-  private var currentRampGains: [PrcFmt]
+  private var currentRampGains: UnsafeMutablePointer<PrcFmt>
 
   public var processingParameters: ProcessingParameters?
 
@@ -41,7 +41,8 @@ public final class VolumeFilter: Filter {
       (rampTimeMs / (1000.0 * Double(chunkSize) / Double(sampleRate))).rounded())
 
     // Pre-allocate array
-    self.currentRampGains = [PrcFmt](repeating: 0.0, count: chunkSize)
+    self.currentRampGains = .allocate(capacity: chunkSize)
+    self.currentRampGains.initialize(repeating: 0.0, count: chunkSize)
 
     // Initialize state from shared parameters to prevent volume burst on startup
     let initialVol = processingParameters.targetVolume(for: fader)
@@ -54,6 +55,11 @@ public final class VolumeFilter: Filter {
     self.targetLinearGain = initialMute ? 0.0 : PrcFmt.fromDB(initialVolClamped)
     self.rampStart = self.currentVolume
     self.rampStep = 0
+  }
+
+  deinit {
+    currentRampGains.deinitialize(count: chunkSize)
+    currentRampGains.deallocate()
   }
 
   /// Pre-calculates target volume levels and generates ramping array once per chunk.
@@ -98,8 +104,8 @@ public final class VolumeFilter: Filter {
         DSPOps.scalarMultiply(waveform, by: targetLinearGain)
       }
     } else {
-      let limit = min(count, currentRampGains.count)
-      DSPOps.multiply(currentRampGains, waveform, count: limit)
+      let limit = min(count, chunkSize)
+      DSPOps.multiply(UnsafePointer(currentRampGains), waveform, count: limit)
       if limit < count {
         let finalGain = mute ? 0.0 : PrcFmt.fromDB(targetVolume)
         let remainingWaveform = MutableWaveform(
@@ -114,8 +120,8 @@ public final class VolumeFilter: Filter {
   public func advanceRamp() {
     guard rampStep > 0 else { return }
 
-    if currentRampGains.count > 0 {
-      let lastGain = currentRampGains[min(chunkSize - 1, currentRampGains.count - 1)]
+    if chunkSize > 0 {
+      let lastGain = currentRampGains[chunkSize - 1]
       currentVolume = 20.0 * log10(max(lastGain, 1e-150))
     }
 

@@ -2,47 +2,23 @@ import DSPAudio
 import DSPConfig
 import Foundation
 
-private struct LookaheadBuffer {
-  private var data: [PrcFmt]
-  private var readIndex: Int = 0
-  private var writeIndex: Int = 0
-  private var count: Int = 0
-
-  init(capacity: Int) {
-    self.data = [PrcFmt](repeating: 0.0, count: capacity)
-    self.count = capacity
-    self.readIndex = 0
-    self.writeIndex = 0
-  }
-
-  mutating func pushOverwrite(_ sample: PrcFmt) {
-    data[writeIndex] = sample
-    writeIndex = (writeIndex + 1) % data.count
-    readIndex = (readIndex + 1) % data.count
-  }
-
-  mutating func pushSliceOverwrite(_ slice: MutableWaveform) {
-    for val in slice {
-      pushOverwrite(val)
-    }
-  }
-
-  func getOccupied(at idx: Int) -> PrcFmt {
-    let realIdx = (readIndex + idx) % data.count
-    return data[realIdx]
-  }
-
-  var occupiedLen: Int { count }
-}
-
 final class LookaheadLimiterFilter: Filter {
   let name: String
   private var limit: PrcFmt
   private var attackSamples: Int
   private var releaseCoeff: PrcFmt
-  private var lookaheadBuffer: LookaheadBuffer
+
+  // Inlined LookaheadBuffer
+  private var lookaheadData: UnsafeMutablePointer<PrcFmt>
+  private var lookaheadCapacity: Int
+  private var lookaheadReadIndex: Int = 0
+  private var lookaheadWriteIndex: Int = 0
+
   private var releaseGain: PrcFmt = 1.0
-  private var outputBuffer: [PrcFmt]
+
+  // Pre-allocated output buffer to avoid heap allocation on the hot path
+  private var outputBuffer: UnsafeMutablePointer<PrcFmt>
+  private var outputBufferCapacity: Int
 
   init(
     name: String = "lookahead_limiter", parameters: LookaheadLimiterParameters, sampleRate: Int,
@@ -56,8 +32,20 @@ final class LookaheadLimiterFilter: Filter {
     self.releaseCoeff = releaseCoeff
 
     let lookaheadBufferLen = max(sampleRate, chunkSize)
-    self.lookaheadBuffer = LookaheadBuffer(capacity: lookaheadBufferLen)
-    self.outputBuffer = [PrcFmt](repeating: 0.0, count: chunkSize)
+    self.lookaheadCapacity = lookaheadBufferLen
+    self.lookaheadData = .allocate(capacity: lookaheadBufferLen)
+    self.lookaheadData.initialize(repeating: 0.0, count: lookaheadBufferLen)
+
+    self.outputBufferCapacity = chunkSize
+    self.outputBuffer = .allocate(capacity: chunkSize)
+    self.outputBuffer.initialize(repeating: 0.0, count: chunkSize)
+  }
+
+  deinit {
+    lookaheadData.deinitialize(count: lookaheadCapacity)
+    lookaheadData.deallocate()
+    outputBuffer.deinitialize(count: outputBufferCapacity)
+    outputBuffer.deallocate()
   }
 
   private static func configure(params: LookaheadLimiterParameters, sampleRate: Int) -> (
@@ -87,29 +75,47 @@ final class LookaheadLimiterFilter: Filter {
     }
   }
 
+  @inline(__always)
+  private func pushOverwrite(_ sample: PrcFmt) {
+    lookaheadData[lookaheadWriteIndex] = sample
+    lookaheadWriteIndex = (lookaheadWriteIndex + 1) % lookaheadCapacity
+    lookaheadReadIndex = (lookaheadReadIndex + 1) % lookaheadCapacity
+  }
+
+  @inline(__always)
+  private func getOccupied(at idx: Int) -> PrcFmt {
+    let realIdx = (lookaheadReadIndex + idx) % lookaheadCapacity
+    return lookaheadData[realIdx]
+  }
+
   func process(waveform: MutableWaveform) {
     let len = waveform.count
     if len == 0 { return }
+    guard let waveBase = waveform.baseAddress else { return }
 
-    if outputBuffer.count < len {
-      outputBuffer = [PrcFmt](repeating: 0.0, count: len)
+    if outputBufferCapacity < len {
+      outputBuffer.deinitialize(count: outputBufferCapacity)
+      outputBuffer.deallocate()
+      outputBuffer = .allocate(capacity: len)
+      outputBuffer.initialize(repeating: 0.0, count: len)
+      outputBufferCapacity = len
     }
 
-    let lookaheadStart = lookaheadBuffer.occupiedLen - attackSamples
-    let getInputSample = { [lookaheadBuffer = self.lookaheadBuffer] (i: Int) -> PrcFmt in
-      if i < self.attackSamples {
-        return lookaheadBuffer.getOccupied(at: lookaheadStart + i)
-      } else {
-        return waveform[i - self.attackSamples]
-      }
-    }
+    let lookaheadStart = lookaheadCapacity - attackSamples
 
     // Backward pass
     var peak = 1.0
     var samplesSincePeak = attackSamples + 1
 
     for i in (0..<(attackSamples + len)).reversed() {
-      let amplitude = abs(getInputSample(i))
+      let inputSample: PrcFmt
+      if i < attackSamples {
+        inputSample = getOccupied(at: lookaheadStart + i)
+      } else {
+        inputSample = waveBase[i - attackSamples]
+      }
+
+      let amplitude = abs(inputSample)
       var gain = amplitude > limit ? limit / amplitude : 1.0
 
       var rampGain = 1.0
@@ -143,14 +149,21 @@ final class LookaheadLimiterFilter: Filter {
 
     // Apply gain reduction
     for i in 0..<len {
-      outputBuffer[i] *= getInputSample(i)
+      let inputSample: PrcFmt
+      if i < attackSamples {
+        inputSample = getOccupied(at: lookaheadStart + i)
+      } else {
+        inputSample = waveBase[i - attackSamples]
+      }
+      outputBuffer[i] *= inputSample
     }
 
     // Update lookahead buffer
-    lookaheadBuffer.pushSliceOverwrite(waveform)
+    for i in 0..<len {
+      pushOverwrite(waveBase[i])
+    }
 
     // Output
-    guard let waveBase = waveform.baseAddress else { return }
     waveBase.update(from: outputBuffer, count: len)
   }
 
@@ -163,7 +176,7 @@ final class LookaheadLimiterFilter: Filter {
     self.releaseCoeff = releaseCoeff
 
     for _ in 0..<attackSamples {
-      self.lookaheadBuffer.pushOverwrite(0.0)
+      pushOverwrite(0.0)
     }
   }
 }

@@ -4,10 +4,14 @@ import Foundation
 
 final class DiffEqFilter: Filter {
   let name: String
-  private var x: [PrcFmt]
-  private var y: [PrcFmt]
-  private var a: [PrcFmt]
-  private var b: [PrcFmt]
+  private var x: UnsafeMutablePointer<PrcFmt>
+  private var y: UnsafeMutablePointer<PrcFmt>
+  private var a: UnsafePointer<PrcFmt>
+  private var b: UnsafePointer<PrcFmt>
+  private var xCount: Int = 0
+  private var yCount: Int = 0
+  private var aCount: Int = 0
+  private var bCount: Int = 0
   private var idxX: Int = 0
   private var idxY: Int = 0
 
@@ -26,22 +30,45 @@ final class DiffEqFilter: Filter {
       bCoeffs = bCoeffs.map { $0 * scale }
     }
 
-    self.a = aCoeffs
-    self.b = bCoeffs
-    self.x = [PrcFmt](repeating: 0.0, count: bCoeffs.count)
-    self.y = [PrcFmt](repeating: 0.0, count: aCoeffs.count)
+    self.aCount = aCoeffs.count
+    self.bCount = bCoeffs.count
+    self.xCount = bCoeffs.count
+    self.yCount = aCoeffs.count
+
+    let aPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: aCoeffs.count)
+    aPtr.initialize(from: aCoeffs, count: aCoeffs.count)
+    self.a = UnsafePointer(aPtr)
+
+    let bPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bCoeffs.count)
+    bPtr.initialize(from: bCoeffs, count: bCoeffs.count)
+    self.b = UnsafePointer(bPtr)
+
+    self.x = .allocate(capacity: bCoeffs.count)
+    self.x.initialize(repeating: 0.0, count: bCoeffs.count)
+
+    self.y = .allocate(capacity: aCoeffs.count)
+    self.y.initialize(repeating: 0.0, count: aCoeffs.count)
+
     self.idxX = 0
     self.idxY = 0
   }
 
+  deinit {
+    UnsafeMutablePointer(mutating: a).deallocate()
+    UnsafeMutablePointer(mutating: b).deallocate()
+    x.deallocate()
+    y.deallocate()
+  }
+
   func process(waveform: MutableWaveform) {
-    let nb = b.count
-    let na = a.count
+    let nb = bCount
+    let na = yCount
+    guard let wBase = waveform.baseAddress else { return }
 
     for i in 0..<waveform.count {
       idxX = (idxX + 1) % nb
       idxY = (idxY + 1) % na
-      x[idxX] = waveform[i]
+      x[idxX] = wBase[i]
 
       var out = 0.0
       for n in 0..<nb {
@@ -53,23 +80,24 @@ final class DiffEqFilter: Filter {
         out -= a[p] * y[pIdx]
       }
       y[idxY] = out
-      waveform[i] = out
+      wBase[i] = out
     }
     flushSubnormals()
   }
 
   private func flushSubnormals() {
-    for i in 0..<x.count {
+    for i in 0..<xCount {
       if x[i].isSubnormal {
         x[i] = 0.0
       }
     }
-    for i in 0..<y.count {
+    for i in 0..<yCount {
       if y[i].isSubnormal {
         y[i] = 0.0
       }
     }
   }
+
   func updateParameters(_ config: FilterConfig, sampleRate: Int) {
     guard case .diffEq(let params) = config else { return }
     var aCoeffs = params.a ?? [1.0]
@@ -77,14 +105,32 @@ final class DiffEqFilter: Filter {
     if aCoeffs.isEmpty { aCoeffs = [1.0] }
     if bCoeffs.isEmpty { bCoeffs = [1.0] }
 
-    self.a = aCoeffs
-    self.b = bCoeffs
-    if self.x.count != bCoeffs.count {
-      self.x = [PrcFmt](repeating: 0.0, count: bCoeffs.count)
+    UnsafeMutablePointer(mutating: self.a).deallocate()
+    UnsafeMutablePointer(mutating: self.b).deallocate()
+
+    self.aCount = aCoeffs.count
+    self.bCount = bCoeffs.count
+
+    let aPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: aCoeffs.count)
+    aPtr.initialize(from: aCoeffs, count: aCoeffs.count)
+    self.a = UnsafePointer(aPtr)
+
+    let bPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bCoeffs.count)
+    bPtr.initialize(from: bCoeffs, count: bCoeffs.count)
+    self.b = UnsafePointer(bPtr)
+
+    if self.xCount != bCoeffs.count {
+      self.x.deallocate()
+      self.x = .allocate(capacity: bCoeffs.count)
+      self.x.initialize(repeating: 0.0, count: bCoeffs.count)
+      self.xCount = bCoeffs.count
       self.idxX = 0
     }
-    if self.y.count != aCoeffs.count {
-      self.y = [PrcFmt](repeating: 0.0, count: aCoeffs.count)
+    if self.yCount != aCoeffs.count {
+      self.y.deallocate()
+      self.y = .allocate(capacity: aCoeffs.count)
+      self.y.initialize(repeating: 0.0, count: aCoeffs.count)
+      self.yCount = aCoeffs.count
       self.idxY = 0
     }
   }

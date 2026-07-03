@@ -58,10 +58,11 @@ final class RACEProcessor: Processor {
     let count = chunk.validFrames
 
     guard count > 0 else { return }
+    guard let baseA = channelA.baseAddress, let baseB = channelB.baseAddress else { return }
 
     for i in 0..<count {
-      let valA = channelA[i]
-      let valB = channelB[i]
+      let valA = baseA[i]
+      let valB = baseB[i]
 
       let addedA = valA + feedbackB
       let addedB = valB + feedbackA
@@ -72,8 +73,8 @@ final class RACEProcessor: Processor {
       feedbackA = gain.processSingle(feedbackA)
       feedbackB = gain.processSingle(feedbackB)
 
-      channelA[i] = addedA
-      channelB[i] = addedB
+      baseA[i] = addedA
+      baseB[i] = addedB
     }
   }
 

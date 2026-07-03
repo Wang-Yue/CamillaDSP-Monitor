@@ -157,6 +157,7 @@ public final class DoPEncoder {
     let nTaps = DoPEncoder.subFilterTaps
     let coeffPtr = self.coeffs
     let modulator = state.modulator
+    guard let base = buf.baseAddress else { return }
 
     let fifoPtr = state.fifo
     var pos = state.fifoPos
@@ -164,7 +165,7 @@ public final class DoPEncoder {
 
     for t in 0..<frames {
       // Push the new PCM sample into both halves of the polyphase FIR's history.
-      let sampleVal = Double(buf[t])
+      let sampleVal = Double(base[t])
       fifoPtr[pos] = sampleVal
       fifoPtr[pos + nTaps] = sampleVal
 
@@ -220,7 +221,7 @@ public final class DoPEncoder {
       // (must be S24 or S32 to preserve the bit pattern).
       let val24: UInt32 = (UInt32(marker) << 16) | UInt32(word)
       let intVal: Int32 = Int32(bitPattern: val24 << 8) >> 8
-      buf[t] = PrcFmt(Double(intVal) / 8388608.0)
+      base[t] = PrcFmt(Double(intVal) / 8388608.0)
 
       marker = (marker == 0x05) ? 0xFA : 0x05
       pos = (pos &+ 1) & mask

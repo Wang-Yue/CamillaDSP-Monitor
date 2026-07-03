@@ -32,7 +32,8 @@ private func buildSubsampleBiquad(delay: PrcFmt) -> (Int, BiquadCoefficients?) {
 
 public final class DelayFilter: Filter {
   public let name: String
-  private var queue: [PrcFmt]?
+  private var queue: UnsafeMutablePointer<PrcFmt>?
+  private var queueCount: Int = 0
   private var readIndex: Int = 0
   private var biquad: BiquadFilter?
 
@@ -47,10 +48,25 @@ public final class DelayFilter: Filter {
     let (integerDelay, coeffs) = Self.buildDelay(
       delaySamples: delaySamples, subsample: subsample
     )
-    self.queue = integerDelay > 0 ? [PrcFmt](repeating: 0.0, count: integerDelay) : nil
+    if integerDelay > 0 {
+      let ptr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: integerDelay)
+      ptr.initialize(repeating: 0.0, count: integerDelay)
+      self.queue = ptr
+      self.queueCount = integerDelay
+    } else {
+      self.queue = nil
+      self.queueCount = 0
+    }
     self.readIndex = 0
     if let c = coeffs {
       self.biquad = BiquadFilter(coefficients: c)
+    }
+  }
+
+  deinit {
+    if let q = queue {
+      q.deinitialize(count: queueCount)
+      q.deallocate()
     }
   }
 
@@ -80,15 +96,16 @@ public final class DelayFilter: Filter {
   }
 
   public func process(waveform: MutableWaveform) {
-    if queue != nil {
-      let count = queue!.count
+    if let q = queue {
+      guard let wBase = waveform.baseAddress else { return }
       var ri = readIndex
-      for i in 0..<waveform.count {
-        let delayed = queue![ri]
-        queue![ri] = waveform[i]
-        waveform[i] = delayed
+      let wCount = waveform.count
+      for i in 0..<wCount {
+        let delayed = q[ri]
+        q[ri] = wBase[i]
+        wBase[i] = delayed
         ri += 1
-        if ri >= count { ri = 0 }
+        if ri >= queueCount { ri = 0 }
       }
       readIndex = ri
     }
@@ -99,13 +116,12 @@ public final class DelayFilter: Filter {
 
   public func processSingle(_ sample: PrcFmt) -> PrcFmt {
     var out = sample
-    if queue != nil {
-      let count = queue!.count
-      let delayed = queue![readIndex]
-      queue![readIndex] = sample
+    if let q = queue {
+      let delayed = q[readIndex]
+      q[readIndex] = sample
       out = delayed
       readIndex += 1
-      if readIndex >= count { readIndex = 0 }
+      if readIndex >= queueCount { readIndex = 0 }
     }
     if let bq = biquad {
       out = bq.processSingle(out)
@@ -123,7 +139,19 @@ public final class DelayFilter: Filter {
     let (integerDelay, coeffs) = Self.buildDelay(
       delaySamples: delaySamples, subsample: subsample
     )
-    self.queue = integerDelay > 0 ? [PrcFmt](repeating: 0.0, count: integerDelay) : nil
+    if let q = self.queue {
+      q.deinitialize(count: queueCount)
+      q.deallocate()
+    }
+    if integerDelay > 0 {
+      let ptr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: integerDelay)
+      ptr.initialize(repeating: 0.0, count: integerDelay)
+      self.queue = ptr
+      self.queueCount = integerDelay
+    } else {
+      self.queue = nil
+      self.queueCount = 0
+    }
     self.readIndex = 0
     if let c = coeffs {
       self.biquad = BiquadFilter(coefficients: c)

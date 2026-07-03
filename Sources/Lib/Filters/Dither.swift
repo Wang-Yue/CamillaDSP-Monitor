@@ -50,23 +50,37 @@ private struct HighpassDitherer {
 // MARK: - NoiseShaper
 
 private final class NoiseShaper {
-  let filter: [PrcFmt]
-  private var buffer: [PrcFmt]
+  private let filterPtr: UnsafePointer<PrcFmt>
+  private let bufferPtr: UnsafeMutablePointer<PrcFmt>
+  let filterCount: Int
   private var writeIndex: Int
 
   init(filter: [PrcFmt]) {
-    self.filter = filter
-    self.buffer = [PrcFmt](repeating: 0.0, count: filter.count)
+    self.filterCount = filter.count
+
+    let fPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: filter.count)
+    fPtr.initialize(from: filter, count: filter.count)
+    self.filterPtr = UnsafePointer(fPtr)
+
+    let bPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: filter.count)
+    bPtr.initialize(repeating: 0.0, count: filter.count)
+    self.bufferPtr = bPtr
+
     self.writeIndex = 0
+  }
+
+  deinit {
+    UnsafeMutablePointer(mutating: filterPtr).deallocate()
+    bufferPtr.deallocate()
   }
 
   func process(scaled: PrcFmt, dither: PrcFmt) -> PrcFmt {
     var filtBuf: PrcFmt = 0.0
-    let count = filter.count
+    let count = filterCount
     for i in 0..<count {
       let bufIdx = (writeIndex + i) % count
       let coeffIdx = count - 1 - i
-      filtBuf += filter[coeffIdx] * buffer[bufIdx]
+      filtBuf += filterPtr[coeffIdx] * bufferPtr[bufIdx]
     }
 
     let scaledPlusErr = scaled + filtBuf
@@ -74,7 +88,7 @@ private final class NoiseShaper {
     let resultR = result.rounded(.toNearestOrAwayFromZero)
 
     let error = scaledPlusErr - resultR
-    buffer[writeIndex] = error
+    bufferPtr[writeIndex] = error
     writeIndex = (writeIndex + 1) % count
 
     return resultR
@@ -303,8 +317,10 @@ final class DitherFilter: Filter {
   }
 
   func process(waveform: MutableWaveform) {
-    for i in 0..<waveform.count {
-      let scaled = waveform[i] * scalefact
+    let count = waveform.count
+    guard let base = waveform.baseAddress else { return }
+    for i in 0..<count {
+      let scaled = base[i] * scalefact
       let dither = ditherer.sample()
 
       let resultR: PrcFmt
@@ -315,7 +331,7 @@ final class DitherFilter: Filter {
         resultR = result.rounded(.toNearestOrAwayFromZero)
       }
 
-      waveform[i] = resultR / scalefact
+      base[i] = resultR / scalefact
     }
   }
 

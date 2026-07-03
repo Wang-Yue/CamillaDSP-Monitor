@@ -177,4 +177,16 @@ public enum DSPOps {
       vDSP.multiply(aSub, bSub, result: &bSub)
     }
   }
+
+  /// Element-wise vector multiplication: `b[i] *= a[i]` for `i < count`.
+  @inlinable
+  public static func multiply(
+    _ a: UnsafePointer<PrcFmt>,
+    _ b: MutableWaveform,
+    count: Int
+  ) {
+    let aSub = UnsafeBufferPointer(start: a, count: count)
+    var bSub = UnsafeMutableBufferPointer(start: b.baseAddress, count: count)
+    vDSP.multiply(aSub, bSub, result: &bSub)
+  }
 }
