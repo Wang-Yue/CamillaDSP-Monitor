@@ -139,10 +139,7 @@ final class DSPEngineController {
       //     wrapper) maps onto `.asyncSinc`.
       let effectiveType: ResamplerType
       if DSPEngine.isSwiftEngine {
-        switch settings.resamplerType {
-        case .asyncSinc, .asyncPoly: effectiveType = .synchronous
-        case .synchronous, .apple: effectiveType = settings.resamplerType
-        }
+        effectiveType = settings.resamplerType
       } else {
         effectiveType = settings.resamplerType == .apple ? .asyncSinc : settings.resamplerType
       }

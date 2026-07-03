@@ -207,21 +207,21 @@ struct DevicePickerView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
 
+            Divider()
+              .padding(.vertical, 4)
+
+            HStack {
+              Text("Queue Limit")
+                .frame(width: 120, alignment: .leading)
+              Stepper(
+                "\(bindableSettings.queuelimit)", value: $bindableSettings.queuelimit, in: 1...32
+              )
+              .frame(width: 120)
+            }
+
+            Toggle("Stop on Rate Change", isOn: $bindableSettings.stopOnRateChange)
+
             if !DSPEngine.isSwiftEngine {
-              Divider()
-                .padding(.vertical, 4)
-
-              HStack {
-                Text("Queue Limit")
-                  .frame(width: 120, alignment: .leading)
-                Stepper(
-                  "\(bindableSettings.queuelimit)", value: $bindableSettings.queuelimit, in: 1...32
-                )
-                .frame(width: 120)
-              }
-
-              Toggle("Stop on Rate Change", isOn: $bindableSettings.stopOnRateChange)
-
               HStack {
                 Text("Measure Interval")
                   .frame(width: 120, alignment: .leading)

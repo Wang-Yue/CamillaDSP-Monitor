@@ -3,12 +3,10 @@ import DSPConfig
 import Foundation
 import Observation
 
-// The Monitor's UI exposes every resampler type the *Rust* engine can
-// run, even though the Swift-native lib currently implements only the
-// `.synchronous` and `.apple` types — `.asyncSinc` and `.asyncPoly`
-// are valid choices when running `make ENGINE=rust`. The Swift-engine
-// fallback (mapping unsupported choices onto `.synchronous`) lives in
-// `DSPEngineController.applyConfig`.
+// The Monitor's UI exposes every resampler type the engine can run.
+// Both the Swift-native engine and the Rust engine now fully support
+// `.asyncSinc`, `.asyncPoly`, and `.synchronous` types.
+// The `.apple` type is exclusive to the Swift-native engine.
 enum ResamplerType: String, Codable, Sendable, CaseIterable, Identifiable {
   case asyncSinc = "AsyncSinc"
   case asyncPoly = "AsyncPoly"
@@ -215,7 +213,7 @@ final class AudioSettings {
       onChanged?()
     }
   }
-  var stopOnRateChange: Bool = false {
+  var stopOnRateChange: Bool = true {
     didSet {
       defaults.set(stopOnRateChange, forKey: "stopOnRateChange")
       onChanged?()

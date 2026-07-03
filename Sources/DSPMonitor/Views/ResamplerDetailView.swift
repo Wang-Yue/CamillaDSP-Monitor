@@ -120,10 +120,11 @@ struct ResamplerDetailView: View {
                         .frame(width: 120, alignment: .leading)
                       Picker("", selection: $settings.resamplerWindow) {
                         Text("Blackman").tag("Blackman")
+                        Text("Blackman 2").tag("Blackman2")
                         Text("Blackman-Harris").tag("BlackmanHarris")
+                        Text("Blackman-Harris 2").tag("BlackmanHarris2")
                         Text("Hann").tag("Hann")
-                        Text("Hamming").tag("Hamming")
-                        Text("Kaiser").tag("Kaiser")
+                        Text("Hann 2").tag("Hann2")
                       }
                       .frame(width: 150)
                       .labelsHidden()
