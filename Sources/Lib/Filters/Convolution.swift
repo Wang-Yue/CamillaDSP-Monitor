@@ -54,7 +54,12 @@ extension ConvParameters {
         throw ConfigError.invalidFilter("Conv 'raw' missing filename")
       }
       let resolved = f.replacingOccurrences(of: "$samplerate$", with: "\(sampleRate)")
-      return try ConvCoefficientLoader.loadRaw(path: resolved, format: format ?? "FLOAT64")
+      return try ConvCoefficientLoader.loadRaw(
+        path: resolved,
+        format: format ?? "FLOAT64",
+        skipBytesLines: skipBytesLines ?? 0,
+        readBytesLines: readBytesLines ?? 0
+      )
     }
   }
 }
@@ -113,7 +118,12 @@ public enum ConvCoefficientLoader {
     return result
   }
 
-  public static func loadRaw(path: String, format: String) throws -> [PrcFmt] {
+  public static func loadRaw(
+    path: String,
+    format: String,
+    skipBytesLines: Int = 0,
+    readBytesLines: Int = 0
+  ) throws -> [PrcFmt] {
     let url = URL(fileURLWithPath: path)
     guard FileManager.default.fileExists(atPath: path) else {
       throw ConfigError.invalidFilter("Raw file not found: \(path)")
@@ -121,12 +131,28 @@ public enum ConvCoefficientLoader {
 
     if format == "TEXT" {
       let text = try String(contentsOf: url, encoding: .utf8)
-      return text.split(separator: "\n").compactMap {
+      var lines = text.split(separator: "\n")
+      if skipBytesLines > 0 {
+        guard skipBytesLines < lines.count else { return [] }
+        lines.removeFirst(skipBytesLines)
+      }
+      if readBytesLines > 0 {
+        lines = Array(lines.prefix(readBytesLines))
+      }
+      return lines.compactMap {
         PrcFmt($0.trimmingCharacters(in: .whitespaces))
       }
     }
 
-    let data = try Data(contentsOf: url)
+    var data = try Data(contentsOf: url)
+    if skipBytesLines > 0 {
+      guard skipBytesLines < data.count else { return [] }
+      data = data.advanced(by: skipBytesLines)
+    }
+    if readBytesLines > 0 {
+      data = data.prefix(readBytesLines)
+    }
+
     switch format {
     case "FLOAT64", "F64_LE":
       let count = data.count / 8

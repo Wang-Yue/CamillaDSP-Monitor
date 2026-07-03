@@ -67,7 +67,8 @@ final class AsyncSincResampler: AudioResampler {
 
   init(
     channels: Int, inputRate: Int, outputRate: Int,
-    profile: ResamplerProfile = .balanced, chunkSize: Int,
+    sincLen: Int, oversamplingFactor: Int, interpolation: SincInterpolationType,
+    window: WindowFunction, fCutoff: Double?, chunkSize: Int,
     maxRelativeRatio: Double = 1.1
   ) {
     precondition(channels > 0, "channels must be positive")
@@ -77,30 +78,9 @@ final class AsyncSincResampler: AudioResampler {
     self.channels = channels
     self.chunkSize = chunkSize
     self.baseRatio = Double(outputRate) / Double(inputRate)
-
-    let window: WindowFunction
-    switch profile {
-    case .veryFast:
-      self.sincLen = 64
-      self.oversamplingFactor = 1024
-      window = .hann2
-      self.interpolation = .linear
-    case .fast:
-      self.sincLen = 128
-      self.oversamplingFactor = 1024
-      window = .blackman2
-      self.interpolation = .linear
-    case .balanced:
-      self.sincLen = 192
-      self.oversamplingFactor = 512
-      window = .blackmanHarris2
-      self.interpolation = .quadratic
-    case .accurate:
-      self.sincLen = 256
-      self.oversamplingFactor = 256
-      window = .blackmanHarris2
-      self.interpolation = .cubic
-    }
+    self.sincLen = sincLen
+    self.oversamplingFactor = oversamplingFactor
+    self.interpolation = interpolation
 
     precondition(
       chunkSize >= 2 * sincLen,
@@ -110,7 +90,8 @@ final class AsyncSincResampler: AudioResampler {
     // Cutoff: rubato computes this as f32 then converts to f64 inside
     // `make_sincs` (`asynchro_sinc.rs:96`). Down-sampling scales the cutoff
     // by the ratio so the kernel doesn't pass aliased high frequencies.
-    let baseCutoff = calculateCutoffF32(sincLen: sincLen, window: window)
+    let baseCutoff =
+      fCutoff.map { Float($0) } ?? calculateCutoffF32(sincLen: sincLen, window: window)
     let fcF32: Float = baseRatio >= 1.0 ? baseCutoff : baseCutoff * Float(baseRatio)
     let fc = Double(fcF32)
     self.sincTable = makeSincTable(
@@ -140,6 +121,47 @@ final class AsyncSincResampler: AudioResampler {
     // Pre-allocate scratch for per-frame state.
     self.idxScratch = [Double](repeating: 0, count: maxOutputFrames)
     self.fracScratch = [Double](repeating: 0, count: maxOutputFrames)
+  }
+
+  convenience init(
+    channels: Int, inputRate: Int, outputRate: Int,
+    profile: ResamplerProfile = .balanced, chunkSize: Int,
+    maxRelativeRatio: Double = 1.1
+  ) {
+    let sincLen: Int
+    let oversamplingFactor: Int
+    let window: WindowFunction
+    let interpolation: SincInterpolationType
+
+    switch profile {
+    case .veryFast:
+      sincLen = 64
+      oversamplingFactor = 1024
+      window = .hann2
+      interpolation = .linear
+    case .fast:
+      sincLen = 128
+      oversamplingFactor = 1024
+      window = .blackman2
+      interpolation = .linear
+    case .balanced:
+      sincLen = 192
+      oversamplingFactor = 512
+      window = .blackmanHarris2
+      interpolation = .quadratic
+    case .accurate:
+      sincLen = 256
+      oversamplingFactor = 256
+      window = .blackmanHarris2
+      interpolation = .cubic
+    }
+
+    self.init(
+      channels: channels, inputRate: inputRate, outputRate: outputRate,
+      sincLen: sincLen, oversamplingFactor: oversamplingFactor,
+      interpolation: interpolation, window: window, fCutoff: nil,
+      chunkSize: chunkSize, maxRelativeRatio: maxRelativeRatio
+    )
   }
 
   func setRelativeRatio(_ multiplier: Double) {

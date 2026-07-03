@@ -33,7 +33,7 @@ final class LoudnessFilter: Filter {
   func process(waveform: MutableWaveform) {
     guard let procParams = processingParameters else { return }
 
-    let currentVol = procParams.currentVolume
+    let currentVol = procParams.currentVolume(for: params.fader ?? .main)
 
     // Recompute coefficients if volume changed significantly
     if abs(currentVol - lastVolume) > 0.01 || !isProcessingActive {

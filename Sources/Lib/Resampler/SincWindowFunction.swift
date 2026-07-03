@@ -7,13 +7,13 @@ import Foundation
 /// Window functions usable for sinc-kernel design. The `*2` variants are the
 /// squared versions of the periodic base window — wider main lobe but stronger
 /// stopband attenuation. Mirrors rubato's `WindowFunction` enum.
-enum WindowFunction {
-  case hann
-  case hann2
-  case blackman
-  case blackman2
-  case blackmanHarris
-  case blackmanHarris2
+enum WindowFunction: String, CaseIterable {
+  case hann = "Hann"
+  case hann2 = "Hann2"
+  case blackman = "Blackman"
+  case blackman2 = "Blackman2"
+  case blackmanHarris = "BlackmanHarris"
+  case blackmanHarris2 = "BlackmanHarris2"
 }
 
 /// Periodic window value at sample index `i` of a length-`n` window.

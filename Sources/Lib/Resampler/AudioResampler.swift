@@ -16,10 +16,24 @@ public func createResampler(
       channels: channels, inputRate: inputRate, outputRate: outputRate,
       chunkSize: chunkSize)
   case .asyncSinc:
-    let profile = config.profile.flatMap { ResamplerProfile(rawValue: $0) } ?? .balanced
-    return AsyncSincResampler(
-      channels: channels, inputRate: inputRate, outputRate: outputRate,
-      profile: profile, chunkSize: chunkSize)
+    if let sincLen = config.sincLen,
+      let oversamplingFactor = config.oversamplingFactor,
+      let windowStr = config.window,
+      let window = WindowFunction(rawValue: windowStr),
+      let interpStr = config.interpolation,
+      let interpolation = SincInterpolationType(rawValue: interpStr)
+    {
+      return AsyncSincResampler(
+        channels: channels, inputRate: inputRate, outputRate: outputRate,
+        sincLen: sincLen, oversamplingFactor: oversamplingFactor,
+        interpolation: interpolation, window: window, fCutoff: config.fCutoff,
+        chunkSize: chunkSize)
+    } else {
+      let profile = config.profile.flatMap { ResamplerProfile(rawValue: $0) } ?? .balanced
+      return AsyncSincResampler(
+        channels: channels, inputRate: inputRate, outputRate: outputRate,
+        profile: profile, chunkSize: chunkSize)
+    }
   case .asyncPoly:
     let interp = config.interpolation.flatMap { PolyInterpolation(rawValue: $0) } ?? .cubic
     return AsyncPolyResampler(
@@ -97,9 +111,8 @@ enum PolyInterpolation: String, Codable {
   }
 }
 
-/// Sub-filter interpolation method used by `AsyncSincResampler`.
-enum SincInterpolationType {
-  case linear
-  case quadratic
-  case cubic
+enum SincInterpolationType: String, CaseIterable {
+  case linear = "Linear"
+  case quadratic = "Quadratic"
+  case cubic = "Cubic"
 }
