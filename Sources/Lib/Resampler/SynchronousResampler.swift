@@ -19,7 +19,7 @@
 //   * F. J. Harris (1978), "On the Use of Windows for Harmonic
 //     Analysis with the Discrete Fourier Transform", Proc. IEEE
 //     vol. 66 no. 1 — Blackman-Harris window (used here via
-//     `WindowFunction.swift`).
+//     `SincWindowFunction.swift`).
 //
 // Algorithm
 // ---------

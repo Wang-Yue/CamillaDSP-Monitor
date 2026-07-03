@@ -13,7 +13,7 @@ let libTargets: [Target] = [
     name: "DSPLogging", dependencies: ["DSPConfig", "DSPAudio"], path: "Sources/Lib/Logging"),
   .target(
     name: "DSPFFT",
-    dependencies: [],
+    dependencies: ["DSPAudio"],
     path: "Sources/Lib/FFT",
     linkerSettings: [.linkedFramework("Accelerate")]
   ),
