@@ -5,6 +5,14 @@ import DSPConfig
 import Foundation
 import Observation
 
+enum StageCategory: String, CaseIterable, Identifiable {
+  case filters = "Filters"
+  case mixer = "Mixer"
+  case processors = "Processors"
+  case others = "Others"
+  var id: String { rawValue }
+}
+
 enum StageType: String, CaseIterable, Codable, Identifiable {
   case balance = "Balance"
   case width = "Width"
@@ -31,6 +39,20 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
   case biquadCombo = "Biquad Combo"
 
   var id: String { rawValue }
+  var category: StageCategory {
+    switch self {
+    case .eq, .graphicEQ, .convolution, .biquadCombo, .diffEq, .gain, .delay, .volume, .limiter,
+      .lookaheadLimiter, .dither, .loudness:
+      return .filters
+    case .mixer:
+      return .mixer
+    case .compressor, .noiseGate, .race:
+      return .processors
+    case .balance, .width, .msProc, .phaseInvert, .crossfeed, .dcProtection, .emphasis:
+      return .others
+    }
+  }
+
   var icon: String {
     switch self {
     case .balance: return "dial.low"

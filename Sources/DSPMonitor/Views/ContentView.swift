@@ -184,9 +184,13 @@ struct SidebarView: View {
         }
 
         Menu {
-          ForEach(StageType.allCases) { type in
-            Button(type.rawValue) {
-              pipeline.addStage(type: type)
+          ForEach(StageCategory.allCases) { category in
+            Menu(category.rawValue) {
+              ForEach(StageType.allCases.filter { $0.category == category }) { type in
+                Button(type.rawValue) {
+                  pipeline.addStage(type: type)
+                }
+              }
             }
           }
         } label: {
