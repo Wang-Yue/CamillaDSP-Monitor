@@ -1,11 +1,10 @@
-// CamillaDSP-Swift: Asynchronous polynomial resampler.
+// Asynchronous polynomial resampler.
 //
-// 1:1 port of rubato's `Async::new_poly` / `InnerPoly::process`
-// (`asynchro.rs`, `asynchro_fast.rs`). Same buffer layout, same `last_index`
+// Same buffer layout, same `last_index`
 // semantics, same `t_ratio` accumulation, same Newton-form polynomial
-// formulas — output samples agree with rubato bit-for-bit.
+// formulas — output samples agree bit-for-bit.
 //
-// No anti-aliasing (matches rubato's documented `new_poly` behaviour); for
+// No anti-aliasing; for
 // quality use `AsyncSincResampler`.
 //
 // Memory: every internal buffer is sized at init based on `chunkSize` and
@@ -25,10 +24,10 @@ final class AsyncPolyResampler: AudioResampler {
   private let baseRatio: Double
   private var resampleRatio: Double
   private var targetRatio: Double
-  private var lastIndex: Double  // matches rubato's `last_index`
+  private var lastIndex: Double  // tracking index
 
   // Per-channel input buffer. Layout:
-  //   [0 .. 2*nbr_points)            — history (rubato's padding zone)
+  //   [0 .. 2*nbr_points)            — history padding zone
   //   [2*nbr_points .. 2*nbr_points+chunkSize) — current chunk
   //
   // Class-backed `AudioBuffers` so per-channel pointers stay stable —
@@ -46,8 +45,8 @@ final class AsyncPolyResampler: AudioResampler {
   var ratio: Double { resampleRatio }
 
   var nextOutputFrames: Int {
-    // Mirror rubato's `calculate_output_size` for `FixedAsync::Input`
-    // (`asynchro.rs:382-385`) — `.floor()`, not `.ceil()`.
+    // Calculate output size for input
+    // — `.floor()`, not `.ceil()`.
     let avgRatio = 0.5 * resampleRatio + 0.5 * targetRatio
     let raw = (Double(chunkSize) - Double(interpolatorLen + 1) - lastIndex) * avgRatio
     return Int(raw.rounded(.down))
@@ -78,7 +77,7 @@ final class AsyncPolyResampler: AudioResampler {
 
     self.resampleRatio = baseRatio
     self.targetRatio = baseRatio
-    // Matches rubato's `init_last_index = -(nbr_points/2)` (`asynchro_fast.rs:289`).
+    // Set initial index based on number of points.
     self.lastIndex = -(Double(interpolatorLen) / 2.0)
 
     let mostNegativeLastIndex = -(Double(interpolatorLen) / 2.0)
@@ -165,7 +164,7 @@ final class AsyncPolyResampler: AudioResampler {
     output.validFrames = outputFrames
   }
 
-  // MARK: - Inner loops (rubato's exact polynomial forms)
+  // MARK: - Inner loops (polynomial forms)
 
   private func runLinear(outputFrames: Int, output: inout AudioChunk) {
     let nLen = interpolatorLen  // 2

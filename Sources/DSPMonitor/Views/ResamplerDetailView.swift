@@ -37,11 +37,9 @@ struct ResamplerDetailView: View {
 
                 Picker("", selection: $settings.resamplerType) {
                   // Filter the segmented picker per active engine:
-                  //   Swift engine — only `.synchronous` and `.apple`
-                  //                  are implemented natively.
-                  //   Rust engine  — `.apple` is unavailable; the
-                  //                  rubato-native types (asyncSinc /
-                  //                  asyncPoly / synchronous) are.
+                  //   Swift engine — supports all resampler types.
+                  //   Rust engine  — `.apple` is unavailable; all other
+                  //                  types are supported.
                   ForEach(
                     ResamplerType.allCases.filter { type in
                       DSPEngine.isSwiftEngine

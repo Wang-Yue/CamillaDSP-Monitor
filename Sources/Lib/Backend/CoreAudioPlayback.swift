@@ -8,9 +8,8 @@
 // honour that:
 //   - sample rings are SPSC `SPSCAudioRingBuffer<Float>` instances —
 //     producer and consumer are wait-free, no `NSLock`.
-//   - the AudioBufferList plus its per-channel raw data buffers are
-//     preallocated in `open()` and reused for the lifetime of the unit;
-//     the render callback only fills the existing struct.
+//   - the render callback writes directly into the AudioBufferList
+//     provided by CoreAudio, consuming from the pre-allocated SPSC rings.
 
 import Accelerate
 import AudioToolbox

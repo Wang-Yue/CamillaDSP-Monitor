@@ -700,10 +700,9 @@ final class MeasurementSession {
   /// session all coexist (the user can rename the preset; the file
   /// stays put).
   ///
-  /// - Returns: the new preset's `id` if the operation succeeded —
-  ///   the view layer hands it to `pipeline.addConvolutionPreset`,
-  ///   keeping this method free of any direct `PipelineStore`
-  ///   dependency.
+  /// - Parameters:
+  ///   - pipeline: The `PipelineStore` to add the generated preset to.
+  /// - Returns: the new `ConvolutionPreset` if the operation succeeded.
   @discardableResult
   func generateFIR(into pipeline: PipelineStore) -> ConvolutionPreset? {
     // Validate inputs based on which design path we'll use.
@@ -859,11 +858,14 @@ final class MeasurementSession {
   }
 
   /// Export the current measurement as an REW-compatible `.frd`
-  /// file. Writes the unsmoothed magnitude (in dB) and wrapped phase
+  /// file. Writes the magnitude (in dB) and wrapped phase
   /// (in degrees) at the FFT bins inside `[20 Hz, 20 kHz]`.
-  /// Calibration is *not* applied to the export so the user always
-  /// has the raw measurement; if they want a calibrated copy they
-  /// can subtract the calibration externally or load it back in.
+  /// Calibration can optionally be applied to the export; by default
+  /// it is not applied so the user has the raw measurement.
+  ///
+  /// - Parameters:
+  ///   - path: The destination file path.
+  ///   - includeCalibration: Whether to apply the loaded calibration curve to the exported magnitude.
   func exportFRD(to path: String, includeCalibration: Bool = false) -> Bool {
     guard let fr = measuredFR else {
       status = "Run a measurement before exporting."

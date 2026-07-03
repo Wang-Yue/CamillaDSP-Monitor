@@ -3,7 +3,6 @@ import DSPConfig
 import Foundation
 
 /// Builds the subsample biquad allpass and returns (integerDelaySamples, optionalBiquad).
-/// Matches Rust `build_subsample_biquad` exactly.
 private func buildSubsampleBiquad(delay: PrcFmt) -> (Int, BiquadCoefficients?) {
   if delay < 0.1 {
     return (0, nil)

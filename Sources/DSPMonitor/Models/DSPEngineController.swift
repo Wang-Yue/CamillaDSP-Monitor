@@ -131,9 +131,7 @@ final class DSPEngineController {
       devicesConfig.captureSamplerate = devices.captureConfig.sampleRate
       // Per-engine fallbacks for resampler types the running engine
       // doesn't implement:
-      //   * Swift engine → only `.synchronous` and `.apple` are
-      //     implemented natively. `.asyncSinc` / `.asyncPoly` map onto
-      //     `.synchronous`.
+      //   * Swift engine → supports all resampler types natively.
       //   * Rust engine → only the rubato-native types and
       //     `.synchronous` are implemented. `.apple` (the Core Audio
       //     wrapper) maps onto `.asyncSinc`.

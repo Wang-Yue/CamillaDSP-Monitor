@@ -35,7 +35,7 @@ enum PipelineExecutionStep {
 /// The main audio processing pipeline.
 public final class Pipeline {
   private var processingSteps: [PipelineExecutionStep] = []
-  /// Implicit main volume filter with smooth ramping (matches Rust Pipeline.volume field)
+  /// Implicit main volume filter with smooth ramping
   private let masterVolume: VolumeFilter
   /// Working scratch the pipeline copies the caller's input into at the start
   /// of each `process(...)`. With class-owned `AudioBuffers`, we can no
@@ -59,7 +59,7 @@ public final class Pipeline {
     self.framesPerChunk = explicitChunkSize ?? config.devices.chunksize
     self.rate = config.devices.samplerate
     // Create the implicit master volume filter — equivalent to the
-    // `Pipeline.volume` slot in the Rust upstream (which keys off
+    // master volume slot (which keys off
     // fader index 0). Reads its initial state from the shared
     // `processingParameters` so the engine's pre-start
     // `setVolume`/`setMute` calls are honoured without a 0 dB ramp.
@@ -80,7 +80,7 @@ public final class Pipeline {
 
     self.captureScratch = AudioChunk(frames: framesPerChunk, channels: inChannels)
 
-    // Track current channel count as we walk pipeline steps (matches Rust num_channels)
+    // Track current channel count as we walk pipeline steps
     var currentChannels = inChannels
 
     if let steps = config.pipeline {
@@ -181,7 +181,7 @@ public final class Pipeline {
     captureScratch.validFrames = validFrames
 
     var currentChunk = captureScratch
-    // 3. Implicit main volume with smooth ramp (matches Rust volume filter).
+    // 3. Implicit main volume with smooth ramp.
     // Mutates workingChunk's samples in place.
     masterVolume.prepareChunk()
     for ch in 0..<currentChunk.channels {

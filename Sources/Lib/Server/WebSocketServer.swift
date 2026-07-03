@@ -1,5 +1,5 @@
-// CamillaDSP-Swift: WebSocket control server
-// Provides runtime control API compatible with CamillaDSP's protocol
+// WebSocket control server
+// Provides runtime control API compatible with the control protocol
 
 import DSPAudio
 import DSPConfig

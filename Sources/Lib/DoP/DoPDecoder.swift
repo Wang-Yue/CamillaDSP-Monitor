@@ -96,8 +96,12 @@ public final class DoPDecoder {
 
   public private(set) var isDoPActive = false
 
-  /// - Parameter cutoffHz: passband cutoff of the post-DSD lowpass (default 20 kHz).
-  ///   Lower values trade ultrasonic passband for higher SINAD.
+  /// - Parameters:
+  ///   - channels: Number of audio channels.
+  ///   - sampleRate: The PCM sample rate (carrier rate).
+  ///   - bypassDoP: If true, DoP detection is disabled and input is passed through.
+  ///   - cutoffHz: Passband cutoff of the post-DSD lowpass (default 20 kHz).
+  ///     Lower values trade ultrasonic passband for higher SINAD.
   public init(
     channels: Int, sampleRate: Double, bypassDoP: Bool = false, cutoffHz: Double = 20_000.0
   ) {
@@ -278,7 +282,7 @@ public final class DoPDecoder {
         // The trellis-friendly sigma-delta modulators in the test suite
         // pre-scale input by 0.5 for noise-shaper headroom; this 2× compensates
         // so SINAD compares against full-amplitude sin. Real DoP streams
-        // from DACs that don't pre-scale will be 6 dB hot — handle upstream
+        // from DACs that don't pre-scale will be 6 dB hot — handle at a higher level
         // if that becomes a problem.
         base[t] = PrcFmt(acc * 2.0)
       }

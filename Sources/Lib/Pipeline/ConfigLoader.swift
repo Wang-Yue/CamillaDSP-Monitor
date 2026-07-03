@@ -11,7 +11,7 @@
 //
 // DSPMonitor only ever sends JSON over the actor's
 // `start(configJson:)` boundary, so the loader is JSON-only; the
-// upstream YAML pathway and Yams dependency have been pruned.
+// YAML pathway and Yams dependency have been pruned.
 
 import DSPConfig
 import DSPLogging

@@ -9,7 +9,7 @@
 //     multiply through `vDSP_zvmulD` / `vDSP_zvmaD` without any DC/
 //     Nyquist special-casing.
 //   - `RealFFT.inverse` produces `length · signal`. The inverse does not
-//     scale, so the Rust version pre-divides coefficients by
+//     scale, so we pre-divide coefficients by
 //     `2 * data_length` to compensate.
 //   - All hot-path buffers are owned by raw `UnsafeMutablePointer`s
 //     (`AudioBuffers`-style) so `process(waveform:)` cannot trip
@@ -21,8 +21,7 @@ import DSPConfig
 import DSPFFT
 import Foundation
 
-/// Source format for the impulse response. Mirrors
-/// `config::ConvParameters` in the Rust upstream:
+/// Source format for the impulse response. Parameters:
 ///
 ///   - `.values`: inline IR samples in `values`.
 ///   - `.wav`:    `filename` (24/16/32f/64f WAV), single channel `channel`.
@@ -360,7 +359,7 @@ final class ConvolutionFilter: Filter {
     // 4. Inverse FFT. RealFFT.inverse multiplies by
     //    `length = 2N`, but `coeffsF` was pre-divided by `2N` in init,
     //    so the net result is the un-normalised linear convolution
-    //    sum, exactly as the Rust port produces.
+    //    sum.
     fft.inverse(specRe: tempRe, specIm: tempIm, realOut: outputBuf)
 
     // 5. Overlap-save output: out[i] = ifft[i] + overlap_prev[i] for

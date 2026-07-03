@@ -20,9 +20,9 @@
 //   * The audio threads use lock-free SPSC queues and atomics;
 //     only `DispatchSemaphore` is used for signal/wait, which is
 //     a kernel signaling primitive (not a lock).
-//   * Every per-chunk allocation is pre-allocated at `start()` —
-//     the working capture chunk, the resampler output scratch,
-//     and the pipeline output scratch.
+//   * Chunks are managed using a pre-allocated `RoundRobinChunkPool`
+//     on each thread to avoid allocations on the hot path.
+//   * The resampler and pipeline output scratch buffers are pre-allocated.
 //   * The stall watchdog uses `clock_gettime_nsec_np` (vDSO read,
 //     no syscall) — no `Date()` on the hot path.
 
@@ -319,7 +319,7 @@ internal final class DSPEngineCore {
 
   private func buildRuntime() throws -> Runtime {
     // Resolve capture/playback rates. `capture_samplerate` is the
-    // upstream knob for "capture device runs at a different rate
+    // configuration option for "capture device runs at a different rate
     // than the engine pipeline" — when set it forces the capture
     // backend to open at that rate and configures the resampler
     // with a non-1:1 base ratio. When unset both rates collapse

@@ -23,8 +23,7 @@ internal enum AudioHistoryBufferError: Error, Sendable, CustomStringConvertible 
   }
 }
 
-/// Maximum number of frames retained per channel. Chosen to match the Rust
-/// `RING_BUFFER_CAPACITY = 262144`. At 48 kHz that's roughly 5.5 s of audio
+/// Maximum number of frames retained per channel. At 48 kHz that's roughly 5.5 s of audio
 /// — enough headroom for an FFT down to ~5 Hz.
 public let kRingBufferCapacity = 262_144
 

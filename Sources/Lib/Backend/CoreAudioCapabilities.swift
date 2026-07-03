@@ -168,8 +168,7 @@ public enum CoreAudioCapabilities {
   }
 
   /// Map an AudioStreamBasicDescription to a DSP CoreAudio sample
-  /// format token. The token set matches Rust's `CoreAudioSampleFormat`
-  /// enum (S16, S24, S32, F32) — exactly the formats the CoreAudio
+  /// format token (S16, S24, S32, F32) — exactly the formats the CoreAudio
   /// backend accepts. Anything else (e.g. 64-bit float, unsigned PCM)
   /// returns an empty string and is filtered out by the caller.
   static func formatStringFor(asbd: AudioStreamBasicDescription) -> String {

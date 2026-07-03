@@ -13,9 +13,9 @@
 //
 // Audio-thread invariants
 // -----------------------
-//   * No allocations in the steady state. Both scratch chunks are
-//     sized at init for the worst case across the configured
-//     rate-adjust range.
+//   * No allocations in the steady state. Output chunks are obtained
+//     from a pre-allocated `RoundRobinChunkPool`, and the resampler
+//     scratch chunk is pre-allocated at init.
 //   * No locks. The shared SPSC queues + semaphores carry chunks
 //     and wakeups; the resampler ratio is an atomic Double.
 //   * The thread sets a real-time scheduling policy on entry so the

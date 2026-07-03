@@ -11,8 +11,8 @@
 //
 // Audio-thread invariants
 // -----------------------
-//   * No allocations in the steady-state. The working `AudioChunk`
-//     is constructed once at init.
+//   * No allocations in the steady-state. Audio chunks are obtained
+//     from a pre-allocated `RoundRobinChunkPool`.
 //   * No locks. Coordination uses the shared SPSC queue + semaphore.
 //   * No `Date()` / `gettimeofday`. The watchdog uses
 //     `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (vDSO read on
@@ -106,8 +106,8 @@ final class EngineCaptureLoop: @unchecked Sendable {
       // Surface a HAL-level sample-rate change before doing any
       // more work. A user (or another app) flipping the device
       // rate in Audio MIDI Setup invalidates the AudioUnit's
-      // configured format; the cleanest recovery is to stop and
-      // let the host rebuild.
+      // configured format; the cleanest recovery is to stop
+      // unconditionally and let the host rebuild.
       if let rate = capture.pendingRateChange {
         if rate != lastObservedPendingRate {
           lastObservedPendingRate = rate
@@ -187,7 +187,7 @@ final class EngineCaptureLoop: @unchecked Sendable {
     }
 
     // Wait on the capture device's GCD semaphore for new samples, up to 20ms.
-    // This matches upstream CamillaDSP's wait_timeout(20ms) design, preserving
+    // This uses a 20ms timeout design, preserving
     // real-time priority propagation under load instead of doing a raw sleep.
     _ = capture.wait(timeout: .now() + .milliseconds(20))
   }

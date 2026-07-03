@@ -1,6 +1,8 @@
 // Resampler protocol + shared types.
-// Two resampler implementations conform to `AudioResampler`:
+// Four resampler implementations conform to `AudioResampler`:
 //   * `SynchronousResampler` — FFT-based fixed-ratio.
+//   * `AsyncSincResampler`   — Asynchronous windowed-sinc resampler.
+//   * `AsyncPolyResampler`   — Asynchronous polynomial resampler.
 //   * `AppleResampler`       — Core Audio AudioConverter wrapper.
 
 import DSPAudio
@@ -91,8 +93,7 @@ public protocol AudioResampler: AnyObject {
   func setRelativeRatio(_ multiplier: Double)
 }
 
-/// Polynomial degree exposed by `AsyncPolyResampler`. Mirrors rubato's
-/// `PolynomialDegree`.
+/// Polynomial degree exposed by `AsyncPolyResampler`.
 enum PolyInterpolation: String, Codable {
   case linear = "Linear"
   case cubic = "Cubic"
@@ -100,7 +101,7 @@ enum PolyInterpolation: String, Codable {
   case septic = "Septic"
 
   /// Number of input samples the polynomial is fitted across.
-  /// Matches rubato's `nbr_points()`.
+  /// Number of interpolation points.
   var nbrPoints: Int {
     switch self {
     case .linear: return 2

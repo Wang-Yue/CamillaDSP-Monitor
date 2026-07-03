@@ -20,10 +20,10 @@ public struct MixerConfig: Codable, Equatable, Sendable {
     self.mapping = mapping
   }
 
-  // Support both Rust nested format `channels: { in: N, out: N }` and
+  // Support both nested format `channels: { in: N, out: N }` and
   // flat format `channels_in: N, channels_out: N`
   private enum CodingKeys: String, CodingKey {
-    case channels  // Rust nested format
+    case channels  // nested format
     case channelsIn = "channels_in"  // flat format
     case channelsOut = "channels_out"  // flat format
     case mapping
@@ -50,7 +50,7 @@ public struct MixerConfig: Codable, Equatable, Sendable {
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
-    // Encode in the Rust-compatible nested format
+    // Encode in the nested format
     let nested = MixerChannelsNested(in: channelsIn, out: channelsOut)
     try container.encode(nested, forKey: .channels)
     try container.encode(mapping, forKey: .mapping)
@@ -103,13 +103,13 @@ public struct MixerMapping: Codable, Equatable, Sendable {
 
 public struct MixerSource: Codable, Equatable, Sendable {
   public var channel: Int
-  /// Gain value. Optional in Rust YAML (defaults to 0.0 dB when omitted).
+  /// Gain value. Optional (defaults to 0.0 dB when omitted).
   public var gain: Double?
   public var inverted: Bool?
   public var mute: Bool?
   public var scale: GainScale?
 
-  /// Convenience accessor matching Rust default: 0.0 when gain is nil
+  /// Convenience accessor: 0.0 when gain is nil
   public var gainValue: Double { gain ?? 0.0 }
 
   public init(

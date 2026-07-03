@@ -1,12 +1,11 @@
-// CamillaDSP-Swift: inlined dot product used by the windowed-sinc resampler
+// Inlined dot product used by the windowed-sinc resampler
 // inner loop.
 //
 // 8 independent accumulators give the optimiser enough independence to emit
 // packed NEON `fmla` pairs on Apple Silicon. The final reduction
 //   acc0 + acc1 + acc2 + acc3 + acc4 + acc5 + acc6 + acc7
-// is left-associative — same as rubato's `ScalarInterpolator` at
-// `sinc_interpolator/mod.rs:113`. Matching the reduction tree (rather than a
-// balanced one) gives bit-equivalent ULP-level results versus Rust.
+// is left-associative. Matching the reduction tree (rather than a
+// balanced one) gives bit-equivalent ULP-level results.
 
 import Foundation
 
@@ -42,7 +41,7 @@ func sincDotProduct(
     tail += wave[i] * kernel[i]
     i &+= 1
   }
-  // Left-associative reduction matching rubato exactly. The compiler can
+  // Left-associative reduction. The compiler can
   // still issue dependency-free per-lane FMAs above; this only constrains
   // the final 7-add chain.
   return a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + tail

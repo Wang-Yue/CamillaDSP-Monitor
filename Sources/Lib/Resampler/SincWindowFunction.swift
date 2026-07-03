@@ -1,12 +1,11 @@
-// CamillaDSP-Swift: Window functions + cutoff calculation for the windowed-sinc
-// resampler kernel. Mirrors rubato's `windows.rs` exactly so Swift's filter
-// kernel matches rubato's bit-for-bit.
+// Window functions + cutoff calculation for the windowed-sinc
+// resampler kernel.
 
 import Foundation
 
 /// Window functions usable for sinc-kernel design. The `*2` variants are the
 /// squared versions of the periodic base window — wider main lobe but stronger
-/// stopband attenuation. Mirrors rubato's `WindowFunction` enum.
+/// stopband attenuation.
 enum WindowFunction: String, CaseIterable {
   case hann = "Hann"
   case hann2 = "Hann2"
@@ -20,7 +19,7 @@ enum WindowFunction: String, CaseIterable {
 /// Mirrors `windowfunctions::GenericWindowIter::calc_at_index` — each harmonic
 /// is `cos(2k · π · i / n)` computed with the operand order
 /// `((2k * π) * i) / n`, **not** chained off the first harmonic. Reproducing
-/// that exact order is what makes the kernel bit-equivalent versus rubato.
+/// in this order.
 @inline(__always)
 func windowValue(_ window: WindowFunction, i: Int, n: Int) -> Double {
   let x = Double(i)
@@ -48,9 +47,9 @@ func windowValue(_ window: WindowFunction, i: Int, n: Int) -> Double {
   }
 }
 
-/// f32 cutoff calculation matching rubato's `calculate_cutoff::<f32>`. The
-/// audio path runs in f64 but rubato computes the cutoff in f32 and then
-/// coerces it up; we match that here so kernel-derived constants stay
+/// f32 cutoff calculation. The
+/// audio path runs in f64 but the cutoff is computed in f32 and then
+/// coerced up; we match that here so kernel-derived constants stay
 /// bit-equivalent across resamplers.
 func calculateCutoffF32(sincLen: Int, window: WindowFunction) -> Float {
   let (k1, k2, k3): (Float, Float, Float)
@@ -85,7 +84,7 @@ func calculateCutoffF32(sincLen: Int, window: WindowFunction) -> Float {
 }
 
 /// Calculate a suitable relative cutoff frequency for the given sinc length and
-/// window. Mirrors rubato's `calculate_cutoff` (`windows.rs:88-131`) — a cubic
+/// window — a cubic
 /// fit `1 / (k1/n + k2/n² + k3/n³ + 1)` calibrated per window.
 func calculateCutoff(sincLen: Int, window: WindowFunction) -> Double {
   let (k1, k2, k3): (Double, Double, Double)
@@ -107,7 +106,7 @@ func calculateCutoff(sincLen: Int, window: WindowFunction) -> Double {
   return 1.0 / (k1 / n + k2 / (n * n) + k3 / (n * n * n) + 1.0)
 }
 
-/// Build the windowed-sinc table the same way rubato does (`sinc.rs:17-49`):
+/// Build the windowed-sinc table:
 ///   1. Compute `y[i] = window[i] * sinc((i - totpoints/2) * fc / factor)` for
 ///      i ∈ [0, totpoints) using the periodic window.
 ///   2. Sum y, divide by `factor`.
@@ -121,7 +120,7 @@ func makeSincTable(sincLen: Int, oversamplingFactor: Int, window: WindowFunction
   for i in 0..<totpoints {
     let centred = Double(i) - Double(totpoints / 2)
     let xScaled = centred * fc / Double(oversamplingFactor)
-    // Match rubato's `sinc(x) = (x * PI).sin() / (x * PI)` — argument order
+    // sinc(x) = (x * PI).sin() / (x * PI) — argument order
     // matters for the (rare) f64 ULP differences this avoids.
     let arg = xScaled * .pi
     let sinc: Double = abs(xScaled) < 1e-10 ? 1.0 : sin(arg) / arg

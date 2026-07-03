@@ -1,4 +1,4 @@
-// MiniPlayerView - Compact floating overlay with four display modes
+// MiniPlayerView - Compact floating overlay with six display modes
 // Appears when user clicks minimize, floats above all windows including fullscreen video
 
 import AppKit

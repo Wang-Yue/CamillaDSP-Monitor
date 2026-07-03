@@ -386,9 +386,7 @@ enum CoreAudioDevice {
 /// Watches a CoreAudio device's `kAudioDevicePropertyNominalSampleRate`
 /// and reports any change away from the rate the engine asked for.
 ///
-/// Mirrors the role of `RateListener` in the Rust upstream
-/// (`coreaudio_backend/device.rs`), which uses the equivalent
-/// `coreaudio-rs` listener registration. The processing thread polls
+/// The capture thread polls
 /// `pendingRateChange` once per chunk; on a real change it stops the
 /// engine with `.captureFormatChange(rate)` / `.playbackFormatChange(rate)`
 /// so the host can rebuild at the new rate.

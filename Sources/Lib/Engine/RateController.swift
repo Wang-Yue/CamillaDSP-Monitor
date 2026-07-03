@@ -65,7 +65,7 @@ internal final class PIRateController {
   private var rampStep: Int = 0
 
   internal convenience init(samplerate: Int, interval: Double, targetLevel: Int) {
-    // Default gains matching CamillaDSP exactly
+    // Default gains for the controller
     self.init(
       samplerate: samplerate,
       interval: interval,

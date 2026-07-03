@@ -1,6 +1,6 @@
 // Single coherent comparison across the in-tree resamplers and (when
 // the rust harness is built) the rubato reference. Every cell of the
-// 4-implementation × 9-rate-pair matrix reports five metrics:
+// 8-column (5 in-tree + 3 rubato reference) × 9-rate-pair matrix reports five metrics:
 //
 //   * Aliasing rejection — only meaningful for downsampling pairs.
 //     A tone halfway between output Nyquist and input Nyquist sits
@@ -22,9 +22,9 @@
 //
 // Output is four printed tables (one per metric) plus one
 // throughput table. The harness asserts per-cell regression bounds
-// for the in-tree `SynchronousResampler` only; Apple and rubato
-// rows are reference points (printed but not asserted) since their
-// behaviour is outside our control.
+// for the in-tree `SynchronousResampler` only; other Swift resamplers,
+// Apple, and rubato rows are reference points (printed but not asserted)
+// since their behavior is outside our control.
 //
 // All bounds are clamped to the values currently measured by this
 // test on this machine — any quality or speed regression in

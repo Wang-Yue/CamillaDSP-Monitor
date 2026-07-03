@@ -1,9 +1,7 @@
-// CamillaDSP-Swift: Asynchronous windowed-sinc resampler.
+// Asynchronous windowed-sinc resampler.
 //
-// 1:1 port of rubato's `Async::new_sinc` / `InnerSinc::process` (`asynchro.rs`,
-// `asynchro_sinc.rs`, `sinc_interpolator/mod.rs`). Same buffer layout, same
-// `last_index` semantics, same `t_ratio` accumulation, same kernel decimation
-// — output samples agree with rubato bit-for-bit (modulo the FMA-reduction
+// Same buffer layout, same `last_index` semantics, same `t_ratio` accumulation,
+// same kernel decimation — output samples agree bit-for-bit (modulo the FMA-reduction
 // order in the dot product, which is on the order of a few ULPs).
 //
 // Memory: every internal buffer is sized at init based on `chunkSize` and
@@ -23,19 +21,16 @@ final class AsyncSincResampler: AudioResampler {
   private let oversamplingFactor: Int
   private let interpolation: SincInterpolationType
 
-  // Ratio bookkeeping. `resampleRatio` is the value used for the *current*
-  // chunk's processing; `targetRatio` is the goal that the next call will
-  // ramp toward (mirrors rubato's `resample_ratio` / `target_ratio`).
+  // ramp toward the target ratio.
   private let baseRatio: Double
   private var resampleRatio: Double
   private var targetRatio: Double
-  private var lastIndex: Double  // == rubato's `last_index`
+  private var lastIndex: Double  // tracking index
 
-  // Pre-computed windowed sinc table — `table[s * sincLen + p] == sincs[s][p]`
-  // in rubato's `ScalarInterpolator`.
+  // in the interpolator.
   private let sincTable: [Double]
 
-  // Per-channel input buffer. Layout (rubato `asynchro.rs`):
+  // Per-channel input buffer. Layout:
   //   [0 .. 2*sincLen)            — history (last 2*sincLen samples of the
   //                                  previous chunk, or zeros initially)
   //   [2*sincLen .. 2*sincLen+chunkSize) — current chunk's data
@@ -57,9 +52,9 @@ final class AsyncSincResampler: AudioResampler {
   var ratio: Double { resampleRatio }
 
   var nextOutputFrames: Int {
-    // Mirror rubato's `calculate_output_size` for `FixedAsync::Input`
-    // (`asynchro.rs:382-385`) — note `.floor()`, not `.ceil()`. Using ceil
-    // here was the source of the off-by-one frame discrepancy versus rubato.
+    // Calculate output size for input
+    // — note `.floor()`, not `.ceil()`. Using ceil
+    // here was the source of the off-by-one frame discrepancy.
     let avgRatio = 0.5 * resampleRatio + 0.5 * targetRatio
     let raw = (Double(chunkSize) - Double(sincLen + 1) - lastIndex) * avgRatio
     return Int(raw.rounded(.down))
@@ -84,10 +79,10 @@ final class AsyncSincResampler: AudioResampler {
 
     precondition(
       chunkSize >= 2 * sincLen,
-      "chunkSize (\(chunkSize)) must be ≥ 2*sincLen (\(2 * sincLen)) — see rubato's buffer-shift contract"
+      "chunkSize (\(chunkSize)) must be ≥ 2*sincLen (\(2 * sincLen)) — see buffer-shift contract"
     )
 
-    // Cutoff: rubato computes this as f32 then converts to f64 inside
+    // Cutoff: computed as f32 then converted to f64 inside
     // `make_sincs` (`asynchro_sinc.rs:96`). Down-sampling scales the cutoff
     // by the ratio so the kernel doesn't pass aliased high frequencies.
     let baseCutoff =
@@ -97,9 +92,8 @@ final class AsyncSincResampler: AudioResampler {
     self.sincTable = makeSincTable(
       sincLen: sincLen, oversamplingFactor: oversamplingFactor, window: window, fc: fc)
 
-    // Input buffer sized to rubato's spec: chunkSize + 2*sincLen. Initial
-    // contents are zeros — the first chunk's "history" is silence, matching
-    // rubato's `Vec::with_capacity(buffer_len)` zero-init.
+    // Input buffer sized to: chunkSize + 2*sincLen. Initial
+    // contents are zeros — the first chunk's "history" is silence.
     let bufLen = chunkSize + 2 * sincLen
     self.inputBuffer = AudioBuffers(channels: channels, capacity: bufLen)
 
@@ -182,14 +176,14 @@ final class AsyncSincResampler: AudioResampler {
       throw ResamplerError.outputBufferTooSmall(needed: outputFrames, got: output.frames)
     }
 
-    // Rubato's `process_into_buffer`: shift buffer, write new data, run inner.
+    // Shift buffer, write new data, run inner.
     let sLen = sincLen
     let twoSLen = 2 * sLen
 
     for ch in 0..<channels {
       guard let base = inputBuffer[ch].baseAddress else { continue }
       // Copy [chunkSize..chunkSize + 2*sincLen] to [0..2*sincLen]
-      // (rubato: `buf.copy_within(current_buffer_fill..current_buffer_fill + 2*interp_len, 0)`).
+      // (shift remaining data to the beginning).
       for i in 0..<twoSLen {
         base[i] = base[chunkSize + i]
       }
@@ -202,8 +196,8 @@ final class AsyncSincResampler: AudioResampler {
       (dstPtr + twoSLen).update(from: srcPtr, count: chunkSize)
     }
 
-    // Pre-compute per-frame `idx` and `fracOffset`. Mirrors the prologue of
-    // rubato's `InnerSinc::process` per-frame loop:
+    // Pre-compute per-frame `idx` and `fracOffset`. Prologue of
+    // the per-frame loop:
     //   t_ratio += t_ratio_increment;
     //   idx += t_ratio;
     //   frac = idx*factor - (idx*factor).floor();
@@ -250,7 +244,7 @@ final class AsyncSincResampler: AudioResampler {
   // MARK: - Inner loops
 
   /// Fetch the (index, subindex) pair for a given (start, frac, sub) triple.
-  /// Mirrors rubato's `get_nearest_times_*` wrap-around logic.
+  /// Wrap-around logic.
   @inline(__always)
   private func adjustPoint(start: Int, frac: Int, sub: Int) -> (idx: Int, sub: Int) {
     var index = start

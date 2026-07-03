@@ -6,8 +6,7 @@ import Foundation
 extension BiquadParameters {
   /// Validate parameter ranges for the configured sample rate. Lives
   /// here (rather than next to the parameter struct) because
-  /// `BiquadCoefficients.swift` is shared with the Rust-FFI build and
-  /// must not depend on `ConfigError`.
+  /// the parameter struct must not depend on `ConfigError`.
   public func validate(sampleRate: Int) throws {
     guard type != nil else {
       throw ConfigError.invalidFilter("Biquad filter missing 'type'")

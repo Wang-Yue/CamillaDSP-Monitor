@@ -19,7 +19,7 @@ extension PrcFmt {
     pow(10.0, db / 20.0)
   }
 
-  /// Convert linear gain to dB. Returns -1000.0 for zero/negative input (matches Rust sentinel).
+  /// Convert linear gain to dB. Returns -1000.0 for zero/negative input.
   @inlinable
   public static func toDB(_ linear: PrcFmt) -> PrcFmt {
     if linear <= 0 { return -1000.0 }

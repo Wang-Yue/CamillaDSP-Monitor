@@ -5,7 +5,7 @@
 //      polyphase sinc (same shape as the decoder, normalized per phase
 //      for unit DC gain),
 //   2. modulate the oversampled signal with a per-channel sigma-delta
-//      modulator (`sdm-4` / `sdm-5` / `sdm-6` picked by DSD rate), and
+//      modulator (using the configured `SDMFilter`, defaulting to `sdm-6`), and
 //   3. pack the 16 resulting DSD bits into the lower 16 bits of a 24-bit
 //      container, with an alternating `0x05` / `0xFA` marker in the
 //      upper byte.
@@ -85,10 +85,13 @@ public final class DoPEncoder {
   /// `supportedCarrierRates`. The mismatched case is logged once at
   /// construction and reduces `encode(...)` to a no-op.
   ///
-  /// - Parameter filterName: noise-shaper filter name.
-  /// - Parameter cutoffHz: passband cutoff of the interpolation filter
-  ///   (default 20 kHz). Lower values trade ultrasonic passband for
-  ///   sharper image rejection. Ignored when `enabled` is false.
+  /// - Parameters:
+  ///   - channels: Number of audio channels.
+  ///   - sampleRate: The PCM sample rate (carrier rate).
+  ///   - outputDoP: If true, enables DoP encoding.
+  ///   - filterName: Noise-shaper filter name (defaults to `.sdm6`).
+  ///   - cutoffHz: Passband cutoff of the interpolation filter (default 20 kHz).
+  ///     Lower values trade ultrasonic passband for sharper image rejection. Ignored when `enabled` is false.
   public init(
     channels: Int, sampleRate: Double, outputDoP: Bool, filterName: SDMFilter = .sdm6,
     cutoffHz: Double = 20_000.0
