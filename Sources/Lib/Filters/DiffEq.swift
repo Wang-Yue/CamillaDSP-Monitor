@@ -8,8 +8,6 @@ final class DiffEqFilter: Filter {
   private var y: UnsafeMutablePointer<PrcFmt>
   private var a: UnsafePointer<PrcFmt>
   private var b: UnsafePointer<PrcFmt>
-  private var xCount: Int = 0
-  private var yCount: Int = 0
   private var aCount: Int = 0
   private var bCount: Int = 0
   private var idxX: Int = 0
@@ -32,8 +30,6 @@ final class DiffEqFilter: Filter {
 
     self.aCount = aCoeffs.count
     self.bCount = bCoeffs.count
-    self.xCount = bCoeffs.count
-    self.yCount = aCoeffs.count
 
     let aPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: aCoeffs.count)
     aPtr.initialize(from: aCoeffs, count: aCoeffs.count)
@@ -62,7 +58,7 @@ final class DiffEqFilter: Filter {
 
   func process(waveform: MutableWaveform) {
     let nb = bCount
-    let na = yCount
+    let na = aCount
     guard let wBase = waveform.baseAddress else { return }
 
     for i in 0..<waveform.count {
@@ -82,20 +78,6 @@ final class DiffEqFilter: Filter {
       y[idxY] = out
       wBase[i] = out
     }
-    flushSubnormals()
-  }
-
-  private func flushSubnormals() {
-    for i in 0..<xCount {
-      if x[i].isSubnormal {
-        x[i] = 0.0
-      }
-    }
-    for i in 0..<yCount {
-      if y[i].isSubnormal {
-        y[i] = 0.0
-      }
-    }
   }
 
   func updateParameters(_ config: FilterConfig, sampleRate: Int) {
@@ -108,6 +90,9 @@ final class DiffEqFilter: Filter {
     UnsafeMutablePointer(mutating: self.a).deallocate()
     UnsafeMutablePointer(mutating: self.b).deallocate()
 
+    let oldACount = self.aCount
+    let oldBCount = self.bCount
+
     self.aCount = aCoeffs.count
     self.bCount = bCoeffs.count
 
@@ -119,18 +104,16 @@ final class DiffEqFilter: Filter {
     bPtr.initialize(from: bCoeffs, count: bCoeffs.count)
     self.b = UnsafePointer(bPtr)
 
-    if self.xCount != bCoeffs.count {
+    if oldBCount != bCoeffs.count {
       self.x.deallocate()
       self.x = .allocate(capacity: bCoeffs.count)
       self.x.initialize(repeating: 0.0, count: bCoeffs.count)
-      self.xCount = bCoeffs.count
       self.idxX = 0
     }
-    if self.yCount != aCoeffs.count {
+    if oldACount != aCoeffs.count {
       self.y.deallocate()
       self.y = .allocate(capacity: aCoeffs.count)
       self.y.initialize(repeating: 0.0, count: aCoeffs.count)
-      self.yCount = aCoeffs.count
       self.idxY = 0
     }
   }
