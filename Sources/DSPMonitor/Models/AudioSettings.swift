@@ -226,7 +226,7 @@ final class AudioSettings {
       onChanged?()
     }
   }
-  var stopOnRateChange: Bool = true {
+  var stopOnRateChange: Bool = false {
     didSet {
       defaults.set(stopOnRateChange, forKey: "stopOnRateChange")
       onChanged?()

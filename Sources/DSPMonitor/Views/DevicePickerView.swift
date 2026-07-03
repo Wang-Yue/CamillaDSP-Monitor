@@ -219,9 +219,9 @@ struct DevicePickerView: View {
               .frame(width: 120)
             }
 
-            Toggle("Stop on Rate Change", isOn: $bindableSettings.stopOnRateChange)
-
             if !DSPEngine.isSwiftEngine {
+              Toggle("Stop on Rate Change", isOn: $bindableSettings.stopOnRateChange)
+
               HStack {
                 Text("Measure Interval")
                   .frame(width: 120, alignment: .leading)

@@ -109,6 +109,11 @@ internal final class DSPEngineCore {
 
     // Log configuration details and read properties to satisfy Periphery
     logger.info("Engine initialized with queueLimit: %d", .int(queueLimit))
+    if let stopOnRate = config.devices.stopOnRateChange {
+      logger.info(
+        "Stop on rate change configured: %s (ignored in Swift engine; hardware rate changes always stop the engine)",
+        .string("\(stopOnRate)"))
+    }
     if let rateMeasure = config.devices.rateMeasureInterval {
       logger.info(
         "Rate measure interval configured: %f s (unused on CoreAudio due to event-driven HAL listener)",
@@ -397,7 +402,6 @@ internal final class DSPEngineCore {
       samplerate: runtime.captureRate,
       silenceThresholdDb: currentConfig.devices.silenceThreshold ?? 0,
       silenceTimeoutSeconds: currentConfig.devices.silenceTimeout ?? 0,
-      stopOnRateChange: currentConfig.devices.stopOnRateChange ?? false,
       onStop: { [weak self] reason in self?.stop(reason: reason) }
     )
 
