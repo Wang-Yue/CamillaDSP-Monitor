@@ -140,6 +140,18 @@ private enum AllocationCounter {
     runResamplerHotPath(resampler, channels: 2, label: "Synchronous stereo")
   }
 
+  @Test func AsyncPoly_Stereo() {
+    let resampler = AsyncPolyResampler(
+      channels: 2, inputRate: 44100, outputRate: 48000, interpolation: .cubic, chunkSize: 1024)
+    runResamplerHotPath(resampler, channels: 2, label: "AsyncPoly stereo")
+  }
+
+  @Test func AsyncSinc_Stereo() {
+    let resampler = AsyncSincResampler(
+      channels: 2, inputRate: 44100, outputRate: 48000, profile: .accurate, chunkSize: 1024)
+    runResamplerHotPath(resampler, channels: 2, label: "AsyncSinc stereo")
+  }
+
   // MARK: - Filters
 
   @Test func Biquad_AllocationFree() {
