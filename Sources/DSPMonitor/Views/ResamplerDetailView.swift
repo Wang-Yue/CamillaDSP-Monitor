@@ -1,5 +1,6 @@
 // ResamplerDetailView - Configuration UI for the Sample Rate Converter
 
+import DSPConfig
 import DSPLib
 import SwiftUI
 
@@ -44,7 +45,7 @@ struct ResamplerDetailView: View {
                   ForEach(
                     ResamplerType.allCases.filter { type in
                       DSPEngine.isSwiftEngine
-                        ? (type == .synchronous || type == .apple)
+                        ? true
                         : (type != .apple)
                     }
                   ) { type in

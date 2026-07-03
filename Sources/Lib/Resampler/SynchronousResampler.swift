@@ -161,15 +161,16 @@ final class SynchronousResampler: AudioResampler {
     self.sharedBins = min(inputBlock, outputBlock) + 1
 
     // Build the anti-aliasing kernel. The kernel is applied at input
-    // rate, so all frequencies are normalised to input Nyquist. The
-    // *target* — highest frequency we want passed cleanly — is input
-    // Nyquist for upsampling and output Nyquist (= `Fₒ/Fᵢ` of input
-    // Nyquist) for downsampling (Crochiere & Rabiner §3.1).
-    let targetNyquist: Double =
-      inputRate > outputRate ? Double(outputRate) / Double(inputRate) : 1.0
-    let baseCutoff = cutoffForBlackmanHarris2(
-      filterLength: inputBlock, targetNyquist: targetNyquist)
-    let kernel = makeBlackmanHarris2SincKernel(length: inputBlock, cutoff: baseCutoff)
+    // rate, so all frequencies are normalised to input Nyquist.
+    let cutoff: Double
+    if inputRate > outputRate {
+      let baseCut = calculateCutoff(sincLen: outputBlock, window: .blackmanHarris2)
+      cutoff = baseCut * Double(outputBlock) / Double(inputBlock)
+    } else {
+      cutoff = calculateCutoff(sincLen: inputBlock, window: .blackmanHarris2)
+    }
+    let kernel = makeSincTable(
+      sincLen: inputBlock, oversamplingFactor: 1, window: .blackmanHarris2, fc: cutoff)
 
     // Zero-pad the unity-DC-gain kernel into a length-2N buffer for
     // overlap-add convolution (Oppenheim & Schafer §8.7). Pre-scaling

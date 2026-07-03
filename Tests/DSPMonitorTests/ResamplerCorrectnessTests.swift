@@ -1,5 +1,4 @@
-// Correctness tests for `SynchronousResampler` that aren't part of
-// the cross-implementation comparison matrix:
+// Correctness tests for all in-tree resamplers (Synchronous, AsyncPoly, AsyncSinc):
 //
 //   * Per-channel state isolation — a stereo (2-channel) resampler
 //     should produce the same per-channel output as two independent
@@ -9,25 +8,104 @@
 //   * The in-place API should reject an output buffer that is
 //     smaller than the resampler's `maxOutputFrames`.
 //
-// These exercise structural properties that the rate-grid quality
-// matrix wouldn't catch — they pass or fail independently of any
-// quality threshold.
 
 import Foundation
 import Testing
 
 @testable import DSPAudio
+@testable import DSPConfig
 @testable import DSPResampler
 
 @Suite struct ResamplerCorrectnessTests {
 
   // MARK: - Per-channel state isolation
 
-  /// A 2-channel resampler must produce the same output per channel
-  /// as two 1-channel resamplers fed the same per-channel input.
-  /// Catches state-corruption bugs where one channel's overlap
-  /// buffer leaks into another.
   @Test func Stereo_MatchesPerChannelMono_Synchronous() throws {
+    try assertStereoMatchesMono { channels, inR, outR, cs in
+      SynchronousResampler(channels: channels, inputRate: inR, outputRate: outR, chunkSize: cs)
+    }
+  }
+
+  @Test func Stereo_MatchesPerChannelMono_AsyncPoly() throws {
+    try assertStereoMatchesMono { channels, inR, outR, cs in
+      AsyncPolyResampler(
+        channels: channels, inputRate: inR, outputRate: outR, interpolation: .cubic, chunkSize: cs)
+    }
+  }
+
+  @Test func Stereo_MatchesPerChannelMono_AsyncSinc() throws {
+    try assertStereoMatchesMono { channels, inR, outR, cs in
+      AsyncSincResampler(
+        channels: channels, inputRate: inR, outputRate: outR, profile: .accurate, chunkSize: cs)
+    }
+  }
+
+  // MARK: - In-place API equivalence
+
+  @Test func InoutAPI_Synchronous_MatchesAllocatingAPI() {
+    assertInoutMatchesAlloc(
+      makeA: {
+        SynchronousResampler(channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
+      },
+      makeB: {
+        SynchronousResampler(channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
+      }
+    )
+  }
+
+  @Test func InoutAPI_AsyncPoly_MatchesAllocatingAPI() {
+    assertInoutMatchesAlloc(
+      makeA: {
+        AsyncPolyResampler(
+          channels: 2, inputRate: 44100, outputRate: 48000, interpolation: .cubic, chunkSize: 1024)
+      },
+      makeB: {
+        AsyncPolyResampler(
+          channels: 2, inputRate: 44100, outputRate: 48000, interpolation: .cubic, chunkSize: 1024)
+      }
+    )
+  }
+
+  @Test func InoutAPI_AsyncSinc_MatchesAllocatingAPI() {
+    assertInoutMatchesAlloc(
+      makeA: {
+        AsyncSincResampler(
+          channels: 2, inputRate: 44100, outputRate: 48000, profile: .accurate, chunkSize: 1024)
+      },
+      makeB: {
+        AsyncSincResampler(
+          channels: 2, inputRate: 44100, outputRate: 48000, profile: .accurate, chunkSize: 1024)
+      }
+    )
+  }
+
+  // MARK: - Output buffer size validation
+
+  @Test func InoutAPI_RejectsTooSmallOutputBuffer_Synchronous() {
+    assertRejectsTooSmallOutputBuffer {
+      SynchronousResampler(channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
+    }
+  }
+
+  @Test func InoutAPI_RejectsTooSmallOutputBuffer_AsyncPoly() {
+    assertRejectsTooSmallOutputBuffer {
+      AsyncPolyResampler(
+        channels: 2, inputRate: 44100, outputRate: 48000, interpolation: .cubic, chunkSize: 1024)
+    }
+  }
+
+  @Test func InoutAPI_RejectsTooSmallOutputBuffer_AsyncSinc() {
+    assertRejectsTooSmallOutputBuffer {
+      AsyncSincResampler(
+        channels: 2, inputRate: 44100, outputRate: 48000, profile: .accurate, chunkSize: 1024)
+    }
+  }
+
+  // MARK: - Helpers
+
+  private func assertStereoMatchesMono(
+    factory: (Int, Int, Int, Int) -> AudioResampler
+  ) throws {
     let inRate = 44100
     let outRate = 48000
     let chunkSize = 1024
@@ -35,13 +113,10 @@ import Testing
     let left = makeSine(n: nbrIn, rate: inRate, freq: 1000.0)
     let right = makeSine(n: nbrIn, rate: inRate, freq: 1500.0)
 
-    let stereo = SynchronousResampler(
-      channels: 2, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
-    let monoL = SynchronousResampler(
-      channels: 1, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
-    let monoR = SynchronousResampler(
-      channels: 1, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
-    let cs = stereo.chunkSize  // possibly rounded up
+    let stereo = factory(2, inRate, outRate, chunkSize)
+    let monoL = factory(1, inRate, outRate, chunkSize)
+    let monoR = factory(1, inRate, outRate, chunkSize)
+    let cs = stereo.chunkSize
 
     var stereoOutL: [Double] = []
     var stereoOutR: [Double] = []
@@ -72,24 +147,15 @@ import Testing
       maxL = max(maxL, abs(stereoOutL[i] - monoOutL[i]))
       maxR = max(maxR, abs(stereoOutR[i] - monoOutR[i]))
     }
-    // Per-channel state is independent, so stereo[ch] should equal
-    // mono[ch] bit-for-bit.
     #expect(maxL == 0.0)
     #expect(maxR == 0.0)
   }
 
-  // MARK: - In-place API equivalence
-
-  /// `process(input:into:)` (in-place, allocation-free) must produce
-  /// the same output as the allocating `process(chunk:)` API.
-  @Test func InoutAPI_Synchronous_MatchesAllocatingAPI() {
-    let inRate = 44100
-    let outRate = 48000
-    let chunkSize = 1024
-    let resamplerA = SynchronousResampler(
-      channels: 2, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
-    let resamplerB = SynchronousResampler(
-      channels: 2, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
+  private func assertInoutMatchesAlloc(
+    makeA: () -> AudioResampler, makeB: () -> AudioResampler
+  ) {
+    let resamplerA = makeA()
+    let resamplerB = makeB()
     let cs = resamplerA.chunkSize
 
     let perChannel = (0..<2).map { _ -> [Double] in
@@ -116,14 +182,8 @@ import Testing
     }
   }
 
-  /// In-place API must throw `outputBufferTooSmall` when the caller
-  /// supplies an output chunk smaller than `maxOutputFrames`.
-  @Test func InoutAPI_RejectsTooSmallOutputBuffer() {
-    let inRate = 44100
-    let outRate = 48000
-    let chunkSize = 1024
-    let resampler = SynchronousResampler(
-      channels: 2, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
+  private func assertRejectsTooSmallOutputBuffer(makeResampler: () -> AudioResampler) {
+    let resampler = makeResampler()
     let inChunk = AudioChunk(
       waveforms: [[Double]](
         repeating: [Double](repeating: 0, count: resampler.chunkSize), count: 2),
@@ -140,8 +200,6 @@ import Testing
       Issue.record("Unexpected error: \(error)")
     }
   }
-
-  // MARK: - Helpers
 
   private func makeSine(n: Int, rate: Int, freq: Double = 1000.0) -> [Double] {
     let omega = 2.0 * .pi * freq / Double(rate)

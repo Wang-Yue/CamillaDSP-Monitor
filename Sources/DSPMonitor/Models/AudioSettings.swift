@@ -1,6 +1,5 @@
-// AudioSettings - Processing parameters and user preferences
-
 import DSPAudio
+import DSPConfig
 import Foundation
 import Observation
 
@@ -15,14 +14,6 @@ enum ResamplerType: String, Codable, Sendable, CaseIterable, Identifiable {
   case asyncPoly = "AsyncPoly"
   case synchronous = "Synchronous"
   case apple = "Apple"
-  var id: String { rawValue }
-}
-
-enum ResamplerProfile: String, Codable, Sendable, CaseIterable, Identifiable {
-  case veryFast = "VeryFast"
-  case fast = "Fast"
-  case balanced = "Balanced"
-  case accurate = "Accurate"
   var id: String { rawValue }
 }
 

@@ -91,3 +91,12 @@ public struct ResamplerConfig: Codable, Equatable, Sendable, CustomStringConvert
     "ResamplerConfig(type: \(type), profile: \(profile ?? "nil"), interpolation: \(interpolation ?? "nil"), sincLen: \(sincLen ?? 0))"
   }
 }
+
+public enum ResamplerProfile: String, Codable, Sendable, CaseIterable, Identifiable {
+  case veryFast = "VeryFast"
+  case fast = "Fast"
+  case balanced = "Balanced"
+  case accurate = "Accurate"
+
+  public var id: String { rawValue }
+}

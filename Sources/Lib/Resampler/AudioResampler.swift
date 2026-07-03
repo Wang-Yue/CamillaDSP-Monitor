@@ -15,10 +15,16 @@ public func createResampler(
     return SynchronousResampler(
       channels: channels, inputRate: inputRate, outputRate: outputRate,
       chunkSize: chunkSize)
-  case .asyncSinc, .asyncPoly:
-    throw ResamplerError.invalidParameter(
-      message: "Resampler type \(config.type.rawValue) is not supported by the native Swift engine"
-    )
+  case .asyncSinc:
+    let profile = config.profile.flatMap { ResamplerProfile(rawValue: $0) } ?? .balanced
+    return AsyncSincResampler(
+      channels: channels, inputRate: inputRate, outputRate: outputRate,
+      profile: profile, chunkSize: chunkSize)
+  case .asyncPoly:
+    let interp = config.interpolation.flatMap { PolyInterpolation(rawValue: $0) } ?? .cubic
+    return AsyncPolyResampler(
+      channels: channels, inputRate: inputRate, outputRate: outputRate,
+      interpolation: interp, chunkSize: chunkSize)
   case .apple:
     return try AppleResampler(
       channels: channels, inputRate: inputRate, outputRate: outputRate,
@@ -69,4 +75,48 @@ public protocol AudioResampler: AnyObject {
   /// `SynchronousResampler` ignores this (its ratio is fixed by
   /// construction).
   func setRelativeRatio(_ multiplier: Double)
+}
+
+/// Polynomial degree exposed by `AsyncPolyResampler`. Mirrors rubato's
+/// `PolynomialDegree`.
+public enum PolyInterpolation: String, Codable {
+  case linear = "Linear"
+  case cubic = "Cubic"
+  case quintic = "Quintic"
+  case septic = "Septic"
+
+  /// Number of input samples the polynomial is fitted across.
+  /// Matches rubato's `nbr_points()`.
+  public var nbrPoints: Int {
+    switch self {
+    case .linear: return 2
+    case .cubic: return 4
+    case .quintic: return 6
+    case .septic: return 8
+    }
+  }
+}
+
+/// Sub-filter interpolation method used by `AsyncSincResampler`.
+public enum SincInterpolationType {
+  case linear
+  case quadratic
+  case cubic
+}
+
+// SIMD2<Double> load/store helpers. These pin Swift's compiler into
+// emitting NEON 128-bit `ldur q` / `stur q` plus `fmul.2d`, `fmla.2d`,
+// `fadd.2d`, etc. — the natural `SIMD2<Double>(arr[k], arr[k+1])` and
+// `arr[i] = v.x; arr[i+1] = v.y` forms scalarize through `d` registers
+// (verified via `otool -tvV`: 0 vector ops vs 1006 scalar). Routing
+// through `loadUnaligned` / `storeBytes` keeps both lanes resident in
+// `q` registers across the full butterfly.
+@inline(__always)
+func ldSIMD2(_ p: UnsafePointer<Double>, _ idx: Int) -> SIMD2<Double> {
+  return UnsafeRawPointer(p + idx).loadUnaligned(as: SIMD2<Double>.self)
+}
+
+@inline(__always)
+func stSIMD2(_ p: UnsafeMutablePointer<Double>, _ idx: Int, _ v: SIMD2<Double>) {
+  UnsafeMutableRawPointer(p + idx).storeBytes(of: v, as: SIMD2<Double>.self)
 }

@@ -34,6 +34,7 @@ import Foundation
 import Testing
 
 @testable import DSPAudio
+@testable import DSPConfig
 @testable import DSPResampler
 
 @Suite struct ResamplerComparisonMatrix {
@@ -134,7 +135,8 @@ import Testing
     var entries:
       [(
         index: Int, label: String,
-        swift: Cell, mast: Cell, minPh: Cell, rubato: Cell?
+        swift: Cell, poly: Cell, sinc: Cell, mast: Cell, minPh: Cell,
+        rubatoFft: Cell?, rubatoPoly: Cell?, rubatoSinc: Cell?
       )] = []
     for (i, entry) in Self.rateGrid.enumerated() {
       let r = computeRowForRatePair(
@@ -143,8 +145,20 @@ import Testing
       entries.append(r)
     }
 
-    let grid: [(label: String, swift: Cell, mast: Cell, minPh: Cell, rubato: Cell?)] =
-      entries.map { ($0.label, $0.swift, $0.mast, $0.minPh, $0.rubato) }
+    let grid:
+      [(
+        label: String,
+        swift: Cell, poly: Cell, sinc: Cell,
+        mast: Cell, minPh: Cell,
+        rubatoFft: Cell?, rubatoPoly: Cell?, rubatoSinc: Cell?
+      )] =
+        entries.map {
+          (
+            $0.label, $0.swift, $0.poly, $0.sinc,
+            $0.mast, $0.minPh,
+            $0.rubatoFft, $0.rubatoPoly, $0.rubatoSinc
+          )
+        }
 
     // -- Print tables. Rows that are "N/A" for every implementation
     // of a given metric are skipped automatically (e.g. upsampling
@@ -204,11 +218,24 @@ import Testing
     index: Int, inRate: Int, outRate: Int, label: String, rubatoOK: Bool
   ) -> (
     index: Int, label: String,
-    swift: Cell, mast: Cell, minPh: Cell, rubato: Cell?
+    swift: Cell, poly: Cell, sinc: Cell, mast: Cell, minPh: Cell,
+    rubatoFft: Cell?, rubatoPoly: Cell?, rubatoSinc: Cell?
   ) {
     let swiftProcess: ProcessFn = { input, ir, or in
       let res = SynchronousResampler(
         channels: 1, inputRate: ir, outputRate: or, chunkSize: Self.chunkSize)
+      return self.runResampler(res, input: input)
+    }
+    let polyProcess: ProcessFn = { input, ir, or in
+      let res = AsyncPolyResampler(
+        channels: 1, inputRate: ir, outputRate: or,
+        interpolation: .cubic, chunkSize: Self.chunkSize)
+      return self.runResampler(res, input: input)
+    }
+    let sincProcess: ProcessFn = { input, ir, or in
+      let res = AsyncSincResampler(
+        channels: 1, inputRate: ir, outputRate: or,
+        profile: .accurate, chunkSize: Self.chunkSize)
       return self.runResampler(res, input: input)
     }
     let appleMastProcess: ProcessFn = { input, ir, or in
@@ -227,17 +254,35 @@ import Testing
       else { return nil }
       return self.runResampler(res, input: input)
     }
-    let rubatoProcess: ProcessFn = { input, ir, or in
+    let rubatoFftProcess: ProcessFn = { input, ir, or in
       guard rubatoOK else { return nil }
-      return self.runRubatoFft(inRate: ir, outRate: or, input: input)
+      return self.runRubato(mode: "fft", inRate: ir, outRate: or, input: input)
+    }
+    let rubatoPolyProcess: ProcessFn = { input, ir, or in
+      guard rubatoOK else { return nil }
+      return self.runRubato(mode: "poly-cubic", inRate: ir, outRate: or, input: input)
+    }
+    let rubatoSincProcess: ProcessFn = { input, ir, or in
+      guard rubatoOK else { return nil }
+      return self.runRubato(mode: "sinc-accurate", inRate: ir, outRate: or, input: input)
     }
 
     var swift = measureQualityCell(inRate: inRate, outRate: outRate, process: swiftProcess)
+    var poly = measureQualityCell(inRate: inRate, outRate: outRate, process: polyProcess)
+    var sinc = measureQualityCell(inRate: inRate, outRate: outRate, process: sincProcess)
     var mast = measureQualityCell(inRate: inRate, outRate: outRate, process: appleMastProcess)
     var minPh = measureQualityCell(inRate: inRate, outRate: outRate, process: appleMinPhProcess)
-    var rubato: Cell? =
+    var rubatoFft: Cell? =
       rubatoOK
-      ? measureQualityCell(inRate: inRate, outRate: outRate, process: rubatoProcess)
+      ? measureQualityCell(inRate: inRate, outRate: outRate, process: rubatoFftProcess)
+      : nil
+    var rubatoPoly: Cell? =
+      rubatoOK
+      ? measureQualityCell(inRate: inRate, outRate: outRate, process: rubatoPolyProcess)
+      : nil
+    var rubatoSinc: Cell? =
+      rubatoOK
+      ? measureQualityCell(inRate: inRate, outRate: outRate, process: rubatoSincProcess)
       : nil
 
     if let perf = measureSwiftPerf(
@@ -249,6 +294,28 @@ import Testing
     {
       swift.nsPerOutFrame = perf.nsPerOutFrame
       swift.rtfPerIter = perf.rtfPerIter
+    }
+    if let perf = measureSwiftPerf(
+      inRate: inRate, outRate: outRate,
+      factory: { i, o in
+        AsyncPolyResampler(
+          channels: 1, inputRate: i, outputRate: o,
+          interpolation: .cubic, chunkSize: Self.chunkSize)
+      })
+    {
+      poly.nsPerOutFrame = perf.nsPerOutFrame
+      poly.rtfPerIter = perf.rtfPerIter
+    }
+    if let perf = measureSwiftPerf(
+      inRate: inRate, outRate: outRate,
+      factory: { i, o in
+        AsyncSincResampler(
+          channels: 1, inputRate: i, outputRate: o,
+          profile: .accurate, chunkSize: Self.chunkSize)
+      })
+    {
+      sinc.nsPerOutFrame = perf.nsPerOutFrame
+      sinc.rtfPerIter = perf.rtfPerIter
     }
     if let perf = measureSwiftPerf(
       inRate: inRate, outRate: outRate,
@@ -272,15 +339,29 @@ import Testing
       minPh.nsPerOutFrame = perf.nsPerOutFrame
       minPh.rtfPerIter = perf.rtfPerIter
     }
-    if rubatoOK, var r = rubato,
-      let perf = measureRubatoPerf(inRate: inRate, outRate: outRate)
+    if rubatoOK, var r = rubatoFft,
+      let perf = measureRubatoPerf(mode: "fft", inRate: inRate, outRate: outRate)
     {
       r.nsPerOutFrame = perf.nsPerOutFrame
       r.rtfPerIter = perf.rtfPerIter
-      rubato = r
+      rubatoFft = r
+    }
+    if rubatoOK, var r = rubatoPoly,
+      let perf = measureRubatoPerf(mode: "poly-cubic", inRate: inRate, outRate: outRate)
+    {
+      r.nsPerOutFrame = perf.nsPerOutFrame
+      r.rtfPerIter = perf.rtfPerIter
+      rubatoPoly = r
+    }
+    if rubatoOK, var r = rubatoSinc,
+      let perf = measureRubatoPerf(mode: "sinc-accurate", inRate: inRate, outRate: outRate)
+    {
+      r.nsPerOutFrame = perf.nsPerOutFrame
+      r.rtfPerIter = perf.rtfPerIter
+      rubatoSinc = r
     }
 
-    return (index, label, swift, mast, minPh, rubato)
+    return (index, label, swift, poly, sinc, mast, minPh, rubatoFft, rubatoPoly, rubatoSinc)
   }
 
   // MARK: - Quality measurement (any `process` closure)
@@ -411,22 +492,22 @@ import Testing
   /// Drive the rubato harness with `--bench=N` and parse the
   /// `BENCH_*` tokens it emits on stderr. Returns `nil` on any
   /// harness failure (treated as a soft skip).
-  private func measureRubatoPerf(inRate: Int, outRate: Int)
+  private func measureRubatoPerf(mode: String, inRate: Int, outRate: Int)
     -> (nsPerOutFrame: Double, rtfPerIter: Double)?
   {
     var rng = SystemRandomNumberGenerator()
     let nbrIn = Self.totalChunks * Self.chunkSize
     var input = [Double](repeating: 0, count: nbrIn)
     for i in 0..<nbrIn { input[i] = Double.random(in: -1.0...1.0, using: &rng) }
-    let inPath = "/tmp/cdsp_matrix_perf_\(inRate)_\(outRate)_in.raw"
-    let outPath = "/tmp/cdsp_matrix_perf_\(inRate)_\(outRate)_out.raw"
+    let inPath = "/tmp/cdsp_matrix_perf_\(mode)_\(inRate)_\(outRate)_in.raw"
+    let outPath = "/tmp/cdsp_matrix_perf_\(mode)_\(inRate)_\(outRate)_out.raw"
     do { try RubatoHarness.writeRaw(input, to: inPath) } catch { return nil }
 
     let bin = RubatoHarness.binaryPath(named: "cdsp_resampler_compare")
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: bin)
     proc.arguments = [
-      "fft", inPath, outPath,
+      mode, inPath, outPath,
       String(inRate), String(outRate), String(Self.chunkSize),
       "--bench=\(Self.perfMinIters)",
     ]
@@ -473,14 +554,14 @@ import Testing
 
   // MARK: - rubato harness file I/O
 
-  private func runRubatoFft(inRate: Int, outRate: Int, input: [Double]) -> [Double]? {
-    let tag = "\(inRate)_\(outRate)_\(input.count)"
+  private func runRubato(mode: String, inRate: Int, outRate: Int, input: [Double]) -> [Double]? {
+    let tag = "\(mode)_\(inRate)_\(outRate)_\(input.count)"
     let inPath = "/tmp/cdsp_matrix_\(tag)_in.raw"
     let outPath = "/tmp/cdsp_matrix_\(tag)_out.raw"
     do {
       try RubatoHarness.writeRaw(input, to: inPath)
       let ok = try RubatoHarness.runResamplerCompare(
-        mode: "fft", inputPath: inPath, outputPath: outPath,
+        mode: mode, inputPath: inPath, outputPath: outPath,
         inRate: inRate, outRate: outRate, chunkSize: Self.chunkSize,
         noPartial: true)
       guard ok else { return nil }
@@ -618,25 +699,38 @@ import Testing
   // MARK: - Table printing
 
   private func printTable(
-    grid: [(label: String, swift: Cell, mast: Cell, minPh: Cell, rubato: Cell?)],
+    grid: [(
+      label: String,
+      swift: Cell, poly: Cell, sinc: Cell,
+      mast: Cell, minPh: Cell,
+      rubatoFft: Cell?, rubatoPoly: Cell?, rubatoSinc: Cell?
+    )],
     title: String,
     metric: KeyPath<Cell, Double?>,
     higherIsBetter: Bool,
     format: String
   ) {
     let pairCol = "Pair".padding(toLength: 14, withPad: " ", startingAt: 0)
-    let header = ["Swift Sync", "Apple Mast", "Apple MinPh", "rubato Fft"]
-      .map { $0.padding(toLength: 14, withPad: " ", startingAt: 0) }
-      .joined(separator: " ")
+    let header = [
+      "Swift Sync", "Swift Poly", "Swift Sinc",
+      "Apple Mast", "Apple MinPh",
+      "rubato Fft", "rubato Poly", "rubato Sinc",
+    ]
+    .map { $0.padding(toLength: 14, withPad: " ", startingAt: 0) }
+    .joined(separator: " ")
     let directionStr = higherIsBetter ? "higher is better" : "lower is better"
     print("=== \(title) (\(directionStr)) ===")
     print("\(pairCol) \(header)")
     for row in grid {
       let values: [Double?] = [
         row.swift[keyPath: metric],
+        row.poly[keyPath: metric],
+        row.sinc[keyPath: metric],
         row.mast[keyPath: metric],
         row.minPh[keyPath: metric],
-        row.rubato?[keyPath: metric],
+        row.rubatoFft?[keyPath: metric],
+        row.rubatoPoly?[keyPath: metric],
+        row.rubatoSinc?[keyPath: metric],
       ]
       // Skip rows where the metric is N/A for every implementation
       // (e.g. aliasing table for upsampling pairs).
