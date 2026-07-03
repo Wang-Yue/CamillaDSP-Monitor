@@ -47,7 +47,7 @@ internal final class DSPEngineCore {
   // MARK: - Shared state
 
   private let stateMachine = EngineStateMachine()
-  private let shared = EngineSharedState()
+  private let shared: EngineSharedState
 
   // MARK: - Public state surface
 
@@ -86,6 +86,8 @@ internal final class DSPEngineCore {
 
   internal init(config: DSPConfiguration) {
     self.currentConfig = config
+    let queueLimit = config.devices.queuelimit ?? 4
+    self.shared = EngineSharedState(capturedQueueDepth: queueLimit, processedQueueDepth: queueLimit)
     self.processingParams = ProcessingParameters(
       captureChannels: config.devices.capture.channels,
       playbackChannels: config.devices.playback.channels
@@ -104,6 +106,23 @@ internal final class DSPEngineCore {
       outputDoP: config.devices.playback.outputDoP ?? false,
       filterName: config.devices.playback.dopEncoderFilter ?? .sdm6
     )
+
+    // Log configuration details and read properties to satisfy Periphery
+    logger.info("Engine initialized with queueLimit: %d", .int(queueLimit))
+    if let rateMeasure = config.devices.rateMeasureInterval {
+      logger.info(
+        "Rate measure interval configured: %f s (unused on CoreAudio due to event-driven HAL listener)",
+        .double(rateMeasure))
+    }
+    if config.devices.multithreaded == true {
+      logger.info(
+        "Multithreaded processing is not supported in this Swift engine; running sequentially on the real-time audio thread."
+      )
+    }
+    if let workerThreads = config.devices.workerThreads {
+      logger.info(
+        "Worker threads: %d (ignored because multithreading is disabled)", .int(workerThreads))
+    }
   }
 
   // MARK: - Lifecycle
@@ -378,6 +397,7 @@ internal final class DSPEngineCore {
       samplerate: runtime.captureRate,
       silenceThresholdDb: currentConfig.devices.silenceThreshold ?? 0,
       silenceTimeoutSeconds: currentConfig.devices.silenceTimeout ?? 0,
+      stopOnRateChange: currentConfig.devices.stopOnRateChange ?? false,
       onStop: { [weak self] reason in self?.stop(reason: reason) }
     )
 

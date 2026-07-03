@@ -46,6 +46,9 @@ final class EngineCaptureLoop: @unchecked Sendable {
   private let chunkSize: Int
   private let channels: Int
   private let samplerate: Int
+  private let stopOnRateChange: Bool
+  private var lastObservedPendingRate: Double?
+  private var lastObservedPlaybackPendingRate: Double?
 
   /// Hooked stop callback. Invoked when capture decides the engine
   /// must shut down (format change / capture error / stall). The
@@ -66,6 +69,7 @@ final class EngineCaptureLoop: @unchecked Sendable {
     samplerate: Int,
     silenceThresholdDb: Double,
     silenceTimeoutSeconds: Double,
+    stopOnRateChange: Bool,
     onStop: @escaping (ProcessingStopReason) -> Void
   ) {
     self.shared = shared
@@ -77,6 +81,7 @@ final class EngineCaptureLoop: @unchecked Sendable {
     self.chunkSize = chunkSize
     self.channels = channels
     self.samplerate = samplerate
+    self.stopOnRateChange = stopOnRateChange
     self.onStop = onStop
     self.silenceCounter = SilenceCounter(
       thresholdDb: silenceThresholdDb,
@@ -107,14 +112,26 @@ final class EngineCaptureLoop: @unchecked Sendable {
       // configured format; the cleanest recovery is to stop and
       // let the host rebuild.
       if let rate = capture.pendingRateChange {
-        logger.info("Capture device rate changed to %f Hz; stopping engine", .double(rate))
-        onStop(.captureFormatChange(Int(rate.rounded())))
-        return
+        if rate != lastObservedPendingRate {
+          lastObservedPendingRate = rate
+          logger.warning("Capture device rate changed to %f Hz", .double(rate))
+          if stopOnRateChange {
+            logger.info("Stopping engine because stopOnRateChange is true")
+            onStop(.captureFormatChange(Int(rate.rounded())))
+            return
+          }
+        }
       }
       if let rate = playback.pendingRateChange {
-        logger.info("Playback device rate changed to %f Hz; stopping engine", .double(rate))
-        onStop(.playbackFormatChange(Int(rate.rounded())))
-        return
+        if rate != lastObservedPlaybackPendingRate {
+          lastObservedPlaybackPendingRate = rate
+          logger.warning("Playback device rate changed to %f Hz", .double(rate))
+          if stopOnRateChange {
+            logger.info("Stopping engine because stopOnRateChange is true")
+            onStop(.playbackFormatChange(Int(rate.rounded())))
+            return
+          }
+        }
       }
 
       do {
