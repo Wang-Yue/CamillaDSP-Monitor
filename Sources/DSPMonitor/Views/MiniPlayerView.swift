@@ -76,7 +76,7 @@ struct MiniPlayerView: View {
         // Volume Control Row
         HStack(spacing: 6) {
           Button {
-            dsp.toggleMute()
+            dsp.toggleFaderMute(fader: .main)
           } label: {
             Image(systemName: settings.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
               .font(.system(size: 10))
@@ -90,7 +90,7 @@ struct MiniPlayerView: View {
               get: { settings.volume },
               set: { newValue in
                 let rounded = (newValue * 2.0).rounded() / 2.0
-                dsp.setVolume(rounded)
+                dsp.setFaderVolume(fader: .main, db: rounded)
               }
             ),
             in: -60...20

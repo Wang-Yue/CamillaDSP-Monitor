@@ -12,8 +12,12 @@ public actor SwiftDSPEngine {
   private let spectrum = SpectrumAnalyzer()
   private let captureBuffer = AudioHistoryBuffer()
   private let playbackBuffer = AudioHistoryBuffer()
-  private var desiredVolumeDb: PrcFmt = 0.0
-  private var desiredMute: Bool = false
+  private var desiredFaderVolumes: [Fader: PrcFmt] = [
+    .main: 0.0, .aux1: 0.0, .aux2: 0.0, .aux3: 0.0, .aux4: 0.0,
+  ]
+  private var desiredFaderMutes: [Fader: Bool] = [
+    .main: false, .aux1: false, .aux2: false, .aux3: false, .aux4: false,
+  ]
   private var lastStopReason: ProcessingStopReason?
 
   public init() {}
@@ -59,9 +63,13 @@ public actor SwiftDSPEngine {
     core = nil
 
     let engine = DSPEngineCore(config: parsed)
-    engine.processingParams.targetVolume = desiredVolumeDb
-    engine.processingParams.currentVolume = desiredVolumeDb
-    engine.processingParams.isMuted = desiredMute
+    for fader in Fader.allCases {
+      let vol = desiredFaderVolumes[fader] ?? 0.0
+      let mute = desiredFaderMutes[fader] ?? false
+      engine.processingParams.setTargetVolume(vol, for: fader)
+      engine.processingParams.setCurrentVolume(vol, for: fader)
+      engine.processingParams.setMuted(mute, for: fader)
+    }
 
     captureBuffer.reset(channels: parsed.devices.capture.channels)
     playbackBuffer.reset(channels: parsed.devices.playback.channels)
@@ -88,14 +96,14 @@ public actor SwiftDSPEngine {
     core = nil
   }
 
-  public func setVolume(_ db: Float) {
-    desiredVolumeDb = PrcFmt(db)
-    core?.processingParams.targetVolume = PrcFmt(db)
+  public func setFaderVolume(_ fader: Fader, _ db: Float) {
+    desiredFaderVolumes[fader] = PrcFmt(db)
+    core?.processingParams.setTargetVolume(PrcFmt(db), for: fader)
   }
 
-  public func setMute(_ mute: Bool) {
-    desiredMute = mute
-    core?.processingParams.isMuted = mute
+  public func setFaderMute(_ fader: Fader, _ mute: Bool) {
+    desiredFaderMutes[fader] = mute
+    core?.processingParams.setMuted(mute, for: fader)
   }
 
   public func getStatus() -> StateUpdate {

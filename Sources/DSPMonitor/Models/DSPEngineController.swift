@@ -1,5 +1,6 @@
 // DSPEngineController - DSP engine lifecycle and config building
 
+import DSPAudio
 import DSPConfig
 import DSPLib
 import Observation
@@ -71,14 +72,15 @@ final class DSPEngineController {
 
   // MARK: - Volume / Mute
 
-  func setVolume(_ db: Float) {
-    settings.volume = db
-    Task { await engine.setVolume(db) }
+  func setFaderVolume(fader: Fader, db: Float) {
+    settings.setVolume(db, for: fader)
+    Task { await engine.setFaderVolume(fader, db) }
   }
 
-  func toggleMute() {
-    settings.isMuted.toggle()
-    Task { await engine.setMute(settings.isMuted) }
+  func toggleFaderMute(fader: Fader) {
+    let newMute = !settings.isMuted(for: fader)
+    settings.setMuted(newMute, for: fader)
+    Task { await engine.setFaderMute(fader, newMute) }
   }
 
   // MARK: - Config Building
@@ -240,8 +242,10 @@ final class DSPEngineController {
     do {
       // Prime faders BEFORE sending config so the pipeline initialises at the right
       // level and doesn't see a difference that triggers a 0 dBFS ramp.
-      await engine.setMute(settings.isMuted)
-      await engine.setVolume(settings.volume)
+      for fader in Fader.allCases {
+        await engine.setFaderMute(fader, settings.isMuted(for: fader))
+        await engine.setFaderVolume(fader, settings.volume(for: fader))
+      }
 
       let config = buildConfig()
       try await apply(config: config)

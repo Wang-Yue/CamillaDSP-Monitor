@@ -7,7 +7,7 @@
 
 import Synchronization
 
-public enum Fader: Int, Sendable {
+public enum Fader: Int, Sendable, CaseIterable {
   case main = 0
   case aux1 = 1
   case aux2 = 2

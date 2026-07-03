@@ -7,6 +7,7 @@
 // `DSPEngineCore` plus a `SpectrumAnalyzer` and bridges between the two
 // vocabularies.
 
+import DSPAudio
 import DSPConfig
 import DSPEngine
 import Foundation
@@ -33,12 +34,12 @@ public actor DSPEngine {
     await engine.stop()
   }
 
-  public func setVolume(_ db: Float) async {
-    await engine.setVolume(db)
+  public func setFaderVolume(_ fader: Fader, _ db: Float) async {
+    await engine.setFaderVolume(fader, db)
   }
 
-  public func setMute(_ mute: Bool) async {
-    await engine.setMute(mute)
+  public func setFaderMute(_ fader: Fader, _ mute: Bool) async {
+    await engine.setFaderMute(fader, mute)
   }
 
   public func getStatus() async -> StateUpdate {

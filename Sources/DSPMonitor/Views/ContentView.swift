@@ -739,3 +739,6 @@ struct PipelineSidebarRow: View {
     }
   }
 }
+
+// MARK: - Faders Detail
+// (Removed since faders are now always shown on the dashboard and not as a sidebar item)

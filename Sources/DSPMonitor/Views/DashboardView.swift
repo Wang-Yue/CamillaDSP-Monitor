@@ -1,6 +1,7 @@
 // DashboardView - Main dashboard showing pipeline overview and monitoring
 
 import AppKit
+import DSPAudio
 import DSPConfig
 import Observation
 import SwiftUI
@@ -77,6 +78,7 @@ struct DashboardView: View {
         if appState.showLevelMetersInDashboard {
           LevelMetersCard()
         }
+        FadersCard()
         if appState.showAnalogVUInDashboard {
           AnalogVUCard()
         }
@@ -276,5 +278,73 @@ struct SpectrogramCard: View {
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     .onAppear { spectroscope.visibilityCount += 1 }
     .onDisappear { spectroscope.visibilityCount -= 1 }
+  }
+}
+
+// MARK: - Faders Card
+
+struct FadersCard: View {
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text("Volume Faders").font(.headline)
+      VStack(spacing: 12) {
+        ForEach(Fader.allCases, id: \.self) { fader in
+          FaderControlView(fader: fader)
+        }
+      }
+    }
+    .padding()
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+  }
+}
+
+struct FaderControlView: View {
+  let fader: Fader
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioSettings.self) var settings
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Text(faderName(fader))
+        .frame(width: 80, alignment: .leading)
+        .font(.subheadline)
+
+      Button {
+        dsp.toggleFaderMute(fader: fader)
+      } label: {
+        Image(
+          systemName: settings.isMuted(for: fader) ? "speaker.slash.fill" : "speaker.wave.2.fill"
+        )
+        .foregroundStyle(settings.isMuted(for: fader) ? .red : .primary)
+        .frame(width: 20)
+      }
+      .buttonStyle(.plain)
+
+      Slider(
+        value: Binding(
+          get: { settings.volume(for: fader) },
+          set: { newValue in
+            let rounded = (newValue * 2.0).rounded() / 2.0
+            dsp.setFaderVolume(fader: fader, db: rounded)
+          }
+        ),
+        in: -60...20
+      )
+
+      Text(String(format: "%+.1f dB", settings.volume(for: fader)))
+        .font(.system(.body, design: .monospaced))
+        .foregroundStyle(settings.volume(for: fader) > 0 ? .red : .primary)
+        .frame(width: 70, alignment: .trailing)
+    }
+  }
+
+  private func faderName(_ fader: Fader) -> String {
+    switch fader {
+    case .main: return "Main"
+    case .aux1: return "Aux 1"
+    case .aux2: return "Aux 2"
+    case .aux3: return "Aux 3"
+    case .aux4: return "Aux 4"
+    }
   }
 }

@@ -1,5 +1,6 @@
 // AudioSettings - Processing parameters and user preferences
 
+import DSPAudio
 import Foundation
 import Observation
 
@@ -139,6 +140,72 @@ final class AudioSettings {
   var isMuted: Bool = false {
     didSet { defaults.set(isMuted, forKey: "isMuted") }
   }
+
+  var fader1Volume: Float = 0.0 {
+    didSet { defaults.set(fader1Volume, forKey: "fader1Volume") }
+  }
+  var fader2Volume: Float = 0.0 {
+    didSet { defaults.set(fader2Volume, forKey: "fader2Volume") }
+  }
+  var fader3Volume: Float = 0.0 {
+    didSet { defaults.set(fader3Volume, forKey: "fader3Volume") }
+  }
+  var fader4Volume: Float = 0.0 {
+    didSet { defaults.set(fader4Volume, forKey: "fader4Volume") }
+  }
+
+  var fader1Muted: Bool = false {
+    didSet { defaults.set(fader1Muted, forKey: "fader1Muted") }
+  }
+  var fader2Muted: Bool = false {
+    didSet { defaults.set(fader2Muted, forKey: "fader2Muted") }
+  }
+  var fader3Muted: Bool = false {
+    didSet { defaults.set(fader3Muted, forKey: "fader3Muted") }
+  }
+  var fader4Muted: Bool = false {
+    didSet { defaults.set(fader4Muted, forKey: "fader4Muted") }
+  }
+
+  func volume(for fader: Fader) -> Float {
+    switch fader {
+    case .main: return volume
+    case .aux1: return fader1Volume
+    case .aux2: return fader2Volume
+    case .aux3: return fader3Volume
+    case .aux4: return fader4Volume
+    }
+  }
+
+  func setVolume(_ vol: Float, for fader: Fader) {
+    switch fader {
+    case .main: volume = vol
+    case .aux1: fader1Volume = vol
+    case .aux2: fader2Volume = vol
+    case .aux3: fader3Volume = vol
+    case .aux4: fader4Volume = vol
+    }
+  }
+
+  func isMuted(for fader: Fader) -> Bool {
+    switch fader {
+    case .main: return isMuted
+    case .aux1: return fader1Muted
+    case .aux2: return fader2Muted
+    case .aux3: return fader3Muted
+    case .aux4: return fader4Muted
+    }
+  }
+
+  func setMuted(_ muted: Bool, for fader: Fader) {
+    switch fader {
+    case .main: isMuted = muted
+    case .aux1: fader1Muted = muted
+    case .aux2: fader2Muted = muted
+    case .aux3: fader3Muted = muted
+    case .aux4: fader4Muted = muted
+    }
+  }
   var silenceThreshold: Int = -60 {
     didSet {
       defaults.set(silenceThreshold, forKey: "silenceThreshold")
@@ -192,6 +259,16 @@ final class AudioSettings {
     chunkSize = savedChunkSize > 0 ? savedChunkSize : 1024
     volume = defaults.float(forKey: "volume")
     isMuted = defaults.bool(forKey: "isMuted")
+
+    fader1Volume = defaults.float(forKey: "fader1Volume")
+    fader2Volume = defaults.float(forKey: "fader2Volume")
+    fader3Volume = defaults.float(forKey: "fader3Volume")
+    fader4Volume = defaults.float(forKey: "fader4Volume")
+
+    fader1Muted = defaults.bool(forKey: "fader1Muted")
+    fader2Muted = defaults.bool(forKey: "fader2Muted")
+    fader3Muted = defaults.bool(forKey: "fader3Muted")
+    fader4Muted = defaults.bool(forKey: "fader4Muted")
     enableRateAdjust = defaults.bool(forKey: "enableRateAdjust")
     resamplerEnabled = defaults.bool(forKey: "resamplerEnabled")
 

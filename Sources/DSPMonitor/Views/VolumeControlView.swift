@@ -10,7 +10,7 @@ struct VolumeControlView: View {
   var body: some View {
     HStack(spacing: 8) {
       Button {
-        dsp.toggleMute()
+        dsp.toggleFaderMute(fader: .main)
       } label: {
         Image(systemName: settings.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
           .foregroundStyle(settings.isMuted ? .red : .primary)
@@ -22,7 +22,7 @@ struct VolumeControlView: View {
           get: { settings.volume },
           set: { newValue in
             let rounded = (newValue * 2.0).rounded() / 2.0
-            dsp.setVolume(rounded)
+            dsp.setFaderVolume(fader: .main, db: rounded)
           }
         ),
         in: -60...20

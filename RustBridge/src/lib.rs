@@ -105,12 +105,12 @@ impl CamillaEngine {
         let _ = self.tx_command.send(ControllerMessage::Stop);
     }
 
-    pub fn set_volume(&self, volume: f32) {
-        self.status_structs.processing.set_target_volume(0, volume);
+    pub fn set_fader_volume(&self, fader: u32, volume: f32) {
+        self.status_structs.processing.set_target_volume(fader as usize, volume);
     }
 
-    pub fn set_mute(&self, mute: bool) {
-        self.status_structs.processing.set_mute(0, mute);
+    pub fn set_fader_mute(&self, fader: u32, mute: bool) {
+        self.status_structs.processing.set_mute(fader as usize, mute);
     }
 
     pub fn get_status(&self) -> DspStatus {
