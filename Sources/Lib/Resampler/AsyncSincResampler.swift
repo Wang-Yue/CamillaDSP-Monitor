@@ -194,16 +194,24 @@ public final class AsyncSincResampler: AudioResampler {
     let tRatioIncrement = (tRatioEnd - tRatioStart) / Double(outputFrames)
     let factorD = Double(oversamplingFactor)
 
-    var tRatio = tRatioStart
-    var idx = lastIndex
-    for frame in 0..<outputFrames {
-      tRatio += tRatioIncrement
-      idx += tRatio
-      idxScratch[frame] = idx
-      let scaled = idx * factorD
-      fracScratch[frame] = scaled - scaled.rounded(.down)
+    var finalIdx = lastIndex
+    idxScratch.withUnsafeMutableBufferPointer { idxBuf in
+      fracScratch.withUnsafeMutableBufferPointer { fracBuf in
+        guard let idxBase = idxBuf.baseAddress,
+          let fracBase = fracBuf.baseAddress
+        else { return }
+        var tRatio = tRatioStart
+        var idx = lastIndex
+        for frame in 0..<outputFrames {
+          tRatio += tRatioIncrement
+          idx += tRatio
+          idxBase[frame] = idx
+          let scaled = idx * factorD
+          fracBase[frame] = scaled - scaled.rounded(.down)
+        }
+        finalIdx = idx
+      }
     }
-    let finalIdx = idx
 
     // Inner loop, specialised per interpolation mode.
     switch interpolation {

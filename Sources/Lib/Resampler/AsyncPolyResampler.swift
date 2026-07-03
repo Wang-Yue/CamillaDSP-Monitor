@@ -132,16 +132,24 @@ public final class AsyncPolyResampler: AudioResampler {
     let tRatioEnd = 1.0 / targetRatio
     let tRatioIncrement = (tRatioEnd - tRatioStart) / Double(outputFrames)
 
-    var tRatio = tRatioStart
-    var idx = lastIndex
-    for frame in 0..<outputFrames {
-      tRatio += tRatioIncrement
-      idx += tRatio
-      let idxFloor = idx.rounded(.down)
-      startIdxScratch[frame] = Int(idxFloor)
-      fracScratch[frame] = idx - idxFloor
+    var finalIdx = lastIndex
+    startIdxScratch.withUnsafeMutableBufferPointer { idxBuf in
+      fracScratch.withUnsafeMutableBufferPointer { fracBuf in
+        guard let idxBase = idxBuf.baseAddress,
+          let fracBase = fracBuf.baseAddress
+        else { return }
+        var tRatio = tRatioStart
+        var idx = lastIndex
+        for frame in 0..<outputFrames {
+          tRatio += tRatioIncrement
+          idx += tRatio
+          let idxFloor = idx.rounded(.down)
+          idxBase[frame] = Int(idxFloor)
+          fracBase[frame] = idx - idxFloor
+        }
+        finalIdx = idx
+      }
     }
-    let finalIdx = idx
 
     switch interpolation {
     case .linear:
