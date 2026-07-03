@@ -14,16 +14,15 @@
 import DSPAudio
 import Foundation
 
-public final class AsyncPolyResampler: AudioResampler {
-  public let channels: Int
-  public let chunkSize: Int
+final class AsyncPolyResampler: AudioResampler {
+  let channels: Int
+  let chunkSize: Int
 
   private let interpolation: PolyInterpolation
   private let interpolatorLen: Int  // = nbr_points
 
   // Ratio bookkeeping.
   private let baseRatio: Double
-  private let maxRelativeRatio: Double
   private var resampleRatio: Double
   private var targetRatio: Double
   private var lastIndex: Double  // matches rubato's `last_index`
@@ -42,11 +41,11 @@ public final class AsyncPolyResampler: AudioResampler {
   private var startIdxScratch: [Int]
   private var fracScratch: [Double]
 
-  public let maxOutputFrames: Int
+  let maxOutputFrames: Int
 
-  public var ratio: Double { resampleRatio }
+  var ratio: Double { resampleRatio }
 
-  public var nextOutputFrames: Int {
+  var nextOutputFrames: Int {
     // Mirror rubato's `calculate_output_size` for `FixedAsync::Input`
     // (`asynchro.rs:382-385`) — `.floor()`, not `.ceil()`.
     let avgRatio = 0.5 * resampleRatio + 0.5 * targetRatio
@@ -54,7 +53,7 @@ public final class AsyncPolyResampler: AudioResampler {
     return Int(raw.rounded(.down))
   }
 
-  public init(
+  init(
     channels: Int, inputRate: Int, outputRate: Int,
     interpolation: PolyInterpolation = .cubic, chunkSize: Int,
     maxRelativeRatio: Double = 1.1
@@ -66,7 +65,6 @@ public final class AsyncPolyResampler: AudioResampler {
     self.channels = channels
     self.chunkSize = chunkSize
     self.baseRatio = Double(outputRate) / Double(inputRate)
-    self.maxRelativeRatio = maxRelativeRatio
     self.interpolation = interpolation
     self.interpolatorLen = interpolation.nbrPoints
 
@@ -94,13 +92,13 @@ public final class AsyncPolyResampler: AudioResampler {
     self.fracScratch = [Double](repeating: 0, count: maxOutputFrames)
   }
 
-  public func setRelativeRatio(_ multiplier: Double) {
+  func setRelativeRatio(_ multiplier: Double) {
     targetRatio = baseRatio * multiplier
   }
 
   // MARK: - Zero-allocation API
 
-  public func process(input: AudioChunk, into output: inout AudioChunk) throws {
+  func process(input: AudioChunk, into output: inout AudioChunk) throws {
     guard input.validFrames == chunkSize else {
       throw ResamplerError.inputSizeMismatch(needed: chunkSize, got: input.validFrames)
     }

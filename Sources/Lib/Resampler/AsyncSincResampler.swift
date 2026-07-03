@@ -14,13 +14,12 @@ import DSPAudio
 import DSPConfig
 import Foundation
 
-public final class AsyncSincResampler: AudioResampler {
-  public let channels: Int
-  public let chunkSize: Int
+final class AsyncSincResampler: AudioResampler {
+  let channels: Int
+  let chunkSize: Int
 
   // Filter geometry.
   private let sincLen: Int
-  private let halfLen: Int
   private let oversamplingFactor: Int
   private let interpolation: SincInterpolationType
 
@@ -28,7 +27,6 @@ public final class AsyncSincResampler: AudioResampler {
   // chunk's processing; `targetRatio` is the goal that the next call will
   // ramp toward (mirrors rubato's `resample_ratio` / `target_ratio`).
   private let baseRatio: Double
-  private let maxRelativeRatio: Double
   private var resampleRatio: Double
   private var targetRatio: Double
   private var lastIndex: Double  // == rubato's `last_index`
@@ -54,11 +52,11 @@ public final class AsyncSincResampler: AudioResampler {
 
   // Maximum output frames the resampler can ever produce in one call. The
   // caller uses this to size the output AudioChunk once at startup.
-  public let maxOutputFrames: Int
+  let maxOutputFrames: Int
 
-  public var ratio: Double { resampleRatio }
+  var ratio: Double { resampleRatio }
 
-  public var nextOutputFrames: Int {
+  var nextOutputFrames: Int {
     // Mirror rubato's `calculate_output_size` for `FixedAsync::Input`
     // (`asynchro.rs:382-385`) — note `.floor()`, not `.ceil()`. Using ceil
     // here was the source of the off-by-one frame discrepancy versus rubato.
@@ -67,7 +65,7 @@ public final class AsyncSincResampler: AudioResampler {
     return Int(raw.rounded(.down))
   }
 
-  public init(
+  init(
     channels: Int, inputRate: Int, outputRate: Int,
     profile: ResamplerProfile = .balanced, chunkSize: Int,
     maxRelativeRatio: Double = 1.1
@@ -79,7 +77,6 @@ public final class AsyncSincResampler: AudioResampler {
     self.channels = channels
     self.chunkSize = chunkSize
     self.baseRatio = Double(outputRate) / Double(inputRate)
-    self.maxRelativeRatio = maxRelativeRatio
 
     let window: WindowFunction
     switch profile {
@@ -104,7 +101,6 @@ public final class AsyncSincResampler: AudioResampler {
       window = .blackmanHarris2
       self.interpolation = .cubic
     }
-    self.halfLen = sincLen / 2
 
     precondition(
       chunkSize >= 2 * sincLen,
@@ -146,13 +142,13 @@ public final class AsyncSincResampler: AudioResampler {
     self.fracScratch = [Double](repeating: 0, count: maxOutputFrames)
   }
 
-  public func setRelativeRatio(_ multiplier: Double) {
+  func setRelativeRatio(_ multiplier: Double) {
     targetRatio = baseRatio * multiplier
   }
 
   // MARK: - Zero-allocation API
 
-  public func process(input: AudioChunk, into output: inout AudioChunk) throws {
+  func process(input: AudioChunk, into output: inout AudioChunk) throws {
     guard input.validFrames == chunkSize else {
       throw ResamplerError.inputSizeMismatch(needed: chunkSize, got: input.validFrames)
     }

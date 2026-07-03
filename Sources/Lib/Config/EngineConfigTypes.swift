@@ -265,10 +265,15 @@ public struct DevicesConfig: Codable, Equatable, Sendable {
   public var volumeRampTime: Double?
   public var volumeLimit: Double?
 
+  // periphery:ignore
   public var queuelimit: Int?
+  // periphery:ignore
   public var stopOnRateChange: Bool?
+  // periphery:ignore
   public var rateMeasureInterval: Double?
+  // periphery:ignore
   public var multithreaded: Bool?
+  // periphery:ignore
   public var workerThreads: Int?
 
   enum CodingKeys: String, CodingKey {

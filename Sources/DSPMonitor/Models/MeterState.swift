@@ -42,10 +42,4 @@ final class LevelState {
     }
   }
 
-  func clear() {
-    if !capturePeak.isEmpty || !captureRms.isEmpty || !playbackPeak.isEmpty || !playbackRms.isEmpty
-    {
-      update(capturePeak: [], captureRms: [], playbackPeak: [], playbackRms: [])
-    }
-  }
 }

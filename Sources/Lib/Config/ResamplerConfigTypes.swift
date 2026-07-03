@@ -49,8 +49,11 @@ public struct ResamplerConfig: Codable, Equatable, Sendable, CustomStringConvert
   public var appleQuality: AppleResamplerQuality?
   public var appleComplexity: AppleResamplerComplexity?
   public var sincLen: Int?
+  // periphery:ignore
   public var oversamplingFactor: Int?
+  // periphery:ignore
   public var window: String?
+  // periphery:ignore
   public var fCutoff: Double?
 
   enum CodingKeys: String, CodingKey {

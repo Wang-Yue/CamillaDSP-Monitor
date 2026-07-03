@@ -57,6 +57,7 @@ public struct LoudnessParameters: Codable, Sendable, Equatable {
   public var highBoost: Double?
   public var lowBoost: Double?
   public var attenuateMid: Bool?
+  // periphery:ignore
   public var fader: Fader?
 
   enum CodingKeys: String, CodingKey {
@@ -204,7 +205,9 @@ public struct ConvParameters: Codable, Sendable, Equatable {
   public var format: String?
   public var channel: Int?
   public var length: Int?
+  // periphery:ignore
   public var skipBytesLines: Int?
+  // periphery:ignore
   public var readBytesLines: Int?
 
   enum CodingKeys: String, CodingKey {

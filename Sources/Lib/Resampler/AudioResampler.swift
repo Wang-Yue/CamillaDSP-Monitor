@@ -79,7 +79,7 @@ public protocol AudioResampler: AnyObject {
 
 /// Polynomial degree exposed by `AsyncPolyResampler`. Mirrors rubato's
 /// `PolynomialDegree`.
-public enum PolyInterpolation: String, Codable {
+enum PolyInterpolation: String, Codable {
   case linear = "Linear"
   case cubic = "Cubic"
   case quintic = "Quintic"
@@ -87,7 +87,7 @@ public enum PolyInterpolation: String, Codable {
 
   /// Number of input samples the polynomial is fitted across.
   /// Matches rubato's `nbr_points()`.
-  public var nbrPoints: Int {
+  var nbrPoints: Int {
     switch self {
     case .linear: return 2
     case .cubic: return 4
@@ -98,7 +98,7 @@ public enum PolyInterpolation: String, Codable {
 }
 
 /// Sub-filter interpolation method used by `AsyncSincResampler`.
-public enum SincInterpolationType {
+enum SincInterpolationType {
   case linear
   case quadratic
   case cubic

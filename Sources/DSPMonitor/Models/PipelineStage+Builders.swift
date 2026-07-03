@@ -550,22 +550,3 @@ extension PipelineStage {
     }
   }
 }
-
-// MARK: - BiquadType Helpers
-
-extension BiquadType {
-  var hasGain: Bool {
-    switch self {
-    case .peaking, .lowshelf, .highshelf, .lowshelfFO, .highshelfFO: return true
-    default: return false
-    }
-  }
-  var hasQ: Bool {
-    switch self {
-    case .peaking, .lowpass, .highpass, .lowshelf, .highshelf, .notch, .bandpass, .allpass,
-      .generalNotch, .linkwitzTransform:
-      return true
-    default: return false
-    }
-  }
-}
