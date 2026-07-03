@@ -144,26 +144,32 @@ struct StageChannelSelector: View {
           .foregroundStyle(.secondary)
           .padding(.top, 4)
         } else {
-          // Multi-channel checkboxes
+          // Multi-channel pill buttons
           if incomingChannels > 0 {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], alignment: .leading, spacing: 8)
-            {
-              ForEach(0..<incomingChannels, id: \.self) { ch in
-                Toggle(
-                  "Channel \(ch + 1)",
-                  isOn: Binding(
-                    get: { stage.channels.contains(ch) },
-                    set: { checked in
-                      if checked {
-                        stage.channels.insert(ch)
-                      } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+              HStack(spacing: 6) {
+                ForEach(0..<incomingChannels, id: \.self) { ch in
+                  let isSelected = stage.channels.contains(ch)
+                  Button(action: {
+                    if isSelected {
+                      if stage.channels.count > 1 {
                         stage.channels.remove(ch)
                       }
-                      dsp.applyConfig()
+                    } else {
+                      stage.channels.insert(ch)
                     }
-                  )
-                )
-                .toggleStyle(.checkbox)
+                    dsp.applyConfig()
+                  }) {
+                    Text("\(ch + 1)")
+                      .font(.caption.bold())
+                      .padding(.horizontal, 8)
+                      .padding(.vertical, 4)
+                      .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.1))
+                      .foregroundStyle(isSelected ? Color.white : Color.primary)
+                      .cornerRadius(4)
+                  }
+                  .buttonStyle(.plain)
+                }
               }
             }
           } else {
