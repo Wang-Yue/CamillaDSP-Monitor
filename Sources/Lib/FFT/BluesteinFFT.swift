@@ -79,10 +79,18 @@ final class BluesteinFFT: ArbitraryComplexFFT {
     precondition(n > 0, "BluesteinFFT: n must be positive")
     self.n = n
 
-    var m = 1
-    while m < (2 * n - 1) { m <<= 1 }
-    m = max(m, 16)
-    self.m = m
+    let minL = 2 * n - 1
+    var bestM = Int.max
+    let factors = [1, 3, 5, 15]
+    for f in factors {
+      let target = Double(minL) / Double(f)
+      let k = max(0, Int(ceil(log2(target))))
+      let mVal = f * (1 << k)
+      if mVal >= 16 {
+        bestM = min(bestM, mVal)
+      }
+    }
+    self.m = bestM
 
     guard
       let fwd = vDSP_DFT_zop_CreateSetupD(nil, vDSP_Length(m), .FORWARD),
