@@ -229,7 +229,7 @@ import Testing
     let polyProcess: ProcessFn = { input, ir, or in
       let res = AsyncPolyResampler(
         channels: 1, inputRate: ir, outputRate: or,
-        interpolation: .cubic, chunkSize: Self.chunkSize)
+        interpolation: .septic, chunkSize: Self.chunkSize)
       return self.runResampler(res, input: input)
     }
     let sincProcess: ProcessFn = { input, ir, or in
@@ -260,7 +260,7 @@ import Testing
     }
     let rubatoPolyProcess: ProcessFn = { input, ir, or in
       guard rubatoOK else { return nil }
-      return self.runRubato(mode: "poly-cubic", inRate: ir, outRate: or, input: input)
+      return self.runRubato(mode: "poly-septic", inRate: ir, outRate: or, input: input)
     }
     let rubatoSincProcess: ProcessFn = { input, ir, or in
       guard rubatoOK else { return nil }
@@ -300,7 +300,7 @@ import Testing
       factory: { i, o in
         AsyncPolyResampler(
           channels: 1, inputRate: i, outputRate: o,
-          interpolation: .cubic, chunkSize: Self.chunkSize)
+          interpolation: .septic, chunkSize: Self.chunkSize)
       })
     {
       poly.nsPerOutFrame = perf.nsPerOutFrame
@@ -347,7 +347,7 @@ import Testing
       rubatoFft = r
     }
     if rubatoOK, var r = rubatoPoly,
-      let perf = measureRubatoPerf(mode: "poly-cubic", inRate: inRate, outRate: outRate)
+      let perf = measureRubatoPerf(mode: "poly-septic", inRate: inRate, outRate: outRate)
     {
       r.nsPerOutFrame = perf.nsPerOutFrame
       r.rtfPerIter = perf.rtfPerIter
