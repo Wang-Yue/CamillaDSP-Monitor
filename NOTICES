@@ -1,3 +1,13 @@
 This project has the option to link to and uses CamillaDSP, which is available under 
 the Mozilla Public License 2.0 (MPL-2.0).
 The source code for CamillaDSP can be found at: https://github.com/HEnquist/camilladsp
+
+The pure Swift DSP engine included in this project is a clean-room port of the
+CamillaDSP concepts and configuration format. It is a completely different underlying
+implementation, built from scratch in Swift, and is not subject to or released
+under CamillaDSP's original MPL-2.0 license. 
+
+In most cases, the Swift engine's zero-allocation, SIMD-optimized implementation
+is significantly more computationally efficient than its Rust counterpart, and it
+supports additional features (such as Apple's native CoreAudio resampler and DSD
+over PCM (DoP) support) not present in the original Rust engine.
