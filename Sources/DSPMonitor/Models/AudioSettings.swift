@@ -23,6 +23,13 @@ enum ResamplerInterpolation: String, Codable, Sendable, CaseIterable, Identifiab
   var id: String { rawValue }
 }
 
+enum SincInterpolation: String, Codable, Sendable, CaseIterable, Identifiable {
+  case linear = "Linear"
+  case quadratic = "Quadratic"
+  case cubic = "Cubic"
+  var id: String { rawValue }
+}
+
 enum ResamplerAppleQuality: String, Codable, Sendable, CaseIterable, Identifiable {
   case min = "Min"
   case low = "Low"
@@ -108,6 +115,12 @@ final class AudioSettings {
   var resamplerInterpolation: ResamplerInterpolation = .cubic {
     didSet {
       defaults.set(resamplerInterpolation.rawValue, forKey: "resamplerInterpolation")
+      onChanged?()
+    }
+  }
+  var resamplerSincInterpolation: SincInterpolation = .cubic {
+    didSet {
+      defaults.set(resamplerSincInterpolation.rawValue, forKey: "resamplerSincInterpolation")
       onChanged?()
     }
   }
@@ -288,6 +301,11 @@ final class AudioSettings {
       let interpolation = ResamplerInterpolation(rawValue: i)
     {
       resamplerInterpolation = interpolation
+    }
+    if let si = defaults.string(forKey: "resamplerSincInterpolation"),
+      let interpolation = SincInterpolation(rawValue: si)
+    {
+      resamplerSincInterpolation = interpolation
     }
     if let q = defaults.string(forKey: "resamplerAppleQuality"),
       let quality = ResamplerAppleQuality(rawValue: q)

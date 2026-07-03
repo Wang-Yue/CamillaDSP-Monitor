@@ -155,6 +155,7 @@ final class DSPEngineController {
           resampler.oversamplingFactor = settings.resamplerOversamplingFactor
           resampler.window = settings.resamplerWindow
           resampler.fCutoff = settings.resamplerFCutoff
+          resampler.interpolation = settings.resamplerSincInterpolation.rawValue
         }
       case .asyncPoly:
         resampler.interpolation = settings.resamplerInterpolation.rawValue

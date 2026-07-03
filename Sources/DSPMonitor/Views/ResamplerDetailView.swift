@@ -144,6 +144,23 @@ struct ResamplerDetailView: View {
                         .font(.system(.body, design: .monospaced))
                       Spacer()
                     }
+
+                    HStack(spacing: 16) {
+                      Text("Interpolation")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 120, alignment: .leading)
+                      Picker("", selection: $settings.resamplerSincInterpolation) {
+                        ForEach(SincInterpolation.allCases) { interp in
+                          Text(interp.rawValue).tag(interp)
+                        }
+                      }
+                      .frame(width: 150)
+                      .labelsHidden()
+                      .onChange(of: settings.resamplerSincInterpolation) { _, _ in dsp.applyConfig()
+                      }
+                      Spacer()
+                    }
                   }
                   .padding(.leading, 16)
                 }
