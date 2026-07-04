@@ -11,8 +11,6 @@ log = "0.4"
 env_logger = "0.11"
 parking_lot = "0.12"
 crossbeam-channel = "0.5"
-realfft = "3.5"
-num-complex = "0.4"
 
 [[bin]]
 name = "uniffi-bindgen"
