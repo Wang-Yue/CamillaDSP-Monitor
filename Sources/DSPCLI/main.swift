@@ -321,6 +321,20 @@ struct DSPCLI {
 
     let activeConfigPath = ActiveConfigPath(initialPath: configPath)
 
+    let server: WebSocketServer?
+    if let p = port {
+      let s = WebSocketServer(
+        port: p,
+        host: bindAddress,
+        activePath: activeConfigPath,
+        stateFilePath: stateFilePath
+      )
+      s.setEngine(engine)
+      server = s
+    } else {
+      server = nil
+    }
+
     // Start state saver task loop
     if let sPath = stateFilePath {
       Task {
@@ -343,7 +357,9 @@ struct DSPCLI {
               faders: fadersList
             )
             if let data = try? JSONEncoder().encode(content) {
-              try? data.write(to: URL(fileURLWithPath: sPath))
+              if (try? data.write(to: URL(fileURLWithPath: sPath))) != nil {
+                server?.clearUnsavedStateChanges()
+              }
             }
           }
         }
@@ -351,12 +367,10 @@ struct DSPCLI {
     }
 
     // Start WebSocket server
-    if let p = port {
-      let s = WebSocketServer(port: p, host: bindAddress, activePath: activeConfigPath)
-      s.setEngine(engine)
+    if let s = server {
       do {
         try s.start()
-        print("WebSocket server running on \(bindAddress):\(p)")
+        print("WebSocket server running on \(bindAddress):\(port!)")
       } catch {
         print("Error starting WebSocket server: \(error)")
       }
