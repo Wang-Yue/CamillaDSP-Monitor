@@ -28,6 +28,7 @@ static void print_usage(void) {
     printf("Usage: dsp-cli [CONFIGFILE] [OPTIONS]\n"
            "  CONFIGFILE        Path to JSON/YAML configuration file.\n\n"
            "Options:\n"
+           "  -h, --help        Print this help message.\n"
            "  -c, --check       Check config file and exit.\n"
            "  -s, --statefile   Use the given file to persist volume/mute state.\n"
            "  -w, --wait        Wait for config from websocket (starts inactive).\n"
@@ -47,7 +48,19 @@ static void print_usage(void) {
            "  --mute3           Start with Aux3 fader muted.\n"
            "  --mute4           Start with Aux4 fader muted.\n"
            "  -r, --samplerate  Override samplerate in config.\n"
-           "  -n, --channels    Override number of channels of capture device in config.\n");
+           "  -n, --channels    Override number of channels of capture device in config.\n\n"
+           "Supported device types:\n"
+#if defined(__APPLE__)
+           "  Capture: CoreAudio, File, Stdin, Generator\n"
+           "  Playback: CoreAudio, File, Stdout\n"
+#elif defined(__linux__)
+           "  Capture: ALSA, Pulse, PipeWire, File, Stdin, Generator\n"
+           "  Playback: ALSA, Pulse, PipeWire, File, Stdout\n"
+#else
+           "  Capture: File, Stdin, Generator\n"
+           "  Playback: File, Stdout\n"
+#endif
+    );
 }
 
 static char* read_file_to_string(const char* path) {
@@ -95,7 +108,10 @@ int main(int argc, char** argv) {
 
     for (int i = 1; i < argc; i++) {
         const char* arg = argv[i];
-        if (strcmp(arg, "-c") == 0 || strcmp(arg, "--check") == 0) {
+        if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
+            print_usage();
+            return 0;
+        } else if (strcmp(arg, "-c") == 0 || strcmp(arg, "--check") == 0) {
             check_only = true;
         } else if (strcmp(arg, "-w") == 0 || strcmp(arg, "--wait") == 0) {
             wait_config = true;
