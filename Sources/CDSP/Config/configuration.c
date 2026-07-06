@@ -343,6 +343,7 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
         if (extract_string_in_range(res_pos, res_end, "\"interpolation\"", config->devices.resampler.interpolation, sizeof(config->devices.resampler.interpolation))) {
             config->devices.resampler.has_interpolation = true;
         }
+#if defined(__APPLE__)
         char aq_str[64] = {0};
         if (extract_string_in_range(res_pos, res_end, "\"apple_quality\"", aq_str, sizeof(aq_str))) {
             config->devices.resampler.apple_quality = apple_resampler_quality_from_string(aq_str);
@@ -353,6 +354,7 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
             config->devices.resampler.apple_complexity = apple_resampler_complexity_from_string(ac_str);
             config->devices.resampler.has_apple_complexity = true;
         }
+#endif
         config->devices.resampler.sinc_len = extract_int_in_range(res_pos, res_end, "\"sinc_len\"", 0);
         config->devices.resampler.has_sinc_len = (config->devices.resampler.sinc_len > 0);
         config->devices.resampler.oversampling_factor = extract_int_in_range(res_pos, res_end, "\"oversampling_factor\"", 0);
@@ -370,7 +372,13 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
     if (cap_pos) {
         const char* cap_end = find_section_end(cap_pos);
         config->devices.capture.channels = extract_int_in_range(cap_pos, cap_end, "\"channels\"", 0);
+#if defined(__APPLE__)
         config->devices.capture.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
+#elif defined(__linux__)
+        config->devices.capture.type = AUDIO_BACKEND_TYPE_ALSA;
+#elif defined(_WIN32)
+        config->devices.capture.type = AUDIO_BACKEND_TYPE_WASAPI;
+#endif
         if (extract_string_in_range(cap_pos, cap_end, "\"device\"", config->devices.capture.device, sizeof(config->devices.capture.device))) {
             config->devices.capture.has_device = true;
         }
@@ -384,7 +392,13 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
     if (play_pos) {
         const char* play_end = find_section_end(play_pos);
         config->devices.playback.channels = extract_int_in_range(play_pos, play_end, "\"channels\"", 0);
+#if defined(__APPLE__)
         config->devices.playback.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
+#elif defined(__linux__)
+        config->devices.playback.type = AUDIO_BACKEND_TYPE_ALSA;
+#elif defined(_WIN32)
+        config->devices.playback.type = AUDIO_BACKEND_TYPE_WASAPI;
+#endif
         if (extract_string_in_range(play_pos, play_end, "\"device\"", config->devices.playback.device, sizeof(config->devices.playback.device))) {
             config->devices.playback.has_device = true;
         }

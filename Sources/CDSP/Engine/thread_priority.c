@@ -1,10 +1,12 @@
-// Helper for promoting threads to Mach real-time priority
-// based on audio parameters (buffer frames and sample rate).
-
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "thread_priority.h"
 #include "Logging/app_logger.h"
+#ifdef __APPLE__
 #include <mach/mach.h>
 #include <mach/mach_time.h>
+#endif
 #include <pthread.h>
 #include <stdio.h>
 
@@ -17,6 +19,7 @@
 ///   - name: A descriptive name of the thread (e.g. Capture, Playback, Processing).
 ///   - buffer_frames: The buffer size in frames.
 ///   - sample_rate: The sample rate in Hz.
+#ifdef __APPLE__
 void set_realtime_thread_priority(const char* name, size_t buffer_frames, size_t sample_rate) {
     if (buffer_frames == 0 || sample_rate == 0) {
         logger_t logger = logger_create("dsp.threadpriority");
@@ -83,3 +86,40 @@ void set_realtime_thread_priority(const char* name, size_t buffer_frames, size_t
                      log_arg_string(name ? name : "unknown"), log_arg_int((int64_t)result), log_arg_none(), log_arg_none());
     }
 }
+#else
+#include <sched.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+
+void set_realtime_thread_priority(const char* name, size_t buffer_frames, size_t sample_rate) {
+    (void)buffer_frames; (void)sample_rate;
+    pthread_t thread = pthread_self();
+    struct sched_param param;
+    int policy;
+    logger_t logger = logger_create("dsp.threadpriority");
+
+    // 1. Try native POSIX scheduling first (succeeds if user has CAP_SYS_NICE or custom rlimits)
+    if (pthread_getschedparam(thread, &policy, &param) == 0) {
+        param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        int res = pthread_setschedparam(thread, SCHED_FIFO, &param);
+        if (res == 0) {
+            logger_info(&logger, "[%s] Thread promoted to Linux SCHED_FIFO real-time priority via pthread_setschedparam", log_arg_string(name ? name : "unknown"), log_arg_none(), log_arg_none(), log_arg_none());
+            return;
+        }
+    }
+
+    // 2. Fall back to RealtimeKit (rtkit) via dbus-send (succeeds on typical desktop setups without custom limits)
+    pid_t tid = (pid_t)syscall(SYS_gettid);
+    char cmd[512];
+    // rtkit priority default is 10 (matching RT_PRIO_DEFAULT in audio_thread_priority)
+    snprintf(cmd, sizeof(cmd), "dbus-send --system --print-reply --dest=org.freedesktop.RealtimeKit1 /org/freedesktop/RealtimeKit1 org.freedesktop.RealtimeKit1.MakeThreadRealtime uint64:%llu uint32:%u >/dev/null 2>&1", (unsigned long long)tid, 10);
+    int rtkit_res = system(cmd);
+    if (rtkit_res == 0) {
+        logger_info(&logger, "[%s] Thread promoted to Linux real-time priority via RealtimeKit (rtkit)", log_arg_string(name ? name : "unknown"), log_arg_none(), log_arg_none(), log_arg_none());
+    } else {
+        logger_warn(&logger, "[%s] Failed to promote thread to real-time priority (both pthread_setschedparam and RealtimeKit failed)", log_arg_string(name ? name : "unknown"), log_arg_none(), log_arg_none(), log_arg_none());
+    }
+}
+#endif

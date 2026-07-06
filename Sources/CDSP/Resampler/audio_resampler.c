@@ -152,6 +152,7 @@ audio_resampler_t* audio_resampler_wrap_async_poly(async_poly_resampler_t* res) 
     return wrap;
 }
 
+#ifdef __APPLE__
 static resampler_error_t apple_process(audio_resampler_t* self, const audio_chunk_t* input, audio_chunk_t* output) {
     return apple_resampler_process((apple_resampler_t*)self->impl, input, output);
 }
@@ -193,6 +194,7 @@ audio_resampler_t* audio_resampler_wrap_apple(apple_resampler_t* res) {
     wrap->free = apple_free_fn;
     return wrap;
 }
+#endif
 
 audio_resampler_t* audio_resampler_create_from_config(const resampler_config_t* config, size_t input_rate, size_t output_rate, size_t channels, size_t chunk_size) {
     if (!config) return NULL;
@@ -231,6 +233,7 @@ audio_resampler_t* audio_resampler_create_from_config(const resampler_config_t* 
             );
             return audio_resampler_wrap_async_poly(res);
         }
+#if defined(__APPLE__)
         case RESAMPLER_TYPE_APPLE: {
             apple_resampler_quality_t qual = config->has_apple_quality ? config->apple_quality : APPLE_RESAMPLER_QUALITY_MAX;
             apple_resampler_complexity_t comp = config->has_apple_complexity ? config->apple_complexity : APPLE_RESAMPLER_COMPLEXITY_NORMAL;
@@ -239,6 +242,7 @@ audio_resampler_t* audio_resampler_create_from_config(const resampler_config_t* 
             );
             return audio_resampler_wrap_apple(res);
         }
+#endif
         default:
             return NULL;
     }

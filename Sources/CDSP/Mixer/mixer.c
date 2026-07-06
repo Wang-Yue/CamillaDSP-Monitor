@@ -14,7 +14,9 @@
  *      - If gain != 0.0 and != 1.0, uses `dsp_ops_multiply_add` (vectorized multiply-accumulate).
  *   4. Zero-allocation guarantee is strictly maintained on the audio processing path.
  */
-
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "Mixer/mixer.h"
 #include <stdlib.h>
 #include <string.h>

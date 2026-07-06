@@ -296,23 +296,60 @@ void dsp_engine_set_log_level(log_level_t level) {
 }
 
 int dsp_engine_get_available_devices(const char* backend, bool input, audio_device_t* out_devices, int max_devices) {
-    if (!backend || strcasecmp(backend, "coreaudio") != 0) return 0;
-    char names[32][256];
-    int count = core_audio_capabilities_available_device_names(input, names, 32);
-    if (count > max_devices) count = max_devices;
-    for (int i = 0; i < count; i++) {
-        if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
+    if (!backend) return 0;
+    if (strcasecmp(backend, "coreaudio") == 0) {
+#ifdef __APPLE__
+        char names[32][256];
+        int count = core_audio_capabilities_available_device_names(input, names, 32);
+        if (count > max_devices) count = max_devices;
+        for (int i = 0; i < count; i++) {
+            if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
+        }
+        return count;
+#else
+        return 0;
+#endif
+    } else if (strcasecmp(backend, "alsa") == 0) {
+#ifndef __APPLE__
+        char names[32][256];
+        int count = alsa_capabilities_available_device_names(input, names, 32);
+        if (count > max_devices) count = max_devices;
+        for (int i = 0; i < count; i++) {
+            if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
+        }
+        return count;
+#else
+        return 0;
+#endif
     }
-    return count;
+    return 0;
 }
 
 audio_device_descriptor_t* dsp_engine_get_device_capabilities(const char* backend, const char* device, bool is_capture) {
-    if (!backend || strcasecmp(backend, "coreaudio") != 0 || !device) return NULL;
-    return core_audio_capabilities_describe(device, is_capture);
+    if (!backend || !device) return NULL;
+    if (strcasecmp(backend, "coreaudio") == 0) {
+#ifdef __APPLE__
+        return core_audio_capabilities_describe(device, is_capture);
+#else
+        return NULL;
+#endif
+    } else if (strcasecmp(backend, "alsa") == 0) {
+#ifndef __APPLE__
+        return alsa_capabilities_describe(device, is_capture);
+#else
+        return NULL;
+#endif
+    }
+    return NULL;
 }
 
 void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc) {
+    if (!desc) return;
+#ifdef __APPLE__
     core_audio_capabilities_free_descriptor(desc);
+#else
+    alsa_capabilities_free_descriptor(desc);
+#endif
 }
 
 const dsp_config_t* dsp_engine_get_active_config(const dsp_engine_t* engine) {

@@ -265,8 +265,8 @@ void dsp_engine_core_stop(dsp_engine_core_t* core, processing_stop_reason_t reas
 
     // Wake the loops out of their semaphore waits so they can
     // observe `shouldStop` and exit cleanly.
-    dispatch_semaphore_signal(core->shared->captured_semaphore);
-    dispatch_semaphore_signal(core->shared->processed_semaphore);
+    engine_sem_signal(core->shared->captured_semaphore);
+    engine_sem_signal(core->shared->processed_semaphore);
 
     if (core->threads_created) {
         pthread_join(core->capture_thread, NULL);

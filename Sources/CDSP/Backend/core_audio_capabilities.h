@@ -3,6 +3,8 @@
 #ifndef CLIB_BACKEND_CORE_AUDIO_CAPABILITIES_H
 #define CLIB_BACKEND_CORE_AUDIO_CAPABILITIES_H
 
+#ifdef __APPLE__
+
 #include "core_audio_device.h"
 #include "Config/engine_config_types.h"
 #include <stdint.h>
@@ -65,5 +67,7 @@ void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 #ifdef __cplusplus
 }
 #endif
+
+#endif // __APPLE__
 
 #endif // CLIB_BACKEND_CORE_AUDIO_CAPABILITIES_H

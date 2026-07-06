@@ -55,6 +55,11 @@ typedef struct {
 #ifdef __APPLE__
     vDSP_Length log2n;
     FFTSetup fft_setup;
+#else
+    void* fft_setup;
+    double* fft_in_d;
+    double* fft_re_d;
+    double* fft_im_d;
 #endif
     float* window;
     // Preallocated reusable scratch buffers to eliminate frame-by-frame allocations

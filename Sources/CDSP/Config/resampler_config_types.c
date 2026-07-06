@@ -7,7 +7,9 @@
 const char* resampler_type_to_string(resampler_type_t type) {
     switch (type) {
         case RESAMPLER_TYPE_SYNCHRONOUS: return "Synchronous";
+#if defined(__APPLE__)
         case RESAMPLER_TYPE_APPLE: return "Apple";
+#endif
         case RESAMPLER_TYPE_ASYNC_SINC: return "AsyncSinc";
         case RESAMPLER_TYPE_ASYNC_POLY: return "AsyncPoly";
         default: return "Synchronous";
@@ -17,12 +19,15 @@ const char* resampler_type_to_string(resampler_type_t type) {
 resampler_type_t resampler_type_from_string(const char* str) {
     if (!str) return RESAMPLER_TYPE_SYNCHRONOUS;
     if (strcmp(str, "Synchronous") == 0) return RESAMPLER_TYPE_SYNCHRONOUS;
+#if defined(__APPLE__)
     if (strcmp(str, "Apple") == 0) return RESAMPLER_TYPE_APPLE;
+#endif
     if (strcmp(str, "AsyncSinc") == 0) return RESAMPLER_TYPE_ASYNC_SINC;
     if (strcmp(str, "AsyncPoly") == 0) return RESAMPLER_TYPE_ASYNC_POLY;
     return RESAMPLER_TYPE_SYNCHRONOUS;
 }
 
+#if defined(__APPLE__)
 /// Quality settings supported by Apple's AudioConverter.
 const char* apple_resampler_quality_to_string(apple_resampler_quality_t quality) {
     switch (quality) {
@@ -74,6 +79,7 @@ uint32_t apple_resampler_complexity_os_type(apple_resampler_complexity_t comp) {
         default: return 0x6E6F726D;
     }
 }
+#endif
 
 const char* resampler_profile_to_string(resampler_profile_t profile) {
     switch (profile) {

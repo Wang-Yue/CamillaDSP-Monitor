@@ -3,15 +3,14 @@
 #ifndef CLIB_RESAMPLER_APPLE_RESAMPLER_H
 #define CLIB_RESAMPLER_APPLE_RESAMPLER_H
 
+#ifdef __APPLE__
+
 #include <stddef.h>
 #include <stdbool.h>
 #include "Audio/audio_chunk.h"
 #include "resampler_error.h"
 #include "Config/resampler_config_types.h"
-
-#ifdef __APPLE__
 #include <AudioToolbox/AudioToolbox.h>
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,11 +27,7 @@ typedef struct {
     size_t chunk_size;
     double base_ratio;
     double current_ratio;
-#ifdef __APPLE__
     AudioConverterRef converter;
-#else
-    void* converter;
-#endif
     apple_resampler_fill_context_t* fill_context;
     void* abl_storage;
     size_t max_output_frames;
@@ -51,5 +46,7 @@ size_t apple_resampler_get_channels(const apple_resampler_t* resampler);
 #ifdef __cplusplus
 }
 #endif
+
+#endif // __APPLE__
 
 #endif // CLIB_RESAMPLER_APPLE_RESAMPLER_H

@@ -42,6 +42,51 @@
 #include "FFT/mixed_radix_fft.h"
 #include "FFT/bluestein_fft.h"
 #include <stdlib.h>
+#include <string.h>
+
+#if defined(__linux__)
+#include <fftw3.h>
+
+struct fftw_real_fft_ctx {
+    real_fft_backend_t base;
+    size_t length;
+    size_t spectrum_length;
+    double* in_real;
+    fftw_complex* out_complex;
+    fftw_plan plan_forward;
+    fftw_plan plan_inverse;
+};
+
+static void fftw_real_fft_forward(void* ctx, waveform_t real_in, mutable_waveform_t spec_re, mutable_waveform_t spec_im) {
+    struct fftw_real_fft_ctx* fft = (struct fftw_real_fft_ctx*)ctx;
+    memcpy(fft->in_real, real_in, fft->length * sizeof(double));
+    fftw_execute(fft->plan_forward);
+    for (size_t i = 0; i < fft->spectrum_length; i++) {
+        spec_re[i] = __real__(fft->out_complex[i]);
+        spec_im[i] = __imag__(fft->out_complex[i]);
+    }
+}
+
+static void fftw_real_fft_inverse(void* ctx, waveform_t spec_re, waveform_t spec_im, mutable_waveform_t real_out) {
+    struct fftw_real_fft_ctx* fft = (struct fftw_real_fft_ctx*)ctx;
+    for (size_t i = 0; i < fft->spectrum_length; i++) {
+        __real__(fft->out_complex[i]) = spec_re[i];
+        __imag__(fft->out_complex[i]) = spec_im[i];
+    }
+    fftw_execute(fft->plan_inverse);
+    memcpy(real_out, fft->in_real, fft->length * sizeof(double));
+}
+
+static void fftw_real_fft_free(void* ctx) {
+    struct fftw_real_fft_ctx* fft = (struct fftw_real_fft_ctx*)ctx;
+    if (!fft) return;
+    if (fft->plan_forward) fftw_destroy_plan(fft->plan_forward);
+    if (fft->plan_inverse) fftw_destroy_plan(fft->plan_inverse);
+    if (fft->in_real) fftw_free(fft->in_real);
+    if (fft->out_complex) fftw_free(fft->out_complex);
+    free(fft);
+}
+#endif
 
 real_fft_t* real_fft_create(size_t length) {
     if (length == 0 || length % 2 != 0) return NULL;
@@ -58,6 +103,44 @@ real_fft_t* real_fft_create(size_t length) {
         fft->backend = vdsp_real_fft_as_backend(vdsp);
         return fft;
     }
+
+    // Branch 1b: Linux → FFTW3 real FFT (direct implementation, no wrapper)
+#if defined(__linux__)
+    struct fftw_real_fft_ctx* ctx = (struct fftw_real_fft_ctx*)malloc(sizeof(struct fftw_real_fft_ctx));
+    if (!ctx) {
+        free(fft);
+        return NULL;
+    }
+    ctx->length = length;
+    ctx->spectrum_length = length / 2 + 1;
+    ctx->in_real = (double*)fftw_malloc(length * sizeof(double));
+    ctx->out_complex = (fftw_complex*)fftw_malloc(ctx->spectrum_length * sizeof(fftw_complex));
+    if (!ctx->in_real || !ctx->out_complex) {
+        if (ctx->in_real) fftw_free(ctx->in_real);
+        if (ctx->out_complex) fftw_free(ctx->out_complex);
+        free(ctx);
+        free(fft);
+        return NULL;
+    }
+    ctx->plan_forward = fftw_plan_dft_r2c_1d((int)length, ctx->in_real, ctx->out_complex, FFTW_ESTIMATE);
+    ctx->plan_inverse = fftw_plan_dft_c2r_1d((int)length, ctx->out_complex, ctx->in_real, FFTW_ESTIMATE);
+    if (!ctx->plan_forward || !ctx->plan_inverse) {
+        if (ctx->plan_forward) fftw_destroy_plan(ctx->plan_forward);
+        if (ctx->plan_inverse) fftw_destroy_plan(ctx->plan_inverse);
+        fftw_free(ctx->in_real);
+        fftw_free(ctx->out_complex);
+        free(ctx);
+        free(fft);
+        return NULL;
+    }
+    ctx->base.ctx = ctx;
+    ctx->base.forward = fftw_real_fft_forward;
+    ctx->base.inverse = fftw_real_fft_inverse;
+    ctx->base.free = fftw_real_fft_free;
+    
+    fft->backend = &ctx->base;
+    return fft;
+#endif
 
     // Branch 2: even but not power-of-2 (or pow2 < 8). Build the
     // 2N-point real FFT from an N-point complex FFT. Pick the inner

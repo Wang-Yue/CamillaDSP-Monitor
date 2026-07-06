@@ -1,6 +1,9 @@
 // Comparison tests for C filter implementations against camilladsp's
 // reference. Drives the `cdsp_filter_compare` Rust harness.
 
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "test_support.h"
 #include "../../Sources/CDSP/Filters/filter.h"
 #include "../../Sources/CDSP/Filters/biquad.h"

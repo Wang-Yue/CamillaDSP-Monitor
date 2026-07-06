@@ -20,7 +20,9 @@
 // SDM state per channel is carried by an embedded `SigmaDeltaModulator`;
 // the polyphase coefficient table is shared across channels and built
 // once at init.
-
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "dop_encoder.h"
 #include <stdlib.h>
 #include <string.h>

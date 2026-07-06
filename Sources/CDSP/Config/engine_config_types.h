@@ -127,9 +127,15 @@ typedef struct {
 
 // MARK: - Device Config Models
 
-/// Audio I/O backend. DSPMonitor only ever uses CoreAudio.
+/// Audio I/O backend.
 typedef enum {
+#if defined(__APPLE__)
     AUDIO_BACKEND_TYPE_CORE_AUDIO = 0
+#elif defined(__linux__)
+    AUDIO_BACKEND_TYPE_ALSA = 1
+#elif defined(_WIN32)
+    AUDIO_BACKEND_TYPE_WASAPI = 2
+#endif
 } audio_backend_type_t;
 
 const char* audio_backend_type_to_string(audio_backend_type_t type);

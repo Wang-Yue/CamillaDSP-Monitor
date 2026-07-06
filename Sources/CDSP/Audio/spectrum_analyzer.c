@@ -1,7 +1,12 @@
 #include "Audio/spectrum_analyzer.h"
+#include "FFT/real_fft.h"
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 spectrum_analyzer_t* spectrum_analyzer_create(void) {
     spectrum_analyzer_t* analyzer = (spectrum_analyzer_t*)calloc(1, sizeof(spectrum_analyzer_t));
@@ -10,6 +15,11 @@ spectrum_analyzer_t* spectrum_analyzer_create(void) {
 #ifdef __APPLE__
     analyzer->log2n = (vDSP_Length)log2(4096.0);
     analyzer->fft_setup = vDSP_create_fftsetup(analyzer->log2n, kFFTRadix2);
+#else
+    analyzer->fft_setup = (void*)real_fft_create(4096);
+    analyzer->fft_in_d = (double*)calloc(4096, sizeof(double));
+    analyzer->fft_re_d = (double*)calloc(2049, sizeof(double));
+    analyzer->fft_im_d = (double*)calloc(2049, sizeof(double));
 #endif
     analyzer->window = (float*)calloc(analyzer->fft_n, sizeof(float));
     analyzer->data = (float*)calloc(analyzer->fft_n, sizeof(float));
@@ -21,6 +31,12 @@ spectrum_analyzer_t* spectrum_analyzer_create(void) {
 #ifdef __APPLE__
     if (analyzer->window) {
         vDSP_hann_window(analyzer->window, (vDSP_Length)analyzer->fft_n, 0);
+    }
+#else
+    if (analyzer->window) {
+        for (size_t i = 0; i < analyzer->fft_n; i++) {
+            analyzer->window[i] = 0.5f * (1.0f - cosf(2.0f * (float)M_PI * (float)i / (float)analyzer->fft_n));
+        }
     }
 #endif
 
@@ -44,6 +60,11 @@ void spectrum_analyzer_free(spectrum_analyzer_t* analyzer) {
     if (!analyzer) return;
 #ifdef __APPLE__
     if (analyzer->fft_setup) vDSP_destroy_fftsetup(analyzer->fft_setup);
+#else
+    if (analyzer->fft_setup) real_fft_free((real_fft_t*)analyzer->fft_setup);
+    if (analyzer->fft_in_d) free(analyzer->fft_in_d);
+    if (analyzer->fft_re_d) free(analyzer->fft_re_d);
+    if (analyzer->fft_im_d) free(analyzer->fft_im_d);
 #endif
     if (analyzer->window) free(analyzer->window);
     if (analyzer->data) free(analyzer->data);
@@ -102,6 +123,11 @@ spectrum_status_t spectrum_analyzer_compute(
     DSPSplitComplex split_complex = { analyzer->realp, analyzer->imagp };
     vDSP_ctoz((const DSPComplex*)analyzer->data, 2, &split_complex, 1, (vDSP_Length)half_n);
     vDSP_fft_zrip(analyzer->fft_setup, &split_complex, 1, analyzer->log2n, kFFTDirection_Forward);
+#else
+    for (size_t i = 0; i < analyzer->fft_n; i++) {
+        analyzer->fft_in_d[i] = (double)analyzer->data[i];
+    }
+    real_fft_forward((real_fft_t*)analyzer->fft_setup, analyzer->fft_in_d, analyzer->fft_re_d, analyzer->fft_im_d);
 #endif
 
     // 3. Compute magnitudes in dB directly into preallocated arrays
@@ -124,6 +150,20 @@ spectrum_status_t spectrum_analyzer_compute(
     // Convert the entire magnitudes array to decibels (dBFS)
     float ref = 1.0f;
     vDSP_vdbcon(analyzer->magnitudes, 1, &ref, analyzer->db_magnitudes, 1, (vDSP_Length)(half_n + 1), 1);
+#else
+    analyzer->magnitudes[0] = fabsf((float)analyzer->fft_re_d[0]) / (float)analyzer->fft_n;
+    analyzer->magnitudes[half_n] = fabsf((float)analyzer->fft_re_d[half_n]) / (float)analyzer->fft_n;
+    for (size_t i = 1; i < half_n; i++) {
+        double re = analyzer->fft_re_d[i];
+        double im = analyzer->fft_im_d[i];
+        analyzer->magnitudes[i] = (float)(sqrt(re*re + im*im) * (double)scale);
+    }
+    for (size_t i = 0; i <= half_n; i++) {
+        float mag = analyzer->magnitudes[i];
+        if (mag < floor_val) mag = floor_val;
+        analyzer->magnitudes[i] = mag;
+        analyzer->db_magnitudes[i] = 20.0f * log10f(mag);
+    }
 #endif
 
     // 4. Geometric Binning via Cached Plan

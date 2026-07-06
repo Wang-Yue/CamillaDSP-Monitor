@@ -13,6 +13,7 @@
 //     the render callback only fills the existing struct.
 
 #include "core_audio_capture.h"
+#ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
 #include <stdlib.h>
 #include <string.h>
@@ -490,3 +491,4 @@ void core_audio_capture_destroy(core_audio_capture_t* capture) {
     }
     free(capture);
 }
+#endif // __APPLE__

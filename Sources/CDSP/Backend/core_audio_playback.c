@@ -12,6 +12,7 @@
 //     provided by CoreAudio, consuming from the pre-allocated SPSC rings.
 
 #include "core_audio_playback.h"
+#ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
 #include <stdlib.h>
 #include <string.h>
@@ -388,3 +389,4 @@ void core_audio_playback_destroy(core_audio_playback_t* playback) {
     }
     free(playback);
 }
+#endif // __APPLE__

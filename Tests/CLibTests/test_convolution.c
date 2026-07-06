@@ -1,3 +1,6 @@
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "test_support.h"
 #include "../../Sources/CDSP/Filters/convolution.h"
 #include <math.h>

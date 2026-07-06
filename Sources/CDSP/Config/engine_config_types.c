@@ -96,17 +96,44 @@ sample_format_t sample_format_from_string(const char* str) {
 
 // MARK: - Device Config Models
 
-/// Audio I/O backend. DSPMonitor only ever uses CoreAudio.
 const char* audio_backend_type_to_string(audio_backend_type_t type) {
     switch (type) {
+#if defined(__APPLE__)
         case AUDIO_BACKEND_TYPE_CORE_AUDIO: return "CoreAudio";
-        default: return "CoreAudio";
+#elif defined(__linux__)
+        case AUDIO_BACKEND_TYPE_ALSA: return "Alsa";
+#elif defined(_WIN32)
+        case AUDIO_BACKEND_TYPE_WASAPI: return "Wasapi";
+#endif
+        default: return "Unknown";
     }
 }
 
 audio_backend_type_t audio_backend_type_from_string(const char* str) {
-    (void)str;
+    if (!str) {
+#if defined(__APPLE__)
+        return AUDIO_BACKEND_TYPE_CORE_AUDIO;
+#elif defined(__linux__)
+        return AUDIO_BACKEND_TYPE_ALSA;
+#elif defined(_WIN32)
+        return AUDIO_BACKEND_TYPE_WASAPI;
+#endif
+    }
+#if defined(__APPLE__)
+    if (strcasecmp(str, "CoreAudio") == 0 || strcasecmp(str, "Core Audio") == 0) return AUDIO_BACKEND_TYPE_CORE_AUDIO;
+#elif defined(__linux__)
+    if (strcasecmp(str, "Alsa") == 0 || strcasecmp(str, "ALSA") == 0) return AUDIO_BACKEND_TYPE_ALSA;
+#elif defined(_WIN32)
+    if (strcasecmp(str, "Wasapi") == 0 || strcasecmp(str, "WASAPI") == 0) return AUDIO_BACKEND_TYPE_WASAPI;
+#endif
+
+#if defined(__APPLE__)
     return AUDIO_BACKEND_TYPE_CORE_AUDIO;
+#elif defined(__linux__)
+    return AUDIO_BACKEND_TYPE_ALSA;
+#elif defined(_WIN32)
+    return AUDIO_BACKEND_TYPE_WASAPI;
+#endif
 }
 
 const char* sdm_filter_to_string(sdm_filter_t filter) {

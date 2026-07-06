@@ -4,8 +4,13 @@
 // engine internals and the public actor — live in `Engine/DSPEngine.swift`.
 
 #include "audio_backend.h"
+#if defined(__APPLE__)
 #include "core_audio_capture.h"
 #include "core_audio_playback.h"
+#elif defined(__linux__)
+#include "alsa_capture.h"
+#include "alsa_playback.h"
+#endif
 #include <stdlib.h>
 
 /// Create a capture backend instance based on the configuration.
@@ -15,8 +20,17 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
         return NULL;
     }
     switch (config->type) {
+#if defined(__APPLE__)
         case AUDIO_BACKEND_TYPE_CORE_AUDIO:
             return core_audio_capture_create(config, sample_rate, chunk_size, err);
+#elif defined(__linux__)
+        case AUDIO_BACKEND_TYPE_ALSA:
+            return alsa_capture_create(config, sample_rate, chunk_size, err);
+#elif defined(_WIN32)
+        case AUDIO_BACKEND_TYPE_WASAPI:
+            if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "WASAPI is not implemented yet");
+            return NULL;
+#endif
         default:
             if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "Unsupported capture backend type");
             return NULL;
@@ -30,8 +44,17 @@ playback_backend_t* create_playback_backend(const playback_device_config_t* conf
         return NULL;
     }
     switch (config->type) {
+#if defined(__APPLE__)
         case AUDIO_BACKEND_TYPE_CORE_AUDIO:
             return core_audio_playback_create(config, sample_rate, chunk_size, err);
+#elif defined(__linux__)
+        case AUDIO_BACKEND_TYPE_ALSA:
+            return alsa_playback_create(config, sample_rate, chunk_size, err);
+#elif defined(_WIN32)
+        case AUDIO_BACKEND_TYPE_WASAPI:
+            if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "WASAPI is not implemented yet");
+            return NULL;
+#endif
         default:
             if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "Unsupported playback backend type");
             return NULL;

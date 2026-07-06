@@ -1,5 +1,6 @@
 #include "log_level.h"
 #include <string.h>
+#include <strings.h>
 
 /// Compact byte encoding for `Atomic<UInt8>` storage in
 /// `MutableLogLevel`. The exact mapping is internal.

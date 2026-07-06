@@ -17,13 +17,24 @@
 //   * No `Date()` / `gettimeofday`. The watchdog uses
 //     `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (vDSO read on
 //     Darwin — no syscall).
-
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "engine_capture_loop.h"
 #include "thread_priority.h"
 #include "Logging/app_logger.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+
+#ifndef __APPLE__
+#define CLOCK_UPTIME_RAW CLOCK_MONOTONIC
+static inline uint64_t clock_gettime_nsec_np(int clock_id) {
+    struct timespec ts;
+    clock_gettime(clock_id, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+}
+#endif
 
 engine_capture_loop_t* engine_capture_loop_create(
     engine_shared_state_t* shared,
@@ -173,7 +184,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
             if (!spsc_queue_enqueue(loop->shared->captured_queue, chunk)) {
                 atomic_fetch_add_explicit(&loop->shared->captured_drop_counter, 1, memory_order_relaxed);
             }
-            dispatch_semaphore_signal(loop->shared->captured_semaphore);
+            engine_sem_signal(loop->shared->captured_semaphore);
         }
     }
 

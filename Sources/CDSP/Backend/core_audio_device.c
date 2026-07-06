@@ -5,6 +5,7 @@
 // backends don't carry near-identical copies of every enumeration helper.
 
 #include "core_audio_device.h"
+#ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
 #include <string.h>
 #include <stdlib.h>
@@ -438,3 +439,4 @@ void rate_change_watcher_free(rate_change_watcher_t* watcher) {
     rate_change_watcher_dispose(watcher);
     free(watcher);
 }
+#endif // __APPLE__

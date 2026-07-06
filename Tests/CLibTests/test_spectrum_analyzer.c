@@ -1,3 +1,6 @@
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "test_support.h"
 #include "../../Sources/CDSP/Audio/spectrum_analyzer.h"
 #include "../../Sources/CDSP/Audio/audio_history_buffer.h"

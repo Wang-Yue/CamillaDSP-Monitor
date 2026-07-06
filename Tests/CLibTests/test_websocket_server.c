@@ -1,3 +1,6 @@
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "test_support.h"
 #include "../../Sources/CDSP/Server/websocket_server.h"
 #include "../../Sources/CDSP/Backend/backend_error.h"

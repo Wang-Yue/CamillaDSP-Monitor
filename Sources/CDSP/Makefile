@@ -4,7 +4,13 @@ ROOT_DIR := $(shell [ -d Sources/CDSP ] && echo "." || echo "../..")
 CC ?= clang
 AR ?= ar
 CFLAGS ?= -O3 -ffp-contract=fast -fno-math-errno -funroll-loops -Wall -Wextra -std=c11 -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging
-LDFLAGS ?= -framework Accelerate -framework AudioToolbox -framework CoreAudio -framework CoreFoundation
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    LDFLAGS ?= -framework Accelerate -framework AudioToolbox -framework CoreAudio -framework CoreFoundation
+else
+    LDFLAGS ?= -lm -lpthread -lasound -lrt -lfftw3 -lopenblas
+    CFLAGS += -march=native
+endif
 
 # All library C source files across subdirectories of CDSP
 SRCS := $(wildcard $(ROOT_DIR)/Sources/CDSP/*/*.c)

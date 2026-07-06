@@ -1,3 +1,6 @@
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #define _DARWIN_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
 

@@ -34,7 +34,32 @@
 
 #include "Audio/lock_free_ring_buffer.h"
 #include "Audio/audio_chunk.h"
+#ifdef __APPLE__
 #include <dispatch/dispatch.h>
+typedef dispatch_semaphore_t engine_semaphore_t;
+static inline bool engine_sem_init(engine_semaphore_t* sem) { *sem = dispatch_semaphore_create(0); return *sem != NULL; }
+static inline void engine_sem_destroy(engine_semaphore_t* sem) { if (*sem) dispatch_release(*sem); }
+static inline void engine_sem_signal(engine_semaphore_t sem) { if (sem) dispatch_semaphore_signal(sem); }
+static inline void engine_sem_wait(engine_semaphore_t sem) { if (sem) dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER); }
+#else
+#include <semaphore.h>
+#include <stdlib.h>
+typedef sem_t* engine_semaphore_t;
+static inline bool engine_sem_init(engine_semaphore_t* sem) {
+    *sem = (sem_t*)malloc(sizeof(sem_t));
+    if (!*sem) return false;
+    return sem_init(*sem, 0, 0) == 0;
+}
+static inline void engine_sem_destroy(engine_semaphore_t* sem) {
+    if (*sem) {
+        sem_destroy(*sem);
+        free(*sem);
+        *sem = NULL;
+    }
+}
+static inline void engine_sem_signal(engine_semaphore_t sem) { if (sem) sem_post(sem); }
+static inline void engine_sem_wait(engine_semaphore_t sem) { if (sem) sem_wait(sem); }
+#endif
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdatomic.h>
@@ -60,11 +85,11 @@ typedef struct {
 
     /// Wakeup signal for the processing thread. The capture thread
     /// signals after every successful `enqueue`.
-    dispatch_semaphore_t captured_semaphore;
+    engine_semaphore_t captured_semaphore;
 
     /// Wakeup signal for the playback thread. The processing thread
     /// signals after every successful `enqueue`.
-    dispatch_semaphore_t processed_semaphore;
+    engine_semaphore_t processed_semaphore;
 
     /// Stop flag. Written exactly once (false → true) per engine run.
     /// Each loop polls between iterations and exits when set.

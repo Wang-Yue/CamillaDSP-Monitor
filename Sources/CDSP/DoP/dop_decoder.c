@@ -21,7 +21,9 @@
 // conditional add. Filter shape, tap count, and cutoff are unchanged from
 // the previous design, so the SINAD numbers the existing tests pin down
 // across DSD64 / 128 / 256 at 44.1 / 48 kHz families are preserved.
-
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "dop_decoder.h"
 #include <stdlib.h>
 #include <string.h>

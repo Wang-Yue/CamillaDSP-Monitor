@@ -1,3 +1,4 @@
+#ifdef __APPLE__
 // Arbitrary-N complex DFT via Bluestein's chirp-z transform.
 //
 // References:
@@ -33,9 +34,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
-#endif
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -59,10 +58,8 @@ struct bluestein_fft {
     // Pre-FFT'd b sequence (length m), used in the convolution step.
     double* b_real_f;
     double* b_imag_f;
-#ifdef __APPLE__
     vDSP_DFT_SetupD fft_fwd;
     vDSP_DFT_SetupD fft_inv;
-#endif
     // Hot-path scratch (length m).
     double* a_re;
     double* a_im;
@@ -98,7 +95,6 @@ bluestein_fft_t* bluestein_fft_create(size_t n) {
     }
     size_t m = best_m;
 
-#ifdef __APPLE__
     vDSP_DFT_SetupD fwd = vDSP_DFT_zop_CreateSetupD(NULL, (vDSP_Length)m, vDSP_DFT_FORWARD);
     if (!fwd) return NULL;
     vDSP_DFT_SetupD inv = vDSP_DFT_zop_CreateSetupD(NULL, (vDSP_Length)m, vDSP_DFT_INVERSE);
@@ -106,14 +102,11 @@ bluestein_fft_t* bluestein_fft_create(size_t n) {
         vDSP_DFT_DestroySetupD(fwd);
         return NULL;
     }
-#endif
 
     bluestein_fft_t* fft = (bluestein_fft_t*)calloc(1, sizeof(bluestein_fft_t));
     if (!fft) {
-#ifdef __APPLE__
         vDSP_DFT_DestroySetupD(fwd);
         vDSP_DFT_DestroySetupD(inv);
-#endif
         return NULL;
     }
     fft->base.ctx = fft;
@@ -121,10 +114,8 @@ bluestein_fft_t* bluestein_fft_create(size_t n) {
     fft->base.free = bluestein_fft_free_wrapper;
     fft->n = n;
     fft->m = m;
-#ifdef __APPLE__
     fft->fft_fwd = fwd;
     fft->fft_inv = inv;
-#endif
 
     fft->alpha_re = (double*)calloc(n, sizeof(double));
     fft->alpha_im = (double*)calloc(n, sizeof(double));
@@ -193,9 +184,7 @@ bluestein_fft_t* bluestein_fft_create(size_t n) {
             b_re[m - k] = c;
             b_im[m - k] = s;
         }
-#ifdef __APPLE__
         vDSP_DFT_ExecuteD(fwd, b_re, b_im, fft->b_real_f, fft->b_imag_f);
-#endif
     }
     free(b_re);
     free(b_im);
@@ -228,7 +217,6 @@ void bluestein_fft_execute(bluestein_fft_t* fft, waveform_t real_in, waveform_t 
         }
     }
 
-#ifdef __APPLE__
     // Step 2: cyclic convolution via FFT — A = FFT(a); P = A · B;
     // c = IFFT(P) / m.
     vDSP_DFT_ExecuteD(fft->fft_fwd, fft->a_re, fft->a_im, fft->a_re_f, fft->a_im_f);
@@ -250,15 +238,12 @@ void bluestein_fft_execute(bluestein_fft_t* fft, waveform_t real_in, waveform_t 
     if (inverse) {
         vDSP_vnegD(imag_out, 1, imag_out, 1, (vDSP_Length)n);
     }
-#endif
 }
 
 void bluestein_fft_free(bluestein_fft_t* fft) {
     if (!fft) return;
-#ifdef __APPLE__
     if (fft->fft_fwd) vDSP_DFT_DestroySetupD(fft->fft_fwd);
     if (fft->fft_inv) vDSP_DFT_DestroySetupD(fft->fft_inv);
-#endif
     free(fft->alpha_re);
     free(fft->alpha_im);
     free(fft->alpha_post_re);
@@ -275,3 +260,106 @@ void bluestein_fft_free(bluestein_fft_t* fft) {
     free(fft->c_im);
     free(fft);
 }
+
+#elif defined(__linux__)
+// High-performance FFTW3 complex DFT backend wrapping Bluestein functionality on Linux
+#include "FFT/bluestein_fft.h"
+#include <stdlib.h>
+#include <string.h>
+#include <fftw3.h>
+
+struct bluestein_fft {
+    arbitrary_complex_fft_t base;
+    size_t n;
+    fftw_complex* in_complex;
+    fftw_complex* out_complex;
+    fftw_plan plan_forward;
+    fftw_plan plan_inverse;
+};
+
+static void bluestein_fft_execute_wrapper(void* ctx, waveform_t real_in, waveform_t imag_in, mutable_waveform_t real_out, mutable_waveform_t imag_out, bool inverse) {
+    bluestein_fft_t* fft = (bluestein_fft_t*)ctx;
+    
+    // Assign real and imaginary parts using GNU C extension real/imag operators (works regardless of fftw_complex definition type)
+    for (size_t i = 0; i < fft->n; i++) {
+        __real__(fft->in_complex[i]) = real_in[i];
+        __imag__(fft->in_complex[i]) = imag_in[i];
+    }
+
+    // Execute appropriate plan
+    if (inverse) {
+        fftw_execute(fft->plan_inverse);
+    } else {
+        fftw_execute(fft->plan_forward);
+    }
+
+    // Extract real and imaginary parts using real/imag operators
+    for (size_t i = 0; i < fft->n; i++) {
+        real_out[i] = __real__(fft->out_complex[i]);
+        imag_out[i] = __imag__(fft->out_complex[i]);
+    }
+}
+
+static void bluestein_fft_free_wrapper(void* ctx) {
+    bluestein_fft_free((bluestein_fft_t*)ctx);
+}
+
+bluestein_fft_t* bluestein_fft_create(size_t n) {
+    if (n == 0) return NULL;
+
+    bluestein_fft_t* fft = (bluestein_fft_t*)malloc(sizeof(bluestein_fft_t));
+    if (!fft) return NULL;
+
+    fft->n = n;
+    fft->in_complex = (fftw_complex*)fftw_malloc(n * sizeof(fftw_complex));
+    fft->out_complex = (fftw_complex*)fftw_malloc(n * sizeof(fftw_complex));
+
+    if (!fft->in_complex || !fft->out_complex) {
+        if (fft->in_complex) fftw_free(fft->in_complex);
+        if (fft->out_complex) fftw_free(fft->out_complex);
+        free(fft);
+        return NULL;
+    }
+
+    fft->plan_forward = fftw_plan_dft_1d((int)n, fft->in_complex, fft->out_complex, FFTW_FORWARD, FFTW_ESTIMATE);
+    fft->plan_inverse = fftw_plan_dft_1d((int)n, fft->in_complex, fft->out_complex, FFTW_BACKWARD, FFTW_ESTIMATE);
+
+    if (!fft->plan_forward || !fft->plan_inverse) {
+        if (fft->plan_forward) fftw_destroy_plan(fft->plan_forward);
+        if (fft->plan_inverse) fftw_destroy_plan(fft->plan_inverse);
+        fftw_free(fft->in_complex);
+        fftw_free(fft->out_complex);
+        free(fft);
+        return NULL;
+    }
+
+    fft->base.ctx = fft;
+    fft->base.execute = bluestein_fft_execute_wrapper;
+    fft->base.free = bluestein_fft_free_wrapper;
+
+    return fft;
+}
+
+void bluestein_fft_execute(bluestein_fft_t* fft, waveform_t real_in, waveform_t imag_in, mutable_waveform_t real_out, mutable_waveform_t imag_out, bool inverse) {
+    if (!fft) return;
+    bluestein_fft_execute_wrapper(fft, real_in, imag_in, real_out, imag_out, inverse);
+}
+
+void bluestein_fft_free(bluestein_fft_t* fft) {
+    if (!fft) return;
+    if (fft->plan_forward) fftw_destroy_plan(fft->plan_forward);
+    if (fft->plan_inverse) fftw_destroy_plan(fft->plan_inverse);
+    if (fft->in_complex) fftw_free(fft->in_complex);
+    if (fft->out_complex) fftw_free(fft->out_complex);
+    free(fft);
+}
+#else
+// Stub out for Windows/other platforms
+#include "FFT/bluestein_fft.h"
+#include <stdlib.h>
+bluestein_fft_t* bluestein_fft_create(size_t n) { (void)n; return NULL; }
+void bluestein_fft_execute(bluestein_fft_t* fft, waveform_t real_in, waveform_t imag_in, mutable_waveform_t real_out, mutable_waveform_t imag_out, bool inverse) {
+    (void)fft; (void)real_in; (void)imag_in; (void)real_out; (void)imag_out; (void)inverse;
+}
+void bluestein_fft_free(bluestein_fft_t* fft) { (void)fft; }
+#endif

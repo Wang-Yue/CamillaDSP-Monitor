@@ -1,6 +1,7 @@
 // Apple AudioConverter resampler.
 
 #include "apple_resampler.h"
+#ifdef __APPLE__
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -273,3 +274,4 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler, const au
 
     return RESAMPLER_OK;
 }
+#endif // __APPLE__

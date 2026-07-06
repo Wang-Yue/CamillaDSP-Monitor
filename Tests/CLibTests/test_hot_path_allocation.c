@@ -164,6 +164,7 @@ static void run_resampler_hot_path(audio_resampler_t* resampler, int channels, c
     audio_chunk_free(output);
 }
 
+#if defined(__APPLE__)
 TEST(AppleResampler_AllocationFree_Stereo) {
     resampler_config_t cfg;
     memset(&cfg, 0, sizeof(cfg));
@@ -178,6 +179,7 @@ TEST(AppleResampler_AllocationFree_Stereo) {
     run_resampler_hot_path(res, 2, "AppleResampler stereo");
     audio_resampler_free(res);
 }
+#endif
 
 TEST(Synchronous_Stereo) {
     resampler_config_t cfg;

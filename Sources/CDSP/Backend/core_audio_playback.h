@@ -14,6 +14,8 @@
 #ifndef CLIB_BACKEND_CORE_AUDIO_PLAYBACK_H
 #define CLIB_BACKEND_CORE_AUDIO_PLAYBACK_H
 
+#ifdef __APPLE__
+
 #include "audio_backend.h"
 #include "core_audio_device.h"
 #include "Audio/lock_free_ring_buffer.h"
@@ -53,5 +55,7 @@ void core_audio_playback_destroy(core_audio_playback_t* playback);
 #ifdef __cplusplus
 }
 #endif
+
+#endif // __APPLE__
 
 #endif // CLIB_BACKEND_CORE_AUDIO_PLAYBACK_H

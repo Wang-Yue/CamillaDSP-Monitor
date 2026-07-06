@@ -1,3 +1,6 @@
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "Engine/dsp_engine.h"
 #include "Server/websocket_server.h"
 #include "Pipeline/config_loader.h"

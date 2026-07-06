@@ -1,3 +1,6 @@
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #define _DARWIN_C_SOURCE
 #include "test_support.h"
 #include "../../Sources/CDSP/Resampler/audio_resampler.h"
@@ -360,6 +363,7 @@ static double* run_process(int impl_id, const double* input, size_t input_count,
             strncpy(cfg.profile, "Accurate", sizeof(cfg.profile) - 1);
             cfg.has_profile = true;
             break;
+#if defined(__APPLE__)
         case 3:
             resampler_config_init(&cfg, RESAMPLER_TYPE_APPLE);
             cfg.apple_quality = APPLE_RESAMPLER_QUALITY_MAX;
@@ -374,6 +378,7 @@ static double* run_process(int impl_id, const double* input, size_t input_count,
             cfg.apple_complexity = APPLE_RESAMPLER_COMPLEXITY_MINIMUM_PHASE;
             cfg.has_apple_complexity = true;
             break;
+#endif
         case 5:
             if (!check_rubato_available()) return NULL;
             return run_rubato("fft", in_rate, out_rate, input, input_count, out_count);
@@ -499,6 +504,7 @@ static bool measure_swift_perf(int in_rate, int out_rate, int impl_id, double* o
             strncpy(cfg.profile, "Accurate", sizeof(cfg.profile) - 1);
             cfg.has_profile = true;
             break;
+#if defined(__APPLE__)
         case 3:
             resampler_config_init(&cfg, RESAMPLER_TYPE_APPLE);
             cfg.apple_quality = APPLE_RESAMPLER_QUALITY_MAX;
@@ -513,6 +519,7 @@ static bool measure_swift_perf(int in_rate, int out_rate, int impl_id, double* o
             cfg.apple_complexity = APPLE_RESAMPLER_COMPLEXITY_MINIMUM_PHASE;
             cfg.has_apple_complexity = true;
             break;
+#endif
         default: return false;
     }
 

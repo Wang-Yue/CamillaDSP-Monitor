@@ -20,7 +20,9 @@
 //     and wakeups; the resampler ratio is an atomic Double.
 //   * The thread sets a real-time scheduling policy on entry so the
 //     OS prefers it over background work.
-
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "engine_processing_loop.h"
 #include "thread_priority.h"
 #include "Logging/app_logger.h"
@@ -28,6 +30,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+#ifndef __APPLE__
+#define CLOCK_UPTIME_RAW CLOCK_MONOTONIC
+static inline uint64_t clock_gettime_nsec_np(int clock_id) {
+    struct timespec ts;
+    clock_gettime(clock_id, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+}
+#endif
 
 engine_processing_loop_t* engine_processing_loop_create(
     engine_shared_state_t* shared,
@@ -139,7 +150,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
     int processed_count = 0;
 
     while (!atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
-        dispatch_semaphore_wait(loop->shared->captured_semaphore, DISPATCH_TIME_FOREVER);
+        engine_sem_wait(loop->shared->captured_semaphore);
         if (atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) break;
 
         // Drain everything the capture thread enqueued since the last
@@ -273,7 +284,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
             if (!spsc_queue_enqueue(loop->shared->processed_queue, chunk)) {
                 logger_warn(&logger, "Playback queue full, dropping processed chunk #%d", log_arg_int((int64_t)processed_count), log_arg_none(), log_arg_none(), log_arg_none());
             }
-            dispatch_semaphore_signal(loop->shared->processed_semaphore);
+            engine_sem_signal(loop->shared->processed_semaphore);
         }
     }
 

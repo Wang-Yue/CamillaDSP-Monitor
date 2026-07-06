@@ -8,7 +8,11 @@
 #include "Config/engine_config_types.h"
 #include "Config/log_level.h"
 #include "Backend/audio_backend.h"
+#ifdef __APPLE__
 #include "Backend/core_audio_capabilities.h"
+#else
+#include "Backend/alsa_capabilities.h"
+#endif
 #include "Server/websocket_server.h"
 #include <stddef.h>
 #include <stdbool.h>

@@ -15,6 +15,8 @@
 #ifndef CLIB_BACKEND_CORE_AUDIO_CAPTURE_H
 #define CLIB_BACKEND_CORE_AUDIO_CAPTURE_H
 
+#ifdef __APPLE__
+
 #include "audio_backend.h"
 #include "core_audio_device.h"
 #include "Audio/lock_free_ring_buffer.h"
@@ -52,5 +54,7 @@ void core_audio_capture_destroy(core_audio_capture_t* capture);
 #ifdef __cplusplus
 }
 #endif
+
+#endif // __APPLE__
 
 #endif // CLIB_BACKEND_CORE_AUDIO_CAPTURE_H

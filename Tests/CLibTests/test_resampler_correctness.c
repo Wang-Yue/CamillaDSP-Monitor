@@ -1,3 +1,6 @@
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
 #include "test_support.h"
 #include "../../Sources/CDSP/Resampler/audio_resampler.h"
 #include "../../Sources/CDSP/Audio/audio_chunk.h"

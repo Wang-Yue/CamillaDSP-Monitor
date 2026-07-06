@@ -7,6 +7,8 @@
 #ifndef CLIB_BACKEND_CORE_AUDIO_DEVICE_H
 #define CLIB_BACKEND_CORE_AUDIO_DEVICE_H
 
+#ifdef __APPLE__
+
 #include <CoreAudio/CoreAudio.h>
 #include <AudioToolbox/AudioToolbox.h>
 #include <stdint.h>
@@ -142,5 +144,7 @@ void rate_change_watcher_free(rate_change_watcher_t* watcher);
 #ifdef __cplusplus
 }
 #endif
+
+#endif // __APPLE__
 
 #endif // CLIB_BACKEND_CORE_AUDIO_DEVICE_H

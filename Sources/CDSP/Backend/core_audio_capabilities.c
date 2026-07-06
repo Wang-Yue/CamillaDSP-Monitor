@@ -1,6 +1,7 @@
 // Device capability discovery for CoreAudio.
 
 #include "core_audio_capabilities.h"
+#ifdef __APPLE__
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -301,3 +302,4 @@ void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc) {
     free(desc->capability_sets);
     free(desc);
 }
+#endif // __APPLE__

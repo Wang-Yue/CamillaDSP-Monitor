@@ -122,7 +122,7 @@ void engine_playback_loop_run(engine_playback_loop_t* loop) {
     }
 
     while (!atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
-        dispatch_semaphore_wait(loop->shared->processed_semaphore, DISPATCH_TIME_FOREVER);
+        engine_sem_wait(loop->shared->processed_semaphore);
         if (atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) break;
 
         audio_chunk_t* chunk = NULL;
