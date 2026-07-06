@@ -41,7 +41,7 @@ static inline bool engine_sem_init(engine_semaphore_t* sem) { *sem = dispatch_se
 static inline void engine_sem_destroy(engine_semaphore_t* sem) { if (*sem) dispatch_release(*sem); }
 static inline void engine_sem_signal(engine_semaphore_t sem) { if (sem) dispatch_semaphore_signal(sem); }
 static inline void engine_sem_wait(engine_semaphore_t sem) { if (sem) dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER); }
-#else
+#elif defined(__linux__)
 #include <semaphore.h>
 #include <stdlib.h>
 typedef sem_t* engine_semaphore_t;
@@ -59,6 +59,21 @@ static inline void engine_sem_destroy(engine_semaphore_t* sem) {
 }
 static inline void engine_sem_signal(engine_semaphore_t sem) { if (sem) sem_post(sem); }
 static inline void engine_sem_wait(engine_semaphore_t sem) { if (sem) sem_wait(sem); }
+#elif defined(_WIN32)
+#include <windows.h>
+typedef HANDLE engine_semaphore_t;
+static inline bool engine_sem_init(engine_semaphore_t* sem) {
+    *sem = CreateSemaphore(NULL, 0, 32767, NULL);
+    return *sem != NULL;
+}
+static inline void engine_sem_destroy(engine_semaphore_t* sem) {
+    if (*sem) {
+        CloseHandle(*sem);
+        *sem = NULL;
+    }
+}
+static inline void engine_sem_signal(engine_semaphore_t sem) { if (sem) ReleaseSemaphore(sem, 1, NULL); }
+static inline void engine_sem_wait(engine_semaphore_t sem) { if (sem) WaitForSingleObject(sem, INFINITE); }
 #endif
 #include <stdbool.h>
 #include <stdint.h>

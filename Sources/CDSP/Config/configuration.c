@@ -400,15 +400,24 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
             if (config->devices.capture.type == AUDIO_BACKEND_TYPE_FILE || config->devices.capture.type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
                 config->devices.capture.file_format = binary_sample_format_from_string(fmt_str);
                 config->devices.capture.has_file_format = true;
+            } else if (config->devices.capture.type == AUDIO_BACKEND_TYPE_WASAPI) {
+#if defined(_WIN32)
+                config->devices.capture.format = wasapi_sample_format_from_string(fmt_str);
+                config->devices.capture.has_format = true;
+#endif
             } else {
 #if defined(__linux__)
                 config->devices.capture.format = alsa_sample_format_from_string(fmt_str);
-#else
+#elif defined(__APPLE__)
                 config->devices.capture.format = coreaudio_sample_format_from_string(fmt_str);
 #endif
                 config->devices.capture.has_format = true;
             }
         }
+#if defined(_WIN32)
+        config->devices.capture.loopback = extract_bool_in_range(cap_pos, cap_end, "\"loopback\"", false);
+        config->devices.capture.has_loopback = true;
+#endif
         config->devices.capture.skip_bytes = extract_int_in_range(cap_pos, cap_end, "\"skip_bytes\"", 0);
         config->devices.capture.has_skip_bytes = (config->devices.capture.skip_bytes > 0);
         config->devices.capture.read_bytes = extract_int_in_range(cap_pos, cap_end, "\"read_bytes\"", 0);
@@ -472,10 +481,15 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
             if (config->devices.playback.type == AUDIO_BACKEND_TYPE_FILE || config->devices.playback.type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
                 config->devices.playback.file_format = binary_sample_format_from_string(fmt_str);
                 config->devices.playback.has_file_format = true;
+            } else if (config->devices.playback.type == AUDIO_BACKEND_TYPE_WASAPI) {
+#if defined(_WIN32)
+                config->devices.playback.format = wasapi_sample_format_from_string(fmt_str);
+                config->devices.playback.has_format = true;
+#endif
             } else {
 #if defined(__linux__)
                 config->devices.playback.format = alsa_sample_format_from_string(fmt_str);
-#else
+#elif defined(__APPLE__)
                 config->devices.playback.format = coreaudio_sample_format_from_string(fmt_str);
 #endif
                 config->devices.playback.has_format = true;

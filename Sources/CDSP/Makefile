@@ -78,5 +78,24 @@ $(CLI_BIN): $(CLI_SRC) $(LIB_TARGET)
 	@echo "LINK $@"
 	@$(CC) $(CFLAGS) $< $(LIB_TARGET) $(LDFLAGS) -o $@
 
+# Windows cross-compilation settings
+WIN_CC := x86_64-w64-mingw32-gcc
+WIN_AR := x86_64-w64-mingw32-ar
+WIN_OBJ_DIR := $(ROOT_DIR)/.build/win_obj
+WIN_OBJS := $(patsubst $(ROOT_DIR)/%.c, $(WIN_OBJ_DIR)/%.o, $(SRCS))
+WIN_LIB_TARGET := $(ROOT_DIR)/Sources/CDSP/libdsp_win.a
+
+$(WIN_OBJ_DIR)/%.o: $(ROOT_DIR)/%.c
+	@mkdir -p $(dir $@)
+	@echo "WIN_CC $<"
+	@$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging -c $< -o $@
+
+.PHONY: windows-lib
+windows-lib: $(WIN_OBJS)
+	@echo "WIN_AR $(WIN_LIB_TARGET)"
+	@rm -f $(WIN_LIB_TARGET)
+	@$(WIN_AR) rcs $(WIN_LIB_TARGET) $(WIN_OBJS)
+
 clean:
-	rm -rf $(OBJ_DIR) $(LIB_TARGET) $(ROOT_DIR)/Tests/CLibTests/bin $(ROOT_DIR)/Sources/CDSP/bin
+	rm -rf $(OBJ_DIR) $(WIN_OBJ_DIR) $(LIB_TARGET) $(WIN_LIB_TARGET) $(ROOT_DIR)/Tests/CLibTests/bin $(ROOT_DIR)/Sources/CDSP/bin
+

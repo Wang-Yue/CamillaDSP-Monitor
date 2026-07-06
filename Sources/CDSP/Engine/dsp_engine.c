@@ -310,9 +310,21 @@ int dsp_engine_get_available_devices(const char* backend, bool input, audio_devi
         return 0;
 #endif
     } else if (strcasecmp(backend, "alsa") == 0) {
-#ifndef __APPLE__
+#if defined(__linux__)
         char names[32][256];
         int count = alsa_capabilities_available_device_names(input, names, 32);
+        if (count > max_devices) count = max_devices;
+        for (int i = 0; i < count; i++) {
+            if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
+        }
+        return count;
+#else
+        return 0;
+#endif
+    } else if (strcasecmp(backend, "wasapi") == 0) {
+#if defined(_WIN32)
+        char names[32][256];
+        int count = wasapi_capabilities_available_device_names(input, names, 32);
         if (count > max_devices) count = max_devices;
         for (int i = 0; i < count; i++) {
             if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
@@ -334,8 +346,14 @@ audio_device_descriptor_t* dsp_engine_get_device_capabilities(const char* backen
         return NULL;
 #endif
     } else if (strcasecmp(backend, "alsa") == 0) {
-#ifndef __APPLE__
+#if defined(__linux__)
         return alsa_capabilities_describe(device, is_capture);
+#else
+        return NULL;
+#endif
+    } else if (strcasecmp(backend, "wasapi") == 0) {
+#if defined(_WIN32)
+        return wasapi_capabilities_describe(device, is_capture);
 #else
         return NULL;
 #endif
@@ -345,10 +363,12 @@ audio_device_descriptor_t* dsp_engine_get_device_capabilities(const char* backen
 
 void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc) {
     if (!desc) return;
-#ifdef __APPLE__
+#if defined(__APPLE__)
     core_audio_capabilities_free_descriptor(desc);
-#else
+#elif defined(__linux__)
     alsa_capabilities_free_descriptor(desc);
+#elif defined(_WIN32)
+    wasapi_capabilities_free_descriptor(desc);
 #endif
 }
 

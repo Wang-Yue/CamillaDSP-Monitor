@@ -1,4 +1,4 @@
-#ifndef __APPLE__
+#if defined(__linux__)
 #define _GNU_SOURCE
 
 #include <time.h>
@@ -384,4 +384,4 @@ void alsa_playback_destroy(alsa_playback_t* playback) {
     free(playback);
 }
 
-#endif // !__APPLE__
+#endif // defined(__linux__)

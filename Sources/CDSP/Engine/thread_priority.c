@@ -86,7 +86,7 @@ void set_realtime_thread_priority(const char* name, size_t buffer_frames, size_t
                      log_arg_string(name ? name : "unknown"), log_arg_int((int64_t)result), log_arg_none(), log_arg_none());
     }
 }
-#else
+#elif defined(__linux__)
 #include <sched.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -121,5 +121,22 @@ void set_realtime_thread_priority(const char* name, size_t buffer_frames, size_t
     } else {
         logger_warn(&logger, "[%s] Failed to promote thread to real-time priority (both pthread_setschedparam and RealtimeKit failed)", log_arg_string(name ? name : "unknown"), log_arg_none(), log_arg_none(), log_arg_none());
     }
+}
+#elif defined(_WIN32)
+#include <windows.h>
+void set_realtime_thread_priority(const char* name, size_t buffer_frames, size_t sample_rate) {
+    (void)buffer_frames; (void)sample_rate;
+    HANDLE thread = GetCurrentThread();
+    BOOL success = SetThreadPriority(thread, THREAD_PRIORITY_TIME_CRITICAL);
+    logger_t logger = logger_create("dsp.threadpriority");
+    if (success) {
+        logger_info(&logger, "[%s] Thread promoted to Windows THREAD_PRIORITY_TIME_CRITICAL", log_arg_string(name ? name : "unknown"), log_arg_none(), log_arg_none(), log_arg_none());
+    } else {
+        logger_warn(&logger, "[%s] Failed to set thread priority on Windows: err=%lu", log_arg_string(name ? name : "unknown"), log_arg_int((int64_t)GetLastError()), log_arg_none(), log_arg_none());
+    }
+}
+#else
+void set_realtime_thread_priority(const char* name, size_t buffer_frames, size_t sample_rate) {
+    (void)name; (void)buffer_frames; (void)sample_rate;
 }
 #endif

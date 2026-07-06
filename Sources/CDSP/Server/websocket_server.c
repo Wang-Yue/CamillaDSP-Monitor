@@ -5,6 +5,7 @@
 // Provides runtime control API compatible with the control protocol
 
 #include "websocket_server.h"
+#ifndef _WIN32
 #include "Audio/processing_parameters.h"
 #include "Pipeline/config_loader.h"
 #include <sys/time.h>
@@ -2659,3 +2660,17 @@ void websocket_server_free(websocket_server_t* server) {
     
     free(server);
 }
+#else
+// Stub implementations for Windows target
+websocket_server_t* websocket_server_create(uint16_t port, const char* host, active_config_path_t* active_path) { (void)port; (void)host; (void)active_path; return NULL; }
+void websocket_server_set_engine(websocket_server_t* server, dsp_engine_interface_t* engine) { (void)server; (void)engine; }
+void websocket_server_set_state_file(websocket_server_t* server, const char* state_file_path) { (void)server; (void)state_file_path; }
+bool websocket_server_start(websocket_server_t* server) { (void)server; return false; }
+void websocket_server_stop(websocket_server_t* server) { (void)server; }
+void websocket_server_free(websocket_server_t* server) { (void)server; }
+void websocket_server_handle_command(websocket_server_t* server, int client_idx, const char* command_text, char* out_response, size_t max_len) { (void)server; (void)client_idx; (void)command_text; (void)out_response; (void)max_len; }
+active_config_path_t* active_config_path_create(const char* initial_path) { (void)initial_path; return NULL; }
+const char* active_config_path_get(const active_config_path_t* path) { (void)path; return ""; }
+void active_config_path_set(active_config_path_t* path, const char* new_path) { (void)path; (void)new_path; }
+void active_config_path_free(active_config_path_t* path) { (void)path; }
+#endif

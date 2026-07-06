@@ -1,4 +1,4 @@
-#ifndef __APPLE__
+#if defined(__linux__)
 #define _GNU_SOURCE
 
 #include <time.h>
@@ -534,4 +534,4 @@ void alsa_capture_destroy(alsa_capture_t* capture) {
     free(capture);
 }
 
-#endif // !__APPLE__
+#endif // defined(__linux__)

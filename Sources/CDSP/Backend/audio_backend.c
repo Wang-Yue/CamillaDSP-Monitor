@@ -13,6 +13,9 @@
 #include "pulse_backend.h"
 #include "pipewire_backend.h"
 #endif
+#if defined(_WIN32)
+#include "wasapi_backend.h"
+#endif
 #include "generator_capture.h"
 #include "file_backend.h"
 #include <stdlib.h>
@@ -36,8 +39,7 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
             return pipewire_capture_create(config, sample_rate, chunk_size, params, err);
 #elif defined(_WIN32)
         case AUDIO_BACKEND_TYPE_WASAPI:
-            if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "WASAPI is not implemented yet");
-            return NULL;
+            return wasapi_capture_create(config, sample_rate, chunk_size, params, err);
 #endif
         case AUDIO_BACKEND_TYPE_GENERATOR:
             return generator_capture_create(config, sample_rate, chunk_size, params, err);
@@ -69,8 +71,7 @@ playback_backend_t* create_playback_backend(const playback_device_config_t* conf
             return pipewire_playback_create(config, sample_rate, chunk_size, params, err);
 #elif defined(_WIN32)
         case AUDIO_BACKEND_TYPE_WASAPI:
-            if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "WASAPI is not implemented yet");
-            return NULL;
+            return wasapi_playback_create(config, sample_rate, chunk_size, params, err);
 #endif
         case AUDIO_BACKEND_TYPE_FILE:
         case AUDIO_BACKEND_TYPE_STDIN_OUT:

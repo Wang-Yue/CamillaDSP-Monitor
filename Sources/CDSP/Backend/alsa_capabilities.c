@@ -1,4 +1,4 @@
-#ifndef __APPLE__
+#if defined(__linux__)
 #define _GNU_SOURCE
 
 #include <time.h>
@@ -208,4 +208,4 @@ void alsa_capabilities_free_descriptor(audio_device_descriptor_t* desc) {
     free(desc);
 }
 
-#endif // !__APPLE__
+#endif // defined(__linux__)

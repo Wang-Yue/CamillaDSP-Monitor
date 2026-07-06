@@ -131,15 +131,11 @@ typedef struct {
 
 /// Audio I/O backend.
 typedef enum {
-#if defined(__APPLE__)
     AUDIO_BACKEND_TYPE_CORE_AUDIO = 0,
-#elif defined(__linux__)
     AUDIO_BACKEND_TYPE_ALSA = 1,
     AUDIO_BACKEND_TYPE_PULSE_AUDIO = 2,
     AUDIO_BACKEND_TYPE_PIPEWIRE = 3,
-#elif defined(_WIN32)
     AUDIO_BACKEND_TYPE_WASAPI = 4,
-#endif
     AUDIO_BACKEND_TYPE_FILE = 5,
     AUDIO_BACKEND_TYPE_STDIN_OUT = 6,
     AUDIO_BACKEND_TYPE_GENERATOR = 7,
@@ -181,6 +177,19 @@ const char* alsa_sample_format_to_string(alsa_sample_format_t fmt);
 alsa_sample_format_t alsa_sample_format_from_string(const char* str);
 #endif
 
+#if defined(_WIN32)
+typedef enum {
+    WASAPI_SAMPLE_FORMAT_S16 = 0,
+    WASAPI_SAMPLE_FORMAT_S24,
+    WASAPI_SAMPLE_FORMAT_S32,
+    WASAPI_SAMPLE_FORMAT_F32,
+    WASAPI_SAMPLE_FORMAT_INVALID = -1
+} wasapi_sample_format_t;
+
+const char* wasapi_sample_format_to_string(wasapi_sample_format_t fmt);
+wasapi_sample_format_t wasapi_sample_format_from_string(const char* str);
+#endif
+
 typedef enum {
     BINARY_SAMPLE_FORMAT_S16_LE = 0,
     BINARY_SAMPLE_FORMAT_S24_3_LE,
@@ -218,10 +227,14 @@ typedef struct {
     bool has_device;
 #if defined(__linux__)
     alsa_sample_format_t format;
-#else
+#elif defined(__APPLE__)
     coreaudio_sample_format_t format;
+#elif defined(_WIN32)
+    wasapi_sample_format_t format;
 #endif
     bool has_format;
+    bool loopback;
+    bool has_loopback;
 #if defined(__linux__)
     bool stop_on_inactive;
     bool has_stop_on_inactive;
@@ -261,8 +274,10 @@ typedef struct {
     bool has_device;
 #if defined(__linux__)
     alsa_sample_format_t format;
-#else
+#elif defined(__APPLE__)
     coreaudio_sample_format_t format;
+#elif defined(_WIN32)
+    wasapi_sample_format_t format;
 #endif
     bool has_format;
     bool exclusive;
