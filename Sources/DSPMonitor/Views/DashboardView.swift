@@ -1,7 +1,6 @@
 // DashboardView - Main dashboard showing pipeline overview and monitoring
 
 import AppKit
-import DSPAudio
 import DSPConfig
 import Observation
 import SwiftUI

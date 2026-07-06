@@ -11,15 +11,15 @@ public final class VolumeFilter: Filter {
 
   // Ramp state (tracks fader ramping)
   private var ramptimeInChunks: Int
-  private var currentVolume: PrcFmt
+  private var currentVolume: Double
   private var targetVolume: Double
-  private var targetLinearGain: PrcFmt
+  private var targetLinearGain: Double
   private var mute: Bool
-  private var rampStart: PrcFmt
+  private var rampStart: Double
   private var rampStep: Int
 
   // Pre-allocated ramp gains for the current chunk to avoid heap allocation on the hot path
-  private var currentRampGains: UnsafeMutablePointer<PrcFmt>
+  private var currentRampGains: UnsafeMutablePointer<Double>
 
   public var processingParameters: ProcessingParameters?
 
@@ -52,7 +52,7 @@ public final class VolumeFilter: Filter {
     self.targetVolume = initialVolClamped
     self.mute = initialMute
     self.currentVolume = initialMute ? -100.0 : initialVolClamped
-    self.targetLinearGain = initialMute ? 0.0 : PrcFmt.fromDB(initialVolClamped)
+    self.targetLinearGain = initialMute ? 0.0 : Double.fromDB(initialVolClamped)
     self.rampStart = self.currentVolume
     self.rampStep = 0
   }
@@ -81,7 +81,7 @@ public final class VolumeFilter: Filter {
         rampStep = 0
       }
       targetVolume = targetVol
-      targetLinearGain = sharedMute ? 0.0 : PrcFmt.fromDB(targetVol)
+      targetLinearGain = sharedMute ? 0.0 : Double.fromDB(targetVol)
       mute = sharedMute
     }
 
@@ -107,7 +107,7 @@ public final class VolumeFilter: Filter {
       let limit = min(count, chunkSize)
       DSPOps.multiply(UnsafePointer(currentRampGains), waveform, count: limit)
       if limit < count {
-        let finalGain = mute ? 0.0 : PrcFmt.fromDB(targetVolume)
+        let finalGain = mute ? 0.0 : Double.fromDB(targetVolume)
         let remainingWaveform = MutableWaveform(
           start: waveform.baseAddress?.advanced(by: limit), count: count - limit)
         DSPOps.scalarMultiply(remainingWaveform, by: finalGain)
@@ -134,15 +134,15 @@ public final class VolumeFilter: Filter {
   }
 
   private func fillRamp() {
-    let targetVol: PrcFmt = mute ? -100.0 : PrcFmt(targetVolume)
-    let ramprange = (targetVol - rampStart) / PrcFmt(ramptimeInChunks)
-    let stepsize = ramprange / PrcFmt(chunkSize)
+    let targetVol: Double = mute ? -100.0 : Double(targetVolume)
+    let ramprange = (targetVol - rampStart) / Double(ramptimeInChunks)
+    let stepsize = ramprange / Double(chunkSize)
 
     for val in 0..<chunkSize {
-      currentRampGains[val] = PrcFmt.fromDB(
+      currentRampGains[val] = Double.fromDB(
         rampStart
-          + ramprange * (PrcFmt(rampStep) - 1.0)
-          + PrcFmt(val) * stepsize
+          + ramprange * (Double(rampStep) - 1.0)
+          + Double(val) * stepsize
       )
     }
   }

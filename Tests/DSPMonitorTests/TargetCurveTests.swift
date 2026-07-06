@@ -56,7 +56,7 @@ import Testing
     // they should sit inside the audio band and give bounded gains.
     for preset in TargetCurve.Preset.allCases {
       let curve = preset.curve
-      for f in [20.0, 100.0, 1000.0, 10_000.0, 20_000.0] as [PrcFmt] {
+      for f in [20.0, 100.0, 1000.0, 10_000.0, 20_000.0] as [Double] {
         let g = curve.evaluate(atFreqHz: f)
         #expect(g >= -10 && g <= 10, "\(preset) at \(f) Hz = \(g) dB out of bounds")
       }

@@ -6,11 +6,11 @@ import Testing
 @testable import DSPFilters
 
 @Suite struct DiffEqTests {
-  private static func isClose(_ left: PrcFmt, _ right: PrcFmt, maxdiff: PrcFmt) -> Bool {
+  private static func isClose(_ left: Double, _ right: Double, maxdiff: Double) -> Bool {
     return abs(left - right) < maxdiff
   }
 
-  private static func compareWaveforms(_ left: [PrcFmt], _ right: [PrcFmt], maxdiff: PrcFmt) -> Bool
+  private static func compareWaveforms(_ left: [Double], _ right: [Double], maxdiff: Double) -> Bool
   {
     guard left.count == right.count else { return false }
     for (val_l, val_r) in zip(left, right) {
@@ -28,8 +28,8 @@ import Testing
     )
     let filter = DiffEqFilter(parameters: params)
 
-    var wave: [PrcFmt] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    let expected: [PrcFmt] = [0.215, 0.461, 0.281, 0.039, 0.004, 0.0, 0.0, 0.0]
+    var wave: [Double] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    let expected: [Double] = [0.215, 0.461, 0.281, 0.039, 0.004, 0.0, 0.0, 0.0]
 
     filter.process(waveform: &wave)
 

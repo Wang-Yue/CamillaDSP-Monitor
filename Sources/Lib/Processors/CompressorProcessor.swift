@@ -8,20 +8,20 @@ final class CompressorProcessor: Processor {
   let name: String
   private var monitorChannels: [Int]
   private var processChannels: [Int]
-  private var attack: PrcFmt
-  private var release: PrcFmt
-  private var threshold: PrcFmt
-  private var factor: PrcFmt
-  private var makeupGain: PrcFmt
+  private var attack: Double
+  private var release: Double
+  private var threshold: Double
+  private var factor: Double
+  private var makeupGain: Double
   private var limiter: LimiterFilter?
-  private var scratch: [PrcFmt]
-  private var prevLoudness: PrcFmt = -100.0
+  private var scratch: [Double]
+  private var prevLoudness: Double = -100.0
 
   init(
     name: String = "compressor", parameters: CompressorParameters, sampleRate: Int, chunkSize: Int
   ) {
     self.name = name
-    self.scratch = [PrcFmt](repeating: 0.0, count: chunkSize)
+    self.scratch = [Double](repeating: 0.0, count: chunkSize)
 
     var monitor = parameters.monitorChannelsArray()
     if monitor.isEmpty {
@@ -35,7 +35,7 @@ final class CompressorProcessor: Processor {
     }
     self.processChannels = process
 
-    let srate = PrcFmt(sampleRate)
+    let srate = Double(sampleRate)
     self.attack = exp(-1.0 / srate / parameters.attack)
     self.release = exp(-1.0 / srate / parameters.release)
     self.threshold = parameters.threshold
@@ -51,7 +51,7 @@ final class CompressorProcessor: Processor {
   }
 
   private func sumMonitorChannels(
-    from chunk: AudioChunk, into destBase: UnsafeMutablePointer<PrcFmt>
+    from chunk: AudioChunk, into destBase: UnsafeMutablePointer<Double>
   ) {
     let count = chunk.validFrames
     let ch0 = monitorChannels[0]
@@ -64,7 +64,7 @@ final class CompressorProcessor: Processor {
     }
   }
 
-  private func estimateLoudness(scratch: UnsafeMutablePointer<PrcFmt>, count: Int) {
+  private func estimateLoudness(scratch: UnsafeMutablePointer<Double>, count: Int) {
     var prev = prevLoudness
     for i in 0..<count {
       var val = 20.0 * log10(abs(scratch[i]) + 1e-9)
@@ -79,7 +79,7 @@ final class CompressorProcessor: Processor {
     prevLoudness = prev
   }
 
-  private func calculateLinearGain(scratch: UnsafeMutablePointer<PrcFmt>, count: Int) {
+  private func calculateLinearGain(scratch: UnsafeMutablePointer<Double>, count: Int) {
     for i in 0..<count {
       var val = scratch[i]
       if val > threshold {
@@ -88,12 +88,12 @@ final class CompressorProcessor: Processor {
         val = 0.0
       }
       val += makeupGain
-      scratch[i] = PrcFmt.fromDB(val)
+      scratch[i] = Double.fromDB(val)
     }
   }
 
   private func applyGain(
-    to waveform: MutableWaveform, from scratchBase: UnsafePointer<PrcFmt>, count: Int
+    to waveform: MutableWaveform, from scratchBase: UnsafePointer<Double>, count: Int
   ) {
     guard let waveBase = waveform.baseAddress else { return }
     vDSP_vmulD(waveBase, 1, scratchBase, 1, waveBase, 1, vDSP_Length(count))
@@ -111,7 +111,7 @@ final class CompressorProcessor: Processor {
     guard count > 0 else { return }
 
     if scratch.count < count {
-      scratch = [PrcFmt](repeating: 0.0, count: count)
+      scratch = [Double](repeating: 0.0, count: count)
     }
 
     scratch.withUnsafeMutableBufferPointer { scratchBuf in
@@ -143,7 +143,7 @@ final class CompressorProcessor: Processor {
     }
     self.processChannels = process
 
-    let srate = PrcFmt(sampleRate)
+    let srate = Double(sampleRate)
     self.attack = exp(-1.0 / srate / p.attack)
     self.release = exp(-1.0 / srate / p.release)
     self.threshold = p.threshold

@@ -55,7 +55,7 @@ private func jsonReply(_ command: String, result: WsResult, value: String? = nil
   return "{\"\(command)\":{\"result\":\(resStr)}}"
 }
 
-private func jsonArray(_ values: [PrcFmt]) -> String {
+private func jsonArray(_ values: [Double]) -> String {
   return "[\(values.map { String($0) }.joined(separator: ","))]"
 }
 

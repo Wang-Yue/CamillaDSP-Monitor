@@ -29,9 +29,9 @@ public enum SweepDeconvolver {
   /// f1:f2:durationSeconds:sampleRate:)` which builds the matched
   /// inverse and returns a properly-centred `ImpulseResponse`.
   public static func convolve(
-    _ captured: [PrcFmt],
-    with inverseFilter: [PrcFmt]
-  ) -> [PrcFmt] {
+    _ captured: [Double],
+    with inverseFilter: [Double]
+  ) -> [Double] {
     precondition(!captured.isEmpty, "SweepDeconvolver: captured must be non-empty")
     precondition(!inverseFilter.isEmpty, "SweepDeconvolver: inverseFilter must be non-empty")
 
@@ -41,15 +41,15 @@ public enum SweepDeconvolver {
     let bins = n / 2 + 1
     let fft = RealFFT(length: n)
 
-    let aPadded = UnsafeMutablePointer<PrcFmt>.allocate(capacity: n)
-    let bPadded = UnsafeMutablePointer<PrcFmt>.allocate(capacity: n)
-    let outBuf = UnsafeMutablePointer<PrcFmt>.allocate(capacity: n)
-    let aRe = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bins)
-    let aIm = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bins)
-    let bRe = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bins)
-    let bIm = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bins)
-    let cRe = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bins)
-    let cIm = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bins)
+    let aPadded = UnsafeMutablePointer<Double>.allocate(capacity: n)
+    let bPadded = UnsafeMutablePointer<Double>.allocate(capacity: n)
+    let outBuf = UnsafeMutablePointer<Double>.allocate(capacity: n)
+    let aRe = UnsafeMutablePointer<Double>.allocate(capacity: bins)
+    let aIm = UnsafeMutablePointer<Double>.allocate(capacity: bins)
+    let bRe = UnsafeMutablePointer<Double>.allocate(capacity: bins)
+    let bIm = UnsafeMutablePointer<Double>.allocate(capacity: bins)
+    let cRe = UnsafeMutablePointer<Double>.allocate(capacity: bins)
+    let cIm = UnsafeMutablePointer<Double>.allocate(capacity: bins)
     aPadded.initialize(repeating: 0, count: n)
     bPadded.initialize(repeating: 0, count: n)
     outBuf.initialize(repeating: 0, count: n)
@@ -103,8 +103,8 @@ public enum SweepDeconvolver {
 
     // RealFFT.inverse multiplies by length; undo so the
     // convolution sum has the conventional unit scaling.
-    let invN = 1.0 / PrcFmt(n)
-    var result = [PrcFmt](repeating: 0, count: m)
+    let invN = 1.0 / Double(n)
+    var result = [Double](repeating: 0, count: m)
     var scale = invN
     result.withUnsafeMutableBufferPointer { dst in
       if let dstBase = dst.baseAddress {
@@ -124,10 +124,10 @@ public enum SweepDeconvolver {
   /// samples long; trailing silence on the capture side is fine and
   /// becomes IR tail.
   public static func deconvolve(
-    captured: [PrcFmt],
-    f1: PrcFmt,
-    f2: PrcFmt,
-    durationSeconds: PrcFmt,
+    captured: [Double],
+    f1: Double,
+    f2: Double,
+    durationSeconds: Double,
     sampleRate: Int
   ) -> ImpulseResponse {
     let inverse = SweepGenerator.inverseFilter(

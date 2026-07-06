@@ -23,7 +23,7 @@
 //     with phase compensation built in).
 //
 // All routines route their FFTs through `RealFFT` and
-// return real `[PrcFmt]` IRs that load directly into a
+// return real `[Double]` IRs that load directly into a
 // `ConvolutionFilter` (or persist to disk as a raw `FLOAT64` stream
 // for `ConvParameters(.raw, ...)`).
 //
@@ -61,17 +61,17 @@ public enum FIRDesign {
     /// `log(0)` for nulls in the desired response. Expressed as dB
     /// below 0 dB FS. The default (`−80 dB`) clips the deepest
     /// realistic magnitude before it drives the cepstrum unstable.
-    public var floorDB: PrcFmt
+    public var floorDB: Double
     /// Pre-amp applied to the entire response before design. Useful
     /// when the chain has gain peaks ≥ 0 dB and you want headroom in
     /// the IR; matches the `EQPreset.preampGain` convention.
-    public var preampDB: PrcFmt
+    public var preampDB: Double
 
     public init(
       fftSize: Int = 8192,
       outputLength: Int? = nil,
-      floorDB: PrcFmt = -80,
-      preampDB: PrcFmt = -6
+      floorDB: Double = -80,
+      preampDB: Double = -6
     ) {
       precondition(
         fftSize >= 8 && fftSize.nonzeroBitCount == 1,
@@ -90,7 +90,7 @@ public enum FIRDesign {
     from biquads: [BiquadParameters],
     sampleRate: Int,
     options: Options = Options()
-  ) -> [PrcFmt] {
+  ) -> [Double] {
     let n = options.fftSize
     let bins = n / 2 + 1
     let fft = RealFFT(length: n)
@@ -98,10 +98,10 @@ public enum FIRDesign {
     // Step 1-2: build log-magnitude spectrum from the biquad chain.
     let floorLin = pow(10.0, options.floorDB / 20.0)
     let preampLn = options.preampDB / 20.0 * log(10.0)
-    var logMag = [PrcFmt](repeating: 0, count: bins)
+    var logMag = [Double](repeating: 0, count: bins)
     for k in 0..<bins {
-      let f = PrcFmt(k) * PrcFmt(sampleRate) / PrcFmt(n)
-      var dB: PrcFmt = 0
+      let f = Double(k) * Double(sampleRate) / Double(n)
+      var dB: Double = 0
       for p in biquads {
         guard let coeffs = BiquadCoefficients.compute(parameters: p, sampleRate: sampleRate)
         else { continue }
@@ -116,7 +116,7 @@ public enum FIRDesign {
     let cepstrum = inverseFFTRealSpectrum(re: logMag, fft: fft)
 
     // Step 4: causal min-phase cepstrum c_mp.
-    var cMp = [PrcFmt](repeating: 0, count: n)
+    var cMp = [Double](repeating: 0, count: n)
     cMp[0] = cepstrum[0]
     if n / 2 > 1 {
       for i in 1..<(n / 2) {
@@ -128,13 +128,13 @@ public enum FIRDesign {
 
     // Step 5: forward-FFT c_mp → complex cepstrum spectrum
     // C_mp = log|H| + j·φ_min where φ_min = −Hilbert(log|H|).
-    var cMpRe = [PrcFmt](repeating: 0, count: bins)
-    var cMpIm = [PrcFmt](repeating: 0, count: bins)
+    var cMpRe = [Double](repeating: 0, count: bins)
+    var cMpIm = [Double](repeating: 0, count: bins)
     forwardFFTReal(input: cMp, re: &cMpRe, im: &cMpIm, fft: fft)
 
     // Step 6: H_mp = exp(C_mp). Magnitude = |H|, phase = φ_min.
-    var hMpRe = [PrcFmt](repeating: 0, count: bins)
-    var hMpIm = [PrcFmt](repeating: 0, count: bins)
+    var hMpRe = [Double](repeating: 0, count: bins)
+    var hMpIm = [Double](repeating: 0, count: bins)
     for k in 0..<bins {
       let er = exp(cMpRe[k])
       hMpRe[k] = er * cos(cMpIm[k])
@@ -156,7 +156,7 @@ public enum FIRDesign {
     from biquads: [BiquadParameters],
     sampleRate: Int,
     options: Options = Options()
-  ) -> [PrcFmt] {
+  ) -> [Double] {
     let n = options.fftSize
     let bins = n / 2 + 1
     let fft = RealFFT(length: n)
@@ -167,22 +167,22 @@ public enum FIRDesign {
     // the spectrum so the inverse FFT lands the IR centred at n/2.
     let floorLin = pow(10.0, options.floorDB / 20.0)
     let preampLin = pow(10.0, options.preampDB / 20.0)
-    var hRe = [PrcFmt](repeating: 0, count: bins)
-    var hIm = [PrcFmt](repeating: 0, count: bins)
-    let phasePerBin = -PrcFmt.pi * PrcFmt(n / 2) / PrcFmt(n / 2)  // = −π
+    var hRe = [Double](repeating: 0, count: bins)
+    var hIm = [Double](repeating: 0, count: bins)
+    let phasePerBin = -Double.pi * Double(n / 2) / Double(n / 2)  // = −π
     // Note: phase shift = e^{−jωτ} where τ = n/2 samples. At bin k,
     // ω = 2π·k/n, so phase = −2π·k·(n/2)/n = −π·k. The cos/sin pair
     // below evaluates that with a single multiply per bin.
     for k in 0..<bins {
-      let f = PrcFmt(k) * PrcFmt(sampleRate) / PrcFmt(n)
-      var dB: PrcFmt = 0
+      let f = Double(k) * Double(sampleRate) / Double(n)
+      var dB: Double = 0
       for p in biquads {
         guard let coeffs = BiquadCoefficients.compute(parameters: p, sampleRate: sampleRate)
         else { continue }
         dB += coeffs.gainDB(atFreqHz: f, sampleRate: sampleRate)
       }
       let lin = max(floorLin, pow(10.0, dB / 20.0)) * preampLin
-      let phase = phasePerBin * PrcFmt(k)
+      let phase = phasePerBin * Double(k)
       hRe[k] = lin * cos(phase)
       hIm[k] = lin * sin(phase)
     }
@@ -213,17 +213,17 @@ public enum FIRDesign {
     target: TargetCurve,
     designSampleRate: Int,
     options: MeasurementDesignOptions = MeasurementDesignOptions()
-  ) -> [PrcFmt] {
+  ) -> [Double] {
     let n = options.fftSize
     let bins = n / 2 + 1
     let fft = RealFFT(length: n)
 
-    let measuredBinHz = PrcFmt(measured.sampleRate) / PrcFmt(measured.fftSize)
-    let designBinHz = PrcFmt(designSampleRate) / PrcFmt(n)
+    let measuredBinHz = Double(measured.sampleRate) / Double(measured.fftSize)
+    let designBinHz = Double(designSampleRate) / Double(n)
     let floorLin = pow(10.0, options.floorDB / 20.0)
     let preampLin = pow(10.0, options.preampDB / 20.0)
     let maxBoostLin = pow(10.0, options.maxBoostDB / 20.0)
-    let taperOctaves: PrcFmt = 0.5
+    let taperOctaves: Double = 0.5
     let lowEdgeLog = log10(options.minFreqHz)
     let highEdgeLog = log10(options.maxFreqHz)
     let blend = max(0, min(1, options.phaseBlend))
@@ -232,14 +232,14 @@ public enum FIRDesign {
     // angle in two parallel arrays — we'll need both raw magnitude
     // and the linear-phase target angle to drive the cepstral
     // min-phase reconstruction below.
-    var corrMag = [PrcFmt](repeating: preampLin, count: bins)
-    var targetAngle = [PrcFmt](repeating: 0, count: bins)
+    var corrMag = [Double](repeating: preampLin, count: bins)
+    var targetAngle = [Double](repeating: 0, count: bins)
 
     for k in 0..<bins {
-      let freq = PrcFmt(k) * designBinHz
-      let delayPhase = -PrcFmt.pi * PrcFmt(k)  // linear-phase n/2-sample delay
+      let freq = Double(k) * designBinHz
+      let delayPhase = -Double.pi * Double(k)  // linear-phase n/2-sample delay
       var corr = preampLin
-      var correction: PrcFmt = 0
+      var correction: Double = 0
 
       if freq >= options.minFreqHz, freq <= options.maxFreqHz {
         let mBin = Int((freq / measuredBinHz).rounded())
@@ -260,7 +260,7 @@ public enum FIRDesign {
           let highDist = (highEdgeLog - logF) / taperOctaves
           let edge = min(lowDist, highDist)
           if edge < 1.0 {
-            let w = 0.5 * (1.0 - cos(PrcFmt.pi * max(0, edge)))
+            let w = 0.5 * (1.0 - cos(Double.pi * max(0, edge)))
             corr = corr * w + preampLin * (1.0 - w)
             correction = correction * w
           }
@@ -272,8 +272,8 @@ public enum FIRDesign {
 
     // For phaseBlend == 1.0 (default), skip the min-phase recon —
     // the result is identical to the original linear-phase IR.
-    var hRe = [PrcFmt](repeating: 0, count: bins)
-    var hIm = [PrcFmt](repeating: 0, count: bins)
+    var hRe = [Double](repeating: 0, count: bins)
+    var hIm = [Double](repeating: 0, count: bins)
     if blend >= 1.0 - 1e-9 {
       for k in 0..<bins {
         hRe[k] = corrMag[k] * cos(targetAngle[k])
@@ -311,7 +311,7 @@ public enum FIRDesign {
         if dist > halfWin {
           ir[i] = 0
         } else {
-          let w = 0.5 * (1.0 + cos(PrcFmt.pi * PrcFmt(dist) / PrcFmt(halfWin)))
+          let w = 0.5 * (1.0 + cos(Double.pi * Double(dist) / Double(halfWin)))
           ir[i] *= w
         }
       }
@@ -323,18 +323,18 @@ public enum FIRDesign {
   /// via real cepstrum: ifft(log|H|) → causal-only cepstrum → fft →
   /// imag part is the min-phase angle (Smith §10.3).
   private static func computeMinimumPhaseAngle(
-    magnitude: [PrcFmt], fft: RealFFT, floorLin: PrcFmt
-  ) -> [PrcFmt] {
+    magnitude: [Double], fft: RealFFT, floorLin: Double
+  ) -> [Double] {
     let bins = magnitude.count
     let n = fft.length
     let logFloor = log(floorLin)
-    var logMag = [PrcFmt](repeating: 0, count: bins)
+    var logMag = [Double](repeating: 0, count: bins)
     for k in 0..<bins {
       logMag[k] = log(max(magnitude[k], floorLin))
       if !logMag[k].isFinite { logMag[k] = logFloor }
     }
     let cepstrum = inverseFFTRealSpectrum(re: logMag, fft: fft)
-    var causal = [PrcFmt](repeating: 0, count: n)
+    var causal = [Double](repeating: 0, count: n)
     causal[0] = cepstrum[0]
     if n / 2 >= 1 {
       for i in 1..<(n / 2) {
@@ -342,8 +342,8 @@ public enum FIRDesign {
       }
       causal[n / 2] = cepstrum[n / 2]
     }
-    var re = [PrcFmt](repeating: 0, count: bins)
-    var im = [PrcFmt](repeating: 0, count: bins)
+    var re = [Double](repeating: 0, count: bins)
+    var im = [Double](repeating: 0, count: bins)
     forwardFFTReal(input: causal, re: &re, im: &im, fft: fft)
     return im  // imag part of FFT(causal-cepstrum) = min-phase angle
   }
@@ -351,17 +351,17 @@ public enum FIRDesign {
   /// Wrap `phi` into the (−π, π] interval centred on `reference` so
   /// blending with `reference` doesn't have to cross a 2π boundary.
   /// Used during phase-blend interpolation.
-  private static func wrappedNear(_ phi: PrcFmt, reference: PrcFmt) -> PrcFmt {
+  private static func wrappedNear(_ phi: Double, reference: Double) -> Double {
     var p = phi
-    while p - reference > PrcFmt.pi { p -= 2 * PrcFmt.pi }
-    while p - reference < -PrcFmt.pi { p += 2 * PrcFmt.pi }
+    while p - reference > Double.pi { p -= 2 * Double.pi }
+    while p - reference < -Double.pi { p += 2 * Double.pi }
     return p
   }
 
   /// Index of the absolute-largest sample in `ir`. Used to centre
   /// the Hann window for mixed-phase IRs whose peak isn't at the
   /// linear-phase n/2 location.
-  private static func peakIndex(of ir: [PrcFmt]) -> Int {
+  private static func peakIndex(of ir: [Double]) -> Int {
     var idx = 0
     var bestAbs = 0.0
     for i in 0..<ir.count {
@@ -379,18 +379,18 @@ public enum FIRDesign {
   /// the measurement-driven path.
   public struct MeasurementDesignOptions: Sendable {
     public var fftSize: Int
-    public var floorDB: PrcFmt
-    public var preampDB: PrcFmt
+    public var floorDB: Double
+    public var preampDB: Double
     /// Cap on per-frequency boost. Real measurements have nulls
     /// (modal cancellations) where `target / measured` is huge —
     /// the cap keeps the IR from chasing them with absurd boosts
     /// the speaker / amp can't deliver anyway.
-    public var maxBoostDB: PrcFmt
+    public var maxBoostDB: Double
     /// Correction band. Outside `[minFreqHz, maxFreqHz]` the IR
     /// passes through at preamp gain (no correction). The
     /// edges are cosine-tapered over half an octave.
-    public var minFreqHz: PrcFmt
-    public var maxFreqHz: PrcFmt
+    public var minFreqHz: Double
+    public var maxFreqHz: Double
     /// Blend between minimum-phase (0.0) and linear-phase (1.0)
     /// reconstruction. `0.0` produces a causal IR with the cepstral
     /// min-phase angle paired with the desired magnitude — ~zero
@@ -399,16 +399,16 @@ public enum FIRDesign {
     /// full magnitude+phase correction. Intermediate values
     /// linearly blend the two phase responses, trading pre-ring on
     /// transients for shorter latency.
-    public var phaseBlend: PrcFmt
+    public var phaseBlend: Double
 
     public init(
       fftSize: Int = 8192,
-      floorDB: PrcFmt = -60,
-      preampDB: PrcFmt = -6,
-      maxBoostDB: PrcFmt = 12,
-      minFreqHz: PrcFmt = 30,
-      maxFreqHz: PrcFmt = 18_000,
-      phaseBlend: PrcFmt = 1.0
+      floorDB: Double = -60,
+      preampDB: Double = -6,
+      maxBoostDB: Double = 12,
+      minFreqHz: Double = 30,
+      maxFreqHz: Double = 18_000,
+      phaseBlend: Double = 1.0
     ) {
       precondition(
         fftSize >= 8 && fftSize.nonzeroBitCount == 1,
@@ -428,9 +428,9 @@ public enum FIRDesign {
   /// Forward FFT of a real time-domain buffer. Wraps
   /// `RealFFT.forward` with the safe `withUnsafe...` calls.
   private static func forwardFFTReal(
-    input: [PrcFmt],
-    re: inout [PrcFmt],
-    im: inout [PrcFmt],
+    input: [Double],
+    re: inout [Double],
+    im: inout [Double],
     fft: RealFFT
   ) {
     input.withUnsafeBufferPointer { src in
@@ -448,12 +448,12 @@ public enum FIRDesign {
   /// Returns a real even-symmetric time-domain buffer of length
   /// `fft.length`. Output is normalised so `inverse(forward(x)) ≈ x`.
   private static func inverseFFTRealSpectrum(
-    re: [PrcFmt],
+    re: [Double],
     fft: RealFFT
-  ) -> [PrcFmt] {
+  ) -> [Double] {
     let n = fft.length
     let bins = n / 2 + 1
-    let zeroIm = [PrcFmt](repeating: 0, count: bins)
+    let zeroIm = [Double](repeating: 0, count: bins)
     return inverseFFTComplexSpectrum(re: re, im: zeroIm, fft: fft)
   }
 
@@ -461,12 +461,12 @@ public enum FIRDesign {
   /// applied so `inverse(forward(x)) ≈ x`. (RealFFT's raw
   /// inverse multiplies by `length`.)
   private static func inverseFFTComplexSpectrum(
-    re: [PrcFmt],
-    im: [PrcFmt],
+    re: [Double],
+    im: [Double],
     fft: RealFFT
-  ) -> [PrcFmt] {
+  ) -> [Double] {
     let n = fft.length
-    var out = [PrcFmt](repeating: 0, count: n)
+    var out = [Double](repeating: 0, count: n)
     re.withUnsafeBufferPointer { reBuf in
       im.withUnsafeBufferPointer { imBuf in
         out.withUnsafeMutableBufferPointer { outBuf in
@@ -476,7 +476,7 @@ public enum FIRDesign {
         }
       }
     }
-    var invN = 1.0 / PrcFmt(n)
+    var invN = 1.0 / Double(n)
     out.withUnsafeMutableBufferPointer { o in
       if let base = o.baseAddress {
         vDSP_vsmulD(base, 1, &invN, base, 1, vDSP_Length(n))

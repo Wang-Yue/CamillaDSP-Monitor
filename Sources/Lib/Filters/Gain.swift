@@ -4,14 +4,14 @@ import DSPConfig
 
 public final class GainFilter: Filter {
   public let name: String
-  private var linearGain: PrcFmt
+  private var linearGain: Double
   private var muted: Bool
 
   public init(name: String = "gain", parameters: GainParameters) {
     self.name = name
     self.muted = parameters.mute ?? false
     let gainValue = parameters.gain ?? 0.0
-    var computedGain = parameters.scale == .linear ? gainValue : PrcFmt.fromDB(gainValue)
+    var computedGain = parameters.scale == .linear ? gainValue : Double.fromDB(gainValue)
 
     if parameters.inverted == true {
       computedGain *= -1.0
@@ -28,7 +28,7 @@ public final class GainFilter: Filter {
     }
   }
 
-  public func processSingle(_ sample: PrcFmt) -> PrcFmt {
+  public func processSingle(_ sample: Double) -> Double {
     if muted {
       return 0.0
     } else {
@@ -39,7 +39,7 @@ public final class GainFilter: Filter {
     guard case .gain(let params) = config else { return }
     self.muted = params.mute ?? false
     let gainValue = params.gain ?? 0.0
-    var computedGain = params.scale == .linear ? gainValue : PrcFmt.fromDB(gainValue)
+    var computedGain = params.scale == .linear ? gainValue : Double.fromDB(gainValue)
 
     if params.inverted == true {
       computedGain *= -1.0

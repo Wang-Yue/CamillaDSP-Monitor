@@ -5,22 +5,22 @@ import Foundation
 // MARK: - Ditherers
 
 private struct NoopDitherer {
-  init(amplitude _: PrcFmt) {}
-  mutating func sample() -> PrcFmt { 0.0 }
+  init(amplitude _: Double) {}
+  mutating func sample() -> Double { 0.0 }
 }
 
 private struct TriangularDitherer {
-  private var halfAmplitude: PrcFmt
+  private var halfAmplitude: Double
 
-  init(amplitude: PrcFmt) {
+  init(amplitude: Double) {
     self.halfAmplitude = amplitude / 2.0
   }
 
-  mutating func sample() -> PrcFmt {
-    let u = PrcFmt.random(in: 0.0...1.0)
+  mutating func sample() -> Double {
+    let u = Double.random(in: 0.0...1.0)
     let a = -halfAmplitude
     let b = halfAmplitude
-    let c: PrcFmt = 0.0
+    let c: Double = 0.0
     let fc = (c - a) / (b - a)
 
     if u < fc {
@@ -32,15 +32,15 @@ private struct TriangularDitherer {
 }
 
 private struct HighpassDitherer {
-  private var halfAmplitude: PrcFmt
-  private var previousSample: PrcFmt = 0.0
+  private var halfAmplitude: Double
+  private var previousSample: Double = 0.0
 
-  init(amplitude: PrcFmt) {
+  init(amplitude: Double) {
     self.halfAmplitude = amplitude / 2.0
   }
 
-  mutating func sample() -> PrcFmt {
-    let newSample = PrcFmt.random(in: -halfAmplitude...halfAmplitude)
+  mutating func sample() -> Double {
+    let newSample = Double.random(in: -halfAmplitude...halfAmplitude)
     let highPassed = newSample - previousSample
     previousSample = newSample
     return highPassed
@@ -50,19 +50,19 @@ private struct HighpassDitherer {
 // MARK: - NoiseShaper
 
 private final class NoiseShaper {
-  private let filterPtr: UnsafePointer<PrcFmt>
-  private let bufferPtr: UnsafeMutablePointer<PrcFmt>
+  private let filterPtr: UnsafePointer<Double>
+  private let bufferPtr: UnsafeMutablePointer<Double>
   let filterCount: Int
   private var writeIndex: Int
 
-  init(filter: [PrcFmt]) {
+  init(filter: [Double]) {
     self.filterCount = filter.count
 
-    let fPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: filter.count)
+    let fPtr = UnsafeMutablePointer<Double>.allocate(capacity: filter.count)
     fPtr.initialize(from: filter, count: filter.count)
     self.filterPtr = UnsafePointer(fPtr)
 
-    let bPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: filter.count)
+    let bPtr = UnsafeMutablePointer<Double>.allocate(capacity: filter.count)
     bPtr.initialize(repeating: 0.0, count: filter.count)
     self.bufferPtr = bPtr
 
@@ -74,8 +74,8 @@ private final class NoiseShaper {
     bufferPtr.deallocate()
   }
 
-  func process(scaled: PrcFmt, dither: PrcFmt) -> PrcFmt {
-    var filtBuf: PrcFmt = 0.0
+  func process(scaled: Double, dither: Double) -> Double {
+    var filtBuf: Double = 0.0
     let count = filterCount
     for i in 0..<count {
       let bufIdx = (writeIndex + i) % count
@@ -265,7 +265,7 @@ extension NoiseShaper {
 
 final class DitherFilter: Filter {
   let name: String
-  private var scalefact: PrcFmt
+  private var scalefact: Double
   private var shaper: NoiseShaper?
 
   private enum DithererKind {
@@ -273,7 +273,7 @@ final class DitherFilter: Filter {
     case triangular(TriangularDitherer)
     case highpass(HighpassDitherer)
 
-    mutating func sample() -> PrcFmt {
+    mutating func sample() -> Double {
       switch self {
       case .noop(var d):
         let v = d.sample()
@@ -297,7 +297,7 @@ final class DitherFilter: Filter {
     self.name = name
     let bits = parameters.bits
     let ditherType = parameters.type
-    self.scalefact = pow(2.0, PrcFmt(bits - 1))
+    self.scalefact = pow(2.0, Double(bits - 1))
 
     self.shaper = Self.makeShaper(for: ditherType)
 
@@ -323,7 +323,7 @@ final class DitherFilter: Filter {
       let scaled = base[i] * scalefact
       let dither = ditherer.sample()
 
-      let resultR: PrcFmt
+      let resultR: Double
       if let s = shaper {
         resultR = s.process(scaled: scaled, dither: dither)
       } else {
@@ -339,7 +339,7 @@ final class DitherFilter: Filter {
     guard case .dither(let params) = config else { return }
     let bits = params.bits
     let ditherType = params.type
-    self.scalefact = pow(2.0, PrcFmt(bits - 1))
+    self.scalefact = pow(2.0, Double(bits - 1))
 
     self.shaper = Self.makeShaper(for: ditherType)
 

@@ -5,12 +5,12 @@ import Foundation
 
 public final class LimiterFilter: Filter {
   public let name: String
-  private var clipLimit: PrcFmt
+  private var clipLimit: Double
   private var softClip: Bool
 
   public init(name: String = "limiter", parameters: LimiterParameters) {
     self.name = name
-    self.clipLimit = PrcFmt.fromDB(parameters.clipLimit)
+    self.clipLimit = Double.fromDB(parameters.clipLimit)
     self.softClip = parameters.softClip ?? false
   }
 
@@ -33,7 +33,7 @@ public final class LimiterFilter: Filter {
   }
   public func updateParameters(_ config: FilterConfig, sampleRate: Int) {
     guard case .limiter(let params) = config else { return }
-    self.clipLimit = PrcFmt.fromDB(params.clipLimit)
+    self.clipLimit = Double.fromDB(params.clipLimit)
     self.softClip = params.softClip ?? false
   }
 }

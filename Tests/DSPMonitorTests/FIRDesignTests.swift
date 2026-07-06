@@ -22,10 +22,10 @@ import Testing
 
   private let sampleRate = 48000
 
-  private func irFR(_ ir: [PrcFmt], fftSize: Int) -> FrequencyResponse {
+  private func irFR(_ ir: [Double], fftSize: Int) -> FrequencyResponse {
     var padded = ir
     if padded.count < fftSize {
-      padded.append(contentsOf: [PrcFmt](repeating: 0, count: fftSize - padded.count))
+      padded.append(contentsOf: [Double](repeating: 0, count: fftSize - padded.count))
     } else if padded.count > fftSize {
       padded.removeLast(padded.count - fftSize)
     }
@@ -175,14 +175,14 @@ import Testing
     let chunk = 1024
     let filter = ConvolutionFilter(coefficients: ir, chunkSize: chunk)
 
-    var collected: [PrcFmt] = []
+    var collected: [Double] = []
     collected.reserveCapacity(ir.count + chunk)
-    var buf = [PrcFmt](repeating: 0, count: chunk)
+    var buf = [Double](repeating: 0, count: chunk)
     buf[0] = 1.0
     filter.process(waveform: &buf)
     collected.append(contentsOf: buf)
     for _ in 0..<3 {
-      var b = [PrcFmt](repeating: 0, count: chunk)
+      var b = [Double](repeating: 0, count: chunk)
       filter.process(waveform: &b)
       collected.append(contentsOf: b)
     }

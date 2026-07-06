@@ -4,10 +4,10 @@ import Foundation
 
 final class DiffEqFilter: Filter {
   let name: String
-  private var x: UnsafeMutablePointer<PrcFmt>
-  private var y: UnsafeMutablePointer<PrcFmt>
-  private var a: UnsafePointer<PrcFmt>
-  private var b: UnsafePointer<PrcFmt>
+  private var x: UnsafeMutablePointer<Double>
+  private var y: UnsafeMutablePointer<Double>
+  private var a: UnsafePointer<Double>
+  private var b: UnsafePointer<Double>
   private var aCount: Int = 0
   private var bCount: Int = 0
   private var idxX: Int = 0
@@ -31,11 +31,11 @@ final class DiffEqFilter: Filter {
     self.aCount = aCoeffs.count
     self.bCount = bCoeffs.count
 
-    let aPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: aCoeffs.count)
+    let aPtr = UnsafeMutablePointer<Double>.allocate(capacity: aCoeffs.count)
     aPtr.initialize(from: aCoeffs, count: aCoeffs.count)
     self.a = UnsafePointer(aPtr)
 
-    let bPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bCoeffs.count)
+    let bPtr = UnsafeMutablePointer<Double>.allocate(capacity: bCoeffs.count)
     bPtr.initialize(from: bCoeffs, count: bCoeffs.count)
     self.b = UnsafePointer(bPtr)
 
@@ -96,11 +96,11 @@ final class DiffEqFilter: Filter {
     self.aCount = aCoeffs.count
     self.bCount = bCoeffs.count
 
-    let aPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: aCoeffs.count)
+    let aPtr = UnsafeMutablePointer<Double>.allocate(capacity: aCoeffs.count)
     aPtr.initialize(from: aCoeffs, count: aCoeffs.count)
     self.a = UnsafePointer(aPtr)
 
-    let bPtr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: bCoeffs.count)
+    let bPtr = UnsafeMutablePointer<Double>.allocate(capacity: bCoeffs.count)
     bPtr.initialize(from: bCoeffs, count: bCoeffs.count)
     self.b = UnsafePointer(bPtr)
 

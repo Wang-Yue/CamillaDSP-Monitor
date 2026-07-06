@@ -39,17 +39,17 @@ import Foundation
 
 public struct CalibrationCurve: Sendable {
   /// Source frequencies in ascending order, Hz.
-  public let frequencies: [PrcFmt]
+  public let frequencies: [Double]
   /// Magnitudes at each frequency, dB.
-  public let magnitudesDB: [PrcFmt]
+  public let magnitudesDB: [Double]
   /// Phases at each frequency, degrees. `nil` when the source file
   /// only had two columns (magnitude only).
-  public let phasesDeg: [PrcFmt]?
+  public let phasesDeg: [Double]?
 
   public init(
-    frequencies: [PrcFmt],
-    magnitudesDB: [PrcFmt],
-    phasesDeg: [PrcFmt]? = nil
+    frequencies: [Double],
+    magnitudesDB: [Double],
+    phasesDeg: [Double]? = nil
   ) {
     precondition(frequencies.count == magnitudesDB.count)
     if let p = phasesDeg {
@@ -62,20 +62,20 @@ public struct CalibrationCurve: Sendable {
 
   /// Magnitude at `f` Hz, log-frequency-linearly interpolated.
   /// Constant-extrapolates outside the measured range.
-  public func magnitude(at f: PrcFmt) -> PrcFmt {
+  public func magnitude(at f: Double) -> Double {
     Self.interpolate(at: f, frequencies: frequencies, values: magnitudesDB)
   }
 
   /// Phase at `f` Hz in degrees, log-frequency-linearly interpolated.
   /// Returns 0 when the curve has no phase data.
-  public func phase(at f: PrcFmt) -> PrcFmt {
+  public func phase(at f: Double) -> Double {
     guard let p = phasesDeg else { return 0 }
     return Self.interpolate(at: f, frequencies: frequencies, values: p)
   }
 
   /// Sample the curve onto an arbitrary frequency grid (typically
   /// the analysis grid). Returns dB magnitudes parallel to `grid`.
-  public func sampledMagnitudeDB(at grid: [PrcFmt]) -> [PrcFmt] {
+  public func sampledMagnitudeDB(at grid: [Double]) -> [Double] {
     grid.map { magnitude(at: $0) }
   }
 
@@ -121,9 +121,9 @@ public struct CalibrationCurve: Sendable {
   public static func parse(_ text: String, sourcePath: String = "<inline>")
     throws -> CalibrationCurve
   {
-    var freqs: [PrcFmt] = []
-    var mags: [PrcFmt] = []
-    var phases: [PrcFmt] = []
+    var freqs: [Double] = []
+    var mags: [Double] = []
+    var phases: [Double] = []
     var sawPhaseColumn = false
 
     let cleanText = text.replacingOccurrences(of: "\r", with: "")
@@ -138,21 +138,21 @@ public struct CalibrationCurve: Sendable {
       // Data lines — split on any whitespace.
       let fields = trimmed.split(whereSeparator: { $0.isWhitespace })
       guard fields.count >= 2,
-        let f = PrcFmt(fields[0]),
-        let m = PrcFmt(fields[1])
+        let f = Double(fields[0]),
+        let m = Double(fields[1])
       else {
         // Some FRD files have a "Sensitivity" or other text header
         // line before the data starts; skip if the first field isn't
         // numeric. Only reject if the first line that LOOKS numeric
         // is malformed.
-        if PrcFmt(fields.first.map(String.init) ?? "") != nil {
+        if Double(fields.first.map(String.init) ?? "") != nil {
           throw LoadError.malformedLine(line: idx + 1, content: String(trimmed))
         }
         continue
       }
       freqs.append(f)
       mags.append(m)
-      if fields.count >= 3, let p = PrcFmt(fields[2]) {
+      if fields.count >= 3, let p = Double(fields[2]) {
         phases.append(p)
         sawPhaseColumn = true
       } else if sawPhaseColumn {
@@ -218,8 +218,8 @@ public struct CalibrationCurve: Sendable {
   /// Log-frequency-linear interpolation. Values are interpolated as
   /// if both axes were `(log10(f), value)`. Constant-extrapolates.
   private static func interpolate(
-    at f: PrcFmt, frequencies: [PrcFmt], values: [PrcFmt]
-  ) -> PrcFmt {
+    at f: Double, frequencies: [Double], values: [Double]
+  ) -> Double {
     let n = frequencies.count
     guard n > 0 else { return 0 }
     if n == 1 { return values[0] }

@@ -5,56 +5,13 @@
 // Target volume, current volume, and mute states are kept for 5 faders (Main, Aux 1-4)
 // as separate inline atomic variables to avoid heap allocation and conform to non-copyable requirements.
 
+import DSPConfig
 import Synchronization
-
-public enum Fader: Int, Sendable, CaseIterable {
-  case main = 0
-  case aux1 = 1
-  case aux2 = 2
-  case aux3 = 3
-  case aux4 = 4
-}
-
-extension Fader: Codable {
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    if let intValue = try? container.decode(Int.self) {
-      if let fader = Fader(rawValue: intValue) {
-        self = fader
-        return
-      }
-    }
-    let stringValue = try container.decode(String.self)
-    switch stringValue.lowercased() {
-    case "main": self = .main
-    case "aux1": self = .aux1
-    case "aux2": self = .aux2
-    case "aux3": self = .aux3
-    case "aux4": self = .aux4
-    default:
-      throw DecodingError.dataCorruptedError(
-        in: container,
-        debugDescription: "Cannot decode Fader from \(stringValue)"
-      )
-    }
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    switch self {
-    case .main: try container.encode("Main")
-    case .aux1: try container.encode("Aux1")
-    case .aux2: try container.encode("Aux2")
-    case .aux3: try container.encode("Aux3")
-    case .aux4: try container.encode("Aux4")
-    }
-  }
-}
 
 public final class ProcessingParameters: Sendable {
 
   /// Default volume (dB) when an engine starts.
-  public static let defaultVolume: PrcFmt = 0.0
+  public static let defaultVolume: Double = 0.0
   /// Default mute state.
   public static let defaultMute = false
 
@@ -127,7 +84,7 @@ public final class ProcessingParameters: Sendable {
 
   // MARK: - Volume / Mute
 
-  public func targetVolume(for fader: Fader) -> PrcFmt {
+  public func targetVolume(for fader: Fader) -> Double {
     switch fader {
     case .main: return _targetVolume0.value
     case .aux1: return _targetVolume1.value
@@ -137,7 +94,7 @@ public final class ProcessingParameters: Sendable {
     }
   }
 
-  public func setTargetVolume(_ value: PrcFmt, for fader: Fader) {
+  public func setTargetVolume(_ value: Double, for fader: Fader) {
     switch fader {
     case .main: _targetVolume0.value = value
     case .aux1: _targetVolume1.value = value
@@ -147,7 +104,7 @@ public final class ProcessingParameters: Sendable {
     }
   }
 
-  public func currentVolume(for fader: Fader) -> PrcFmt {
+  public func currentVolume(for fader: Fader) -> Double {
     switch fader {
     case .main: return _currentVolume0.value
     case .aux1: return _currentVolume1.value
@@ -157,7 +114,7 @@ public final class ProcessingParameters: Sendable {
     }
   }
 
-  public func setCurrentVolume(_ value: PrcFmt, for fader: Fader) {
+  public func setCurrentVolume(_ value: Double, for fader: Fader) {
     switch fader {
     case .main: _currentVolume0.value = value
     case .aux1: _currentVolume1.value = value
@@ -187,12 +144,12 @@ public final class ProcessingParameters: Sendable {
     }
   }
 
-  public var targetVolume: PrcFmt {
+  public var targetVolume: Double {
     get { targetVolume(for: .main) }
     set { setTargetVolume(newValue, for: .main) }
   }
 
-  public var currentVolume: PrcFmt {
+  public var currentVolume: Double {
     get { currentVolume(for: .main) }
     set { setCurrentVolume(newValue, for: .main) }
   }
@@ -204,22 +161,22 @@ public final class ProcessingParameters: Sendable {
 
   // MARK: - Metrics
 
-  public var captureSignalPeak: [PrcFmt] {
+  public var captureSignalPeak: [Double] {
     get { _captureSignalPeak.snapshot }
     set { _captureSignalPeak.store(newValue) }
   }
 
-  public var captureSignalRms: [PrcFmt] {
+  public var captureSignalRms: [Double] {
     get { _captureSignalRms.snapshot }
     set { _captureSignalRms.store(newValue) }
   }
 
-  public var playbackSignalPeak: [PrcFmt] {
+  public var playbackSignalPeak: [Double] {
     get { _playbackSignalPeak.snapshot }
     set { _playbackSignalPeak.store(newValue) }
   }
 
-  public var playbackSignalRms: [PrcFmt] {
+  public var playbackSignalRms: [Double] {
     get { _playbackSignalRms.snapshot }
     set { _playbackSignalRms.store(newValue) }
   }
@@ -228,33 +185,33 @@ public final class ProcessingParameters: Sendable {
 
   /// Asynchronously update the capture-side peak and RMS levels on the audio thread.
   /// Does not allocate.
-  public func updateCaptureLevels(from chunk: AudioChunk) -> PrcFmt {
+  public func updateCaptureLevels(from chunk: AudioChunk) -> Double {
     return updateLevels(from: chunk, peakStorage: _captureSignalPeak, rmsStorage: _captureSignalRms)
   }
 
   /// Asynchronously update the playback-side peak and RMS levels on the audio thread.
   /// Does not allocate.
-  public func updatePlaybackLevels(from chunk: AudioChunk) -> PrcFmt {
+  public func updatePlaybackLevels(from chunk: AudioChunk) -> Double {
     return updateLevels(
       from: chunk, peakStorage: _playbackSignalPeak, rmsStorage: _playbackSignalRms)
   }
 
   private func updateLevels(
     from chunk: AudioChunk, peakStorage: AtomicLevels, rmsStorage: AtomicLevels
-  ) -> PrcFmt {
+  ) -> Double {
     let channelCount = min(chunk.channels, peakStorage.count)
     guard channelCount > 0 else { return -1000.0 }
     let frameCount = chunk.validFrames
-    var maxPeak: PrcFmt = -1000.0
+    var maxPeak: Double = -1000.0
     for i in 0..<channelCount {
       let buffer = UnsafeBufferPointer(chunk[i])
 
-      let peakDb = PrcFmt.toDB(DSPOps.peakAbsolute(buffer, count: frameCount))
+      let peakDb = Double.toDB(DSPOps.peakAbsolute(buffer, count: frameCount))
       peakStorage.levels[i].value = peakDb
       if peakDb > maxPeak {
         maxPeak = peakDb
       }
-      let rmsDb = PrcFmt.toDB(DSPOps.rms(buffer, count: frameCount))
+      let rmsDb = Double.toDB(DSPOps.rms(buffer, count: frameCount))
       rmsStorage.levels[i].value = rmsDb
     }
 
@@ -264,7 +221,7 @@ public final class ProcessingParameters: Sendable {
 
 // MARK: - AtomicLevels
 
-/// Lock-free fixed-size `PrcFmt` level storage using an array of `AtomicDouble`.
+/// Lock-free fixed-size `Double` level storage using an array of `AtomicDouble`.
 /// Maintains the same interface but simplifies implementation and removes unsafe pointers.
 final class AtomicLevels: Sendable {
   fileprivate let levels: [AtomicDouble]
@@ -276,7 +233,7 @@ final class AtomicLevels: Sendable {
   }
 
   /// Publish new values.
-  func store(_ values: [PrcFmt]) {
+  func store(_ values: [Double]) {
     let limit = min(values.count, count)
     for i in 0..<limit {
       levels[i].value = values[i]
@@ -284,7 +241,7 @@ final class AtomicLevels: Sendable {
   }
 
   /// Snapshot the current levels.
-  var snapshot: [PrcFmt] {
+  var snapshot: [Double] {
     return levels.map { $0.value }
   }
 }

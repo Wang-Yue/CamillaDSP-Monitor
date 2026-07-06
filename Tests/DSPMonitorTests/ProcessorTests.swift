@@ -6,7 +6,7 @@ import Testing
 @testable import DSPProcessors
 
 @Suite struct ProcessorTests {
-  private static func isClose(_ left: PrcFmt, _ right: PrcFmt, maxdiff: PrcFmt) -> Bool {
+  private static func isClose(_ left: Double, _ right: Double, maxdiff: Double) -> Bool {
     return abs(left - right) < maxdiff
   }
 

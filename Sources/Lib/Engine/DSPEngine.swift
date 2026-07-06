@@ -12,7 +12,7 @@ public actor SwiftDSPEngine {
   private let spectrum = SpectrumAnalyzer()
   private let captureBuffer = AudioHistoryBuffer()
   private let playbackBuffer = AudioHistoryBuffer()
-  private var desiredFaderVolumes: [Fader: PrcFmt] = [
+  private var desiredFaderVolumes: [Fader: Double] = [
     .main: 0.0, .aux1: 0.0, .aux2: 0.0, .aux3: 0.0, .aux4: 0.0,
   ]
   private var desiredFaderMutes: [Fader: Bool] = [
@@ -97,8 +97,8 @@ public actor SwiftDSPEngine {
   }
 
   public func setFaderVolume(_ fader: Fader, _ db: Float) {
-    desiredFaderVolumes[fader] = PrcFmt(db)
-    core?.processingParams.setTargetVolume(PrcFmt(db), for: fader)
+    desiredFaderVolumes[fader] = Double(db)
+    core?.processingParams.setTargetVolume(Double(db), for: fader)
   }
 
   public func setFaderMute(_ fader: Fader, _ mute: Bool) {

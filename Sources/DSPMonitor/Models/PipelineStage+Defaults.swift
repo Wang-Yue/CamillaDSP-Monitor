@@ -1,6 +1,5 @@
 // PipelineStage+Defaults - Default stages and persistence (Snapshot)
 
-import DSPAudio
 import DSPConfig
 import Foundation
 
@@ -147,7 +146,7 @@ extension PipelineStage {
       loudnessReference: loudnessReference,
       loudnessHighBoost: loudnessHighBoost,
       loudnessLowBoost: loudnessLowBoost,
-      loudnessFader: loudnessFader.rawValue,
+      loudnessFader: loudnessFader.intValue,
       loudnessAttenuateMid: loudnessAttenuateMid,
 
       // New parameters
@@ -156,7 +155,7 @@ extension PipelineStage {
       gainMuted: gainMuted,
       volumeRampTime: volumeRampTime,
       volumeLimit: volumeLimit,
-      volumeFader: volumeFader.rawValue,
+      volumeFader: volumeFader.intValue,
       delayValue: delayValue,
       delayUnit: delayUnit.rawValue,
       delaySubsample: delaySubsample,
@@ -252,7 +251,7 @@ extension PipelineStage {
     loudnessReference = s.loudnessReference
     loudnessHighBoost = s.loudnessHighBoost
     loudnessLowBoost = s.loudnessLowBoost
-    if let v = Fader(rawValue: s.loudnessFader) { loudnessFader = v }
+    if let v = Fader(intValue: s.loudnessFader) { loudnessFader = v }
     loudnessAttenuateMid = s.loudnessAttenuateMid
 
     // New parameters
@@ -261,7 +260,7 @@ extension PipelineStage {
     gainMuted = s.gainMuted
     volumeRampTime = s.volumeRampTime
     volumeLimit = s.volumeLimit
-    if let v = Fader(rawValue: s.volumeFader) { volumeFader = v }
+    if let v = Fader(intValue: s.volumeFader) { volumeFader = v }
     delayValue = s.delayValue
     if let v = DelayUnit(rawValue: s.delayUnit) { delayUnit = v }
     delaySubsample = s.delaySubsample

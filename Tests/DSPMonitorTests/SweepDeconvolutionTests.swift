@@ -27,9 +27,9 @@ import Testing
   // → 16 kHz keeps the FFT length tractable while still spanning the
   // bulk of the audible band.
   private let sampleRate = 48000
-  private let f1: PrcFmt = 100.0
-  private let f2: PrcFmt = 16_000.0
-  private let durationSeconds: PrcFmt = 0.5
+  private let f1: Double = 100.0
+  private let f2: Double = 16_000.0
+  private let durationSeconds: Double = 0.5
 
   /// Identity round-trip: feed the sweep itself as the "captured"
   /// signal. The deconvolution of `x ⊛ f` should be a near-Dirac
@@ -65,7 +65,7 @@ import Testing
     let (sweep, _) = SweepGenerator.sweepAndInverse(
       f1: f1, f2: f2, durationSeconds: durationSeconds, sampleRate: sampleRate,
       fadeInSeconds: 0, fadeOutSeconds: 0)
-    var captured = [PrcFmt](repeating: 0, count: sweep.count + delay)
+    var captured = [Double](repeating: 0, count: sweep.count + delay)
     for i in 0..<sweep.count { captured[i + delay] = sweep[i] }
 
     let ir = SweepDeconvolver.deconvolve(
@@ -88,7 +88,7 @@ import Testing
       f1: f1, f2: f2, durationSeconds: durationSeconds, sampleRate: sampleRate,
       fadeInSeconds: 0, fadeOutSeconds: 0)
     // Captured = sweep convolved with [0.5, 0.5]: y[n] = 0.5·x[n] + 0.5·x[n−1].
-    var captured = [PrcFmt](repeating: 0, count: sweep.count + 1)
+    var captured = [Double](repeating: 0, count: sweep.count + 1)
     for i in 0..<sweep.count { captured[i] += 0.5 * sweep[i] }
     for i in 0..<sweep.count { captured[i + 1] += 0.5 * sweep[i] }
 
@@ -130,7 +130,7 @@ import Testing
     // weakest). Then measure the maximum deviation across that band.
     let lowHz = 2.0 * f1
     let highHz = f2 / 2.0
-    var bandMags: [PrcFmt] = []
+    var bandMags: [Double] = []
     for k in 1..<fr.bins {
       let f = fr.frequency(at: k)
       if f >= lowHz && f <= highHz {
@@ -154,7 +154,7 @@ import Testing
   /// 5 cycles = 0.5 ms window), eliminating the comb-filter ripple.
   @Test func FrequencyDependentWindowSuppressesReflection() {
     let n = 4096
-    var samples = [PrcFmt](repeating: 0, count: n)
+    var samples = [Double](repeating: 0, count: n)
     let p = 1000
     samples[p] = 1.0
     // 1 ms reflection at 48 kHz = 48 samples later.
@@ -166,7 +166,7 @@ import Testing
     let frStandard = FrequencyResponse.from(impulseResponse: ir, fftSize: n)
 
     // Find bins for 200 Hz and 10 kHz.
-    let binHz = PrcFmt(sampleRate) / PrcFmt(n)
+    let binHz = Double(sampleRate) / Double(n)
     let bin200 = Int((200.0 / binHz).rounded())
     let bin10k = Int((10000.0 / binHz).rounded())
 
@@ -197,10 +197,10 @@ import Testing
     // tau = (6.0 * log10(e)) / 60.0 = log10(e) / 10.0
     let tau = log10(M_E) / 10.0
     let n = 16384
-    var samples = [PrcFmt](repeating: 0, count: n)
+    var samples = [Double](repeating: 0, count: n)
     let p = 100
     for i in 0..<(n - p) {
-      let t = PrcFmt(i) / PrcFmt(sampleRate)
+      let t = Double(i) / Double(sampleRate)
       samples[p + i] = exp(-t / tau)
     }
 

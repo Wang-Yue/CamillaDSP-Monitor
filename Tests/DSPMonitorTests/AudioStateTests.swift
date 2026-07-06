@@ -69,35 +69,35 @@ import Testing
   }
 
   @Test func DSPOpsScalarMultiply() {
-    var buffer: [PrcFmt] = [1.0, 2.0, 3.0]
+    var buffer: [Double] = [1.0, 2.0, 3.0]
     DSPOps.scalarMultiply(&buffer, by: 2.0)
     #expect(buffer == [2.0, 4.0, 6.0])
   }
 
   @Test func DSPOpsAdd() {
-    let a: [PrcFmt] = [1.0, 2.0, 3.0]
-    var b: [PrcFmt] = [4.0, 5.0, 6.0]
+    let a: [Double] = [1.0, 2.0, 3.0]
+    var b: [Double] = [4.0, 5.0, 6.0]
     DSPOps.add(a, &b, count: 2)  // Only add first 2 elements!
     #expect(b == [5.0, 7.0, 6.0])
   }
 
   @Test func DSPOpsMultiply() {
-    let a: [PrcFmt] = [1.0, 2.0, 3.0]
-    let b: [PrcFmt] = [4.0, 5.0, 6.0]
-    var result = [PrcFmt](repeating: 0.0, count: 3)
+    let a: [Double] = [1.0, 2.0, 3.0]
+    let b: [Double] = [4.0, 5.0, 6.0]
+    var result = [Double](repeating: 0.0, count: 3)
     DSPOps.multiply(a, b, result: &result, count: 2)
     #expect(result == [4.0, 10.0, 0.0])
   }
 
   @Test func DSPOpsMultiplyAdd() {
-    let a: [PrcFmt] = [1.0, 2.0, 3.0]
-    var acc: [PrcFmt] = [4.0, 5.0, 6.0]
+    let a: [Double] = [1.0, 2.0, 3.0]
+    var acc: [Double] = [4.0, 5.0, 6.0]
     DSPOps.multiplyAdd(a, 2.0, accumulator: &acc, count: 2)  // acc = (a * 2) + acc
     #expect(acc == [6.0, 9.0, 6.0])
   }
 
   @Test func DSPOpsPeakAndRMS() {
-    let buffer: [PrcFmt] = [1.0, -2.0, 3.0]
+    let buffer: [Double] = [1.0, -2.0, 3.0]
     #expect(DSPOps.peakAbsolute(buffer) == 3.0)
     // RMS of [1, -2, 3] = sqrt((1 + 4 + 9) / 3) = sqrt(14/3) = 2.16024...
     #expect(abs(DSPOps.rms(buffer) - sqrt(14.0 / 3.0)) <= 1e-5)

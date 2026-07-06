@@ -15,10 +15,10 @@ import Testing
     let chunkSize = 8
     let filter = ConvolutionFilter(coefficients: [0.5, 0.5], chunkSize: chunkSize)
 
-    var wave: [PrcFmt] = [1.0, 1.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0]
+    var wave: [Double] = [1.0, 1.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0]
     filter.process(waveform: &wave)
 
-    let expected: [PrcFmt] = [0.5, 1.0, 1.0, 0.5, 0.0, -0.5, -0.5, 0.0]
+    let expected: [Double] = [0.5, 1.0, 1.0, 0.5, 0.0, -0.5, -0.5, 0.0]
     #expect(wave.count == expected.count)
     for (i, (got, exp)) in zip(wave, expected).enumerated() {
       #expect(abs(got - exp) < 1e-7, "moving avg mismatch at \(i): got \(got), expected \(exp)")
@@ -31,10 +31,10 @@ import Testing
   /// the Rust `check_result_segmented` test.
   @Test func SegmentedConvolution() {
     let chunkSize = 8
-    let ir = (0..<32).map { PrcFmt($0) }
+    let ir = (0..<32).map { Double($0) }
     let filter = ConvolutionFilter(coefficients: ir, chunkSize: chunkSize)
 
-    func runChunk(_ input: [PrcFmt], expecting expected: [PrcFmt], label: String) {
+    func runChunk(_ input: [Double], expecting expected: [Double], label: String) {
       var wave = input
       filter.process(waveform: &wave)
       for (i, (got, exp)) in zip(wave, expected).enumerated() {
@@ -44,11 +44,11 @@ import Testing
       }
     }
 
-    var impulse = [PrcFmt](repeating: 0.0, count: chunkSize)
+    var impulse = [Double](repeating: 0.0, count: chunkSize)
     impulse[0] = 1.0
     runChunk(impulse, expecting: [0, 1, 2, 3, 4, 5, 6, 7], label: "chunk 1")
 
-    let zeros = [PrcFmt](repeating: 0.0, count: chunkSize)
+    let zeros = [Double](repeating: 0.0, count: chunkSize)
     runChunk(zeros, expecting: [8, 9, 10, 11, 12, 13, 14, 15], label: "chunk 2")
     runChunk(zeros, expecting: [16, 17, 18, 19, 20, 21, 22, 23], label: "chunk 3")
     runChunk(zeros, expecting: [24, 25, 26, 27, 28, 29, 30, 31], label: "chunk 4")
@@ -61,7 +61,7 @@ import Testing
     let chunkSize = 8
     let filter = ConvolutionFilter(coefficients: [1.0], chunkSize: chunkSize)
 
-    var wave: [PrcFmt] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    var wave: [Double] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     let original = wave
     filter.process(waveform: &wave)
 
@@ -77,7 +77,7 @@ import Testing
     let chunkSize = 8
     let filter = ConvolutionFilter(coefficients: [0.0, 0.0, 0.0, 1.0], chunkSize: chunkSize)
 
-    var wave: [PrcFmt] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    var wave: [Double] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     filter.process(waveform: &wave)
 
     #expect(abs(wave[0]) < 1e-7)
@@ -94,21 +94,21 @@ import Testing
   /// frequency response of the IR within ±10%.
   @Test func ConvolutionWithSineWave() {
     let chunkSize = 64
-    let sampleRate: PrcFmt = 48000.0
-    let frequency: PrcFmt = 100.0
+    let sampleRate: Double = 48000.0
+    let frequency: Double = 100.0
     let filter = ConvolutionFilter(coefficients: [0.5, 0.5], chunkSize: chunkSize)
 
     // |H(f)| for IR [0.5, 0.5] at frequency f, for a real cosine input.
-    let theta = 2.0 * PrcFmt.pi * frequency / sampleRate
+    let theta = 2.0 * Double.pi * frequency / sampleRate
     let expectedGain = 0.5 * (1.0 + cos(theta))
 
-    var lastChunk = [PrcFmt](repeating: 0.0, count: chunkSize)
+    var lastChunk = [Double](repeating: 0.0, count: chunkSize)
     let totalChunks = 8
     for chunk in 0..<totalChunks {
-      var wave = [PrcFmt](repeating: 0.0, count: chunkSize)
+      var wave = [Double](repeating: 0.0, count: chunkSize)
       let offset = chunk * chunkSize
       for i in 0..<chunkSize {
-        wave[i] = cos(2.0 * PrcFmt.pi * frequency * PrcFmt(offset + i) / sampleRate)
+        wave[i] = cos(2.0 * Double.pi * frequency * Double(offset + i) / sampleRate)
       }
       filter.process(waveform: &wave)
       if chunk == totalChunks - 1 {
@@ -143,7 +143,7 @@ import Testing
     let filter = try ConvolutionFilter(
       parameters: params, chunkSize: chunkSize, sampleRate: 48000)
 
-    var wave: [PrcFmt] = [0.3, -0.2, 0.7, -0.1, 0.0, 0.5, -0.4, 0.9]
+    var wave: [Double] = [0.3, -0.2, 0.7, -0.1, 0.0, 0.5, -0.4, 0.9]
     let original = wave
     filter.process(waveform: &wave)
 

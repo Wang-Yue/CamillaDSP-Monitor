@@ -13,7 +13,7 @@
 //     `2 * data_length` to compensate.
 //   - All hot-path buffers are owned by raw `UnsafeMutablePointer`s
 //     (`AudioBuffers`-style) so `process(waveform:)` cannot trip
-//     Swift's Array CoW path that a `[PrcFmt]` field would.
+//     Swift's Array CoW path that a `[Double]` field would.
 
 import Accelerate
 import DSPAudio
@@ -34,12 +34,12 @@ extension ConvParameters {
   /// Resolve the parameters to a flat IR buffer. Only called from the
   /// control plane (filter creation / hot-swap), never from
   /// `process(waveform:)`.
-  public func loadCoefficients(sampleRate: Int) throws -> [PrcFmt] {
+  public func loadCoefficients(sampleRate: Int) throws -> [Double] {
     switch type {
     case .values:
       return values ?? []
     case .dummy:
-      var v = [PrcFmt](repeating: 0, count: length ?? 0)
+      var v = [Double](repeating: 0, count: length ?? 0)
       if !v.isEmpty { v[0] = 1.0 }
       return v
     case .wav:
@@ -66,7 +66,7 @@ extension ConvParameters {
 /// Coefficient file readers. Off the audio thread — straightforward
 /// `Data`-based parsers, no streaming or memory-mapping.
 public enum ConvCoefficientLoader {
-  public static func loadWAV(path: String, channel: Int) throws -> [PrcFmt] {
+  public static func loadWAV(path: String, channel: Int) throws -> [Double] {
     let url = URL(fileURLWithPath: path)
     guard FileManager.default.fileExists(atPath: path) else {
       throw ConfigError.invalidFilter("WAV file not found: \(path)")
@@ -87,7 +87,7 @@ public enum ConvCoefficientLoader {
 
     let bytesPerSample = Int(bitsPerSample) / 8
     let numFrames = Int(dataSize) / (Int(numChannels) * bytesPerSample)
-    var result = [PrcFmt](repeating: 0, count: numFrames)
+    var result = [Double](repeating: 0, count: numFrames)
     let headerSize = 44
 
     for frame in 0..<numFrames {
@@ -96,20 +96,20 @@ public enum ConvCoefficientLoader {
       switch bitsPerSample {
       case 16:
         let raw = data.withUnsafeBytes { $0.load(fromByteOffset: offset, as: Int16.self) }
-        result[frame] = PrcFmt(raw) / PrcFmt(Int16.max)
+        result[frame] = Double(raw) / Double(Int16.max)
       case 24:
         let b0 = Int32(data[offset])
         let b1 = Int32(data[offset + 1])
         let b2 = Int32(data[offset + 2])
         var raw = b0 | (b1 << 8) | (b2 << 16)
         if raw & 0x800000 != 0 { raw |= -0x800000 }
-        result[frame] = PrcFmt(raw) / PrcFmt((1 << 23) - 1)
+        result[frame] = Double(raw) / Double((1 << 23) - 1)
       case 32:
         let raw = data.withUnsafeBytes { $0.load(fromByteOffset: offset, as: Float.self) }
-        result[frame] = PrcFmt(raw)
+        result[frame] = Double(raw)
       case 64:
         let raw = data.withUnsafeBytes { $0.load(fromByteOffset: offset, as: Double.self) }
-        result[frame] = PrcFmt(raw)
+        result[frame] = Double(raw)
       default:
         throw ConfigError.invalidFilter("Unsupported WAV bit depth: \(bitsPerSample)")
       }
@@ -122,7 +122,7 @@ public enum ConvCoefficientLoader {
     format: String,
     skipBytesLines: Int = 0,
     readBytesLines: Int = 0
-  ) throws -> [PrcFmt] {
+  ) throws -> [Double] {
     let url = URL(fileURLWithPath: path)
     guard FileManager.default.fileExists(atPath: path) else {
       throw ConfigError.invalidFilter("Raw file not found: \(path)")
@@ -139,7 +139,7 @@ public enum ConvCoefficientLoader {
         lines = Array(lines.prefix(readBytesLines))
       }
       return lines.compactMap {
-        PrcFmt($0.trimmingCharacters(in: .whitespaces))
+        Double($0.trimmingCharacters(in: .whitespaces))
       }
     }
 
@@ -156,24 +156,24 @@ public enum ConvCoefficientLoader {
     case "FLOAT64", "F64_LE":
       let count = data.count / 8
       return data.withUnsafeBytes { buf in
-        (0..<count).map { PrcFmt(buf.load(fromByteOffset: $0 * 8, as: Double.self)) }
+        (0..<count).map { Double(buf.load(fromByteOffset: $0 * 8, as: Double.self)) }
       }
     case "FLOAT32", "F32_LE":
       let count = data.count / 4
       return data.withUnsafeBytes { buf in
-        (0..<count).map { PrcFmt(buf.load(fromByteOffset: $0 * 4, as: Float.self)) }
+        (0..<count).map { Double(buf.load(fromByteOffset: $0 * 4, as: Float.self)) }
       }
     case "S32_LE":
       let count = data.count / 4
-      let scale = 1.0 / PrcFmt(Int32.max)
+      let scale = 1.0 / Double(Int32.max)
       return data.withUnsafeBytes { buf in
-        (0..<count).map { PrcFmt(buf.load(fromByteOffset: $0 * 4, as: Int32.self)) * scale }
+        (0..<count).map { Double(buf.load(fromByteOffset: $0 * 4, as: Int32.self)) * scale }
       }
     case "S16_LE":
       let count = data.count / 2
-      let scale = 1.0 / PrcFmt(Int16.max)
+      let scale = 1.0 / Double(Int16.max)
       return data.withUnsafeBytes { buf in
-        (0..<count).map { PrcFmt(buf.load(fromByteOffset: $0 * 2, as: Int16.self)) * scale }
+        (0..<count).map { Double(buf.load(fromByteOffset: $0 * 2, as: Int16.self)) * scale }
       }
     default:
       throw ConfigError.invalidFilter("Unsupported raw format: \(format)")
@@ -199,24 +199,24 @@ final class ConvolutionFilter: Filter {
   private var index: Int = 0
 
   // Time-domain scratch buffers, both `2N` long.
-  private let inputBuf: UnsafeMutablePointer<PrcFmt>
-  private let outputBuf: UnsafeMutablePointer<PrcFmt>
+  private let inputBuf: UnsafeMutablePointer<Double>
+  private let outputBuf: UnsafeMutablePointer<Double>
 
   /// Overlap-save state, length `N` — the second half of the previous
   /// IFFT result, summed into the next block's first half.
-  private let overlap: UnsafeMutablePointer<PrcFmt>
+  private let overlap: UnsafeMutablePointer<Double>
 
   // Pre-FFT'd IR segments and rolling input-spectrum history. Each is a
-  // flat `nsegments * bins` block of `PrcFmt`; the per-segment slice for
+  // flat `nsegments * bins` block of `Double`; the per-segment slice for
   // segment `s` lives at `[s * bins ..< (s + 1) * bins]`.
-  private var coeffsFRe: UnsafeMutablePointer<PrcFmt>
-  private var coeffsFIm: UnsafeMutablePointer<PrcFmt>
-  private var inputFRe: UnsafeMutablePointer<PrcFmt>
-  private var inputFIm: UnsafeMutablePointer<PrcFmt>
+  private var coeffsFRe: UnsafeMutablePointer<Double>
+  private var coeffsFIm: UnsafeMutablePointer<Double>
+  private var inputFRe: UnsafeMutablePointer<Double>
+  private var inputFIm: UnsafeMutablePointer<Double>
 
   /// Per-call accumulator for `Σ_seg input_F[hist] · coeffs_F[seg]`.
-  private let tempRe: UnsafeMutablePointer<PrcFmt>
-  private let tempIm: UnsafeMutablePointer<PrcFmt>
+  private let tempRe: UnsafeMutablePointer<Double>
+  private let tempIm: UnsafeMutablePointer<Double>
 
   /// Build a convolution filter from raw IR samples.
   ///
@@ -225,7 +225,7 @@ final class ConvolutionFilter: Filter {
   ///     Must be non-empty.
   ///   - chunkSize: Per-call block length `N`. Must match the
   ///     `validFrames` the pipeline will hand to `process`.
-  init(name: String = "convolution", coefficients: [PrcFmt], chunkSize: Int) {
+  init(name: String = "convolution", coefficients: [Double], chunkSize: Int) {
     precondition(chunkSize > 0, "ConvolutionFilter: chunkSize must be > 0")
     precondition(!coefficients.isEmpty, "ConvolutionFilter: coefficients must not be empty")
     self.name = name
@@ -376,18 +376,18 @@ final class ConvolutionFilter: Filter {
   /// storage. Static so it's reusable from both `init` and
   /// `updateCoefficients`.
   private static func fftCoefficients(
-    _ coefficients: [PrcFmt],
+    _ coefficients: [Double],
     chunkSize: Int,
     nsegments: Int,
     fft: RealFFT,
-    coeffsFRe: UnsafeMutablePointer<PrcFmt>,
-    coeffsFIm: UnsafeMutablePointer<PrcFmt>
+    coeffsFRe: UnsafeMutablePointer<Double>,
+    coeffsFIm: UnsafeMutablePointer<Double>
   ) {
     let bins = chunkSize + 1
     let fftSize = 2 * chunkSize
-    let invScale: PrcFmt = 1.0 / PrcFmt(fftSize)
+    let invScale: Double = 1.0 / Double(fftSize)
 
-    let scratch = UnsafeMutablePointer<PrcFmt>.allocate(capacity: fftSize)
+    let scratch = UnsafeMutablePointer<Double>.allocate(capacity: fftSize)
     scratch.initialize(repeating: 0, count: fftSize)
     defer {
       scratch.deinitialize(count: fftSize)

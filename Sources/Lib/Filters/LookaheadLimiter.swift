@@ -4,20 +4,20 @@ import Foundation
 
 final class LookaheadLimiterFilter: Filter {
   let name: String
-  private var limit: PrcFmt
+  private var limit: Double
   private var attackSamples: Int
-  private var releaseCoeff: PrcFmt
+  private var releaseCoeff: Double
 
   // Inlined LookaheadBuffer
-  private var lookaheadData: UnsafeMutablePointer<PrcFmt>
+  private var lookaheadData: UnsafeMutablePointer<Double>
   private var lookaheadCapacity: Int
   private var lookaheadReadIndex: Int = 0
   private var lookaheadWriteIndex: Int = 0
 
-  private var releaseGain: PrcFmt = 1.0
+  private var releaseGain: Double = 1.0
 
   // Pre-allocated output buffer to avoid heap allocation on the hot path
-  private var outputBuffer: UnsafeMutablePointer<PrcFmt>
+  private var outputBuffer: UnsafeMutablePointer<Double>
   private var outputBufferCapacity: Int
 
   init(
@@ -49,9 +49,9 @@ final class LookaheadLimiterFilter: Filter {
   }
 
   private static func configure(params: LookaheadLimiterParameters, sampleRate: Int) -> (
-    PrcFmt, Int, PrcFmt
+    Double, Int, Double
   ) {
-    let limit = PrcFmt.fromDB(params.limit)
+    let limit = Double.fromDB(params.limit)
     let unit = params.unit ?? .ms
     let attackSamples = Int(
       computeDelaySamples(delay: params.attack, unit: unit, sampleRate: sampleRate).rounded())
@@ -61,29 +61,29 @@ final class LookaheadLimiterFilter: Filter {
     return (limit, attackSamples, releaseCoeff)
   }
 
-  private static func computeDelaySamples(delay: PrcFmt, unit: DelayUnit, sampleRate: Int) -> PrcFmt
+  private static func computeDelaySamples(delay: Double, unit: DelayUnit, sampleRate: Int) -> Double
   {
     switch unit {
     case .ms:
-      return delay / 1000.0 * PrcFmt(sampleRate)
+      return delay / 1000.0 * Double(sampleRate)
     case .us:
-      return delay / 1_000_000.0 * PrcFmt(sampleRate)
+      return delay / 1_000_000.0 * Double(sampleRate)
     case .samples:
       return delay
     case .mm:
-      return delay / 1000.0 * PrcFmt(sampleRate) / 343.0
+      return delay / 1000.0 * Double(sampleRate) / 343.0
     }
   }
 
   @inline(__always)
-  private func pushOverwrite(_ sample: PrcFmt) {
+  private func pushOverwrite(_ sample: Double) {
     lookaheadData[lookaheadWriteIndex] = sample
     lookaheadWriteIndex = (lookaheadWriteIndex + 1) % lookaheadCapacity
     lookaheadReadIndex = (lookaheadReadIndex + 1) % lookaheadCapacity
   }
 
   @inline(__always)
-  private func getOccupied(at idx: Int) -> PrcFmt {
+  private func getOccupied(at idx: Int) -> Double {
     let realIdx = (lookaheadReadIndex + idx) % lookaheadCapacity
     return lookaheadData[realIdx]
   }
@@ -108,7 +108,7 @@ final class LookaheadLimiterFilter: Filter {
     var samplesSincePeak = attackSamples + 1
 
     for i in (0..<(attackSamples + len)).reversed() {
-      let inputSample: PrcFmt
+      let inputSample: Double
       if i < attackSamples {
         inputSample = getOccupied(at: lookaheadStart + i)
       } else {
@@ -120,7 +120,7 @@ final class LookaheadLimiterFilter: Filter {
 
       var rampGain = 1.0
       if samplesSincePeak <= attackSamples {
-        let ramp = PrcFmt(attackSamples - samplesSincePeak) / PrcFmt(max(1, attackSamples))
+        let ramp = Double(attackSamples - samplesSincePeak) / Double(max(1, attackSamples))
         rampGain = 1.0 - (ramp * (1.0 - peak))
         samplesSincePeak += 1
       }
@@ -149,7 +149,7 @@ final class LookaheadLimiterFilter: Filter {
 
     // Apply gain reduction
     for i in 0..<len {
-      let inputSample: PrcFmt
+      let inputSample: Double
       if i < attackSamples {
         inputSample = getOccupied(at: lookaheadStart + i)
       } else {

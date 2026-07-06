@@ -20,7 +20,7 @@ import Testing
           let marker: UInt32 = (t % 2 == 0) ? 0x05 : 0xFA
           let val24: UInt32 = (marker << 16) | 0x1234
           let intVal = Int32(bitPattern: val24 << 8) >> 8
-          let floatVal = PrcFmt(intVal) / 8388608.0
+          let floatVal = Double(intVal) / 8388608.0
           chunk[0][t] = floatVal
           chunk[1][t] = floatVal
         }
@@ -70,7 +70,7 @@ import Testing
         #expect(!res1)
 
         for t in 0..<64 {
-          chunk[0][t] = PrcFmt.random(in: -1.0...1.0)
+          chunk[0][t] = Double.random(in: -1.0...1.0)
         }
         let res2 = try decoder.detectAndProcess(chunk: &chunk)
         #expect(!res2)
@@ -97,7 +97,7 @@ import Testing
             let marker: UInt32 = (globalFrameIdx % 2 == 0) ? 0x05 : 0xFA
             let val24: UInt32 = (marker << 16) | 0x4321
             let intVal = Int32(bitPattern: val24 << 8) >> 8
-            let floatVal = PrcFmt(intVal) / 8388608.0
+            let floatVal = Double(intVal) / 8388608.0
 
             chunk[0][t] = floatVal
             chunk[1][t] = floatVal
@@ -151,9 +151,9 @@ import Testing
         // amplitude the noise shaper can saturate near peaks and degrade
         // SINAD by several dB.
         var chunk = AudioChunk(frames: frames, channels: 1)
-        let amplitude: PrcFmt = 0.7071
+        let amplitude: Double = 0.7071
         for t in 0..<frames {
-          chunk[0][t] = amplitude * PrcFmt(sin(2.0 * .pi * 1000.0 * Double(t) / pcmSampleRate))
+          chunk[0][t] = amplitude * Double(sin(2.0 * .pi * 1000.0 * Double(t) / pcmSampleRate))
         }
 
         encoder.encode(chunk: &chunk)

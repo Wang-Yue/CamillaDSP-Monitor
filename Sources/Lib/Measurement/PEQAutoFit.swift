@@ -41,26 +41,26 @@ public enum PEQAutoFit {
     public var bandCount: Int
     /// Frequency grid bounds — the resampling grid and the allowable
     /// range for placed band centre frequencies.
-    public var minFreqHz: PrcFmt
-    public var maxFreqHz: PrcFmt
+    public var minFreqHz: Double
+    public var maxFreqHz: Double
     /// Cap on per-band gain.
-    public var maxGainDB: PrcFmt
+    public var maxGainDB: Double
     /// Q is clamped to `[minQ, maxQ]`.
-    public var minQ: PrcFmt
-    public var maxQ: PrcFmt
+    public var minQ: Double
+    public var maxQ: Double
     /// Stop placing bands once `max|residual|` drops below this in
     /// the seed phase.
-    public var convergenceDB: PrcFmt
+    public var convergenceDB: Double
     /// Whether to seed low-/high-shelf candidates.
     public var addEndpointShelves: Bool
     /// Initial corner frequencies for the candidate shelves. The
     /// optimizer is free to move them.
-    public var lowShelfFreqHz: PrcFmt
-    public var highShelfFreqHz: PrcFmt
+    public var lowShelfFreqHz: Double
+    public var highShelfFreqHz: Double
     /// Coordinate-descent passes.
     public var refinementIterations: Int
     /// Bands with `|gain| < dropGainDB` are removed after refinement.
-    public var dropGainDB: PrcFmt
+    public var dropGainDB: Double
     /// Modal-mode constraints. When enabled, peakings placed below
     /// `schroederHz` are restricted to *negative* gain (cuts only —
     /// boosting a modal null doesn't fill it, the mode is still
@@ -68,40 +68,40 @@ public enum PEQAutoFit {
     /// below the Schroeder freq are suppressed too. Standard
     /// best-practice for low-frequency room correction.
     public var modalMode: Bool
-    public var schroederHz: PrcFmt
-    public var modalMinQ: PrcFmt
+    public var schroederHz: Double
+    public var modalMinQ: Double
     /// Pre-smoothing width on the log-frequency grid, midband.
     /// AutoEQ defaults to 1/12 octave; that's also tight enough to
     /// preserve narrow modes while suppressing bin-level noise.
-    public var smoothingOctaves: PrcFmt
+    public var smoothingOctaves: Double
     /// Smoothing width above `transitionHighHz` — the treble band is
     /// noisy and perceptually less sensitive, so AutoEQ uses 2
     /// octaves there. Sigmoid blend between `transitionLowHz` and
     /// `transitionHighHz`.
-    public var trebleSmoothingOctaves: PrcFmt
-    public var smoothingTransitionLow: PrcFmt
-    public var smoothingTransitionHigh: PrcFmt
+    public var trebleSmoothingOctaves: Double
+    public var smoothingTransitionLow: Double
+    public var smoothingTransitionHigh: Double
 
     public init(
       bandCount: Int = 10,
-      minFreqHz: PrcFmt = 20,
-      maxFreqHz: PrcFmt = 20_000,
-      maxGainDB: PrcFmt = 12,
-      minQ: PrcFmt = 0.3,
-      maxQ: PrcFmt = 10,
-      convergenceDB: PrcFmt = 0.3,
+      minFreqHz: Double = 20,
+      maxFreqHz: Double = 20_000,
+      maxGainDB: Double = 12,
+      minQ: Double = 0.3,
+      maxQ: Double = 10,
+      convergenceDB: Double = 0.3,
       addEndpointShelves: Bool = true,
-      lowShelfFreqHz: PrcFmt = 80,
-      highShelfFreqHz: PrcFmt = 8_000,
+      lowShelfFreqHz: Double = 80,
+      highShelfFreqHz: Double = 8_000,
       refinementIterations: Int = 8,
-      dropGainDB: PrcFmt = 0.5,
+      dropGainDB: Double = 0.5,
       modalMode: Bool = false,
-      schroederHz: PrcFmt = 200,
-      modalMinQ: PrcFmt = 2.0,
-      smoothingOctaves: PrcFmt = 1.0 / 12.0,
-      trebleSmoothingOctaves: PrcFmt = 2.0,
-      smoothingTransitionLow: PrcFmt = 6_000,
-      smoothingTransitionHigh: PrcFmt = 8_000
+      schroederHz: Double = 200,
+      modalMinQ: Double = 2.0,
+      smoothingOctaves: Double = 1.0 / 12.0,
+      trebleSmoothingOctaves: Double = 2.0,
+      smoothingTransitionLow: Double = 6_000,
+      smoothingTransitionHigh: Double = 8_000
     ) {
       self.bandCount = bandCount
       self.minFreqHz = minFreqHz
@@ -130,14 +130,14 @@ public enum PEQAutoFit {
   /// Build a log-spaced frequency grid over `[fMin, fMax]` with
   /// `count` points (inclusive of endpoints).
   public static func logFrequencyGrid(
-    fMin: PrcFmt, fMax: PrcFmt, count: Int
-  ) -> [PrcFmt] {
+    fMin: Double, fMax: Double, count: Int
+  ) -> [Double] {
     precondition(count >= 2 && fMin > 0 && fMax > fMin)
     let logMin = log10(fMin)
     let logMax = log10(fMax)
-    var out = [PrcFmt](repeating: 0, count: count)
+    var out = [Double](repeating: 0, count: count)
     for i in 0..<count {
-      let t = PrcFmt(i) / PrcFmt(count - 1)
+      let t = Double(i) / Double(count - 1)
       out[i] = pow(10, logMin + t * (logMax - logMin))
     }
     return out
@@ -145,10 +145,10 @@ public enum PEQAutoFit {
 
   /// Sample a `FrequencyResponse` onto a log-spaced grid in dB.
   public static func sampleMagnitudeDB(
-    of fr: FrequencyResponse, atFrequencies grid: [PrcFmt]
-  ) -> [PrcFmt] {
-    let binHz = PrcFmt(fr.sampleRate) / PrcFmt(fr.fftSize)
-    var out = [PrcFmt](repeating: 0, count: grid.count)
+    of fr: FrequencyResponse, atFrequencies grid: [Double]
+  ) -> [Double] {
+    let binHz = Double(fr.sampleRate) / Double(fr.fftSize)
+    var out = [Double](repeating: 0, count: grid.count)
     for (i, f) in grid.enumerated() {
       let bin = Int((f / binHz).rounded())
       let clamped = max(0, min(fr.bins - 1, bin))
@@ -160,8 +160,8 @@ public enum PEQAutoFit {
   // MARK: - Fit driver
 
   public static func fit(
-    measuredMagnitudeDB: [PrcFmt],
-    frequencies: [PrcFmt],
+    measuredMagnitudeDB: [Double],
+    frequencies: [Double],
     target: TargetCurve,
     sampleRate: Int,
     options: Options = Options()
@@ -172,7 +172,7 @@ public enum PEQAutoFit {
 
     // Baseline residual = measured − target. Positive ⇒ measured is
     // too loud at that frequency; band should attenuate.
-    let rawResidual: [PrcFmt] = (0..<n).map {
+    let rawResidual: [Double] = (0..<n).map {
       measuredMagnitudeDB[$0] - target.evaluate(atFreqHz: frequencies[$0])
     }
 
@@ -198,7 +198,7 @@ public enum PEQAutoFit {
 
     // Phase 2: coordinate descent.
     for _ in 0..<options.refinementIterations {
-      var maxChange: PrcFmt = 0
+      var maxChange: Double = 0
       for i in 0..<bands.count {
         // Residual the i-th band sees: baseline plus contributions
         // from all OTHER bands. (When this band's gain is set to its
@@ -235,8 +235,8 @@ public enum PEQAutoFit {
   /// in each edge band) plus peaking placements on the largest
   /// residual peaks. The optimizer in Phase 2 takes over from here.
   private static func seedBands(
-    baseResidual: [PrcFmt],
-    frequencies: [PrcFmt],
+    baseResidual: [Double],
+    frequencies: [Double],
     sampleRate: Int,
     options: Options
   ) -> [BiquadParameters] {
@@ -297,8 +297,8 @@ public enum PEQAutoFit {
   }
 
   private static func seedPeak(
-    residual: [PrcFmt],
-    frequencies: [PrcFmt],
+    residual: [Double],
+    frequencies: [Double],
     options: Options
   ) -> BiquadParameters? {
     // In modal mode below the Schroeder frequency, only POSITIVE
@@ -306,7 +306,7 @@ public enum PEQAutoFit {
     // it, the mode is still there. Skip negative-residual minima in
     // that range so the optimizer doesn't waste a band trying.
     var bestIdx = -1
-    var bestAbs: PrcFmt = 0
+    var bestAbs: Double = 0
     for i in 0..<residual.count {
       let f = frequencies[i]
       if f < options.minFreqHz || f > options.maxFreqHz { continue }
@@ -342,14 +342,14 @@ public enum PEQAutoFit {
 
   private static func seedShelf(
     type: BiquadType,
-    edgeBand: (PrcFmt, PrcFmt),
-    cornerHz: PrcFmt,
-    residual: [PrcFmt],
-    frequencies: [PrcFmt],
+    edgeBand: (Double, Double),
+    cornerHz: Double,
+    residual: [Double],
+    frequencies: [Double],
     options: Options
   ) -> BiquadParameters? {
     let (lo, hi) = edgeBand
-    var samples: [PrcFmt] = []
+    var samples: [Double] = []
     for i in 0..<frequencies.count where frequencies[i] >= lo && frequencies[i] <= hi {
       samples.append(residual[i])
     }
@@ -369,8 +369,8 @@ public enum PEQAutoFit {
   /// loosely.
   private static func optimizeBand(
     _ band: BiquadParameters,
-    residualWithoutBand rwb: [PrcFmt],
-    frequencies: [PrcFmt],
+    residualWithoutBand rwb: [Double],
+    frequencies: [Double],
     sampleRate: Int,
     options: Options
   ) -> BiquadParameters {
@@ -406,8 +406,8 @@ public enum PEQAutoFit {
 
   private static func optimizeGain(
     _ band: BiquadParameters,
-    rwb: [PrcFmt],
-    frequencies: [PrcFmt],
+    rwb: [Double],
+    frequencies: [Double],
     sampleRate: Int,
     options: Options
   ) -> BiquadParameters {
@@ -428,12 +428,12 @@ public enum PEQAutoFit {
 
   private static func optimizeQ(
     _ band: BiquadParameters,
-    rwb: [PrcFmt],
-    frequencies: [PrcFmt],
+    rwb: [Double],
+    frequencies: [Double],
     sampleRate: Int,
     options: Options,
-    minQOverride: PrcFmt? = nil,
-    maxQOverride: PrcFmt? = nil
+    minQOverride: Double? = nil,
+    maxQOverride: Double? = nil
   ) -> BiquadParameters {
     let qLo = minQOverride ?? options.minQ
     let qHi = maxQOverride ?? options.maxQ
@@ -451,8 +451,8 @@ public enum PEQAutoFit {
 
   private static func optimizeFreq(
     _ band: BiquadParameters,
-    rwb: [PrcFmt],
-    frequencies: [PrcFmt],
+    rwb: [Double],
+    frequencies: [Double],
     sampleRate: Int,
     options: Options
   ) -> BiquadParameters {
@@ -477,13 +477,13 @@ public enum PEQAutoFit {
   /// frequency response from the residual. Smaller is better.
   private static func cost(
     band: BiquadParameters,
-    rwb: [PrcFmt],
-    frequencies: [PrcFmt],
+    rwb: [Double],
+    frequencies: [Double],
     sampleRate: Int
-  ) -> PrcFmt {
+  ) -> Double {
     guard let coeffs = BiquadCoefficients.compute(parameters: band, sampleRate: sampleRate)
-    else { return PrcFmt.infinity }
-    var total: PrcFmt = 0
+    else { return Double.infinity }
+    var total: Double = 0
     for i in 0..<frequencies.count {
       // Post-correction residual at f, ideal value is 0:
       //   rwb[f]      = baseResidual + sum_{j != i} bandResponse_j[f]
@@ -500,14 +500,14 @@ public enum PEQAutoFit {
   /// fractional width of the bracket at termination (in linear or
   /// log space depending on `logSpace`).
   private static func goldenSectionSearch(
-    lo: PrcFmt, hi: PrcFmt,
-    tolerance: PrcFmt,
+    lo: Double, hi: Double,
+    tolerance: Double,
     logSpace: Bool,
-    _ f: (PrcFmt) -> PrcFmt
-  ) -> PrcFmt {
-    let phi: PrcFmt = (sqrt(5.0) - 1.0) / 2.0
-    var a: PrcFmt = logSpace ? log10(lo) : lo
-    var b: PrcFmt = logSpace ? log10(hi) : hi
+    _ f: (Double) -> Double
+  ) -> Double {
+    let phi: Double = (sqrt(5.0) - 1.0) / 2.0
+    var a: Double = logSpace ? log10(lo) : lo
+    var b: Double = logSpace ? log10(hi) : hi
     if a >= b { return logSpace ? pow(10, a) : a }
     var x1 = b - phi * (b - a)
     var x2 = a + phi * (b - a)
@@ -548,9 +548,9 @@ public enum PEQAutoFit {
   /// zero, so the optimizer kept stacking bands at the same peak.)
   private static func accumulateBandResponse(
     band: BiquadParameters,
-    frequencies: [PrcFmt],
+    frequencies: [Double],
     sampleRate: Int,
-    into residual: inout [PrcFmt]
+    into residual: inout [Double]
   ) {
     guard let coeffs = BiquadCoefficients.compute(parameters: band, sampleRate: sampleRate)
     else { return }
@@ -571,10 +571,10 @@ public enum PEQAutoFit {
   /// for callers (display layer) that don't need the
   /// midband/treble blend.
   public static func smoothLogOctave(
-    _ values: [PrcFmt],
-    frequencies: [PrcFmt],
-    octaves: PrcFmt
-  ) -> [PrcFmt] {
+    _ values: [Double],
+    frequencies: [Double],
+    octaves: Double
+  ) -> [Double] {
     smoothLogOctave(
       values,
       frequencies: frequencies,
@@ -585,13 +585,13 @@ public enum PEQAutoFit {
   }
 
   public static func smoothLogOctave(
-    _ values: [PrcFmt],
-    frequencies: [PrcFmt],
-    midOctaves: PrcFmt,
-    trebleOctaves: PrcFmt,
-    transitionLowHz: PrcFmt,
-    transitionHighHz: PrcFmt
-  ) -> [PrcFmt] {
+    _ values: [Double],
+    frequencies: [Double],
+    midOctaves: Double,
+    trebleOctaves: Double,
+    transitionLowHz: Double,
+    transitionHighHz: Double
+  ) -> [Double] {
     precondition(values.count == frequencies.count)
     let n = values.count
     if n == 0 { return values }
@@ -600,10 +600,10 @@ public enum PEQAutoFit {
     let lowLog = log10(transitionLowHz)
     let highLog = log10(transitionHighHz)
 
-    var out = [PrcFmt](repeating: 0, count: n)
+    var out = [Double](repeating: 0, count: n)
     for i in 0..<n {
       // Sigmoid blend t ∈ [0, 1] across the transition band.
-      let t: PrcFmt
+      let t: Double
       if logF[i] <= lowLog {
         t = 0
       } else if logF[i] >= highLog {
@@ -615,8 +615,8 @@ public enum PEQAutoFit {
       let octWidth = midOctaves + t * (trebleOctaves - midOctaves)
       let sigma = octWidth * log10_2 / 2.0  // half-width at 1σ
       let radius = 3.0 * sigma  // truncate kernel at 3σ
-      var sum: PrcFmt = 0
-      var wsum: PrcFmt = 0
+      var sum: Double = 0
+      var wsum: Double = 0
       for j in 0..<n {
         let d = logF[j] - logF[i]
         if abs(d) > radius { continue }
@@ -634,7 +634,7 @@ public enum PEQAutoFit {
   /// gain change is treated as absolute (dB).
   private static func parameterDelta(
     _ a: BiquadParameters, _ b: BiquadParameters
-  ) -> PrcFmt {
+  ) -> Double {
     let af = a.freq ?? 1
     let bf = b.freq ?? 1
     let df = abs(af - bf) / max(1.0, af)

@@ -69,10 +69,10 @@ final class BiquadComboFilter: Filter {
 
   // MARK: - Butterworth & Linkwitz-Riley helper calculations
 
-  static func butterworthQ(order: Int) -> [PrcFmt] {
-    var qValues: [PrcFmt] = []
+  static func butterworthQ(order: Int) -> [Double] {
+    var qValues: [Double] = []
     for k in 0..<(order / 2) {
-      let angle = PrcFmt.pi / PrcFmt(order) * (PrcFmt(k) + 0.5)
+      let angle = Double.pi / Double(order) * (Double(k) + 0.5)
       qValues.append(1.0 / (2.0 * sin(angle)))
     }
     if order % 2 == 1 {
@@ -81,7 +81,7 @@ final class BiquadComboFilter: Filter {
     return qValues
   }
 
-  static func linkwitzRileyQ(order: Int) -> [PrcFmt] {
+  static func linkwitzRileyQ(order: Int) -> [Double] {
     var qTemp = butterworthQ(order: order / 2)
     if order % 4 > 0 {
       qTemp.removeLast()
@@ -97,7 +97,7 @@ final class BiquadComboFilter: Filter {
   }
 
   private static func makeSectionsFromQ(
-    freq: PrcFmt, qValues: [PrcFmt], sampleRate: Int, highpass: Bool
+    freq: Double, qValues: [Double], sampleRate: Int, highpass: Bool
   ) throws -> [BiquadFilter] {
     var sections: [BiquadFilter] = []
     for q in qValues {
@@ -116,13 +116,13 @@ final class BiquadComboFilter: Filter {
   }
 
   private static func butterworthSections(
-    freq: PrcFmt, order: Int, sampleRate: Int, highpass: Bool
+    freq: Double, order: Int, sampleRate: Int, highpass: Bool
   ) throws -> [BiquadFilter] {
     var sections: [BiquadFilter] = []
     let n = order
     let numSOS = n / 2
     for k in 0..<numSOS {
-      let angle = PrcFmt.pi / PrcFmt(n) * (PrcFmt(k) + 0.5)
+      let angle = Double.pi / Double(n) * (Double(k) + 0.5)
       let q = 1.0 / (2.0 * sin(angle))
 
       var p = BiquadParameters()
@@ -149,7 +149,7 @@ final class BiquadComboFilter: Filter {
   // MARK: - Tilt EQ
 
   private static func buildTiltEQ(
-    slope: PrcFmt, sampleRate: Int
+    slope: Double, sampleRate: Int
   ) throws -> [BiquadFilter] {
     let gainLow = -slope / 2.0
     let gainHigh = slope / 2.0
@@ -185,13 +185,13 @@ final class BiquadComboFilter: Filter {
 
     let logMin = log2(freqMin)
     let logMax = log2(freqMax)
-    let bw = (logMax - logMin) / PrcFmt(nbands)
+    let bw = (logMax - logMin) / Double(nbands)
 
     var sections: [BiquadFilter] = []
     for i in 0..<nbands {
       let g = gains[i]
       if abs(g) <= 0.001 { continue }
-      let logFreq = logMin + (PrcFmt(i) + 0.5) * bw
+      let logFreq = logMin + (Double(i) + 0.5) * bw
       let freq = pow(2.0, logFreq)
 
       var p = BiquadParameters()

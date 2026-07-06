@@ -12,10 +12,10 @@ import Testing
   // MARK: - Helpers
 
   /// Tolerance for floating-point comparisons
-  private let accuracy: PrcFmt = 1e-9
+  private let accuracy: Double = 1e-9
 
   /// Build a simple constant waveform with `channels` channels, each filled with `value`.
-  private func makeConstantChunk(frames: Int = 8, channels: Int, value: PrcFmt = 1.0) -> AudioChunk
+  private func makeConstantChunk(frames: Int = 8, channels: Int, value: Double = 1.0) -> AudioChunk
   {
     let waveforms = Array(repeating: Array(repeating: value, count: frames), count: channels)
     return AudioChunk(waveforms: waveforms)
@@ -23,9 +23,9 @@ import Testing
 
   /// Assert every sample in `waveform` equals `expected` within `accuracy`.
   private func assertAllSamples(
-    _ waveform: [PrcFmt],
-    equal expected: PrcFmt,
-    accuracy: PrcFmt = 1e-9
+    _ waveform: [Double],
+    equal expected: Double,
+    accuracy: Double = 1e-9
   ) {
     for (_, sample) in waveform.enumerated() {
       #expect(abs(sample - expected) <= accuracy)
@@ -34,7 +34,7 @@ import Testing
 
   /// Assert every sample in `waveform` is zero.
   private func assertSilence(
-    _ waveform: [PrcFmt]
+    _ waveform: [Double]
   ) {
     assertAllSamples(waveform, equal: 0.0, accuracy: 1e-9)
   }
@@ -67,7 +67,7 @@ import Testing
     #expect(output.channels == 4)
     #expect(output.frames == input.frames)
 
-    let expectedLinear = PrcFmt.fromDB(0.0)  // == 1.0
+    let expectedLinear = Double.fromDB(0.0)  // == 1.0
     for ch in 0..<4 {
       assertAllSamples(output.waveforms[ch], equal: expectedLinear, accuracy: accuracy)
     }
@@ -161,7 +161,7 @@ import Testing
     #expect(output.channels == 1)
     #expect(output.frames == 4)
 
-    let expected = PrcFmt.fromDB(-6.0) * 2.0
+    let expected = Double.fromDB(-6.0) * 2.0
     assertAllSamples(output.waveforms[0], equal: expected, accuracy: 1e-6)
   }
 
@@ -180,7 +180,7 @@ import Testing
     )
     let mixer = AudioMixer(config: config, chunkSize: 2048)
 
-    let inputSamples: [PrcFmt] = [0.25, -0.5, 0.75, -1.0]
+    let inputSamples: [Double] = [0.25, -0.5, 0.75, -1.0]
     let input = AudioChunk(waveforms: [inputSamples])
     let output = mixer.process(chunk: input)
 
@@ -227,8 +227,8 @@ import Testing
 
     #expect(output.channels == 2)
 
-    // 1.0 (0 dB) + PrcFmt.fromDB(-6.0) ≈ 1.0 + 0.5012
-    let expected = 1.0 + PrcFmt.fromDB(-6.0)
+    // 1.0 (0 dB) + Double.fromDB(-6.0) ≈ 1.0 + 0.5012
+    let expected = 1.0 + Double.fromDB(-6.0)
     assertAllSamples(output.waveforms[0], equal: expected, accuracy: 1e-6)
     assertAllSamples(output.waveforms[1], equal: expected, accuracy: 1e-6)
   }
@@ -274,8 +274,8 @@ import Testing
     )
     let mixer = AudioMixer(config: config, chunkSize: 2048)
 
-    let ch0: [PrcFmt] = [0.1, -0.2, 0.3, -0.4]
-    let ch1: [PrcFmt] = [0.5, -0.6, 0.7, -0.8]
+    let ch0: [Double] = [0.1, -0.2, 0.3, -0.4]
+    let ch1: [Double] = [0.5, -0.6, 0.7, -0.8]
     let input = AudioChunk(waveforms: [ch0, ch1])
     let output = mixer.process(chunk: input)
 
@@ -300,8 +300,8 @@ import Testing
     )
     let mixer = AudioMixer(config: config, chunkSize: 2048)
 
-    let ch0: [PrcFmt] = [1.0, 2.0, 3.0, 4.0]
-    let ch1: [PrcFmt] = [-1.0, -2.0, -3.0, -4.0]
+    let ch0: [Double] = [1.0, 2.0, 3.0, 4.0]
+    let ch1: [Double] = [-1.0, -2.0, -3.0, -4.0]
     let input = AudioChunk(waveforms: [ch0, ch1])
     let output = mixer.process(chunk: input)
 
@@ -337,12 +337,12 @@ import Testing
     #expect(output.channels == 3)
 
     // +6 dB ≈ 1.9953 (not exactly 2.0)
-    let gainPlus6 = PrcFmt.fromDB(6.0)
+    let gainPlus6 = Double.fromDB(6.0)
     #expect(abs(gainPlus6 - 2.0) <= 0.01)
     assertAllSamples(output.waveforms[0], equal: gainPlus6, accuracy: 1e-9)
 
     // -6 dB: approximately half amplitude
-    let gainMinus6 = PrcFmt.fromDB(-6.0)
+    let gainMinus6 = Double.fromDB(-6.0)
     #expect(abs(gainMinus6 - 0.5) <= 1e-2)
     assertAllSamples(output.waveforms[1], equal: gainMinus6, accuracy: 1e-9)
 
@@ -563,7 +563,7 @@ import Testing
     // Pre-allocate output for the inout API. Note: 3 channels (matches channelsOut),
     // each capable of holding `validFrames` samples.
     var preallocated = AudioChunk(
-      waveforms: [[PrcFmt]](repeating: [PrcFmt](repeating: 0, count: 1024), count: 3),
+      waveforms: [[Double]](repeating: [Double](repeating: 0, count: 1024), count: 3),
       validFrames: 0)
     try! mixerB.process(input: input, into: &preallocated)
 

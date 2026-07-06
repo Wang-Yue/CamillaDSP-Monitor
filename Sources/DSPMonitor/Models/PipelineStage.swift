@@ -1,6 +1,5 @@
 // PipelineStage - Dynamic, reorderable DSP pipeline stages
 
-import DSPAudio
 import DSPConfig
 import Foundation
 import Observation

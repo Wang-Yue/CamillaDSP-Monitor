@@ -26,7 +26,7 @@ import Testing
     }
     let filter = GainFilter(parameters: params)
 
-    var waveform: [PrcFmt] = [-0.5, 0.0, 0.5]
+    var waveform: [Double] = [-0.5, 0.0, 0.5]
     filter.process(waveform: &waveform)
 
     #expect(abs(waveform[0] - 0.5) <= 1e-10)
@@ -42,7 +42,7 @@ import Testing
     }
     let filter = GainFilter(parameters: params)
 
-    var waveform: [PrcFmt] = [-0.5, 0.0, 0.5]
+    var waveform: [Double] = [-0.5, 0.0, 0.5]
     filter.process(waveform: &waveform)
 
     #expect(abs(waveform[0] - -5.0) <= 1e-6)
@@ -58,7 +58,7 @@ import Testing
     }
     let filter = GainFilter(parameters: params)
 
-    var waveform: [PrcFmt] = [-0.5, 0.0, 0.5, 1.0, -1.0]
+    var waveform: [Double] = [-0.5, 0.0, 0.5, 1.0, -1.0]
     filter.process(waveform: &waveform)
 
     for sample in waveform {
@@ -74,7 +74,7 @@ import Testing
     }
     let filter = GainFilter(parameters: params)
 
-    var waveform: [PrcFmt] = [1.0]
+    var waveform: [Double] = [1.0]
     filter.process(waveform: &waveform)
     #expect(abs(waveform[0] - 0.5) <= 1e-10)
   }
@@ -104,7 +104,7 @@ import Testing
     return (filter, params)
   }
 
-  private func process(_ filter: VolumeFilter, _ waveform: inout [PrcFmt]) {
+  private func process(_ filter: VolumeFilter, _ waveform: inout [Double]) {
     filter.prepareChunk()
     filter.process(waveform: &waveform)
     filter.advanceRamp()
@@ -113,7 +113,7 @@ import Testing
   /// 0 dB → signal unchanged.
   @Test func VolumeUnityGain() throws {
     let (filter, _) = makeVolumeFilter(currentVolume: 0.0)
-    var waveform: [PrcFmt] = [1.0, -0.5, 0.25, 0.0]
+    var waveform: [Double] = [1.0, -0.5, 0.25, 0.0]
     let original = waveform
     process(filter, &waveform)
     for i in 0..<waveform.count {
@@ -124,9 +124,9 @@ import Testing
   /// −20 dB → signal × 0.1.
   @Test func VolumeAttenuation() throws {
     let (filter, _) = makeVolumeFilter(currentVolume: -20.0)
-    var waveform: [PrcFmt] = [1.0, -1.0, 0.5, -0.5]
+    var waveform: [Double] = [1.0, -1.0, 0.5, -0.5]
     process(filter, &waveform)
-    let gain = PrcFmt.fromDB(-20.0)
+    let gain = Double.fromDB(-20.0)
     #expect(abs(waveform[0] - 1.0 * gain) <= 1e-10)
     #expect(abs(waveform[1] - -1.0 * gain) <= 1e-10)
     #expect(abs(waveform[2] - 0.5 * gain) <= 1e-10)
@@ -136,7 +136,7 @@ import Testing
   /// Mute → output is silence.
   @Test func VolumeMuteRampsToZero() throws {
     let (filter, _) = makeVolumeFilter(currentVolume: 0.0, mute: true)
-    var waveform: [PrcFmt] = [1.0, 0.5, -0.5, -1.0]
+    var waveform: [Double] = [1.0, 0.5, -0.5, -1.0]
     process(filter, &waveform)
     for sample in waveform {
       #expect(abs(sample - 0.0) <= 1e-10)
@@ -158,7 +158,7 @@ import Testing
     )
 
     // Process chunk 0 (baseline unity)
-    var chunk0: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var chunk0: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &chunk0)
     for i in 0..<chunkSize {
       #expect(abs(chunk0[i] - 1.0) <= 1e-10)
@@ -168,11 +168,11 @@ import Testing
     params.setTargetVolume(-20.0, for: .main)
 
     // Process ramp chunk 1
-    var chunk1: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var chunk1: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &chunk1)
 
-    let gain0dB = PrcFmt.fromDB(0.0)
-    let gainM20dB = PrcFmt.fromDB(-20.0)
+    let gain0dB = Double.fromDB(0.0)
+    let gainM20dB = Double.fromDB(-20.0)
     for i in 0..<chunkSize {
       #expect(chunk1[i] <= gain0dB + 1e-6)
       #expect(chunk1[i] >= gainM20dB - 1e-6)
@@ -180,14 +180,14 @@ import Testing
     #expect(chunk1[0] > chunk1[chunkSize - 1])
 
     // Process ramp chunk 2
-    var chunk2: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var chunk2: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &chunk2)
 
     #expect(chunk2[chunkSize - 1] < chunk1[chunkSize - 1])
     #expect(chunk2[chunkSize - 1] >= gainM20dB - 1e-6)
 
     // Process chunk 3 (ramp complete)
-    var chunk3: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var chunk3: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &chunk3)
 
     for i in 0..<chunkSize {
@@ -199,12 +199,12 @@ import Testing
   @Test func VolumeChangeThreshold() throws {
     let (filter, params) = makeVolumeFilter(rampTimeMs: 0.0, currentVolume: 0.0)
 
-    var wave1: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var wave1: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &wave1)
 
     // below 0.01 threshold
     params.setTargetVolume(0.005, for: .main)
-    var wave2: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var wave2: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &wave2)
     for sample in wave2 {
       #expect(abs(sample - 1.0) <= 1e-10)
@@ -212,9 +212,9 @@ import Testing
 
     // above threshold
     params.setTargetVolume(0.02, for: .main)
-    var wave3: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var wave3: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &wave3)
-    let expectedGain = PrcFmt.fromDB(0.02)
+    let expectedGain = Double.fromDB(0.02)
     for sample in wave3 {
       #expect(abs(sample - expectedGain) <= 1e-6)
     }
@@ -225,10 +225,10 @@ import Testing
     let (filter, params) = makeVolumeFilter(rampTimeMs: 0.0, limit: 10.0, currentVolume: 0.0)
 
     params.setTargetVolume(20.0, for: .main)
-    var waveform: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var waveform: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &waveform)
 
-    let expectedGain = PrcFmt.fromDB(10.0)
+    let expectedGain = Double.fromDB(10.0)
     for sample in waveform {
       #expect(abs(sample - expectedGain) <= 1e-6)
     }
@@ -238,17 +238,17 @@ import Testing
   @Test func VolumeUpdateParametersClampsToLimit() throws {
     let (filter, params) = makeVolumeFilter(rampTimeMs: 0.0, limit: 50.0, currentVolume: 20.0)
 
-    var wave1: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var wave1: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &wave1)
 
     let newParams = VolumeParameters(rampTime: 0.0, limit: 10.0)
     filter.updateParameters(.volume(newParams), sampleRate: 44100)
 
     params.setTargetVolume(10.0, for: .main)
-    var wave2: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
+    var wave2: [Double] = [1.0, 1.0, 1.0, 1.0]
     process(filter, &wave2)
 
-    let expectedGain = PrcFmt.fromDB(10.0)
+    let expectedGain = Double.fromDB(10.0)
     for sample in wave2 {
       #expect(abs(sample - expectedGain) <= 1e-6)
     }

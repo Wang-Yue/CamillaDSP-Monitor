@@ -23,9 +23,9 @@ import Testing
   /// Evaluate a chain of biquads at the given frequencies, summing
   /// gain in dB.
   private func evaluateChain(
-    _ params: [BiquadParameters], at frequencies: [PrcFmt]
-  ) -> [PrcFmt] {
-    var out = [PrcFmt](repeating: 0, count: frequencies.count)
+    _ params: [BiquadParameters], at frequencies: [Double]
+  ) -> [Double] {
+    var out = [Double](repeating: 0, count: frequencies.count)
     for p in params {
       guard let coeffs = BiquadCoefficients.compute(parameters: p, sampleRate: sampleRate) else {
         continue
@@ -40,9 +40,9 @@ import Testing
   /// Apply a fit to a measured spectrum, then compute the residual
   /// against the target.
   private func residualAfterFit(
-    measured: [PrcFmt], frequencies: [PrcFmt], target: TargetCurve,
+    measured: [Double], frequencies: [Double], target: TargetCurve,
     options: PEQAutoFit.Options
-  ) -> [PrcFmt] {
+  ) -> [Double] {
     let fitted = PEQAutoFit.fit(
       measuredMagnitudeDB: measured,
       frequencies: frequencies,
@@ -50,7 +50,7 @@ import Testing
       sampleRate: sampleRate,
       options: options)
     let fitGain = evaluateChain(fitted, at: frequencies)
-    var residual = [PrcFmt](repeating: 0, count: frequencies.count)
+    var residual = [Double](repeating: 0, count: frequencies.count)
     for i in 0..<frequencies.count {
       residual[i] = (measured[i] + fitGain[i]) - target.evaluate(atFreqHz: frequencies[i])
     }
@@ -61,7 +61,7 @@ import Testing
   /// short-circuits before the first iteration.
   @Test func FlatInputProducesNoBands() {
     let grid = PEQAutoFit.logFrequencyGrid(fMin: 20, fMax: 20_000, count: 256)
-    let measured = [PrcFmt](repeating: 0, count: grid.count)
+    let measured = [Double](repeating: 0, count: grid.count)
     let bands = PEQAutoFit.fit(
       measuredMagnitudeDB: measured,
       frequencies: grid,
@@ -85,7 +85,7 @@ import Testing
     // Peak residual should be small inside the audio band where the
     // original bump lives. We allow some slack near the band edges
     // where biquad responses can have non-trivial leakage.
-    var maxInBand: PrcFmt = 0
+    var maxInBand: Double = 0
     for i in 0..<grid.count where grid[i] >= 100 && grid[i] <= 10_000 {
       maxInBand = max(maxInBand, abs(residual[i]))
     }
@@ -107,7 +107,7 @@ import Testing
     let residual = residualAfterFit(
       measured: measured, frequencies: grid, target: .flat, options: opts)
 
-    var maxInBand: PrcFmt = 0
+    var maxInBand: Double = 0
     for i in 0..<grid.count where grid[i] >= 200 && grid[i] <= 10_000 {
       maxInBand = max(maxInBand, abs(residual[i]))
     }

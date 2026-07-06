@@ -12,8 +12,8 @@ final class RACEProcessor: Processor {
   private var delayB: DelayFilter
   private var gain: GainFilter
 
-  private var feedbackA: PrcFmt = 0.0
-  private var feedbackB: PrcFmt = 0.0
+  private var feedbackA: Double = 0.0
+  private var feedbackB: Double = 0.0
 
   init(name: String = "race", parameters: RACEParameters, sampleRate: Int) throws {
     self.name = name

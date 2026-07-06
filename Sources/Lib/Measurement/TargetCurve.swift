@@ -16,9 +16,9 @@ import Foundation
 
 public struct TargetCurve: Codable, Sendable {
   public struct Breakpoint: Codable, Sendable, Equatable {
-    public var freqHz: PrcFmt
-    public var gainDB: PrcFmt
-    public init(freqHz: PrcFmt, gainDB: PrcFmt) {
+    public var freqHz: Double
+    public var gainDB: Double
+    public init(freqHz: Double, gainDB: Double) {
       self.freqHz = freqHz
       self.gainDB = gainDB
     }
@@ -36,7 +36,7 @@ public struct TargetCurve: Codable, Sendable {
   /// Insert a breakpoint, preserving the freq-sorted invariant.
   /// Replaces any existing breakpoint within `mergeToleranceHz` Hz of
   /// `bp.freqHz` (drag-and-snap behaviour for the editor UI).
-  public mutating func upsert(_ bp: Breakpoint, mergeToleranceHz: PrcFmt = 1.0) {
+  public mutating func upsert(_ bp: Breakpoint, mergeToleranceHz: Double = 1.0) {
     var bps = breakpoints
     if let idx = bps.firstIndex(where: { abs($0.freqHz - bp.freqHz) <= mergeToleranceHz }) {
       bps[idx] = bp
@@ -49,7 +49,7 @@ public struct TargetCurve: Codable, Sendable {
   /// Evaluate the target curve at `f` Hz. Constant-extrapolates
   /// outside the breakpoint range; piecewise-linear in log-frequency
   /// otherwise. Returns 0 dB for an empty curve.
-  public func evaluate(atFreqHz f: PrcFmt) -> PrcFmt {
+  public func evaluate(atFreqHz f: Double) -> Double {
     if breakpoints.isEmpty { return 0 }
     if f <= breakpoints.first!.freqHz { return breakpoints.first!.gainDB }
     if f >= breakpoints.last!.freqHz { return breakpoints.last!.gainDB }

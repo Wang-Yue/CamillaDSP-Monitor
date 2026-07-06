@@ -7,8 +7,8 @@ let usePureSwift = ProcessInfo.processInfo.environment["USE_PURE_SWIFT"] != "0"
 var dependencies: [Package.Dependency] = []
 
 let libTargets: [Target] = [
-  .target(name: "DSPConfig", dependencies: ["DSPAudio"], path: "Sources/Lib/Config"),
-  .target(name: "DSPAudio", dependencies: [], path: "Sources/Lib/Audio"),
+  .target(name: "DSPConfig", dependencies: [], path: "Sources/Lib/Config"),
+  .target(name: "DSPAudio", dependencies: ["DSPConfig"], path: "Sources/Lib/Audio"),
   .target(
     name: "DSPLogging", dependencies: ["DSPConfig", "DSPAudio"], path: "Sources/Lib/Logging"),
   .target(

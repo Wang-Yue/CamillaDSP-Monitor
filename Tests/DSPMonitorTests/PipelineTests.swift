@@ -74,7 +74,7 @@ import Testing
     try pipeline.process(input: chunk, into: &output)
 
     // Channel 0 should be attenuated by -6dB (~0.501)
-    #expect(abs(output.waveforms[0][0] - PrcFmt.fromDB(-6.0)) <= 1e-5)
+    #expect(abs(output.waveforms[0][0] - Double.fromDB(-6.0)) <= 1e-5)
     // Channel 1 should be untouched (1.0)
     #expect(abs(output.waveforms[1][0] - 1.0) <= 1e-5)
   }
@@ -209,8 +209,8 @@ import Testing
     try pipeline.process(input: chunk, into: &output)
 
     // Volume is applied immediately for the whole chunk!
-    #expect(abs(output.waveforms[0][0] - PrcFmt.fromDB(-10.0)) <= 1e-5)
-    #expect(abs(output.waveforms[0][1023] - PrcFmt.fromDB(-10.0)) <= 1e-5)
+    #expect(abs(output.waveforms[0][0] - Double.fromDB(-10.0)) <= 1e-5)
+    #expect(abs(output.waveforms[0][1023] - Double.fromDB(-10.0)) <= 1e-5)
   }
 
   @Test func PipelineMute() throws {
@@ -507,7 +507,7 @@ import Testing
 
     // 4. Test output capacity too small
     var tooSmallOutput = AudioChunk(waveforms: [
-      [PrcFmt](repeating: 0, count: 512), [PrcFmt](repeating: 0, count: 512),
+      [Double](repeating: 0, count: 512), [Double](repeating: 0, count: 512),
     ])
     do {
       _ = try pipeline.process(input: input, into: &tooSmallOutput)

@@ -176,9 +176,9 @@ private enum AllocationCounter {
     // pattern — values don't affect allocation behaviour.
     let chunkSize = 1024
     let irLen = 4096
-    var ir = [PrcFmt](repeating: 0, count: irLen)
+    var ir = [Double](repeating: 0, count: irLen)
     for i in 0..<irLen {
-      ir[i] = (i == 0 ? 1.0 : 0.0) + 0.001 * cos(PrcFmt(i) * 0.01)
+      ir[i] = (i == 0 ? 1.0 : 0.0) + 0.001 * cos(Double(i) * 0.01)
     }
     let filter = ConvolutionFilter(coefficients: ir, chunkSize: chunkSize)
     let buffer = AudioBuffers(channels: 1, capacity: chunkSize)
@@ -451,7 +451,7 @@ private enum AllocationCounter {
         let marker: UInt32 = (globalFrameIdx % 2 == 0) ? 0x05 : 0xFA
         let val24: UInt32 = (marker << 16) | 0x6969  // standard DSD silence pattern
         let intVal = Int32(bitPattern: val24 << 8) >> 8
-        let f = PrcFmt(intVal) / 8388608.0
+        let f = Double(intVal) / 8388608.0
         chunk[0][t] = f
         chunk[1][t] = f
         globalFrameIdx += 1

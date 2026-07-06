@@ -16,14 +16,14 @@ import DSPFFT
 import Foundation
 
 public struct FrequencyResponse: Sendable {
-  public let real: [PrcFmt]
-  public let imag: [PrcFmt]
+  public let real: [Double]
+  public let imag: [Double]
   public let sampleRate: Int
   /// FFT length used to produce these bins (i.e. the time-domain
   /// signal, zero-padded to this length).
   public let fftSize: Int
 
-  public init(real: [PrcFmt], imag: [PrcFmt], sampleRate: Int, fftSize: Int) {
+  public init(real: [Double], imag: [Double], sampleRate: Int, fftSize: Int) {
     precondition(real.count == imag.count, "FrequencyResponse: re/im length mismatch")
     precondition(fftSize > 0 && fftSize % 2 == 0, "FrequencyResponse: fftSize must be even and > 0")
     precondition(
@@ -37,24 +37,24 @@ public struct FrequencyResponse: Sendable {
   public var bins: Int { real.count }
 
   /// Frequency of bin `k` in Hz.
-  public func frequency(at bin: Int) -> PrcFmt {
-    return PrcFmt(bin) * PrcFmt(sampleRate) / PrcFmt(fftSize)
+  public func frequency(at bin: Int) -> Double {
+    return Double(bin) * Double(sampleRate) / Double(fftSize)
   }
 
-  public func magnitude(at bin: Int) -> PrcFmt {
+  public func magnitude(at bin: Int) -> Double {
     let r = real[bin]
     let i = imag[bin]
     return (r * r + i * i).squareRoot()
   }
 
   /// Magnitude in dB FS. Floored at -1000 dB for the zero-magnitude
-  /// case (matches the project's `PrcFmt.toDB` convention).
-  public func magnitudeDB(at bin: Int) -> PrcFmt {
-    return PrcFmt.toDB(magnitude(at: bin))
+  /// case (matches the project's `Double.toDB` convention).
+  public func magnitudeDB(at bin: Int) -> Double {
+    return Double.toDB(magnitude(at: bin))
   }
 
   /// Wrapped phase in radians, ∈ (−π, π].
-  public func phase(at bin: Int) -> PrcFmt {
+  public func phase(at bin: Int) -> Double {
     return atan2(imag[bin], real[bin])
   }
 
@@ -62,15 +62,15 @@ public struct FrequencyResponse: Sendable {
   /// neighbour-difference algorithm. Values are continuous but no
   /// assumption is made about the absolute branch — for group-delay
   /// computations the relative behaviour is what matters.
-  public func unwrappedPhase() -> [PrcFmt] {
+  public func unwrappedPhase() -> [Double] {
     let n = bins
     if n == 0 { return [] }
-    var out = [PrcFmt](repeating: 0, count: n)
+    var out = [Double](repeating: 0, count: n)
     out[0] = phase(at: 0)
     for i in 1..<n {
       var diff = phase(at: i) - phase(at: i - 1)
-      while diff > PrcFmt.pi { diff -= 2.0 * PrcFmt.pi }
-      while diff < -PrcFmt.pi { diff += 2.0 * PrcFmt.pi }
+      while diff > Double.pi { diff -= 2.0 * Double.pi }
+      while diff < -Double.pi { diff += 2.0 * Double.pi }
       out[i] = out[i - 1] + diff
     }
     return out
@@ -79,14 +79,14 @@ public struct FrequencyResponse: Sendable {
   /// Group delay in seconds, computed by finite-difference on the
   /// unwrapped phase: τ_g(f) ≈ −Δφ / Δω. The endpoints reuse the
   /// neighbouring difference (same first-order treatment as `numpy`).
-  public func groupDelaySeconds() -> [PrcFmt] {
+  public func groupDelaySeconds() -> [Double] {
     let phases = unwrappedPhase()
     let n = phases.count
-    guard n >= 2 else { return [PrcFmt](repeating: 0, count: n) }
+    guard n >= 2 else { return [Double](repeating: 0, count: n) }
 
-    let binHz = PrcFmt(sampleRate) / PrcFmt(fftSize)
-    let twoPi = 2.0 * PrcFmt.pi
-    var gd = [PrcFmt](repeating: 0, count: n)
+    let binHz = Double(sampleRate) / Double(fftSize)
+    let twoPi = 2.0 * Double.pi
+    var gd = [Double](repeating: 0, count: n)
     // Centred difference where possible.
     for i in 1..<(n - 1) {
       gd[i] = -(phases[i + 1] - phases[i - 1]) / (twoPi * 2.0 * binHz)
@@ -111,7 +111,7 @@ public struct FrequencyResponse: Sendable {
     let bins = n / 2 + 1
     let fft = RealFFT(length: n)
 
-    let padded = UnsafeMutablePointer<PrcFmt>.allocate(capacity: n)
+    let padded = UnsafeMutablePointer<Double>.allocate(capacity: n)
     padded.initialize(repeating: 0, count: n)
     defer {
       padded.deinitialize(count: n)
@@ -123,8 +123,8 @@ public struct FrequencyResponse: Sendable {
       }
     }
 
-    var re = [PrcFmt](repeating: 0, count: bins)
-    var im = [PrcFmt](repeating: 0, count: bins)
+    var re = [Double](repeating: 0, count: bins)
+    var im = [Double](repeating: 0, count: bins)
     re.withUnsafeMutableBufferPointer { reBuf in
       im.withUnsafeMutableBufferPointer { imBuf in
         if let reBase = reBuf.baseAddress, let imBase = imBuf.baseAddress {
@@ -145,7 +145,7 @@ public struct FrequencyResponse: Sendable {
   /// Centred on the impulse peak (`ir.zeroIndex`).
   public static func fdw(
     impulseResponse ir: ImpulseResponse,
-    cycles: PrcFmt,
+    cycles: Double,
     fftSize: Int? = nil
   ) -> FrequencyResponse {
     let n = max(2, fftSize ?? (ir.count + (ir.count % 2)))
@@ -153,10 +153,10 @@ public struct FrequencyResponse: Sendable {
       n % 2 == 0 && n >= ir.count, "FrequencyResponse: fftSize must be even and ≥ ir.count")
     let bins = n / 2 + 1
 
-    var re = [PrcFmt](repeating: 0, count: bins)
-    var im = [PrcFmt](repeating: 0, count: bins)
+    var re = [Double](repeating: 0, count: bins)
+    var im = [Double](repeating: 0, count: bins)
 
-    let twoPi = 2.0 * PrcFmt.pi
+    let twoPi = 2.0 * Double.pi
     let p = ir.zeroIndex
     let count = ir.samples.count
 
@@ -164,21 +164,21 @@ public struct FrequencyResponse: Sendable {
       // For DC (k=0), use the window width of bin 1.
       let kEff = max(1, k)
       // Total window width in samples: W_k = cycles * N / kEff
-      let w_k = cycles * PrcFmt(n) / PrcFmt(kEff)
+      let w_k = cycles * Double(n) / Double(kEff)
       let h_k = w_k / 2.0
 
-      let startIdx = max(0, Int(floor(PrcFmt(p) - h_k)))
-      let endIdx = min(count - 1, Int(ceil(PrcFmt(p) + h_k)))
+      let startIdx = max(0, Int(floor(Double(p) - h_k)))
+      let endIdx = min(count - 1, Int(ceil(Double(p) + h_k)))
 
-      var rSum: PrcFmt = 0
-      var iSum: PrcFmt = 0
+      var rSum: Double = 0
+      var iSum: Double = 0
 
-      let kOverN = PrcFmt(k) / PrcFmt(n)
+      let kOverN = Double(k) / Double(n)
       for i in startIdx...endIdx {
-        let d = abs(PrcFmt(i - p))
+        let d = abs(Double(i - p))
         if d <= h_k {
-          let w = 0.5 * (1.0 + cos(PrcFmt.pi * d / h_k))
-          let angle = twoPi * kOverN * PrcFmt(i)
+          let w = 0.5 * (1.0 + cos(Double.pi * d / h_k))
+          let angle = twoPi * kOverN * Double(i)
           rSum += ir.samples[i] * w * cos(angle)
           iSum -= ir.samples[i] * w * sin(angle)
         }
@@ -203,35 +203,35 @@ public struct FrequencyResponse: Sendable {
   public static func stft(
     impulseResponse ir: ImpulseResponse,
     sliceCount: Int = 30,
-    maxTimeSeconds: PrcFmt = 0.5,
+    maxTimeSeconds: Double = 0.5,
     windowLength: Int = 2048,
     fftSize: Int = 4096
-  ) -> [(time: PrcFmt, response: FrequencyResponse)] {
+  ) -> [(time: Double, response: FrequencyResponse)] {
     guard sliceCount > 0, windowLength > 0, fftSize % 2 == 0, fftSize > 0 else { return [] }
 
     let p = ir.zeroIndex
     let totalSamples = ir.samples.count
-    let maxSampleOffset = Int(maxTimeSeconds * PrcFmt(ir.sampleRate))
+    let maxSampleOffset = Int(maxTimeSeconds * Double(ir.sampleRate))
     let timeStride = maxSampleOffset / max(1, sliceCount - 1)
 
     // Precompute Hann window
-    var hann = [PrcFmt](repeating: 0, count: windowLength)
+    var hann = [Double](repeating: 0, count: windowLength)
     for i in 0..<windowLength {
-      hann[i] = 0.5 * (1.0 - cos(2.0 * PrcFmt.pi * PrcFmt(i) / PrcFmt(windowLength - 1)))
+      hann[i] = 0.5 * (1.0 - cos(2.0 * Double.pi * Double(i) / Double(windowLength - 1)))
     }
 
     let fft = RealFFT(length: fftSize)
     let bins = fftSize / 2 + 1
 
-    let padded = UnsafeMutablePointer<PrcFmt>.allocate(capacity: fftSize)
+    let padded = UnsafeMutablePointer<Double>.allocate(capacity: fftSize)
     defer { padded.deallocate() }
 
-    var slices: [(time: PrcFmt, response: FrequencyResponse)] = []
+    var slices: [(time: Double, response: FrequencyResponse)] = []
     slices.reserveCapacity(sliceCount)
 
     for sliceIdx in 0..<sliceCount {
       let sampleOffset = sliceIdx * timeStride
-      let t = PrcFmt(sampleOffset) / PrcFmt(ir.sampleRate)
+      let t = Double(sampleOffset) / Double(ir.sampleRate)
       let sliceStart = p + sampleOffset
 
       padded.initialize(repeating: 0, count: fftSize)
@@ -244,8 +244,8 @@ public struct FrequencyResponse: Sendable {
         }
       }
 
-      var re = [PrcFmt](repeating: 0, count: bins)
-      var im = [PrcFmt](repeating: 0, count: bins)
+      var re = [Double](repeating: 0, count: bins)
+      var im = [Double](repeating: 0, count: bins)
       re.withUnsafeMutableBufferPointer { reBuf in
         im.withUnsafeMutableBufferPointer { imBuf in
           if let reBase = reBuf.baseAddress, let imBase = imBuf.baseAddress {

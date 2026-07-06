@@ -3,7 +3,7 @@ import DSPConfig
 import Foundation
 
 /// Builds the subsample biquad allpass and returns (integerDelaySamples, optionalBiquad).
-private func buildSubsampleBiquad(delay: PrcFmt) -> (Int, BiquadCoefficients?) {
+private func buildSubsampleBiquad(delay: Double) -> (Int, BiquadCoefficients?) {
   if delay < 0.1 {
     return (0, nil)
   }
@@ -31,7 +31,7 @@ private func buildSubsampleBiquad(delay: PrcFmt) -> (Int, BiquadCoefficients?) {
 
 public final class DelayFilter: Filter {
   public let name: String
-  private var queue: UnsafeMutablePointer<PrcFmt>?
+  private var queue: UnsafeMutablePointer<Double>?
   private var queueCount: Int = 0
   private var readIndex: Int = 0
   private var biquad: BiquadFilter?
@@ -48,7 +48,7 @@ public final class DelayFilter: Filter {
       delaySamples: delaySamples, subsample: subsample
     )
     if integerDelay > 0 {
-      let ptr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: integerDelay)
+      let ptr = UnsafeMutablePointer<Double>.allocate(capacity: integerDelay)
       ptr.initialize(repeating: 0.0, count: integerDelay)
       self.queue = ptr
       self.queueCount = integerDelay
@@ -69,22 +69,22 @@ public final class DelayFilter: Filter {
     }
   }
 
-  private static func computeDelaySamples(delay: PrcFmt, unit: DelayUnit, sampleRate: Int) -> PrcFmt
+  private static func computeDelaySamples(delay: Double, unit: DelayUnit, sampleRate: Int) -> Double
   {
     switch unit {
     case .ms:
-      return delay / 1000.0 * PrcFmt(sampleRate)
+      return delay / 1000.0 * Double(sampleRate)
     case .us:
-      return delay / 1_000_000.0 * PrcFmt(sampleRate)
+      return delay / 1_000_000.0 * Double(sampleRate)
     case .samples:
       return delay
     case .mm:
-      return delay / 1000.0 * PrcFmt(sampleRate) / 343.0
+      return delay / 1000.0 * Double(sampleRate) / 343.0
     }
   }
 
   private static func buildDelay(
-    delaySamples: PrcFmt, subsample: Bool
+    delaySamples: Double, subsample: Bool
   ) -> (Int, BiquadCoefficients?) {
     if subsample {
       return buildSubsampleBiquad(delay: delaySamples)
@@ -113,7 +113,7 @@ public final class DelayFilter: Filter {
     }
   }
 
-  public func processSingle(_ sample: PrcFmt) -> PrcFmt {
+  public func processSingle(_ sample: Double) -> Double {
     var out = sample
     if let q = queue {
       let delayed = q[readIndex]
@@ -143,7 +143,7 @@ public final class DelayFilter: Filter {
       q.deallocate()
     }
     if integerDelay > 0 {
-      let ptr = UnsafeMutablePointer<PrcFmt>.allocate(capacity: integerDelay)
+      let ptr = UnsafeMutablePointer<Double>.allocate(capacity: integerDelay)
       ptr.initialize(repeating: 0.0, count: integerDelay)
       self.queue = ptr
       self.queueCount = integerDelay

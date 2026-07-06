@@ -749,7 +749,7 @@ final class MeasurementSession {
 
     do {
       for rate in rates {
-        let ir: [PrcFmt]
+        let ir: [Double]
         switch firKind {
         case .minimumPhase:
           let opts = FIRDesign.Options(
@@ -807,7 +807,7 @@ final class MeasurementSession {
   }
 
   private func persistIR(
-    _ ir: [PrcFmt], label: String, presetID: UUID, sampleRate: Int
+    _ ir: [Double], label: String, presetID: UUID, sampleRate: Int
   ) throws -> URL {
     let fm = FileManager.default
     let appSupport = try fm.url(

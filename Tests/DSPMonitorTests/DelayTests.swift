@@ -6,11 +6,11 @@ import Testing
 @testable import DSPFilters
 
 @Suite struct DelayTests {
-  private static func isClose(_ left: PrcFmt, _ right: PrcFmt, maxdiff: PrcFmt) -> Bool {
+  private static func isClose(_ left: Double, _ right: Double, maxdiff: Double) -> Bool {
     return abs(left - right) < maxdiff
   }
 
-  private static func compareWaveforms(_ left: [PrcFmt], _ right: [PrcFmt], maxdiff: PrcFmt) -> Bool
+  private static func compareWaveforms(_ left: [Double], _ right: [Double], maxdiff: Double) -> Bool
   {
     guard left.count == right.count else { return false }
     for (val_l, val_r) in zip(left, right) {
@@ -22,8 +22,8 @@ import Testing
   }
 
   @Test func delay_small() {
-    var waveform: [PrcFmt] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    let waveform_delayed: [PrcFmt] = [0.0, 0.0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0]
+    var waveform: [Double] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    let waveform_delayed: [Double] = [0.0, 0.0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0]
     let params = DelayParameters(delay: 3.0, unit: .samples, subsample: false)
     let filter = DelayFilter(parameters: params, sampleRate: 44100)
     filter.process(waveform: &waveform)
@@ -31,7 +31,7 @@ import Testing
   }
 
   @Test func delay_supersmall() {
-    var waveform: [PrcFmt] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    var waveform: [Double] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     let waveform_delayed = waveform
     let params = DelayParameters(delay: 0.1, unit: .samples, subsample: false)
     let filter = DelayFilter(parameters: params, sampleRate: 44100)
@@ -40,20 +40,20 @@ import Testing
   }
 
   @Test func delay_large() {
-    var waveform1: [PrcFmt] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    var waveform2 = [PrcFmt](repeating: 0.0, count: 8)
-    let waveform_delayed: [PrcFmt] = [0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0]
+    var waveform1: [Double] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    var waveform2 = [Double](repeating: 0.0, count: 8)
+    let waveform_delayed: [Double] = [0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0]
     let params = DelayParameters(delay: 9.0, unit: .samples, subsample: false)
     let filter = DelayFilter(parameters: params, sampleRate: 44100)
     filter.process(waveform: &waveform1)
     filter.process(waveform: &waveform2)
-    #expect(waveform1 == [PrcFmt](repeating: 0.0, count: 8))
+    #expect(waveform1 == [Double](repeating: 0.0, count: 8))
     #expect(waveform2 == waveform_delayed)
   }
 
   @Test func delay_fraction() {
-    var waveform: [PrcFmt] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    let expected_waveform: [PrcFmt] = [
+    var waveform: [Double] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    let expected_waveform: [Double] = [
       0.0,
       0.01051051051051051,
       -0.13446780113446782,

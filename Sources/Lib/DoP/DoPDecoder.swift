@@ -23,6 +23,7 @@
 // across DSD64 / 128 / 256 at 44.1 / 48 kHz families are preserved.
 
 import DSPAudio
+import DSPConfig
 import DSPLogging
 import Foundation
 
@@ -284,7 +285,7 @@ public final class DoPDecoder {
         // so SINAD compares against full-amplitude sin. Real DoP streams
         // from DACs that don't pre-scale will be 6 dB hot — handle at a higher level
         // if that becomes a problem.
-        base[t] = PrcFmt(acc * 2.0)
+        base[t] = Double(acc * 2.0)
       }
     }
 

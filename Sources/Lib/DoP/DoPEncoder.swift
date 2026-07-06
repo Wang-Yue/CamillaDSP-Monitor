@@ -224,7 +224,7 @@ public final class DoPEncoder {
       // (must be S24 or S32 to preserve the bit pattern).
       let val24: UInt32 = (UInt32(marker) << 16) | UInt32(word)
       let intVal: Int32 = Int32(bitPattern: val24 << 8) >> 8
-      base[t] = PrcFmt(Double(intVal) / 8388608.0)
+      base[t] = Double(Double(intVal) / 8388608.0)
 
       marker = (marker == 0x05) ? 0xFA : 0x05
       pos = (pos &+ 1) & mask

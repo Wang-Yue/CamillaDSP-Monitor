@@ -37,36 +37,36 @@ public enum SweepGenerator {
   /// FS) before sending to the DAC, leaving headroom for the room's
   /// added energy and avoiding clipping in the analog chain.
   public static func generate(
-    f1: PrcFmt,
-    f2: PrcFmt,
-    durationSeconds: PrcFmt,
+    f1: Double,
+    f2: Double,
+    durationSeconds: Double,
     sampleRate: Int,
-    fadeInSeconds: PrcFmt = 0.05,
-    fadeOutSeconds: PrcFmt = 0.05
-  ) -> [PrcFmt] {
+    fadeInSeconds: Double = 0.05,
+    fadeOutSeconds: Double = 0.05
+  ) -> [Double] {
     precondition(f1 > 0, "SweepGenerator: f1 must be > 0")
     precondition(f2 > f1, "SweepGenerator: f2 must be > f1")
     precondition(durationSeconds > 0, "SweepGenerator: durationSeconds must be > 0")
     precondition(sampleRate > 0, "SweepGenerator: sampleRate must be > 0")
     precondition(
-      f2 <= PrcFmt(sampleRate) / 2.0,
+      f2 <= Double(sampleRate) / 2.0,
       "SweepGenerator: f2 must be ≤ Nyquist (\(sampleRate/2) Hz), got \(f2)")
 
-    let n = Int((durationSeconds * PrcFmt(sampleRate)).rounded())
-    let actualT = PrcFmt(n) / PrcFmt(sampleRate)
+    let n = Int((durationSeconds * Double(sampleRate)).rounded())
+    let actualT = Double(n) / Double(sampleRate)
     let r = log(f2 / f1) / actualT
-    let k = 2.0 * PrcFmt.pi * f1 / r
+    let k = 2.0 * Double.pi * f1 / r
 
-    var sweep = [PrcFmt](repeating: 0, count: n)
-    let invFs = 1.0 / PrcFmt(sampleRate)
+    var sweep = [Double](repeating: 0, count: n)
+    let invFs = 1.0 / Double(sampleRate)
     for i in 0..<n {
-      let t = PrcFmt(i) * invFs
+      let t = Double(i) * invFs
       sweep[i] = sin(k * (exp(r * t) - 1.0))
     }
     applyTapers(
       &sweep,
-      fadeInSamples: Int(fadeInSeconds * PrcFmt(sampleRate)),
-      fadeOutSamples: Int(fadeOutSeconds * PrcFmt(sampleRate)))
+      fadeInSamples: Int(fadeInSeconds * Double(sampleRate)),
+      fadeOutSamples: Int(fadeOutSeconds * Double(sampleRate)))
     return sweep
   }
 
@@ -81,11 +81,11 @@ public enum SweepGenerator {
   /// inverse-filter contribution finishes feeding into the
   /// convolution).
   public static func inverseFilter(
-    f1: PrcFmt,
-    f2: PrcFmt,
-    durationSeconds: PrcFmt,
+    f1: Double,
+    f2: Double,
+    durationSeconds: Double,
     sampleRate: Int
-  ) -> [PrcFmt] {
+  ) -> [Double] {
     // Reuse `generate` (with no taper) so the inverse is the exact
     // mathematical reverse of the same sweep waveform — any tapering
     // is the user's responsibility on the captured side.
@@ -94,13 +94,13 @@ public enum SweepGenerator {
       durationSeconds: durationSeconds, sampleRate: sampleRate,
       fadeInSeconds: 0, fadeOutSeconds: 0)
     let n = sweep.count
-    let actualT = PrcFmt(n) / PrcFmt(sampleRate)
+    let actualT = Double(n) / Double(sampleRate)
     let r = log(f2 / f1) / actualT
-    let invFs = 1.0 / PrcFmt(sampleRate)
+    let invFs = 1.0 / Double(sampleRate)
 
-    var inv = [PrcFmt](repeating: 0, count: n)
+    var inv = [Double](repeating: 0, count: n)
     for i in 0..<n {
-      let t = PrcFmt(i) * invFs
+      let t = Double(i) * invFs
       inv[i] = sweep[n - 1 - i] * exp(-r * t)
     }
     return inv
@@ -110,13 +110,13 @@ public enum SweepGenerator {
   /// single call (the inverse-filter computation is cheap, but bundling
   /// keeps callers from accidentally passing mismatched parameters).
   public static func sweepAndInverse(
-    f1: PrcFmt,
-    f2: PrcFmt,
-    durationSeconds: PrcFmt,
+    f1: Double,
+    f2: Double,
+    durationSeconds: Double,
     sampleRate: Int,
-    fadeInSeconds: PrcFmt = 0.05,
-    fadeOutSeconds: PrcFmt = 0.05
-  ) -> (sweep: [PrcFmt], inverse: [PrcFmt]) {
+    fadeInSeconds: Double = 0.05,
+    fadeOutSeconds: Double = 0.05
+  ) -> (sweep: [Double], inverse: [Double]) {
     let sweep = generate(
       f1: f1, f2: f2,
       durationSeconds: durationSeconds, sampleRate: sampleRate,
@@ -130,7 +130,7 @@ public enum SweepGenerator {
   /// Raised-cosine (Hann) tapers at the buffer endpoints. No-op when
   /// the requested taper length is zero.
   private static func applyTapers(
-    _ buffer: inout [PrcFmt],
+    _ buffer: inout [Double],
     fadeInSamples: Int,
     fadeOutSamples: Int
   ) {
@@ -138,14 +138,14 @@ public enum SweepGenerator {
     let fOut = max(0, min(fadeOutSamples, buffer.count))
     if fIn > 0 {
       for i in 0..<fIn {
-        let w = 0.5 * (1.0 - cos(PrcFmt.pi * PrcFmt(i) / PrcFmt(fIn)))
+        let w = 0.5 * (1.0 - cos(Double.pi * Double(i) / Double(fIn)))
         buffer[i] *= w
       }
     }
     if fOut > 0 {
       let n = buffer.count
       for i in 0..<fOut {
-        let w = 0.5 * (1.0 - cos(PrcFmt.pi * PrcFmt(i) / PrcFmt(fOut)))
+        let w = 0.5 * (1.0 - cos(Double.pi * Double(i) / Double(fOut)))
         buffer[n - 1 - i] *= w
       }
     }

@@ -107,7 +107,7 @@ public final class BiquadFilter: Filter {
     )
   }
 
-  public func processSingle(_ sample: PrcFmt) -> PrcFmt {
+  public func processSingle(_ sample: Double) -> Double {
     guard let setup = setup else { return sample }
     var inVal = sample
     var outVal = 0.0

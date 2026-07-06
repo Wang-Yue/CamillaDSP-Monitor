@@ -14,9 +14,9 @@ final class LoudnessFilter: Filter {
   private let lowShelfFilter: BiquadFilter
   private let highShelfFilter: BiquadFilter
 
-  private var lastVolume: PrcFmt = 0.0
+  private var lastVolume: Double = 0.0
   private var isProcessingActive: Bool = false
-  private var midbandAttenuationDb: PrcFmt = 0.0
+  private var midbandAttenuationDb: Double = 0.0
 
   var processingParameters: ProcessingParameters?
 
@@ -49,12 +49,12 @@ final class LoudnessFilter: Filter {
 
     // Apply midband attenuation if enabled
     if params.attenuateMid == true && abs(midbandAttenuationDb) > 0.001 {
-      let factor = PrcFmt.fromDB(midbandAttenuationDb)
+      let factor = Double.fromDB(midbandAttenuationDb)
       DSPOps.scalarMultiply(waveform, by: factor)
     }
   }
 
-  private func recomputeShelves(volume: PrcFmt) {
+  private func recomputeShelves(volume: Double) {
     let ref = params.referenceLevel ?? -25.0
     let boostFactor = max(0.0, min(1.0, (ref - volume) / 20.0))
 

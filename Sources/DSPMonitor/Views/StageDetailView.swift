@@ -1,6 +1,5 @@
 // StageDetailView - Configuration UI for each pipeline stage
 
-import DSPAudio
 import DSPConfig
 import Observation
 import SwiftUI

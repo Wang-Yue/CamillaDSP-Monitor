@@ -14,10 +14,10 @@ import Testing
     let channels = 2
     let pcmSource = AudioChunk(frames: frames, channels: channels)
     // Fill with a 1kHz sine wave
-    let amplitude: PrcFmt = 0.5
+    let amplitude: Double = 0.5
     for ch in 0..<channels {
       for t in 0..<frames {
-        pcmSource[ch][t] = amplitude * PrcFmt(sin(2.0 * .pi * 1000.0 * Double(t) / carrierRate))
+        pcmSource[ch][t] = amplitude * Double(sin(2.0 * .pi * 1000.0 * Double(t) / carrierRate))
       }
     }
 
@@ -61,10 +61,10 @@ import Testing
     let channels = 2
     let pcmSource = AudioChunk(frames: frames, channels: channels)
     // Fill with a 1kHz sine wave
-    let amplitude: PrcFmt = 0.5
+    let amplitude: Double = 0.5
     for ch in 0..<channels {
       for t in 0..<frames {
-        pcmSource[ch][t] = amplitude * PrcFmt(sin(2.0 * .pi * 1000.0 * Double(t) / carrierRate))
+        pcmSource[ch][t] = amplitude * Double(sin(2.0 * .pi * 1000.0 * Double(t) / carrierRate))
       }
     }
 

@@ -16,13 +16,13 @@ import DSPAudio
 import Foundation
 
 public struct ImpulseResponse: Sendable {
-  public var samples: [PrcFmt]
+  public var samples: [Double]
   public let sampleRate: Int
   /// Sample index treated as t = 0. Defaults to 0; sweep deconvolution
   /// will set this to the located peak after `centeredOnPeak()`.
   public var zeroIndex: Int
 
-  public init(samples: [PrcFmt], sampleRate: Int, zeroIndex: Int = 0) {
+  public init(samples: [Double], sampleRate: Int, zeroIndex: Int = 0) {
     precondition(sampleRate > 0, "ImpulseResponse: sampleRate must be > 0")
     self.samples = samples
     self.sampleRate = sampleRate
@@ -65,13 +65,13 @@ public struct ImpulseResponse: Sendable {
   public func windowed(
     leftSamples: Int,
     rightSamples: Int,
-    taperFraction: PrcFmt = 0.1
+    taperFraction: Double = 0.1
   ) -> ImpulseResponse {
     precondition(leftSamples >= 0 && rightSamples >= 0)
     precondition(taperFraction >= 0 && taperFraction <= 1)
 
     let n = leftSamples + rightSamples
-    var out = [PrcFmt](repeating: 0, count: n)
+    var out = [Double](repeating: 0, count: n)
     let srcStart = zeroIndex - leftSamples
     for i in 0..<n {
       let src = srcStart + i
@@ -79,14 +79,14 @@ public struct ImpulseResponse: Sendable {
         out[i] = samples[src]
       }
     }
-    let leftTaper = Int(PrcFmt(leftSamples) * taperFraction)
-    let rightTaper = Int(PrcFmt(rightSamples) * taperFraction)
+    let leftTaper = Int(Double(leftSamples) * taperFraction)
+    let rightTaper = Int(Double(rightSamples) * taperFraction)
     for i in 0..<min(leftTaper, n) {
-      let w = 0.5 * (1.0 - cos(PrcFmt.pi * PrcFmt(i) / PrcFmt(leftTaper)))
+      let w = 0.5 * (1.0 - cos(Double.pi * Double(i) / Double(leftTaper)))
       out[i] *= w
     }
     for i in 0..<min(rightTaper, n) {
-      let w = 0.5 * (1.0 - cos(PrcFmt.pi * PrcFmt(i) / PrcFmt(rightTaper)))
+      let w = 0.5 * (1.0 - cos(Double.pi * Double(i) / Double(rightTaper)))
       out[n - 1 - i] *= w
     }
     return ImpulseResponse(samples: out, sampleRate: sampleRate, zeroIndex: leftSamples)
@@ -95,12 +95,12 @@ public struct ImpulseResponse: Sendable {
   /// Computes the Schroeder reverse-integrated energy decay curve from the
   /// impulse peak to the end of the response. Returns values in dB normalized
   /// to 0 dB at the peak.
-  public func schroederDecay() -> [PrcFmt] {
+  public func schroederDecay() -> [Double] {
     let p = zeroIndex
     guard p < samples.count else { return [] }
     let n = samples.count - p
-    var energy = [PrcFmt](repeating: 0, count: n)
-    var sum: PrcFmt = 0
+    var energy = [Double](repeating: 0, count: n)
+    var sum: Double = 0
     for i in (0..<n).reversed() {
       let s = samples[p + i]
       sum += s * s
@@ -116,7 +116,7 @@ public struct ImpulseResponse: Sendable {
 
   /// Estimates the RT60 decay time in seconds using the Schroeder decay curve.
   /// Fits a linear slope to the decay between `startDB` (e.g. -5 dB) and `endDB` (e.g. -25 dB).
-  public func rt60(startDB: PrcFmt = -5.0, endDB: PrcFmt = -25.0) -> PrcFmt {
+  public func rt60(startDB: Double = -5.0, endDB: Double = -25.0) -> Double {
     let decay = schroederDecay()
     guard decay.count > 1 else { return 0 }
 
@@ -128,7 +128,7 @@ public struct ImpulseResponse: Sendable {
     }
     guard let s = idxStart, let e = idxEnd, e > s else { return 0 }
 
-    let dt = PrcFmt(e - s) / PrcFmt(sampleRate)
+    let dt = Double(e - s) / Double(sampleRate)
     let dDb = decay[s] - decay[e]
     guard dDb > 0 else { return 0 }
 

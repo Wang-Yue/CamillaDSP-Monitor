@@ -7,11 +7,11 @@ import Testing
 @testable import DSPProcessors
 
 @Suite struct LookaheadLimiterTests {
-  private static func isClose(_ left: PrcFmt, _ right: PrcFmt, maxdiff: PrcFmt) -> Bool {
+  private static func isClose(_ left: Double, _ right: Double, maxdiff: Double) -> Bool {
     return abs(left - right) < maxdiff
   }
 
-  private static func compareWaveforms(_ left: [PrcFmt], _ right: [PrcFmt], maxdiff: PrcFmt) -> Bool
+  private static func compareWaveforms(_ left: [Double], _ right: [Double], maxdiff: Double) -> Bool
   {
     guard left.count == right.count else { return false }
     for (val_l, val_r) in zip(left, right) {
@@ -31,11 +31,11 @@ import Testing
     )
     let filter = LookaheadLimiterFilter(parameters: params, sampleRate: 48000, chunkSize: 1024)
 
-    var input: [PrcFmt] = [
+    var input: [Double] = [
       1.0, 1.0, 1.0, 1.0, 1.0, 2.0, -2.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
       1.0, 1.0,
     ]
-    let expected: [PrcFmt] = [
+    let expected: [Double] = [
       0.0,
       0.0,
       0.0,
@@ -74,7 +74,7 @@ import Testing
     let paramsLimiter = LimiterParameters(clipLimit: 0.0, softClip: false)
     let filterLimiter = LimiterFilter(parameters: paramsLimiter)
 
-    var lookaheadInput: [PrcFmt] = [0.5, 1.0, 2.0, -2.0, -1.0, -0.5, 1.5, -1.5, 0.0]
+    var lookaheadInput: [Double] = [0.5, 1.0, 2.0, -2.0, -1.0, -0.5, 1.5, -1.5, 0.0]
     var limiterInput = lookaheadInput
 
     filterLookahead.process(waveform: &lookaheadInput)
@@ -84,9 +84,9 @@ import Testing
   }
 
   @Test func test_lookahead_limiter_zero_attack_matches_compressor() {
-    let releaseSamples: PrcFmt = 4.0
+    let releaseSamples: Double = 4.0
     let samplerate = 48000
-    let limiterInput: [PrcFmt] = [2.0, 1.0, 1.0, 1.0, 1.0]
+    let limiterInput: [Double] = [2.0, 1.0, 1.0, 1.0, 1.0]
     let chunksize = limiterInput.count
 
     let configLim = LookaheadLimiterParameters(
@@ -136,7 +136,7 @@ import Testing
       unit: .samples
     )
     let filter = LookaheadLimiterFilter(parameters: params, sampleRate: 48000, chunkSize: 1024)
-    var input: [PrcFmt] = [1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0]
+    var input: [Double] = [1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0]
 
     filter.process(waveform: &input)
 
@@ -154,13 +154,13 @@ import Testing
     )
     let filter = LookaheadLimiterFilter(parameters: params, sampleRate: 48000, chunkSize: 1024)
 
-    var buf1: [PrcFmt] = [1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-    let expected1: [PrcFmt] = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.9, 0.8, 0.7, 0.6, 1.0]
+    var buf1: [Double] = [1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    let expected1: [Double] = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.9, 0.8, 0.7, 0.6, 1.0]
     filter.process(waveform: &buf1)
     #expect(Self.compareWaveforms(buf1, expected1, maxdiff: 1e-6))
 
-    var buf2: [PrcFmt] = [1.0, 1.0, 1.0, 1.0]
-    let expected2: [PrcFmt] = [
+    var buf2: [Double] = [1.0, 1.0, 1.0, 1.0]
+    let expected2: [Double] = [
       pow(0.5, 1.0 / 2.0),
       pow(0.5, 1.0 / 4.0),
       pow(0.5, 1.0 / 8.0),
@@ -193,7 +193,7 @@ import Testing
     )
     let filter = LookaheadLimiterFilter(
       parameters: params, sampleRate: samplerate, chunkSize: chunksize)
-    var input: [PrcFmt] = [1.0, 1.0, 2.0, 1.0, 1.0, -2.0, 1.0, 1.0]
+    var input: [Double] = [1.0, 1.0, 2.0, 1.0, 1.0, -2.0, 1.0, 1.0]
 
     filter.process(waveform: &input)
 

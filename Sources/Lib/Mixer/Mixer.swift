@@ -33,7 +33,7 @@ public final class AudioMixer {
 
   private struct PreparedSource {
     let inChannel: Int
-    let gain: PrcFmt
+    let gain: Double
   }
   private var mapping: [[PreparedSource]]
 
@@ -59,7 +59,7 @@ public final class AudioMixer {
 
         let gain = src.gainValue
         let isLinear = src.scale == .linear
-        var linGain = isLinear ? gain : PrcFmt.fromDB(gain)
+        var linGain = isLinear ? gain : Double.fromDB(gain)
 
         if src.inverted == true {
           linGain *= -1.0
@@ -130,7 +130,7 @@ public final class AudioMixer {
 
         let gain = src.gainValue
         let isLinear = src.scale == .linear
-        var linGain = isLinear ? gain : PrcFmt.fromDB(gain)
+        var linGain = isLinear ? gain : Double.fromDB(gain)
 
         if src.inverted == true {
           linGain *= -1.0

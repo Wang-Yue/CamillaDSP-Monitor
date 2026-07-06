@@ -1,5 +1,6 @@
 // Non-interleaved float buffers, one vector per channel.
 
+import DSPConfig
 import Foundation
 
 /// A chunk of non-interleaved audio data flowing through the pipeline.
@@ -8,7 +9,7 @@ import Foundation
 /// stay stable across struct copies and the audio thread can mutate samples
 /// without going through Swift's CoW uniqueness check. Two `AudioChunk`
 /// values that share an `AudioBuffers` see the same samples — this is a
-/// deliberate trade against the old `[[PrcFmt]]` value semantics, made to
+/// deliberate trade against the old `[[Double]]` value semantics, made to
 /// remove allocations on the hot path.
 public struct AudioChunk: @unchecked Sendable {
   /// Per-channel sample capacity (== `buffers.capacity`).

@@ -382,7 +382,7 @@ import Testing
     filter.processingParameters = params
     // Trigger `updateShelves()` so the internal biquads' coefficients are
     // populated.
-    var primer = [PrcFmt](repeating: 0, count: 8)
+    var primer = [Double](repeating: 0, count: 8)
     filter.process(waveform: &primer)
 
     var swiftOut = input
