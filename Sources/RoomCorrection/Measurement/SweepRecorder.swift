@@ -87,6 +87,8 @@ public enum SweepRecorder {
     trailingSilenceSeconds: Double = 0.5,
     playbackGainDB: Double = -12.0
   ) async throws -> Result {
+    try await ensureMicrophonePermission()
+
     let outputDeviceID = deviceID(forName: outputDeviceName, isCapture: false)
     let outChannels =
       outputDeviceID != nil ? channelCount(for: outputDeviceID!, isCapture: false) : 2
@@ -94,8 +96,6 @@ public enum SweepRecorder {
     let routeChannels = max(2, max(usableOutChannels, outputChannel + 1))
 
     let inputDeviceID = deviceID(forName: inputDeviceName, isCapture: true)
-    let inChannels = inputDeviceID != nil ? channelCount(for: inputDeviceID!, isCapture: true) : 1
-    let usableInChannels = max(1, inChannels)
 
     let leadSamples = Int(leadingSilenceSeconds * Double(sampleRate))
     let tailSamples = Int(trailingSilenceSeconds * Double(sampleRate))
@@ -143,14 +143,15 @@ public enum SweepRecorder {
       }
     }
 
-    let engine = AVAudioEngine()
+    let playbackEngine = AVAudioEngine()
+    let captureEngine = AVAudioEngine()
     let player = AVAudioPlayerNode()
-    engine.attach(player)
+    playbackEngine.attach(player)
 
     // Set current devices on input/output nodes
     if let inputDeviceID {
       var id = inputDeviceID
-      let inputUnit = engine.inputNode.audioUnit!
+      let inputUnit = captureEngine.inputNode.audioUnit!
       AudioUnitSetProperty(
         inputUnit,
         kAudioOutputUnitProperty_CurrentDevice,
@@ -163,7 +164,7 @@ public enum SweepRecorder {
 
     if let outputDeviceID {
       var id = outputDeviceID
-      let outputUnit = engine.outputNode.audioUnit!
+      let outputUnit = playbackEngine.outputNode.audioUnit!
       AudioUnitSetProperty(
         outputUnit,
         kAudioOutputUnitProperty_CurrentDevice,
@@ -174,20 +175,64 @@ public enum SweepRecorder {
       )
     }
 
-    // Connect player to engine output node using outputFormat
-    engine.connect(player, to: engine.outputNode, format: outputFormat)
-
-    let inputFormat = AVAudioFormat(
-      commonFormat: .pcmFormatFloat32,
-      sampleRate: Double(sampleRate),
-      channels: AVAudioChannelCount(usableInChannels),
-      interleaved: false
-    )!
+    let inputMixer = AVAudioMixerNode()
+    captureEngine.attach(inputMixer)
 
     var recordedSamples = [Double]()
     let lock = NSLock()
 
-    engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { buffer, time in
+    func nominalRate(for id: AudioDeviceID) -> Double? {
+      var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyNominalSampleRate,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+      )
+      var val = Double(0)
+      var size = UInt32(MemoryLayout<Double>.size)
+      if AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &val) == noErr {
+        return val
+      }
+      return nil
+    }
+
+    let hwInput = captureEngine.inputNode.outputFormat(forBus: 0)
+    let outputDeviceRate = outputDeviceID.flatMap(nominalRate)
+
+    // Explicitly connect inputNode to inputMixer on the capture engine
+    captureEngine.connect(captureEngine.inputNode, to: inputMixer, format: hwInput)
+
+    // Connect player to mainMixerNode, and mainMixerNode to outputNode on the playback engine
+    playbackEngine.connect(player, to: playbackEngine.mainMixerNode, format: outputFormat)
+    let nominalOutputRate = outputDeviceRate ?? Double(sampleRate)
+    let nominalOutputFormat = AVAudioFormat(
+      commonFormat: .pcmFormatFloat32,
+      sampleRate: nominalOutputRate,
+      channels: AVAudioChannelCount(routeChannels),
+      interleaved: false
+    )!
+    playbackEngine.connect(playbackEngine.mainMixerNode, to: playbackEngine.outputNode, format: nominalOutputFormat)
+
+    do {
+      try playbackEngine.start()
+    } catch {
+      throw CaptureError.engineStartFailed("Playback engine: \(error.localizedDescription)")
+    }
+
+    do {
+      try captureEngine.start()
+    } catch {
+      playbackEngine.stop()
+      throw CaptureError.engineStartFailed("Capture engine: \(error.localizedDescription)")
+    }
+
+    if Int(hwInput.sampleRate) != sampleRate {
+      playbackEngine.stop()
+      captureEngine.stop()
+      throw CaptureError.formatMismatch("Input device sample rate (\(Int(hwInput.sampleRate)) Hz) must match measurement sample rate (\(sampleRate) Hz). Please check Audio MIDI Setup.")
+    }
+
+    // Tap the mixer node on the capture engine
+    inputMixer.installTap(onBus: 0, bufferSize: 4096, format: hwInput) { buffer, time in
       guard let channelData = buffer.floatChannelData else { return }
       let frames = Int(buffer.frameLength)
       let ch = max(0, min(inputChannel, Int(buffer.format.channelCount) - 1))
@@ -200,13 +245,7 @@ public enum SweepRecorder {
       }
     }
 
-    do {
-      try engine.start()
-    } catch {
-      throw CaptureError.engineStartFailed(error.localizedDescription)
-    }
-
-    await player.scheduleBuffer(pcmBuffer)
+    player.scheduleBuffer(pcmBuffer, completionHandler: nil)
 
     player.play()
 
@@ -215,8 +254,9 @@ public enum SweepRecorder {
     try? await Task.sleep(nanoseconds: nanoseconds)
 
     player.stop()
-    engine.stop()
-    engine.inputNode.removeTap(onBus: 0)
+    playbackEngine.stop()
+    captureEngine.stop()
+    inputMixer.removeTap(onBus: 0)
 
     let captured = lock.withLock { recordedSamples }
 
@@ -289,6 +329,23 @@ public enum SweepRecorder {
       }
     }
     return out
+  }
+
+  private static func ensureMicrophonePermission() async throws {
+    let status = AVCaptureDevice.authorizationStatus(for: .audio)
+    if status == .denied || status == .restricted {
+      throw CaptureError.permissionDenied
+    }
+    if status == .notDetermined {
+      let granted = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+        AVCaptureDevice.requestAccess(for: .audio) { response in
+          continuation.resume(returning: response)
+        }
+      }
+      if !granted {
+        throw CaptureError.permissionDenied
+      }
+    }
   }
 
   private static func deviceID(forName name: String?, isCapture: Bool) -> AudioDeviceID? {

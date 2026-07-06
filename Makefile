@@ -163,6 +163,48 @@ run: app
 	open $(APP_BUNDLE)
 
 
+ROOM_APP_NAME = RoomCorrection
+ROOM_APP_BUNDLE = $(ROOM_APP_NAME).app
+ROOM_CONTENTS = $(ROOM_APP_BUNDLE)/Contents
+ROOM_MACOS = $(ROOM_CONTENTS)/MacOS
+ROOM_RESOURCES = $(ROOM_CONTENTS)/Resources
+ROOM_EXECUTABLE = .build/$(BUILD_DIR)/$(ROOM_APP_NAME)
+
+.PHONY: room-build room-app room-run
+
+room-build:
+	@echo "🍎 Building RoomCorrection executable..."
+	$(SWIFT) build $(SWIFT_FLAGS) --product RoomCorrection
+
+## room-app: Package RoomCorrection as a macOS Application (.app)
+room-app: room-build
+	@echo "📦 Packaging as $(ROOM_APP_BUNDLE)..."
+	@mkdir -p $(ROOM_MACOS)
+	@mkdir -p $(ROOM_RESOURCES)
+	@cp $(ROOM_EXECUTABLE) $(ROOM_MACOS)/
+	@echo "📄 Copying and updating Info.plist..."
+	@cp Info.plist $(ROOM_CONTENTS)/
+	@plutil -replace CFBundleExecutable -string $(ROOM_APP_NAME) $(ROOM_CONTENTS)/Info.plist
+	@plutil -replace CFBundleName -string $(ROOM_APP_NAME) $(ROOM_CONTENTS)/Info.plist
+	@plutil -replace CFBundleIdentifier -string com.example.$(ROOM_APP_NAME) $(ROOM_CONTENTS)/Info.plist
+	@if [ -f "AppIcon.icns" ]; then \
+		echo "🖼️  Copying AppIcon.icns..."; \
+		cp AppIcon.icns $(ROOM_RESOURCES)/; \
+	fi
+	@echo "✍️  Signing application..."
+	@if [ -f "entitlements.plist" ]; then \
+		codesign --force --options runtime --entitlements entitlements.plist --sign - $(ROOM_APP_BUNDLE); \
+	else \
+		codesign --force --sign - $(ROOM_APP_BUNDLE); \
+	fi
+	@echo "✅ App bundle created at $(ROOM_APP_BUNDLE)"
+
+## room-run: Build and run the RoomCorrection App bundle
+room-run: room-app
+	@echo "🚀 Running $(ROOM_APP_NAME)..."
+	open $(ROOM_APP_BUNDLE)
+
+
 ## test-rust-build: Build the Rust harness binaries used by Swift/C tests
 ##                  (rubato + camilladsp upstream).
 test-rust-build:

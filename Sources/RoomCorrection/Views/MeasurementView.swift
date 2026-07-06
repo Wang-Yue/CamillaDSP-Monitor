@@ -91,6 +91,22 @@ struct MeasurementView: View {
             .transition(.move(edge: .trailing))
         }
       }
+      
+      Divider()
+      
+      HStack(spacing: 8) {
+        Image(systemName: "info.circle")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text(session.status)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+        Spacer()
+      }
+      .padding(.horizontal)
+      .padding(.vertical, 6)
+      .background(Color(nsColor: .windowBackgroundColor))
     }
   }
 

@@ -106,6 +106,7 @@ lib/libcamilladsp_ffi.a
 
 # App Bundle
 DSPMonitor.app/
+RoomCorrection.app/
 RustBridge/Cargo.lock
 
 # Test scratch files written under /tmp by the resampler/filter comparison
