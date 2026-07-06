@@ -14,6 +14,7 @@
 #include "Backend/alsa_capabilities.h"
 #elif defined(_WIN32)
 #include "Backend/wasapi_capabilities.h"
+#include "Backend/asio_capabilities.h"
 #endif
 #include "Server/websocket_server.h"
 #include <stddef.h>

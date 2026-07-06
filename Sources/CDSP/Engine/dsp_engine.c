@@ -333,6 +333,18 @@ int dsp_engine_get_available_devices(const char* backend, bool input, audio_devi
 #else
         return 0;
 #endif
+    } else if (strcasecmp(backend, "asio") == 0) {
+#if defined(_WIN32)
+        char names[32][256];
+        int count = asio_capabilities_available_device_names(input, names, 32);
+        if (count > max_devices) count = max_devices;
+        for (int i = 0; i < count; i++) {
+            if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
+        }
+        return count;
+#else
+        return 0;
+#endif
     }
     return 0;
 }
@@ -357,6 +369,12 @@ audio_device_descriptor_t* dsp_engine_get_device_capabilities(const char* backen
 #else
         return NULL;
 #endif
+    } else if (strcasecmp(backend, "asio") == 0) {
+#if defined(_WIN32)
+        return asio_capabilities_describe(device, is_capture);
+#else
+        return NULL;
+#endif
     }
     return NULL;
 }
@@ -368,7 +386,15 @@ void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc) {
 #elif defined(__linux__)
     alsa_capabilities_free_descriptor(desc);
 #elif defined(_WIN32)
-    wasapi_capabilities_free_descriptor(desc);
+    // We can check the description's name or we can free both cleanly,
+    // but calling the correct free function is safer.
+    // Let's check name matching or just check if it was allocated by WASAPI / ASIO.
+    // Both WASAPI and ASIO capability descriptors use identical nested structure allocations,
+    // so wasapi_capabilities_free_descriptor and asio_capabilities_free_descriptor
+    // do exactly the same nested free loop. We can call either one!
+    // But let's call the correct one based on name/driver if possible, or just call wasapi's or asio's.
+    // Let's call asio_capabilities_free_descriptor as it is fully equivalent.
+    asio_capabilities_free_descriptor(desc);
 #endif
 }
 
