@@ -1,5 +1,4 @@
 import Accelerate
-import DSPAudio
 import DSPConfig
 
 public final class GainFilter: Filter {

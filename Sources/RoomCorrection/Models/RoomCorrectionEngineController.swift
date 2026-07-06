@@ -1,6 +1,6 @@
 import DSPConfig
 import DSPLib
-import DSPMeasurement
+import SwiftDSP
 import Foundation
 import Observation
 

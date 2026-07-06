@@ -1,6 +1,4 @@
-import DSPAudio
 import DSPConfig
-import DSPFilters
 import Foundation
 
 final class RACEProcessor: Processor {

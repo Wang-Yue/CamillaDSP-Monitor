@@ -34,7 +34,6 @@
 // log-frequency space (matching how the rest of the measurement
 // pipeline operates).
 
-import DSPAudio
 import Foundation
 
 public struct CalibrationCurve: Sendable {

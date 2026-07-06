@@ -9,11 +9,8 @@
 // a synthetic "system" so the UI can be developed and exercised
 // before the real microphone-input path lands.
 
-import DSPAudio
-import DSPBackend
+import SwiftDSP
 import DSPConfig
-import DSPFilters
-import DSPMeasurement
 import Foundation
 import Observation
 

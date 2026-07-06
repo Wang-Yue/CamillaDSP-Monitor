@@ -8,7 +8,7 @@
 import Foundation
 import Testing
 
-@testable import DSPAudio
+@testable import SwiftDSP
 
 @Suite struct SPSCAudioRingBufferTests {
 

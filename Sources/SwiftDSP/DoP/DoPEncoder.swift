@@ -21,9 +21,7 @@
 // the polyphase coefficient table is shared across channels and built
 // once at init.
 
-import DSPAudio
 import DSPConfig
-import DSPLogging
 import Foundation
 
 public final class DoPEncoder {

@@ -1,8 +1,7 @@
 import Foundation
 import Testing
 
-@testable import DSPAudio
-@testable import DSPDoP
+@testable import SwiftDSP
 
 @Suite(.serialized) struct DoPBenchmarkTests {
   @Test func DoPEncoder_Benchmark() throws {

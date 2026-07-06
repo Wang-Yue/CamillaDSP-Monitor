@@ -10,81 +10,18 @@ let swiftLibTargets: [Target] = [
   .target(
     name: "DSPConfig",
     dependencies: [],
-    path: "Sources/SwiftDSP/Config"
+    path: "Sources/DSPConfig"
   ),
   .target(
-    name: "DSPAudio",
+    name: "SwiftDSP",
     dependencies: ["DSPConfig"],
-    path: "Sources/SwiftDSP/Audio"
-  ),
-  .target(
-    name: "DSPLogging", dependencies: ["DSPConfig", "DSPAudio"], path: "Sources/SwiftDSP/Logging"),
-  .target(
-    name: "DSPFFT",
-    dependencies: ["DSPAudio"],
-    path: "Sources/SwiftDSP/FFT",
-    linkerSettings: [.linkedFramework("Accelerate")]
-  ),
-  .target(name: "DSPMixer", dependencies: ["DSPConfig", "DSPAudio"], path: "Sources/SwiftDSP/Mixer"),
-  .target(
-    name: "DSPFilters",
-    dependencies: ["DSPConfig", "DSPAudio", "DSPFFT"],
-    path: "Sources/SwiftDSP/Filters",
-    linkerSettings: [.linkedFramework("Accelerate")]
-  ),
-  .target(
-    name: "DSPProcessors",
-    dependencies: ["DSPConfig", "DSPAudio", "DSPFilters", "DSPLogging"],
-    path: "Sources/SwiftDSP/Processors"
-  ),
-  .target(
-    name: "DSPResampler",
-    dependencies: ["DSPConfig", "DSPAudio", "DSPFFT", "DSPLogging"],
-    path: "Sources/SwiftDSP/Resampler"
-  ),
-  .target(
-    name: "DSPPipeline",
-    dependencies: [
-      "DSPConfig", "DSPAudio", "DSPFilters", "DSPMixer", "DSPLogging", "DSPProcessors",
-    ],
-    path: "Sources/SwiftDSP/Pipeline"
-  ),
-  .target(
-    name: "DSPBackend",
-    dependencies: ["DSPConfig", "DSPAudio", "DSPLogging"],
-    path: "Sources/SwiftDSP/Backend",
+    path: "Sources/SwiftDSP",
     linkerSettings: [
+      .linkedFramework("Accelerate"),
       .linkedFramework("AudioToolbox"),
       .linkedFramework("CoreAudio"),
     ]
   ),
-  .target(
-    name: "DSPDoP", dependencies: ["DSPConfig", "DSPAudio", "DSPLogging"], path: "Sources/SwiftDSP/DoP"),
-  .target(
-    name: "DSPMeasurement",
-    dependencies: ["DSPConfig", "DSPAudio", "DSPFFT", "DSPFilters", "DSPBackend"],
-    path: "Sources/SwiftDSP/Measurement"
-  ),
-  .target(
-    name: "DSPEngine",
-    dependencies: [
-      "DSPConfig", "DSPAudio", "DSPResampler", "DSPPipeline",
-      "DSPBackend", "DSPLogging", "DSPDoP",
-    ],
-    path: "Sources/SwiftDSP/Engine"
-  ),
-  .target(
-    name: "DSPServer",
-    dependencies: [
-      "DSPConfig", "DSPAudio", "DSPEngine", "DSPLogging",
-    ],
-    path: "Sources/SwiftDSP/Server"
-  ),
-]
-
-let swiftCommonLibDeps: [Target.Dependency] = [
-  "DSPConfig", "DSPAudio", "DSPBackend", "DSPDoP", "DSPEngine", "DSPFFT", "DSPFilters",
-  "DSPLogging", "DSPMixer", "DSPPipeline", "DSPResampler", "DSPProcessors",
 ]
 
 var targets: [Target] = []
@@ -98,28 +35,28 @@ if engine == "swift" {
   targets.append(contentsOf: [
     .target(
       name: "DSPLib",
-      dependencies: swiftCommonLibDeps,
+      dependencies: ["DSPConfig", "SwiftDSP"],
       path: "Sources/DSPLib",
       exclude: ["RustDSPEngine.swift", "camilladsp_ffi.swift", "CDSPEngine.swift"]
     ),
     .executableTarget(
       name: "DSPMonitor",
-      dependencies: ["DSPLib"] + swiftCommonLibDeps,
+      dependencies: ["DSPLib", "DSPConfig", "SwiftDSP"],
       path: "Sources/DSPMonitor"
     ),
     .executableTarget(
       name: "RoomCorrection",
-      dependencies: ["DSPLib", "DSPMeasurement"] + swiftCommonLibDeps,
+      dependencies: ["DSPLib", "DSPConfig", "SwiftDSP"],
       path: "Sources/RoomCorrection"
     ),
     .executableTarget(
       name: "DSPCLI",
-      dependencies: ["DSPLib", "DSPServer"] + swiftCommonLibDeps,
+      dependencies: ["DSPLib", "DSPConfig", "SwiftDSP"],
       path: "Sources/DSPCLI"
     ),
     .testTarget(
       name: "SwiftDSPTests",
-      dependencies: ["DSPLib", "DSPServer", "DSPMeasurement"],
+      dependencies: ["DSPLib", "SwiftDSP", "DSPConfig"],
       path: "Tests/SwiftDSPTests"
     ),
   ])
@@ -145,7 +82,7 @@ if engine == "swift" {
     .target(
       name: "DSPConfig",
       dependencies: [],
-      path: "Sources/SwiftDSP/Config"
+      path: "Sources/DSPConfig"
     ),
     .target(
       name: "DSPLib",
@@ -168,7 +105,7 @@ if engine == "swift" {
     .target(
       name: "DSPConfig",
       dependencies: [],
-      path: "Sources/SwiftDSP/Config"
+      path: "Sources/DSPConfig"
     ),
     .target(
       name: "DSPLib",

@@ -18,11 +18,7 @@
 //     `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (vDSO read on
 //     Darwin — no syscall).
 
-import DSPAudio
-import DSPBackend
 import DSPConfig
-import DSPDoP
-import DSPLogging
 import Foundation
 import Synchronization
 

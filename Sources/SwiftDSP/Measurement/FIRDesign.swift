@@ -36,10 +36,7 @@
 //     Phase Target Function from Regularization", AES (2006).
 
 import Accelerate
-import DSPAudio
 import DSPConfig
-import DSPFFT
-import DSPFilters
 import Foundation
 
 public enum FIRDesign {

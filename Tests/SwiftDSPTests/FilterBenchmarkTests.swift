@@ -4,8 +4,7 @@
 import Foundation
 import Testing
 
-@testable import DSPAudio
-@testable import DSPFilters
+@testable import SwiftDSP
 
 @Suite struct FilterBenchmarkTests {
 

@@ -14,7 +14,6 @@
 //   - https://en.wikipedia.org/wiki/Fast_Fourier_transform#Real-input_FFTs
 
 import Accelerate
-import DSPAudio
 import Foundation
 
 /// Computes a 2N-point real FFT via an N-point complex FFT plus an O(N)

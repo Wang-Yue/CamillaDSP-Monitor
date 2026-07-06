@@ -1,9 +1,8 @@
 import Foundation
 import Testing
 
-@testable import DSPAudio
+@testable import SwiftDSP
 @testable import DSPConfig
-@testable import DSPFilters
 
 @Suite struct DelayTests {
   private static func isClose(_ left: Double, _ right: Double, maxdiff: Double) -> Bool {

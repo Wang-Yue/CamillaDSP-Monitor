@@ -1,7 +1,7 @@
 // EQDiagramMode - Interactive frequency response diagram with draggable band handles
 
 import AppKit
-import DSPMeasurement
+import SwiftDSP
 import Observation
 import SwiftUI
 

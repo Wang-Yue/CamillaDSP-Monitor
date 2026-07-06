@@ -24,10 +24,7 @@
 //     `adjustPeriod` (~10 s default), so its formatting cost is
 //     negligible per chunk.
 
-import DSPAudio
-import DSPBackend
 import DSPConfig
-import DSPLogging
 import Foundation
 import Synchronization
 

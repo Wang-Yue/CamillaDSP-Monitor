@@ -15,9 +15,7 @@
 import Accelerate
 import AudioToolbox
 import CoreAudio
-import DSPAudio
 import DSPConfig
-import DSPLogging
 import Foundation
 import Synchronization
 

@@ -1,10 +1,8 @@
 import Foundation
 import Testing
 
-@testable import DSPAudio
+@testable import SwiftDSP
 @testable import DSPConfig
-@testable import DSPFilters
-@testable import DSPProcessors
 
 @Suite struct LookaheadLimiterTests {
   private static func isClose(_ left: Double, _ right: Double, maxdiff: Double) -> Bool {

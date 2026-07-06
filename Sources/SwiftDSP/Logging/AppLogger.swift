@@ -1,6 +1,5 @@
 // Lock-free, allocation-free high performance logger for real-time audio threads
 
-import DSPAudio
 import DSPConfig
 import Foundation
 import Synchronization

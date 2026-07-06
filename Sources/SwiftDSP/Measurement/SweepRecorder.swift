@@ -24,8 +24,6 @@
 import Accelerate
 import AudioToolbox
 import CoreAudio
-import DSPAudio
-import DSPBackend
 import DSPConfig
 import Foundation
 

@@ -3,7 +3,6 @@
 // `ProcessingState` and `ProcessingStopReason` — used by both the
 // engine internals and the public actor — live in `Engine/DSPEngine.swift`.
 
-import DSPAudio
 import DSPConfig
 import Foundation
 

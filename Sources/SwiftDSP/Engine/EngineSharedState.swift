@@ -29,7 +29,6 @@
 // queued items, and the consumer drains until empty before waiting
 // again.
 
-import DSPAudio
 import Foundation
 import Synchronization
 

@@ -2,7 +2,6 @@
 // https://www.rme-audio.de/downloads/adi2dac_e.pdf
 
 import Accelerate
-import DSPAudio
 import DSPConfig
 import Foundation
 

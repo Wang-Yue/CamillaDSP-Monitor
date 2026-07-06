@@ -10,7 +10,6 @@
 // Memory: every internal buffer is sized at init based on `chunkSize` and
 // `maxRelativeRatio`. There is **no** dynamic allocation on the hot path.
 
-import DSPAudio
 import Foundation
 
 final class AsyncPolyResampler: AudioResampler {

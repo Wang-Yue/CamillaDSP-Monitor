@@ -21,12 +21,7 @@
 //   * The thread sets a real-time scheduling policy on entry so the
 //     OS prefers it over background work.
 
-import DSPAudio
 import DSPConfig
-import DSPDoP
-import DSPLogging
-import DSPPipeline
-import DSPResampler
 import Foundation
 import Synchronization
 

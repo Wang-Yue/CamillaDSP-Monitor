@@ -11,10 +11,8 @@
 import Foundation
 import Testing
 
-@testable import DSPAudio
+@testable import SwiftDSP
 @testable import DSPConfig
-@testable import DSPFilters
-@testable import DSPMeasurement
 
 @Suite struct PEQAutoFitTests {
 

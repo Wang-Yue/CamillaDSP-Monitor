@@ -1,7 +1,6 @@
 // Helper for promoting threads to Mach real-time priority
 // based on audio parameters (buffer frames and sample rate).
 
-import DSPLogging
 import Darwin
 import Foundation
 

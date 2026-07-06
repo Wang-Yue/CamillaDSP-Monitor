@@ -16,8 +16,6 @@
 // number for `RealFFT`). Streaming overlap-save isn't needed.
 
 import Accelerate
-import DSPAudio
-import DSPFFT
 import Foundation
 
 public enum SweepDeconvolver {

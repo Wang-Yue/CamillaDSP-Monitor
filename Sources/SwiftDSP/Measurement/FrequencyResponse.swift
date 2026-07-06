@@ -11,8 +11,6 @@
 // can be any even number; callers don't have to round up to a power
 // of two themselves.
 
-import DSPAudio
-import DSPFFT
 import Foundation
 
 public struct FrequencyResponse: Sendable {

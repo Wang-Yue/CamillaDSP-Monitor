@@ -28,9 +28,7 @@
 // band given the rest of the chain, so different inputs produce
 // visibly different fits.
 
-import DSPAudio
 import DSPConfig
-import DSPFilters
 import Foundation
 
 public enum PEQAutoFit {

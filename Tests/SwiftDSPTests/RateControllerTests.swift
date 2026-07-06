@@ -4,8 +4,7 @@
 import Foundation
 import Testing
 
-@testable import DSPAudio
-@testable import DSPEngine
+@testable import SwiftDSP
 
 @Suite struct RateControllerTests {
 

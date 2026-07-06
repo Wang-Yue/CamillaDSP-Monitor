@@ -26,13 +26,7 @@
 //   * The stall watchdog uses `clock_gettime_nsec_np` (vDSO read,
 //     no syscall) — no `Date()` on the hot path.
 
-import DSPAudio
-import DSPBackend
 import DSPConfig
-import DSPDoP
-import DSPLogging
-import DSPPipeline
-import DSPResampler
 import Foundation
 import Synchronization
 

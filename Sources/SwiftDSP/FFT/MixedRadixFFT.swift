@@ -27,7 +27,6 @@
 // init and freed in deinit. The hot path runs purely on raw pointers — no
 // allocations, no closures.
 
-import DSPAudio
 import Foundation
 
 /// Mixed-radix complex FFT supporting `N = 2^a · 3^b · 5^c · 7^d`. Returns

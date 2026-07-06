@@ -22,9 +22,7 @@
 // the previous design, so the SINAD numbers the existing tests pin down
 // across DSD64 / 128 / 256 at 44.1 / 48 kHz families are preserved.
 
-import DSPAudio
 import DSPConfig
-import DSPLogging
 import Foundation
 
 public final class DoPDecoder {

@@ -78,9 +78,6 @@
 // directly into the caller's pre-allocated `output` chunk.
 
 import Accelerate
-import DSPAudio
-import DSPFFT
-import DSPLogging
 import Foundation
 
 final class SynchronousResampler: AudioResampler {

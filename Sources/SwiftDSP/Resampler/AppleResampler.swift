@@ -2,9 +2,7 @@
 
 import Accelerate
 import AudioToolbox
-import DSPAudio
 import DSPConfig
-import DSPLogging
 import Foundation
 
 final class AppleResampler: AudioResampler {

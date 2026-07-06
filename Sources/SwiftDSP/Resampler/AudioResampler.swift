@@ -5,7 +5,6 @@
 //   * `AsyncPolyResampler`   — Asynchronous polynomial resampler.
 //   * `AppleResampler`       — Core Audio AudioConverter wrapper.
 
-import DSPAudio
 import DSPConfig
 import Foundation
 

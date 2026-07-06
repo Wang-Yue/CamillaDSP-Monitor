@@ -1,8 +1,7 @@
 import Foundation
 import Testing
 
-@testable import DSPAudio
-@testable import DSPDoP
+@testable import SwiftDSP
 
 @Suite struct DoPTests {
 

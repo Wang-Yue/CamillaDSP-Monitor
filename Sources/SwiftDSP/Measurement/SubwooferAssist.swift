@@ -23,9 +23,7 @@
 // would require knowing where in the user's pipeline to insert the
 // filters and how their downstream Convolution stage interacts.
 
-import DSPAudio
 import DSPConfig
-import DSPFilters
 import Foundation
 
 public struct SubwooferRecommendation: Sendable {

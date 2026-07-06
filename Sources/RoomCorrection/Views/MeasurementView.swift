@@ -11,9 +11,7 @@
 // stack them.
 
 import AppKit
-import DSPBackend
-import DSPFilters
-import DSPMeasurement
+import SwiftDSP
 import Observation
 import SwiftUI
 import UniformTypeIdentifiers

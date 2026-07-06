@@ -5,7 +5,6 @@
 // float64x2_t) with 8 independent vector accumulators.
 // Uses the project's `ldSIMD2` helper for unaligned vector loads.
 
-import DSPAudio
 import Foundation
 
 @inline(__always)

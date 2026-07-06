@@ -8,10 +8,7 @@
 
 import Foundation
 
-@testable import DSPAudio
-@testable import DSPFilters
-@testable import DSPMixer
-@testable import DSPResampler
+@testable import SwiftDSP
 
 extension Filter {
   /// Test-only adapter — the library API takes a buffer pointer (no CoW),

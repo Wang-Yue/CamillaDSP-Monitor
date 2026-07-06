@@ -1,9 +1,5 @@
-import DSPAudio
+import SwiftDSP
 import DSPConfig
-import DSPEngine
-import DSPLogging
-import DSPPipeline
-import DSPServer
 import Foundation
 
 struct FaderState: Codable {

@@ -16,9 +16,7 @@
 //     Swift's Array CoW path that a `[Double]` field would.
 
 import Accelerate
-import DSPAudio
 import DSPConfig
-import DSPFFT
 import Foundation
 
 /// Source format for the impulse response. Parameters:

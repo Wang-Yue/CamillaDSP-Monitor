@@ -8,7 +8,6 @@
 // `maxRelativeRatio`. There is **no** dynamic allocation on the hot path.
 
 import Accelerate
-import DSPAudio
 import DSPConfig
 import Foundation
 

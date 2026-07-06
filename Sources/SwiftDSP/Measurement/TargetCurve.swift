@@ -11,7 +11,6 @@
 // between two breakpoints, gain is interpolated linearly in
 // `(log10(f), gainDB)` space.
 
-import DSPAudio
 import Foundation
 
 public struct TargetCurve: Codable, Sendable {

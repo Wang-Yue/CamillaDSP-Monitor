@@ -15,14 +15,8 @@ import Foundation
 import Synchronization
 import Testing
 
-@testable import DSPAudio
+@testable import SwiftDSP
 @testable import DSPConfig
-@testable import DSPDoP
-@testable import DSPFilters
-@testable import DSPLogging
-@testable import DSPMixer
-@testable import DSPProcessors
-@testable import DSPResampler
 
 // MARK: - Allocation counter
 //

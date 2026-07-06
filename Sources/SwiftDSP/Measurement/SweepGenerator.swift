@@ -23,7 +23,6 @@
 // (1/√f) magnitude spectrum so the convolution `x ⊛ f` yields a
 // near-Dirac peak. The peak is delayed by T (the sweep length).
 
-import DSPAudio
 import Foundation
 
 public enum SweepGenerator {

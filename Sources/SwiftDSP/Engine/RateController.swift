@@ -31,7 +31,6 @@
 // `ζ` directly is a more honest way to tune than groping for raw
 // gains, so the convenience initializer takes that route.
 
-import DSPAudio
 import Foundation
 
 // MARK: - PI rate controller

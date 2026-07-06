@@ -12,7 +12,6 @@
 // violations (system response before stimulus) and should be small —
 // large pre-ring usually indicates an issue with the measurement.
 
-import DSPAudio
 import Foundation
 
 public struct ImpulseResponse: Sendable {

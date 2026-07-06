@@ -18,8 +18,7 @@
 import Foundation
 import Testing
 
-@testable import DSPAudio
-@testable import DSPMeasurement
+@testable import SwiftDSP
 
 @Suite struct SweepDeconvolutionTests {
 

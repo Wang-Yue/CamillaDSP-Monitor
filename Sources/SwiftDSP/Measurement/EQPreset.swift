@@ -1,7 +1,6 @@
 // EQPreset - Biquad EQ preset with multiple parametric bands and CSV import/export
 
 import DSPConfig
-import DSPFilters
 import Foundation
 import Observation
 

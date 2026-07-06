@@ -1,5 +1,4 @@
-import DSPEngine
-import DSPServer
+@testable import SwiftDSP
 import Foundation
 import Testing
 

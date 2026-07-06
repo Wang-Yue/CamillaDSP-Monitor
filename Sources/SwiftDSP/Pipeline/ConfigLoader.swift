@@ -14,7 +14,6 @@
 // YAML pathway and Yams dependency have been pruned.
 
 import DSPConfig
-import DSPLogging
 import Foundation
 
 public enum ConfigLoader {
