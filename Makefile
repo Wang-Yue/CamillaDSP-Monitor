@@ -1,7 +1,7 @@
 # Build Mode: release or debug
 MODE ?= release
 
-# Engine: swift or rust
+# Engine: swift, rust, or c
 ENGINE ?= swift
 
 ifeq ($(MODE),release)
@@ -229,7 +229,7 @@ clean:
 
 ## help: Show this help message
 help:
-	@echo "Usage: make [target] [ENGINE=swift|rust] [MODE=release|debug]"
+	@echo "Usage: make [target] [ENGINE=swift|rust|c] [MODE=release|debug]"
 	@echo ""
 	@echo "Targets:"
 	@sed -n 's/^##//p' Makefile | column -t -s ':' |  sed -e 's/^/ /'
