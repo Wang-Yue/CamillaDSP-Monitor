@@ -1,4 +1,4 @@
-@_exported import DSPMeasurement
+import SwiftDSP
 import SwiftUI
 
 @main
