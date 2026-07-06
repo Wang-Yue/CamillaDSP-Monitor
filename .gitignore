@@ -113,3 +113,14 @@ RustBridge/Cargo.lock
 # custom $TMPDIR pointing inside the repo, ignore the staging files here too.
 /tmp/cdsp_*.raw
 cdsp_*.raw
+
+# C Library and Test Build Artifacts
+CLib/libdsp.a
+CLib/*.a
+CLib/**/*.o
+CLib/bin/
+dsp-cli
+CTests/bin/
+CTests/**/*.o
+*.dSYM/
+

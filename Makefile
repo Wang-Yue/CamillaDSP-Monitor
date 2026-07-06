@@ -6,7 +6,7 @@ ENGINE ?= swift
 
 ifeq ($(MODE),release)
 	CARGO_FLAGS = --release
-	SWIFT_FLAGS = -c release
+	SWIFT_FLAGS = -c release -Xcc -O3 -Xcc -ffp-contract=fast -Xcc -fno-math-errno -Xcc -funroll-loops
 	BUILD_DIR = release
 else
 	CARGO_FLAGS =
@@ -31,21 +31,21 @@ else
 	CARGO_CMD := MACOSX_DEPLOYMENT_TARGET=15.0 RUSTFLAGS='-C target-cpu=native' cargo
 endif
 
+export ENGINE
 
-ifeq ($(ENGINE),swift)
-	export USE_PURE_SWIFT=1
-	SWIFT_SRCS := $(shell find Sources -type f -name "*.swift" -not -name "CamillaDSP.swift" -not -name "camilladsp_ffi.swift")
-else
-	export USE_PURE_SWIFT=0
+C_SRCS := $(shell find CLib -type f \( -name "*.c" -o -name "*.h" \) 2>/dev/null)
+
+ifeq ($(ENGINE),rust)
 	# Rust FFI path
 	ROOT_DIR := $(shell pwd)
 	RUST_BRIDGE_DIR := $(ROOT_DIR)/RustBridge
 	UDL_FILE := $(RUST_BRIDGE_DIR)/src/api.udl
 	RUST_SRCS := $(shell find $(RUST_BRIDGE_DIR)/src -type f) $(RUST_BRIDGE_DIR)/Cargo.toml
 	SWIFT_SRCS := $(shell find Sources -type f -name "*.swift")
-	
-
 	UNIFFI_BINDGEN := $(CARGO_CMD) run $(CARGO_FLAGS) --bin uniffi-bindgen --
+else
+	# Swift or C path
+	SWIFT_SRCS := $(shell find Sources -type f -name "*.swift" -not -name "CamillaDSP.swift" -not -name "camilladsp_ffi.swift")
 endif
 
 # Rust harness layout (tests against rubato + camilladsp upstream).
@@ -56,7 +56,7 @@ RUST_HARNESS_BINS := \
 RUST_HARNESS_SRCS := $(shell find $(RUST_HARNESS_DIR) -type f \
 	\( -name "*.rs" -o -name "Cargo.toml" \) 2>/dev/null)
 
-.PHONY: all build app run clean install help test test-swift test-rust-build bench cli
+.PHONY: all build app run clean install help test test-swift test-c test-rust-build bench cli
 
 # Default target
 all: app
@@ -104,14 +104,14 @@ Sources/DSPLib/camilladsp_ffi.swift: $(RUST_BRIDGE_DIR)/generated/swift/camillad
 	fi
 
 # 4. Build Swift application (Rust path)
-$(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/DSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS) Package.swift
+$(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/DSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS) $(C_SRCS) Package.swift
 	@echo "🍎 Building Swift application with Rust library ($(MODE))..."
 	$(SWIFT) build $(SWIFT_FLAGS) --product DSPMonitor
 
 else
-# Build Swift application (Swift path)
-$(EXECUTABLE): $(SWIFT_SRCS) Package.swift
-	@echo "🍎 Building Swift application with pure Swift library ($(MODE))..."
+# Build Swift application (Swift/C path)
+$(EXECUTABLE): $(SWIFT_SRCS) $(C_SRCS) Package.swift
+	@echo "🍎 Building Swift application with pure Swift/C library ($(MODE))..."
 	$(SWIFT) build $(SWIFT_FLAGS) --product DSPMonitor
 endif
 
@@ -122,8 +122,14 @@ build: $(EXECUTABLE)
 
 ## cli: Build the standalone command-line executable (dsp-cli)
 cli:
+ifeq ($(ENGINE),swift)
 	@echo "🍎 Building dsp-cli CLI..."
 	$(SWIFT) build $(SWIFT_FLAGS) --product dsp-cli
+else
+	@echo "🍎 Building C dsp-cli CLI..."
+	@$(MAKE) -f CLib/Makefile cli
+	@echo "📍 Binary location: CLib/bin/dsp-cli"
+endif
 
 ## app: Build and package as a macOS Application (.app)
 app: build
@@ -157,14 +163,10 @@ run: app
 	open $(APP_BUNDLE)
 
 
-## test-rust-build: Build the Rust harness binaries used by Swift tests
-##                  (rubato + camilladsp upstream). Pure Swift only.
+## test-rust-build: Build the Rust harness binaries used by Swift/C tests
+##                  (rubato + camilladsp upstream).
 test-rust-build:
-ifeq ($(ENGINE),rust)
-	$(error Tests are only supported for the pure Swift engine (ENGINE=swift))
-else
 	@$(MAKE) $(RUST_HARNESS_BINS)
-endif
 
 $(RUST_HARNESS_BINS): $(RUST_HARNESS_SRCS)
 	@echo "🦀 Building Rust harness binaries..."
@@ -173,28 +175,29 @@ $(RUST_HARNESS_BINS): $(RUST_HARNESS_SRCS)
 
 ## test-swift: Run only the Swift test suite (pure Swift path only)
 test-swift:
-ifeq ($(ENGINE),rust)
-	$(error Tests are only supported for the pure Swift engine (ENGINE=swift))
-else
 	@echo "🧪 Running Swift tests..."
 	$(SWIFT) test --test-product DSPMonitorPackageTests --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests
-endif
 
-## test: Build the Rust harnesses and run the full Swift test suite (pure Swift path only)
+## test-c: Run C unit tests (except benchmark tests)
+test-c:
+	@echo "🧪 Running C test suite..."
+	@$(MAKE) -f CLib/Makefile test
+
+## test: Build the Rust harnesses and run the full test suite (Swift or C depending on ENGINE)
 test:
-ifeq ($(ENGINE),rust)
-	$(error Tests are only supported for the pure Swift engine (ENGINE=swift))
-else
+ifeq ($(ENGINE),swift)
 	@$(MAKE) test-rust-build
 	@echo "🧪 Running Swift tests (with Rust harness comparison tests enabled)..."
 	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests
+else
+	@$(MAKE) test-rust-build
+	@echo "🧪 Running C unit tests..."
+	@$(MAKE) -f CLib/Makefile test
 endif
 
-## bench: Run the resampler benchmark suite in release mode (pure Swift path only)
+## bench: Run resampler/filter benchmarks (Swift or C depending on ENGINE)
 bench:
-ifeq ($(ENGINE),rust)
-	$(error Benchmarks are only supported for the pure Swift engine (ENGINE=swift))
-else
+ifeq ($(ENGINE),swift)
 	@$(MAKE) test-rust-build
 	@echo "⏱️  Running Filter benchmarks in release mode..."
 	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter FilterBenchmarkTests
@@ -202,6 +205,10 @@ else
 	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter ResamplerComparisonMatrix
 	@echo "⏱️  Running DoP benchmarks in release mode..."
 	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter DoPBenchmarkTests
+else
+	@$(MAKE) test-rust-build
+	@echo "⏱️  Running C benchmark tests..."
+	@$(MAKE) -f CLib/Makefile bench
 endif
 
 ## clean: Remove all build artifacts
@@ -213,6 +220,7 @@ clean:
 	rm -rf lib
 	rm -rf Sources/CamillaDSPFFI/include
 	rm -f Sources/DSPLib/camilladsp_ffi.swift
+	@$(MAKE) -f CLib/Makefile clean 2>/dev/null || true
 	@if [ -d RustBridge ]; then \
 		echo "🧹 Cleaning Rust bridge..."; \
 		cd RustBridge && $(CARGO_CMD) clean && rm -rf generated; \

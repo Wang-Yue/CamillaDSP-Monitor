@@ -1,0 +1,140 @@
+#include "volume.h"
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+static void fill_ramp(volume_filter_t* filter) {
+    if (filter->chunk_size == 0 || filter->ramptime_in_chunks <= 0) return;
+    double target_vol = filter->mute ? -100.0 : filter->target_volume;
+    double ramprange = (target_vol - filter->ramp_start) / (double)filter->ramptime_in_chunks;
+    double stepsize = ramprange / (double)filter->chunk_size;
+    for (size_t val = 0; val < filter->chunk_size; val++) {
+        double db_val = filter->ramp_start + ramprange * ((double)filter->ramp_step - 1.0) + (double)val * stepsize;
+        filter->current_ramp_gains[val] = prc_fmt_from_db(db_val);
+    }
+}
+
+volume_filter_t* volume_filter_create(const char* name, const volume_parameters_t* params, int sample_rate, size_t chunk_size, processing_parameters_t* proc_params) {
+    volume_filter_t* filter = (volume_filter_t*)malloc(sizeof(volume_filter_t));
+    if (!filter) return NULL;
+    if (name) {
+        strncpy(filter->name, name, sizeof(filter->name) - 1);
+        filter->name[sizeof(filter->name) - 1] = '\0';
+    } else {
+        strcpy(filter->name, "volume");
+    }
+    filter->fader = params ? params->fader : FADER_MAIN;
+    double ramp_time_ms = (params && params->has_ramp_time) ? params->ramp_time : 400.0;
+    filter->volume_limit = (params && params->has_limit) ? params->limit : 50.0;
+    filter->chunk_size = chunk_size;
+    filter->processing_parameters = proc_params;
+
+    filter->ramptime_in_chunks = (int)round(ramp_time_ms / (1000.0 * (double)chunk_size / (double)sample_rate));
+    // Pre-allocate array
+    filter->current_ramp_gains = (prc_fmt_t*)calloc(chunk_size > 0 ? chunk_size : 1, sizeof(prc_fmt_t));
+    if (!filter->current_ramp_gains) {
+        free(filter);
+        return NULL;
+    }
+
+    // Initialize state from shared parameters to prevent volume burst on startup
+    double initial_vol = proc_params ? processing_parameters_get_target_volume_for_fader(proc_params, filter->fader) : 0.0;
+    bool initial_mute = proc_params ? processing_parameters_is_muted_for_fader(proc_params, filter->fader) : false;
+    double initial_vol_clamped = initial_vol < filter->volume_limit ? initial_vol : filter->volume_limit;
+
+    filter->target_volume = initial_vol_clamped;
+    filter->mute = initial_mute;
+    filter->current_volume = initial_mute ? -100.0 : initial_vol_clamped;
+    filter->target_linear_gain = initial_mute ? 0.0 : prc_fmt_from_db(initial_vol_clamped);
+    filter->ramp_start = filter->current_volume;
+    filter->ramp_step = 0;
+
+    return filter;
+}
+
+/// Pre-calculates target volume levels and generates ramping array once per chunk.
+/// Must be called once per audio chunk before processing individual channel waveforms.
+void volume_filter_prepare_chunk(volume_filter_t* filter) {
+    if (!filter || !filter->processing_parameters) return;
+    double shared_vol = processing_parameters_get_target_volume_for_fader(filter->processing_parameters, filter->fader);
+    bool shared_mute = processing_parameters_is_muted_for_fader(filter->processing_parameters, filter->fader);
+    double target_vol = shared_vol < filter->volume_limit ? shared_vol : filter->volume_limit;
+
+    if (fabs(target_vol - filter->target_volume) > 0.01 || filter->mute != shared_mute) {
+        if (filter->ramptime_in_chunks > 0) {
+            filter->ramp_start = filter->current_volume;
+            filter->ramp_step = 1;
+        } else {
+            filter->current_volume = shared_mute ? -100.0 : target_vol;
+            filter->ramp_step = 0;
+        }
+        filter->target_volume = target_vol;
+        filter->target_linear_gain = shared_mute ? 0.0 : prc_fmt_from_db(target_vol);
+        filter->mute = shared_mute;
+    }
+
+    if (filter->ramp_step > 0 && filter->ramp_step <= filter->ramptime_in_chunks) {
+        fill_ramp(filter);
+    }
+}
+
+/// Conforms to `Filter`. Processes a single channel's waveform slice.
+void volume_filter_process(volume_filter_t* filter, mutable_waveform_t waveform, size_t count) {
+    if (!filter || !waveform || count == 0) return;
+    if (filter->ramp_step == 0) {
+        if (filter->target_linear_gain == 1.0) {
+            // No-op
+        } else if (filter->target_linear_gain == 0.0) {
+            dsp_ops_clear(waveform, count);
+        } else {
+            dsp_ops_scalar_multiply(waveform, filter->target_linear_gain, count);
+        }
+    } else {
+        size_t limit = count < filter->chunk_size ? count : filter->chunk_size;
+        dsp_ops_multiply(filter->current_ramp_gains, waveform, limit);
+        if (limit < count) {
+            double final_gain = filter->mute ? 0.0 : prc_fmt_from_db(filter->target_volume);
+            dsp_ops_scalar_multiply(waveform + limit, final_gain, count - limit);
+        }
+    }
+}
+
+/// Advances the fader's ramp steps.
+/// Must be called once per audio chunk after all channels have been processed.
+void volume_filter_advance_ramp(volume_filter_t* filter) {
+    if (!filter || filter->ramp_step <= 0) return;
+    if (filter->chunk_size > 0) {
+        double last_gain = filter->current_ramp_gains[filter->chunk_size - 1];
+        double val = last_gain > 1e-150 ? last_gain : 1e-150;
+        filter->current_volume = 20.0 * log10(val);
+    }
+    filter->ramp_step++;
+    if (filter->ramp_step > filter->ramptime_in_chunks) {
+        filter->ramp_step = 0;
+    }
+    if (filter->processing_parameters) {
+        processing_parameters_set_current_volume_for_fader(filter->processing_parameters, filter->current_volume, filter->fader);
+    }
+}
+
+void volume_filter_update_parameters(volume_filter_t* filter, const filter_config_t* config, int sample_rate) {
+    if (!filter || !config) return;
+    if (config->type != FILTER_TYPE_VOLUME) return;
+    const volume_parameters_t* params = &config->parameters.volume;
+    filter->fader = params->fader;
+    double ramp_time_ms = params->has_ramp_time ? params->ramp_time : 400.0;
+    filter->volume_limit = params->has_limit ? params->limit : 50.0;
+    filter->ramptime_in_chunks = (int)round(ramp_time_ms / (1000.0 * (double)filter->chunk_size / (double)sample_rate));
+    if (filter->ramptime_in_chunks <= 0 || filter->ramp_step > filter->ramptime_in_chunks) {
+        filter->ramp_step = 0;
+    }
+    if (filter->volume_limit < filter->current_volume) {
+        filter->current_volume = filter->volume_limit;
+    }
+}
+
+void volume_filter_free(volume_filter_t* filter) {
+    if (!filter) return;
+    if (filter->current_ramp_gains) free(filter->current_ramp_gains);
+    free(filter);
+}

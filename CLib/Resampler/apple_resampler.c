@@ -1,0 +1,275 @@
+// Apple AudioConverter resampler.
+
+#include "apple_resampler.h"
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+#ifdef __APPLE__
+static OSStatus input_data_proc(
+    AudioConverterRef inAudioConverter,
+    UInt32* ioNumberDataPackets,
+    AudioBufferList* ioData,
+    AudioStreamPacketDescription** outDataPacketDescription,
+    void* inUserData
+) {
+    (void)inAudioConverter;
+    (void)outDataPacketDescription;
+    if (!inUserData || !ioNumberDataPackets || !ioData) {
+        if (ioNumberDataPackets) *ioNumberDataPackets = 0;
+        return noErr;
+    }
+    apple_resampler_fill_context_t* context = (apple_resampler_fill_context_t*)inUserData;
+    size_t needed = (size_t)(*ioNumberDataPackets);
+    size_t available = context->write_offset - context->read_offset;
+
+    if (available == 0) {
+        *ioNumberDataPackets = 0;
+        return noErr;
+    }
+
+    size_t frames_to_provide = needed < available ? needed : available;
+    *ioNumberDataPackets = (UInt32)frames_to_provide;
+
+    size_t chans = context->buffers->channels;
+    for (size_t ch = 0; ch < ioData->mNumberBuffers && ch < chans; ch++) {
+        double* base = audio_buffers_get_channel(context->buffers, ch);
+        if (!base) return -1;
+        ioData->mBuffers[ch].mData = (void*)(base + context->read_offset);
+        ioData->mBuffers[ch].mDataByteSize = (UInt32)(frames_to_provide * sizeof(double));
+        ioData->mBuffers[ch].mNumberChannels = 1;
+    }
+
+    context->read_offset += frames_to_provide;
+    return noErr;
+}
+#endif
+
+apple_resampler_t* apple_resampler_create(size_t channels, size_t input_rate, size_t output_rate, apple_resampler_quality_t quality, apple_resampler_complexity_t complexity, size_t chunk_size) {
+    if (channels == 0 || chunk_size == 0 || input_rate == 0 || output_rate == 0) return NULL;
+
+    apple_resampler_t* resampler = (apple_resampler_t*)calloc(1, sizeof(apple_resampler_t));
+    if (!resampler) return NULL;
+
+    resampler->channels = channels;
+    resampler->chunk_size = chunk_size;
+    resampler->base_ratio = (double)output_rate / (double)input_rate;
+    resampler->current_ratio = resampler->base_ratio;
+
+    double max_relative_ratio = 1.1;
+    double max_ratio_abs = resampler->base_ratio * max_relative_ratio;
+    resampler->max_output_frames = (size_t)(ceil((double)chunk_size * max_ratio_abs)) + 32;
+
+    resampler->fill_context = (apple_resampler_fill_context_t*)calloc(1, sizeof(apple_resampler_fill_context_t));
+    if (!resampler->fill_context) {
+        free(resampler);
+        return NULL;
+    }
+    resampler->fill_context->buffers = audio_buffers_create(channels, chunk_size * 8);
+    if (!resampler->fill_context->buffers) {
+        free(resampler->fill_context);
+        free(resampler);
+        return NULL;
+    }
+
+    size_t storage_size = sizeof(AudioBufferList) + (channels > 0 ? (channels - 1) * sizeof(AudioBuffer) : 0);
+    resampler->abl_storage = calloc(1, storage_size);
+    if (!resampler->abl_storage) {
+        audio_buffers_free(resampler->fill_context->buffers);
+        free(resampler->fill_context);
+        free(resampler);
+        return NULL;
+    }
+
+#ifdef __APPLE__
+    AudioStreamBasicDescription in_desc = {0};
+    in_desc.mSampleRate = (double)input_rate;
+    in_desc.mFormatID = kAudioFormatLinearPCM;
+    in_desc.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved;
+    in_desc.mBytesPerPacket = sizeof(double);
+    in_desc.mFramesPerPacket = 1;
+    in_desc.mBytesPerFrame = sizeof(double);
+    in_desc.mChannelsPerFrame = (UInt32)channels;
+    in_desc.mBitsPerChannel = sizeof(double) * 8;
+
+    AudioStreamBasicDescription out_desc = {0};
+    out_desc.mSampleRate = (double)output_rate;
+    out_desc.mFormatID = kAudioFormatLinearPCM;
+    out_desc.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved;
+    out_desc.mBytesPerPacket = sizeof(double);
+    out_desc.mFramesPerPacket = 1;
+    out_desc.mBytesPerFrame = sizeof(double);
+    out_desc.mChannelsPerFrame = (UInt32)channels;
+    out_desc.mBitsPerChannel = sizeof(double) * 8;
+
+    AudioConverterRef conv = NULL;
+    OSStatus status = AudioConverterNew(&in_desc, &out_desc, &conv);
+    if (status != noErr || !conv) {
+        free(resampler->abl_storage);
+        audio_buffers_free(resampler->fill_context->buffers);
+        free(resampler->fill_context);
+        free(resampler);
+        return NULL;
+    }
+    resampler->converter = conv;
+
+    UInt32 quality_val = kAudioConverterQuality_Max;
+    switch (quality) {
+        case APPLE_RESAMPLER_QUALITY_MIN: quality_val = kAudioConverterQuality_Min; break;
+        case APPLE_RESAMPLER_QUALITY_LOW: quality_val = kAudioConverterQuality_Low; break;
+        case APPLE_RESAMPLER_QUALITY_MEDIUM: quality_val = kAudioConverterQuality_Medium; break;
+        case APPLE_RESAMPLER_QUALITY_HIGH: quality_val = kAudioConverterQuality_High; break;
+        case APPLE_RESAMPLER_QUALITY_MAX: quality_val = kAudioConverterQuality_Max; break;
+        default: quality_val = kAudioConverterQuality_Max; break;
+    }
+    AudioConverterSetProperty(conv, kAudioConverterSampleRateConverterQuality, sizeof(UInt32), &quality_val);
+
+    UInt32 complexity_val = apple_resampler_complexity_os_type(complexity);
+    AudioConverterSetProperty(conv, kAudioConverterSampleRateConverterComplexity, sizeof(UInt32), &complexity_val);
+#else
+    // Fallback on non-Apple platforms
+    free(resampler->abl_storage);
+    audio_buffers_free(resampler->fill_context->buffers);
+    free(resampler->fill_context);
+    free(resampler);
+    return NULL;
+#endif
+
+    return resampler;
+}
+
+void apple_resampler_free(apple_resampler_t* resampler) {
+    if (!resampler) return;
+#ifdef __APPLE__
+    if (resampler->converter) {
+        AudioConverterDispose(resampler->converter);
+    }
+#endif
+    if (resampler->abl_storage) free(resampler->abl_storage);
+    if (resampler->fill_context) {
+        if (resampler->fill_context->buffers) audio_buffers_free(resampler->fill_context->buffers);
+        free(resampler->fill_context);
+    }
+    free(resampler);
+}
+
+/// `AppleResampler` runs at a fixed rational ratio fixed at construction.
+/// Apple's `AudioConverter` (in both default/mastering and minimum phase complexities)
+/// does not support changing the `kAudioConverterPropertyOutputSampleRate` property
+/// dynamically on an active converter (returns `kAudioConverterErr_PropertyNotSupported`).
+/// We accept the multiplier without effect and log a warning once.
+void apple_resampler_set_relative_ratio(apple_resampler_t* resampler, double multiplier) {
+    (void)resampler;
+    (void)multiplier;
+    // Fixed-ratio in Apple AudioConverter
+}
+
+double apple_resampler_get_ratio(const apple_resampler_t* resampler) {
+    return resampler ? resampler->current_ratio : 1.0;
+}
+
+size_t apple_resampler_get_max_output_frames(const apple_resampler_t* resampler) {
+    return resampler ? resampler->max_output_frames : 0;
+}
+
+size_t apple_resampler_get_chunk_size(const apple_resampler_t* resampler) {
+    return resampler ? resampler->chunk_size : 0;
+}
+
+size_t apple_resampler_get_channels(const apple_resampler_t* resampler) {
+    return resampler ? resampler->channels : 0;
+}
+
+resampler_error_t apple_resampler_process(apple_resampler_t* resampler, const audio_chunk_t* input, audio_chunk_t* output) {
+    if (!resampler || !input || !output) return RESAMPLER_ERR_INVALID_PARAMETER;
+    if (input->valid_frames != resampler->chunk_size) {
+        return RESAMPLER_ERR_INPUT_SIZE_MISMATCH;
+    }
+    if (audio_chunk_get_channels(output) != resampler->channels) {
+        return RESAMPLER_ERR_CHANNEL_COUNT_MISMATCH;
+    }
+    size_t next_output_frames = (size_t)floor((double)resampler->chunk_size * resampler->current_ratio);
+    if (audio_chunk_get_frames(output) < next_output_frames) {
+        return RESAMPLER_ERR_OUTPUT_BUFFER_TOO_SMALL;
+    }
+
+#ifdef __APPLE__
+    apple_resampler_fill_context_t* context = resampler->fill_context;
+    // Check if we have space in ringBuffers
+    size_t available_space = context->buffers->capacity - context->write_offset;
+    if (available_space < resampler->chunk_size) {
+        // Shift data to front if needed
+        if (context->read_offset > 0) {
+            size_t remaining = context->write_offset - context->read_offset;
+            for (size_t ch = 0; ch < resampler->channels; ch++) {
+                double* base = audio_buffers_get_channel(context->buffers, ch);
+                if (!base) return RESAMPLER_ERR_INVALID_PARAMETER;
+                memmove(base, base + context->read_offset, remaining * sizeof(double));
+            }
+            context->write_offset = remaining;
+            context->read_offset = 0;
+        }
+        // If still not enough space, we fail.
+        if (context->buffers->capacity - context->write_offset < resampler->chunk_size) {
+            return RESAMPLER_ERR_INVALID_PARAMETER; // Overflow
+        }
+    }
+
+    // Copy input into ringBuffers
+    for (size_t ch = 0; ch < resampler->channels; ch++) {
+        const double* src = audio_chunk_get_channel(input, ch);
+        double* dst = audio_buffers_get_channel(context->buffers, ch);
+        if (!src || !dst) return RESAMPLER_ERR_INVALID_PARAMETER;
+        memcpy(dst + context->write_offset, src, resampler->chunk_size * sizeof(double));
+    }
+    context->write_offset += resampler->chunk_size;
+
+    // Only call AudioConverter if we have accumulated enough data.
+    // For 192->44.1, we need ~1270 frames + latency.
+    // Let's use a threshold of 4096 frames.
+    if (context->write_offset < 4096) {
+        output->valid_frames = 0;
+        return RESAMPLER_OK;
+    }
+
+    AudioBufferList* abl = (AudioBufferList*)resampler->abl_storage;
+    abl->mNumberBuffers = (UInt32)resampler->channels;
+    for (size_t ch = 0; ch < resampler->channels; ch++) {
+        double* base = audio_chunk_get_channel(output, ch);
+        abl->mBuffers[ch].mData = (void*)base;
+        abl->mBuffers[ch].mDataByteSize = (UInt32)(audio_chunk_get_frames(output) * sizeof(double));
+        abl->mBuffers[ch].mNumberChannels = 1;
+    }
+
+    UInt32 output_packet_count = (UInt32)audio_chunk_get_frames(output);
+    OSStatus status = AudioConverterFillComplexBuffer(
+        resampler->converter,
+        input_data_proc,
+        context,
+        &output_packet_count,
+        abl,
+        NULL
+    );
+
+    (void)status;
+    output->valid_frames = (size_t)output_packet_count;
+
+    // Shift remaining data to front after processing
+    if (context->read_offset > 0) {
+        size_t remaining = context->write_offset - context->read_offset;
+        if (remaining > 0) {
+            for (size_t ch = 0; ch < resampler->channels; ch++) {
+                double* base = audio_buffers_get_channel(context->buffers, ch);
+                if (!base) return RESAMPLER_ERR_INVALID_PARAMETER;
+                memmove(base, base + context->read_offset, remaining * sizeof(double));
+            }
+        }
+        context->write_offset = remaining;
+        context->read_offset = 0;
+    }
+#else
+    output->valid_frames = 0;
+#endif
+
+    return RESAMPLER_OK;
+}

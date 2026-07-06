@@ -1,4 +1,3 @@
-import DSPAudio
 import DSPConfig
 import Foundation
 
@@ -82,11 +81,11 @@ public actor DSPEngine {
   }
 
   public func setFaderVolume(_ fader: Fader, _ db: Float) async {
-    engine.setFaderVolume(fader: UInt32(fader.rawValue), volume: db)
+    engine.setFaderVolume(fader: UInt32(fader.intValue), volume: db)
   }
 
   public func setFaderMute(_ fader: Fader, _ mute: Bool) async {
-    engine.setFaderMute(fader: UInt32(fader.rawValue), mute: mute)
+    engine.setFaderMute(fader: UInt32(fader.intValue), mute: mute)
   }
 
   public func getAvailableDevices(backend: String, input: Bool) async -> [AudioDevice] {
