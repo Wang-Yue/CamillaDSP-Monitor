@@ -24,10 +24,10 @@
 import DSPConfig
 import Foundation
 
-public final class DoPEncoder {
+final class DoPEncoder {
   private let logger = Logger(label: "dsp.dop.encode")
 
-  public static let phases = 16  // 16× DSD oversampling per PCM frame
+  static let phases = 16  // 16× DSD oversampling per PCM frame
   private static let realTaps = 511
   private static let numTaps = 512  // padded to multiple of phases
   private static let subFilterTaps = numTaps / phases  // 32 — must be power of 2
@@ -38,7 +38,7 @@ public final class DoPEncoder {
   /// can't be DoP-encoded: the modulator's filter table only has entries
   /// for these specific DSD rates, and a downstream DAC won't recognize
   /// the marker pattern at any other carrier rate.
-  public static let supportedCarrierRates: Set<Int> = [
+  static let supportedCarrierRates: Set<Int> = [
     176_400, 352_800, 705_600,  // 44.1 kHz family — DSD64 / 128 / 256
     192_000, 384_000, 768_000,  // 48 kHz   family — DSD64 / 128 / 256
   ]
@@ -67,7 +67,7 @@ public final class DoPEncoder {
   /// `true` iff the constructor was asked to encode AND the carrier rate
   /// is in `supportedCarrierRates`. `encode(...)` is an unconditional
   /// no-op when this is `false`.
-  public let enabled: Bool
+  let enabled: Bool
   private let channelStates: [ChannelState]
 
   /// Polyphase coefficient table laid out as `coeffs[phase * subFilterTaps + tap]`.
@@ -90,7 +90,7 @@ public final class DoPEncoder {
   ///   - filterName: Noise-shaper filter name (defaults to `.sdm6`).
   ///   - cutoffHz: Passband cutoff of the interpolation filter (default 20 kHz).
   ///     Lower values trade ultrasonic passband for sharper image rejection. Ignored when `enabled` is false.
-  public init(
+  init(
     channels: Int, sampleRate: Double, outputDoP: Bool, filterName: SDMFilter = .sdm6,
     cutoffHz: Double = 20_000.0
   ) {
@@ -144,7 +144,7 @@ public final class DoPEncoder {
   /// Encode the chunk's `validFrames` PCM samples into DoP, in place.
   /// No-op when `enabled` is `false`, the chunk is empty, or the channel
   /// count doesn't match what the encoder was constructed with.
-  public func encode(chunk: inout AudioChunk) {
+  func encode(chunk: inout AudioChunk) {
     guard enabled else { return }
     let n = chunk.validFrames
     guard n > 0, chunk.channels == channels else { return }

@@ -8,7 +8,7 @@
 import DSPConfig
 import Foundation
 
-public func createResampler(
+func createResampler(
   config: ResamplerConfig, inputRate: Int, outputRate: Int, channels: Int, chunkSize: Int
 ) throws -> AudioResampler {
   switch config.type {
@@ -61,7 +61,7 @@ public func createResampler(
 /// pre-allocate every internal buffer at init and never allocate on the hot
 /// path. The caller must supply pre-allocated output buffers via
 /// `process(input:into:)`.
-public protocol AudioResampler: AnyObject {
+protocol AudioResampler: AnyObject {
   /// Input frames the resampler expects on every `process` call.
   var chunkSize: Int { get }
 

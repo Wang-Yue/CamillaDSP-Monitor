@@ -22,10 +22,9 @@
 // the previous design, so the SINAD numbers the existing tests pin down
 // across DSD64 / 128 / 256 at 44.1 / 48 kHz families are preserved.
 
-import DSPConfig
 import Foundation
 
-public final class DoPDecoder {
+final class DoPDecoder {
   private let logger = Logger(label: "dsp.dop")
 
   /// Frames of valid alternating markers required to lock on. ~180 µs at
@@ -93,7 +92,7 @@ public final class DoPDecoder {
   private var lastSeenActive: Bool = false
   private var chunksAtSeenState: Int = 0
 
-  public private(set) var isDoPActive = false
+  private(set) var isDoPActive = false
 
   /// - Parameters:
   ///   - channels: Number of audio channels.
@@ -101,7 +100,7 @@ public final class DoPDecoder {
   ///   - bypassDoP: If true, DoP detection is disabled and input is passed through.
   ///   - cutoffHz: Passband cutoff of the post-DSD lowpass (default 20 kHz).
   ///     Lower values trade ultrasonic passband for higher SINAD.
-  public init(
+  init(
     channels: Int, sampleRate: Double, bypassDoP: Bool = false, cutoffHz: Double = 20_000.0
   ) {
     self.channels = channels
@@ -120,7 +119,7 @@ public final class DoPDecoder {
 
   /// Detect DoP and (when active) decode the chunk in place. Returns
   /// `true` iff the chunk was decoded.
-  public func detectAndProcess(chunk: inout AudioChunk) throws -> Bool {
+  func detectAndProcess(chunk: inout AudioChunk) throws -> Bool {
     if bypassDoP {
       isDoPActive = false
       return false

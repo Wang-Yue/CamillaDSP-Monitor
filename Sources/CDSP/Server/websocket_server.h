@@ -76,7 +76,6 @@ typedef struct {
     double vu_release;
     
     uint64_t last_vu_push_time;
-    uint64_t last_signal_levels_push_time;
     
     double* vu_pb_rms;
     double* vu_pb_peak;

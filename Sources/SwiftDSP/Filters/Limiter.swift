@@ -2,18 +2,18 @@ import Accelerate
 import DSPConfig
 import Foundation
 
-public final class LimiterFilter: Filter {
-  public let name: String
+final class LimiterFilter: Filter {
+  let name: String
   private var clipLimit: Double
   private var softClip: Bool
 
-  public init(name: String = "limiter", parameters: LimiterParameters) {
+  init(name: String = "limiter", parameters: LimiterParameters) {
     self.name = name
     self.clipLimit = Double.fromDB(parameters.clipLimit)
     self.softClip = parameters.softClip ?? false
   }
 
-  public func process(waveform: MutableWaveform) {
+  func process(waveform: MutableWaveform) {
     if softClip {
       guard let base = waveform.baseAddress else { return }
       let count = waveform.count
@@ -30,7 +30,7 @@ public final class LimiterFilter: Filter {
       vDSP_vclipD(base, 1, &lowLimit, &highLimit, base, 1, vDSP_Length(waveform.count))
     }
   }
-  public func updateParameters(_ config: FilterConfig, sampleRate: Int) {
+  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
     guard case .limiter(let params) = config else { return }
     self.clipLimit = Double.fromDB(params.clipLimit)
     self.softClip = params.softClip ?? false

@@ -188,7 +188,6 @@ public final class WebSocketServer: Sendable {
     var vuRelease: Double = 0.0
 
     var lastVuPushTime: UInt64 = 0
-    var lastSignalLevelsPushTime: UInt64 = 0
 
     var lastState: String = ""
 
@@ -196,8 +195,6 @@ public final class WebSocketServer: Sendable {
     var vuPbPeak: [Double] = []
     var vuCapRms: [Double] = []
     var vuCapPeak: [Double] = []
-    var vuPbChannels: Int = 0
-    var vuCapChannels: Int = 0
   }
 
   private struct State {
@@ -1349,7 +1346,6 @@ public final class WebSocketServer: Sendable {
           var sub = state.subscriptions[id] ?? ConnectionSubscription()
           sub.signalLevelsSubscribed = true
           sub.signalLevelsSide = side
-          sub.lastSignalLevelsPushTime = 0
           state.subscriptions[id] = sub
         }
         return jsonReply("SubscribeSignalLevels", result: .ok)

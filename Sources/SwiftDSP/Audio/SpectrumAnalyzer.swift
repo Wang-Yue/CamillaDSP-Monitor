@@ -3,9 +3,9 @@ import Foundation
 
 /// Result of an FFT spectrum query — bin-center frequencies (Hz) and
 /// magnitudes (dBFS).
-public struct SpectrumResult: Sendable {
-  public let frequencies: [Float]
-  public let magnitudes: [Float]
+struct SpectrumResult: Sendable {
+  let frequencies: [Float]
+  let magnitudes: [Float]
 }
 
 /// Errors raised by `SpectrumAnalyzer.compute(...)`. The spectrum
@@ -26,7 +26,7 @@ internal enum SpectrumError: Error, Sendable, CustomStringConvertible {
 }
 
 /// Pure spectrum analyzer that operates on an `AudioHistoryBuffer`.
-public final class SpectrumAnalyzer {
+final class SpectrumAnalyzer {
   private let fftN: Int = 4096
   private let log2n: vDSP_Length
   private let fftSetup: FFTSetup
@@ -50,7 +50,7 @@ public final class SpectrumAnalyzer {
   }
   private var binningPlan: BinningPlan?
 
-  public init() {
+  init() {
     let n = 4096
     let log2nVal = vDSP_Length(log2(Double(n)))
     self.log2n = log2nVal
@@ -75,7 +75,7 @@ public final class SpectrumAnalyzer {
   }
 
   /// Compute a spectrum on demand (consumer side).
-  public func compute(
+  func compute(
     buffer: AudioHistoryBuffer,
     channel: Int?,
     minFreq: Double,

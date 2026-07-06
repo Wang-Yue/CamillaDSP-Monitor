@@ -29,7 +29,7 @@ enum PipelineExecutionStep {
 }
 
 /// The main audio processing pipeline.
-public final class Pipeline {
+final class Pipeline {
   private var processingSteps: [PipelineExecutionStep] = []
   /// Implicit main volume filter with smooth ramping
   private let masterVolume: VolumeFilter
@@ -47,7 +47,7 @@ public final class Pipeline {
   private let expectedInChannels: Int
   private let expectedOutChannels: Int
 
-  public init(
+  init(
     config: DSPConfiguration,
     processingParams: ProcessingParameters,
     explicitChunkSize: Int? = nil
@@ -148,7 +148,7 @@ public final class Pipeline {
     self.expectedOutChannels = currentChannels
   }
 
-  public func process(input: AudioChunk, into output: inout AudioChunk) throws {
+  func process(input: AudioChunk, into output: inout AudioChunk) throws {
     let validFrames = input.validFrames
     // 1. Validate input and output buffer shapes/capacities against pipeline configurations.
 
@@ -228,7 +228,7 @@ public final class Pipeline {
     }
   }
 
-  public func updateParameters(
+  func updateParameters(
     config: DSPConfiguration,
     filters: [String],
     mixers: [String],

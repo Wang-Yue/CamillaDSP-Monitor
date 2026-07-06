@@ -1,6 +1,5 @@
 // PipelineStore - Pipeline stage and EQ preset management with persistence
 
-import DSPConfig
 import Foundation
 import Observation
 

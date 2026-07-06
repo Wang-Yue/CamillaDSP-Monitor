@@ -7,7 +7,7 @@ import Foundation
 /// pointer's `count` is the number of samples to process — typically the
 /// owning chunk's `validFrames`, sliced down by the caller. Filters must
 /// not assume the pointer covers the channel's full capacity.
-public protocol Filter: AnyObject {
+protocol Filter: AnyObject {
   /// The unique name of this filter instance.
   var name: String { get }
 
@@ -25,8 +25,8 @@ public protocol Filter: AnyObject {
 /// switch then constructs the runtime filter for each variant. The
 /// `.volume` case is reserved for the implicit master-volume filter
 /// inside `Pipeline` and cannot be user-defined.
-public enum FilterFactory {
-  public static func create(
+enum FilterFactory {
+  static func create(
     name: String = "filter",
     config: FilterConfig,
     sampleRate: Int,

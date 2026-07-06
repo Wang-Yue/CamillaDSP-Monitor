@@ -1,12 +1,12 @@
 import Accelerate
 import DSPConfig
 
-public final class GainFilter: Filter {
-  public let name: String
+final class GainFilter: Filter {
+  let name: String
   private var linearGain: Double
   private var muted: Bool
 
-  public init(name: String = "gain", parameters: GainParameters) {
+  init(name: String = "gain", parameters: GainParameters) {
     self.name = name
     self.muted = parameters.mute ?? false
     let gainValue = parameters.gain ?? 0.0
@@ -19,7 +19,7 @@ public final class GainFilter: Filter {
     self.linearGain = computedGain
   }
 
-  public func process(waveform: MutableWaveform) {
+  func process(waveform: MutableWaveform) {
     if muted {
       DSPOps.clear(waveform)
     } else if linearGain != 1.0 {
@@ -27,14 +27,14 @@ public final class GainFilter: Filter {
     }
   }
 
-  public func processSingle(_ sample: Double) -> Double {
+  func processSingle(_ sample: Double) -> Double {
     if muted {
       return 0.0
     } else {
       return sample * linearGain
     }
   }
-  public func updateParameters(_ config: FilterConfig, sampleRate: Int) {
+  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
     guard case .gain(let params) = config else { return }
     self.muted = params.mute ?? false
     let gainValue = params.gain ?? 0.0

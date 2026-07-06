@@ -9,7 +9,7 @@ import Accelerate
 public typealias MutableWaveform = UnsafeMutableBufferPointer<Double>
 
 /// A high-performance descriptive view of a single channel's buffer pointer
-public typealias Waveform = UnsafeBufferPointer<Double>
+typealias Waveform = UnsafeBufferPointer<Double>
 
 extension Double {
   /// Convert dB to linear gain
@@ -34,10 +34,10 @@ extension Double {
 /// derives the length from the buffer, so the partial-count ops slice
 /// the buffers via `UnsafeBufferPointer(rebasing:)` to give vDSP an
 /// exact-length view without copying.
-public enum DSPOps {
+enum DSPOps {
   /// Multiply vector by scalar in-place: buffer *= scalar
   @inlinable
-  public static func scalarMultiply(_ buffer: inout [Double], by scalar: Double) {
+  static func scalarMultiply(_ buffer: inout [Double], by scalar: Double) {
     buffer.withUnsafeMutableBufferPointer { ptr in
       vDSP.multiply(scalar, ptr, result: &ptr)
     }
@@ -45,7 +45,7 @@ public enum DSPOps {
 
   /// Add `a[0..<count]` into `b[0..<count]` (in-place on `b`).
   @inlinable
-  public static func add(_ a: [Double], _ b: inout [Double], count: Int) {
+  static func add(_ a: [Double], _ b: inout [Double], count: Int) {
     a.withUnsafeBufferPointer { aFull in
       b.withUnsafeMutableBufferPointer { bFull in
         let aSub = UnsafeBufferPointer(rebasing: aFull.prefix(count))
@@ -57,7 +57,7 @@ public enum DSPOps {
 
   /// Multiply two vectors element-wise: result[0..<count] = a[0..<count] * b[0..<count]
   @inlinable
-  public static func multiply(_ a: [Double], _ b: [Double], result: inout [Double], count: Int) {
+  static func multiply(_ a: [Double], _ b: [Double], result: inout [Double], count: Int) {
     a.withUnsafeBufferPointer { aFull in
       b.withUnsafeBufferPointer { bFull in
         result.withUnsafeMutableBufferPointer { rFull in
@@ -72,7 +72,7 @@ public enum DSPOps {
 
   /// Multiply-accumulate: accumulator[0..<count] += a[0..<count] * b
   @inlinable
-  public static func multiplyAdd(
+  static func multiplyAdd(
     _ a: [Double], _ b: Double, accumulator: inout [Double], count: Int
   ) {
     a.withUnsafeBufferPointer { aFull in
@@ -87,13 +87,13 @@ public enum DSPOps {
 
   /// Find peak absolute value across the entire buffer.
   @inlinable
-  public static func peakAbsolute(_ buffer: [Double]) -> Double {
+  static func peakAbsolute(_ buffer: [Double]) -> Double {
     vDSP.maximumMagnitude(buffer)
   }
 
   /// Compute root-mean-square of the entire buffer.
   @inlinable
-  public static func rms(_ buffer: [Double]) -> Double {
+  static func rms(_ buffer: [Double]) -> Double {
     vDSP.rootMeanSquare(buffer)
   }
 
@@ -107,7 +107,7 @@ public enum DSPOps {
 
   /// In-place multiply: `buffer[i] *= scalar` for `i < buffer.count`.
   @inlinable
-  public static func scalarMultiply(
+  static func scalarMultiply(
     _ buffer: MutableWaveform, by scalar: Double
   ) {
     var b = buffer
@@ -116,7 +116,7 @@ public enum DSPOps {
 
   /// Zero `buffer.count` samples in-place.
   @inlinable
-  public static func clear(_ buffer: MutableWaveform) {
+  static func clear(_ buffer: MutableWaveform) {
     var b = buffer
     vDSP.clear(&b)
   }
@@ -124,7 +124,7 @@ public enum DSPOps {
   /// `b += a` over the first `count` samples (must satisfy
   /// `count <= a.count` and `count <= b.count`).
   @inlinable
-  public static func add(
+  static func add(
     _ a: Waveform,
     _ b: MutableWaveform,
     count: Int
@@ -136,7 +136,7 @@ public enum DSPOps {
 
   /// `accumulator += a * scalar` over the first `count` samples.
   @inlinable
-  public static func multiplyAdd(
+  static func multiplyAdd(
     _ a: Waveform,
     _ scalar: Double,
     accumulator: MutableWaveform,
@@ -149,7 +149,7 @@ public enum DSPOps {
 
   /// Peak absolute value across the first `count` samples.
   @inlinable
-  public static func peakAbsolute(
+  static func peakAbsolute(
     _ buffer: Waveform, count: Int
   ) -> Double {
     vDSP.maximumMagnitude(UnsafeBufferPointer(start: buffer.baseAddress, count: count))
@@ -157,7 +157,7 @@ public enum DSPOps {
 
   /// RMS over the first `count` samples.
   @inlinable
-  public static func rms(
+  static func rms(
     _ buffer: Waveform, count: Int
   ) -> Double {
     vDSP.rootMeanSquare(UnsafeBufferPointer(start: buffer.baseAddress, count: count))
@@ -165,7 +165,7 @@ public enum DSPOps {
 
   /// Element-wise vector multiplication: `b[i] *= a[i]` for `i < count`.
   @inlinable
-  public static func multiply(
+  static func multiply(
     _ a: UnsafePointer<Double>,
     _ b: MutableWaveform,
     count: Int

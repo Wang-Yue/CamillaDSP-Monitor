@@ -28,14 +28,14 @@ private func buildSubsampleBiquad(delay: Double) -> (Int, BiquadCoefficients?) {
   return (Int(samples), coeffs)
 }
 
-public final class DelayFilter: Filter {
-  public let name: String
+final class DelayFilter: Filter {
+  let name: String
   private var queue: UnsafeMutablePointer<Double>?
   private var queueCount: Int = 0
   private var readIndex: Int = 0
   private var biquad: BiquadFilter?
 
-  public init(name: String = "delay", parameters: DelayParameters, sampleRate: Int) {
+  init(name: String = "delay", parameters: DelayParameters, sampleRate: Int) {
     self.name = name
 
     let delay = parameters.delay
@@ -93,7 +93,7 @@ public final class DelayFilter: Filter {
     }
   }
 
-  public func process(waveform: MutableWaveform) {
+  func process(waveform: MutableWaveform) {
     if let q = queue {
       guard let wBase = waveform.baseAddress else { return }
       var ri = readIndex
@@ -112,7 +112,7 @@ public final class DelayFilter: Filter {
     }
   }
 
-  public func processSingle(_ sample: Double) -> Double {
+  func processSingle(_ sample: Double) -> Double {
     var out = sample
     if let q = queue {
       let delayed = q[readIndex]
@@ -127,7 +127,7 @@ public final class DelayFilter: Filter {
     return out
   }
 
-  public func updateParameters(_ config: FilterConfig, sampleRate: Int) {
+  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
     guard case .delay(let params) = config else { return }
     let delay = params.delay
     let unit = params.unit ?? .ms

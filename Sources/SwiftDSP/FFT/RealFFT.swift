@@ -61,16 +61,16 @@ protocol RealFFTBackend: AnyObject {
 /// `init(length:)` is the project's single FFT-backend selector — see
 /// the file-level header for the routing decision tree. Callers never
 /// see (or pick) a backend; they just get a correctly-sized real FFT.
-public final class RealFFT {
+final class RealFFT {
   /// Time-domain length (must be even).
-  public let length: Int
+  let length: Int
 
   /// Number of unique complex bins in the spectrum (= length/2 + 1).
-  public var spectrumLength: Int { length / 2 + 1 }
+  var spectrumLength: Int { length / 2 + 1 }
 
   private let backend: RealFFTBackend
 
-  public init(length: Int) {
+  init(length: Int) {
     precondition(length > 0, "RealFFT: length must be positive")
     precondition(length % 2 == 0, "RealFFT: length must be even")
     self.length = length
@@ -103,7 +103,7 @@ public final class RealFFT {
   /// `realIn` length must be ≥ `length`; `specRe`/`specIm` length must be
   /// ≥ `spectrumLength`.
   @inline(__always)
-  public func forward(
+  func forward(
     realIn: UnsafePointer<Double>,
     specRe: UnsafeMutablePointer<Double>,
     specIm: UnsafeMutablePointer<Double>
@@ -116,7 +116,7 @@ public final class RealFFT {
   /// Output is scaled by `length` (round-trip with `forward` multiplies by
   /// `length`).
   @inline(__always)
-  public func inverse(
+  func inverse(
     specRe: UnsafePointer<Double>,
     specIm: UnsafePointer<Double>,
     realOut: UnsafeMutablePointer<Double>

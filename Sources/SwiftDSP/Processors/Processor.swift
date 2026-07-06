@@ -2,7 +2,7 @@ import DSPConfig
 import Foundation
 
 /// Protocol for all multi-channel audio processors.
-public protocol Processor: AnyObject {
+protocol Processor: AnyObject {
   /// The unique name of this processor instance.
   var name: String { get }
 
@@ -13,8 +13,8 @@ public protocol Processor: AnyObject {
   func updateParameters(_ config: ProcessorConfig, sampleRate: Int)
 }
 
-public enum ProcessorFactory {
-  public static func create(
+enum ProcessorFactory {
+  static func create(
     name: String = "processor",
     config: ProcessorConfig,
     sampleRate: Int,

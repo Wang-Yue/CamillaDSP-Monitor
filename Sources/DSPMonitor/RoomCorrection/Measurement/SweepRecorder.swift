@@ -25,12 +25,11 @@ import AVFoundation
 import Accelerate
 import AudioToolbox
 import CoreAudio
-import DSPConfig
 import Foundation
 
-public enum SweepRecorder {
+enum SweepRecorder {
 
-  public enum CaptureError: Error, CustomStringConvertible {
+  enum CaptureError: Error, CustomStringConvertible {
     case engineStartFailed(String)
     case noInputNode
     case formatMismatch(String)
@@ -40,7 +39,7 @@ public enum SweepRecorder {
     case permissionDenied
     case timeout
 
-    public var description: String {
+    var description: String {
       switch self {
       case .engineStartFailed(let m): return "Audio engine start failed: \(m)"
       case .noInputNode: return "Audio engine has no input node."
@@ -54,17 +53,17 @@ public enum SweepRecorder {
     }
   }
 
-  public struct Result: Sendable {
+  struct Result: Sendable {
     /// Trimmed mono recording at the requested `sampleRate`,
     /// time-aligned so sample 0 corresponds to the start of the
     /// played sweep.
-    public let captured: [Double]
+    let captured: [Double]
     /// Estimated round-trip latency in samples (based on
     /// cross-correlation with the original sweep). Diagnostic only.
-    public let roundTripSamples: Int
+    let roundTripSamples: Int
     /// Peak absolute level the mic captured during the sweep. Useful
     /// for warning users about clipping or low signal.
-    public let peakAbsolute: Double
+    let peakAbsolute: Double
   }
 
   /// Play a sweep + record. `sweep` is the time-domain sweep buffer
@@ -75,7 +74,7 @@ public enum SweepRecorder {
   /// Throws `CaptureError` on failure. Returns once the capture
   /// completes (i.e., after the sweep has played through and a
   /// short tail has been recorded).
-  public static func capture(
+  static func capture(
     sweep: [Double],
     inverse: [Double],
     sampleRate: Int,

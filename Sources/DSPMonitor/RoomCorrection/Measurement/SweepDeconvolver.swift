@@ -18,7 +18,7 @@
 import Accelerate
 import Foundation
 
-public enum SweepDeconvolver {
+enum SweepDeconvolver {
 
   /// Convolve `captured` with `inverseFilter` via FFT, returning the
   /// raw IR samples of length `captured.count + inverseFilter.count − 1`.
@@ -26,7 +26,7 @@ public enum SweepDeconvolver {
   /// For the typical sweep workflow, prefer `deconvolve(captured:
   /// f1:f2:durationSeconds:sampleRate:)` which builds the matched
   /// inverse and returns a properly-centred `ImpulseResponse`.
-  public static func convolve(
+  static func convolve(
     _ captured: [Double],
     with inverseFilter: [Double]
   ) -> [Double] {
@@ -78,7 +78,7 @@ public enum SweepDeconvolver {
   /// the room-correction case). It must be at least `T · sampleRate`
   /// samples long; trailing silence on the capture side is fine and
   /// becomes IR tail.
-  public static func deconvolve(
+  static func deconvolve(
     captured: [Double],
     f1: Double,
     f2: Double,

@@ -142,15 +142,15 @@ public final class AppLogger: Sendable {
   }
 }
 
-public struct Logger: Sendable {
-  public let label: StaticString
+struct Logger: Sendable {
+  let label: StaticString
 
-  public init(label: StaticString) {
+  init(label: StaticString) {
     self.label = label
   }
 
   @inlinable
-  public func info(
+  func info(
     _ msg: StaticString,
     _ arg1: LogArgument = .none,
     _ arg2: LogArgument = .none,
@@ -162,7 +162,7 @@ public struct Logger: Sendable {
   }
 
   @inlinable
-  public func warning(
+  func warning(
     _ msg: StaticString,
     _ arg1: LogArgument = .none,
     _ arg2: LogArgument = .none,
@@ -174,7 +174,7 @@ public struct Logger: Sendable {
   }
 
   @inlinable
-  public func error(
+  func error(
     _ msg: StaticString,
     _ arg1: LogArgument = .none,
     _ arg2: LogArgument = .none,
@@ -186,7 +186,7 @@ public struct Logger: Sendable {
   }
 
   @inlinable
-  public func debug(
+  func debug(
     _ msg: StaticString,
     _ arg1: LogArgument = .none,
     _ arg2: LogArgument = .none,

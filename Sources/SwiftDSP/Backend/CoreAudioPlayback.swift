@@ -18,7 +18,7 @@ import DSPConfig
 import Foundation
 import Synchronization
 
-public final class CoreAudioPlayback: PlaybackBackend {
+final class CoreAudioPlayback: PlaybackBackend {
   fileprivate let logger = Logger(label: "dsp.coreaudio.playback")
   private let deviceName: String?
   let channels: Int
@@ -47,21 +47,21 @@ public final class CoreAudioPlayback: PlaybackBackend {
   private var aliveListenerBlock: AudioObjectPropertyListenerBlock?
 
   private let _isPaused = Atomic<Bool>(false)
-  public var isPaused: Bool {
+  var isPaused: Bool {
     get { _isPaused.load(ordering: .acquiring) }
     set { _isPaused.store(newValue, ordering: .releasing) }
   }
 
-  public var pendingRateChange: Double? { rateWatcher?.pendingRateChange }
+  var pendingRateChange: Double? { rateWatcher?.pendingRateChange }
 
-  public var bufferLevel: Int {
+  var bufferLevel: Int {
     // SPSC rings carry the same available count across channels (the
     // producer fills all of them in lockstep), so channel 0 is
     // representative.
     playbackRings.first?.availableToRead ?? 0
   }
 
-  public init(config: PlaybackDeviceConfig, sampleRate: Int, chunkSize: Int) {
+  init(config: PlaybackDeviceConfig, sampleRate: Int, chunkSize: Int) {
     self.deviceName = config.device
     self.channels = config.channels
     self.sampleRate = Double(sampleRate)
@@ -80,7 +80,7 @@ public final class CoreAudioPlayback: PlaybackBackend {
     if audioUnit != nil { close() }
   }
 
-  public func open() throws {
+  func open() throws {
     // Tear down a half-built unit if we throw partway through.
     var openSucceeded = false
     defer { if !openSucceeded { close() } }
@@ -292,7 +292,7 @@ public final class CoreAudioPlayback: PlaybackBackend {
     logger.info("CoreAudio playback opened: %dch @ %fHz", .int(channels), .double(sampleRate))
   }
 
-  public func write(chunk: AudioChunk) throws {
+  func write(chunk: AudioChunk) throws {
     guard _isDeviceAlive.load(ordering: .acquiring) else {
       throw BackendError.writeError("Playback device disconnected")
     }
@@ -309,7 +309,7 @@ public final class CoreAudioPlayback: PlaybackBackend {
     }
   }
 
-  public func prefillSilence(frames: Int) throws {
+  func prefillSilence(frames: Int) throws {
     // Push `frames` zeros into every channel ring so the
     // playback callback finds the buffer pre-filled to roughly
     // `target_level` before any real audio arrives. Without
@@ -327,7 +327,7 @@ public final class CoreAudioPlayback: PlaybackBackend {
     logger.info("Playback pre-filled with %d silent frames per channel", .int(toWrite))
   }
 
-  public func close() {
+  func close() {
     // Drop the HAL listener *before* disposing the AudioUnit so
     // we don't get a final fire racing the teardown.
     rateWatcher?.dispose()
@@ -369,7 +369,7 @@ public final class CoreAudioPlayback: PlaybackBackend {
   }
 
   /// List available playback devices.
-  public static func listDevices() -> [(id: AudioDeviceID, name: String)] {
+  static func listDevices() -> [(id: AudioDeviceID, name: String)] {
     CoreAudioDevice.devices(scope: .output)
   }
 }

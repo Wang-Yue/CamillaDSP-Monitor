@@ -20,7 +20,6 @@
 // buffer while it processes a chunk), so `@unchecked Sendable` is honest
 // here — the type is no less safe than the `[[Double]]` it replaces.
 
-import DSPConfig
 import Foundation
 
 /// Contiguous, per-channel audio storage backed by a single heap allocation.

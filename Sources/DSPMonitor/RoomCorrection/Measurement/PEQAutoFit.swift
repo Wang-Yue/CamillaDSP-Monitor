@@ -31,56 +31,56 @@
 import DSPConfig
 import Foundation
 
-public enum PEQAutoFit {
+enum PEQAutoFit {
 
-  public struct Options: Sendable {
+  struct Options: Sendable {
     /// Maximum number of bands (shelves + peakings combined).
     /// Refinement may shrink the final count via cleanup.
-    public var bandCount: Int
+    var bandCount: Int
     /// Frequency grid bounds — the resampling grid and the allowable
     /// range for placed band centre frequencies.
-    public var minFreqHz: Double
-    public var maxFreqHz: Double
+    var minFreqHz: Double
+    var maxFreqHz: Double
     /// Cap on per-band gain.
-    public var maxGainDB: Double
+    var maxGainDB: Double
     /// Q is clamped to `[minQ, maxQ]`.
-    public var minQ: Double
-    public var maxQ: Double
+    var minQ: Double
+    var maxQ: Double
     /// Stop placing bands once `max|residual|` drops below this in
     /// the seed phase.
-    public var convergenceDB: Double
+    var convergenceDB: Double
     /// Whether to seed low-/high-shelf candidates.
-    public var addEndpointShelves: Bool
+    var addEndpointShelves: Bool
     /// Initial corner frequencies for the candidate shelves. The
     /// optimizer is free to move them.
-    public var lowShelfFreqHz: Double
-    public var highShelfFreqHz: Double
+    var lowShelfFreqHz: Double
+    var highShelfFreqHz: Double
     /// Coordinate-descent passes.
-    public var refinementIterations: Int
+    var refinementIterations: Int
     /// Bands with `|gain| < dropGainDB` are removed after refinement.
-    public var dropGainDB: Double
+    var dropGainDB: Double
     /// Modal-mode constraints. When enabled, peakings placed below
     /// `schroederHz` are restricted to *negative* gain (cuts only —
     /// boosting a modal null doesn't fill it, the mode is still
     /// there) and to higher Q (≥ `modalMinQ`); endpoint shelves
     /// below the Schroeder freq are suppressed too. Standard
     /// best-practice for low-frequency room correction.
-    public var modalMode: Bool
-    public var schroederHz: Double
-    public var modalMinQ: Double
+    var modalMode: Bool
+    var schroederHz: Double
+    var modalMinQ: Double
     /// Pre-smoothing width on the log-frequency grid, midband.
     /// AutoEQ defaults to 1/12 octave; that's also tight enough to
     /// preserve narrow modes while suppressing bin-level noise.
-    public var smoothingOctaves: Double
+    var smoothingOctaves: Double
     /// Smoothing width above `transitionHighHz` — the treble band is
     /// noisy and perceptually less sensitive, so AutoEQ uses 2
     /// octaves there. Sigmoid blend between `transitionLowHz` and
     /// `transitionHighHz`.
-    public var trebleSmoothingOctaves: Double
-    public var smoothingTransitionLow: Double
-    public var smoothingTransitionHigh: Double
+    var trebleSmoothingOctaves: Double
+    var smoothingTransitionLow: Double
+    var smoothingTransitionHigh: Double
 
-    public init(
+    init(
       bandCount: Int = 10,
       minFreqHz: Double = 20,
       maxFreqHz: Double = 20_000,
@@ -127,7 +127,7 @@ public enum PEQAutoFit {
 
   /// Build a log-spaced frequency grid over `[fMin, fMax]` with
   /// `count` points (inclusive of endpoints).
-  public static func logFrequencyGrid(
+  static func logFrequencyGrid(
     fMin: Double, fMax: Double, count: Int
   ) -> [Double] {
     precondition(count >= 2 && fMin > 0 && fMax > fMin)
@@ -142,7 +142,7 @@ public enum PEQAutoFit {
   }
 
   /// Sample a `FrequencyResponse` onto a log-spaced grid in dB.
-  public static func sampleMagnitudeDB(
+  static func sampleMagnitudeDB(
     of fr: FrequencyResponse, atFrequencies grid: [Double]
   ) -> [Double] {
     let binHz = Double(fr.sampleRate) / Double(fr.fftSize)
@@ -157,7 +157,7 @@ public enum PEQAutoFit {
 
   // MARK: - Fit driver
 
-  public static func fit(
+  static func fit(
     measuredMagnitudeDB: [Double],
     frequencies: [Double],
     target: TargetCurve,
@@ -568,7 +568,7 @@ public enum PEQAutoFit {
   /// Uniform-width fractional-octave smoothing — simpler signature
   /// for callers (display layer) that don't need the
   /// midband/treble blend.
-  public static func smoothLogOctave(
+  static func smoothLogOctave(
     _ values: [Double],
     frequencies: [Double],
     octaves: Double
@@ -582,7 +582,7 @@ public enum PEQAutoFit {
       transitionHighHz: 2)
   }
 
-  public static func smoothLogOctave(
+  static func smoothLogOctave(
     _ values: [Double],
     frequencies: [Double],
     midOctaves: Double,

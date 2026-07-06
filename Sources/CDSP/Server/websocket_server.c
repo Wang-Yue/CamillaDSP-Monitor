@@ -972,7 +972,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                 if (server) {
                     server->client_sessions[client_idx].signal_levels_subscribed = true;
                     strncpy(server->client_sessions[client_idx].signal_levels_side, side, sizeof(server->client_sessions[client_idx].signal_levels_side) - 1);
-                    server->client_sessions[client_idx].last_signal_levels_push_time = 0;
                 }
                 json_reply("SubscribeSignalLevels", "\"Ok\"", NULL, out_response, max_len);
             } else {

@@ -2,11 +2,11 @@ import Accelerate
 import DSPConfig
 import Foundation
 
-public final class BiquadFilter: Filter {
-  public let name: String
+final class BiquadFilter: Filter {
+  let name: String
   private var setup: vDSP_biquadm_SetupD?
 
-  public init(name: String = "biquad", coefficients: BiquadCoefficients) {
+  init(name: String = "biquad", coefficients: BiquadCoefficients) {
     self.name = name
     var coefficientsArray: [Double] = [
       coefficients.b0, coefficients.b1, coefficients.b2, coefficients.a1, coefficients.a2,
@@ -20,7 +20,7 @@ public final class BiquadFilter: Filter {
     }
   }
 
-  public func process(waveform: MutableWaveform) {
+  func process(waveform: MutableWaveform) {
     guard let setup = setup, let base = waveform.baseAddress else { return }
 
     var signalPtr = UnsafePointer(base)
@@ -36,7 +36,7 @@ public final class BiquadFilter: Filter {
     )
   }
 
-  public func processSingle(_ sample: Double) -> Double {
+  func processSingle(_ sample: Double) -> Double {
     guard let setup = setup else { return sample }
     var inVal = sample
     var outVal = 0.0
@@ -50,7 +50,7 @@ public final class BiquadFilter: Filter {
     return outVal
   }
 
-  public func updateParameters(_ config: FilterConfig, sampleRate: Int) {
+  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
     guard case .biquad(let params) = config else { return }
     if let newCoeffs = try? BiquadFilter.computeCoefficients(
       params, sampleRate: sampleRate)
@@ -63,7 +63,7 @@ public final class BiquadFilter: Filter {
       }
     }
   }
-  public static func computeCoefficients(_ params: BiquadParameters, sampleRate: Int) throws
+  static func computeCoefficients(_ params: BiquadParameters, sampleRate: Int) throws
     -> BiquadCoefficients
   {
     guard params.type != nil else {

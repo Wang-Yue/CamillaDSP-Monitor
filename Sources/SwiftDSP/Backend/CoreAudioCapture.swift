@@ -19,7 +19,7 @@ import DSPConfig
 import Foundation
 import Synchronization
 
-public final class CoreAudioCapture: CaptureBackend {
+final class CoreAudioCapture: CaptureBackend {
   fileprivate let logger = Logger(label: "dsp.coreaudio.capture")
   private let deviceName: String?
   let channels: Int
@@ -62,9 +62,9 @@ public final class CoreAudioCapture: CaptureBackend {
   private let _isDeviceAlive = Atomic<Bool>(true)
   private var aliveListenerBlock: AudioObjectPropertyListenerBlock?
 
-  public var pendingRateChange: Double? { rateWatcher?.pendingRateChange }
-  public var pitchControlSupported: Bool { pitchControlActive }
-  public func setPitch(_ multiplier: Double) {
+  var pendingRateChange: Double? { rateWatcher?.pendingRateChange }
+  var pitchControlSupported: Bool { pitchControlActive }
+  func setPitch(_ multiplier: Double) {
     guard pitchControlActive, let id = openedDeviceID else { return }
     CoreAudioDevice.setDevicePitch(id, pitch: multiplier)
   }
@@ -75,7 +75,7 @@ public final class CoreAudioCapture: CaptureBackend {
   /// doesn't churn the heap.
   private var readScratch: UnsafeMutableBufferPointer<Float>?
 
-  public init(config: CaptureDeviceConfig, sampleRate: Int, chunkSize: Int) {
+  init(config: CaptureDeviceConfig, sampleRate: Int, chunkSize: Int) {
     self.deviceName = config.device
     self.channels = config.channels
     self.sampleRate = Double(sampleRate)
@@ -96,7 +96,7 @@ public final class CoreAudioCapture: CaptureBackend {
     readScratch?.deallocate()
   }
 
-  public func open() throws {
+  func open() throws {
     // If anything below throws after we've started wiring up the
     // AudioUnit, tear it down so we don't leak the HAL handle.
     var openSucceeded = false
@@ -357,7 +357,7 @@ public final class CoreAudioCapture: CaptureBackend {
     logger.info("CoreAudio capture opened: %dch @ %fHz", .int(channels), .double(sampleRate))
   }
 
-  public func read(frames: Int, into chunk: inout AudioChunk) throws -> Bool {
+  func read(frames: Int, into chunk: inout AudioChunk) throws -> Bool {
     guard _isDeviceAlive.load(ordering: .acquiring) else {
       throw BackendError.readError("Capture device disconnected")
     }
@@ -380,11 +380,11 @@ public final class CoreAudioCapture: CaptureBackend {
     return true
   }
 
-  public func wait(timeout: DispatchTime) -> Bool {
+  func wait(timeout: DispatchTime) -> Bool {
     return semaphore.wait(timeout: timeout) == .success
   }
 
-  public func close() {
+  func close() {
     semaphore.signal()
     // Drop the HAL listener *before* disposing the AudioUnit so
     // we don't get a final fire racing the teardown.
@@ -481,7 +481,7 @@ public final class CoreAudioCapture: CaptureBackend {
   // MARK: - Device Enumeration
 
   /// List available capture devices.
-  public static func listDevices() -> [(id: AudioDeviceID, name: String)] {
+  static func listDevices() -> [(id: AudioDeviceID, name: String)] {
     CoreAudioDevice.devices(scope: .input)
   }
 }

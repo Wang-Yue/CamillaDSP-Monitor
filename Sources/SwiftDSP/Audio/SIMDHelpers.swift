@@ -7,11 +7,11 @@
 // `storeBytes` keeps both lanes resident in `q` registers across the
 // full butterfly.
 @inline(__always)
-public func ldSIMD2(_ p: UnsafePointer<Double>, _ idx: Int) -> SIMD2<Double> {
+func ldSIMD2(_ p: UnsafePointer<Double>, _ idx: Int) -> SIMD2<Double> {
   return UnsafeRawPointer(p + idx).loadUnaligned(as: SIMD2<Double>.self)
 }
 
 @inline(__always)
-public func stSIMD2(_ p: UnsafeMutablePointer<Double>, _ idx: Int, _ v: SIMD2<Double>) {
+func stSIMD2(_ p: UnsafeMutablePointer<Double>, _ idx: Int, _ v: SIMD2<Double>) {
   UnsafeMutableRawPointer(p + idx).storeBytes(of: v, as: SIMD2<Double>.self)
 }

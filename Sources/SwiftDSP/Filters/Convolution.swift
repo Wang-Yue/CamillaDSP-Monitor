@@ -63,8 +63,8 @@ extension ConvParameters {
 
 /// Coefficient file readers. Off the audio thread — straightforward
 /// `Data`-based parsers, no streaming or memory-mapping.
-public enum ConvCoefficientLoader {
-  public static func loadWAV(path: String, channel: Int) throws -> [Double] {
+enum ConvCoefficientLoader {
+  static func loadWAV(path: String, channel: Int) throws -> [Double] {
     let url = URL(fileURLWithPath: path)
     guard FileManager.default.fileExists(atPath: path) else {
       throw ConfigError.invalidFilter("WAV file not found: \(path)")
@@ -115,7 +115,7 @@ public enum ConvCoefficientLoader {
     return result
   }
 
-  public static func loadRaw(
+  static func loadRaw(
     path: String,
     format: String,
     skipBytesLines: Int = 0,

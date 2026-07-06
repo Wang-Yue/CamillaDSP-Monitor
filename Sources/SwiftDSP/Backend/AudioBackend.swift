@@ -6,7 +6,7 @@
 import DSPConfig
 import Foundation
 
-public func createCaptureBackend(config: CaptureDeviceConfig, sampleRate: Int, chunkSize: Int)
+func createCaptureBackend(config: CaptureDeviceConfig, sampleRate: Int, chunkSize: Int)
   throws -> CaptureBackend
 {
   switch config.type {
@@ -15,7 +15,7 @@ public func createCaptureBackend(config: CaptureDeviceConfig, sampleRate: Int, c
   }
 }
 
-public func createPlaybackBackend(config: PlaybackDeviceConfig, sampleRate: Int, chunkSize: Int)
+func createPlaybackBackend(config: PlaybackDeviceConfig, sampleRate: Int, chunkSize: Int)
   throws -> PlaybackBackend
 {
   switch config.type {
@@ -25,7 +25,7 @@ public func createPlaybackBackend(config: PlaybackDeviceConfig, sampleRate: Int,
 }
 
 /// Protocol for audio capture backends
-public protocol CaptureBackend: AnyObject {
+protocol CaptureBackend: AnyObject {
   /// Open the capture device
   func open() throws
   /// Read a chunk of audio into the provided buffer. Returns false on end-of-stream or no data.
@@ -65,7 +65,7 @@ extension CaptureBackend {
 }
 
 /// Protocol for audio playback backends
-public protocol PlaybackBackend: AnyObject {
+protocol PlaybackBackend: AnyObject {
   /// Open the playback device
   func open() throws
   /// Write a chunk of audio

@@ -1,6 +1,5 @@
 // Non-interleaved float buffers, one vector per channel.
 
-import DSPConfig
 import Foundation
 
 /// A chunk of non-interleaved audio data flowing through the pipeline.
@@ -45,20 +44,20 @@ public struct AudioChunk: @unchecked Sendable {
 
 /// A preallocated round-robin pool of unique `AudioChunk` instances.
 /// Guarantees zero-allocation rotation tailored to real-time thread loops.
-public struct RoundRobinChunkPool {
+struct RoundRobinChunkPool {
   @usableFromInline
   internal let pool: [AudioChunk]
   @usableFromInline
   internal var currentIndex: Int = 0
 
-  public init(capacity: Int, frames: Int, channels: Int) {
+  init(capacity: Int, frames: Int, channels: Int) {
     precondition(capacity > 0, "Pool capacity must be positive")
     self.pool = (0..<capacity).map { _ in AudioChunk(frames: frames, channels: channels) }
   }
 
   /// Retrieves the next available unique chunk buffer from the pool.
   @inlinable
-  public mutating func next() -> AudioChunk {
+  mutating func next() -> AudioChunk {
     let chunk = pool[currentIndex]
     currentIndex = (currentIndex + 1) % pool.count
     return chunk

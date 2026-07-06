@@ -39,32 +39,32 @@ import Accelerate
 import DSPConfig
 import Foundation
 
-public enum FIRDesign {
+enum FIRDesign {
 
-  public struct Options: Sendable {
+  struct Options: Sendable {
     /// FFT length used during design. Power-of-2 ≥ 1024 is
     /// recommended — gives the vDSP fast path and resolves down to
     /// `sampleRate / fftSize` Hz at the bottom of the band (≈ 5.86 Hz
     /// at 48 kHz / 8192).
-    public var fftSize: Int
+    var fftSize: Int
     /// Truncate the output IR to this many leading samples. `nil`
     /// returns the full design length. Min-phase IRs decay quickly,
     /// so a 4–8k tap output is usually plenty even when designed at
     /// 16k. Linear-phase IRs are symmetric around `(N − 1) / 2`, so
     /// truncating risks asymmetry — use `fftSize` (not `nil`) with
     /// `outputLength == nil`.
-    public var outputLength: Int?
+    var outputLength: Int?
     /// Floor for the magnitude before `log()` — guards against
     /// `log(0)` for nulls in the desired response. Expressed as dB
     /// below 0 dB FS. The default (`−80 dB`) clips the deepest
     /// realistic magnitude before it drives the cepstrum unstable.
-    public var floorDB: Double
+    var floorDB: Double
     /// Pre-amp applied to the entire response before design. Useful
     /// when the chain has gain peaks ≥ 0 dB and you want headroom in
     /// the IR; matches the `EQPreset.preampGain` convention.
-    public var preampDB: Double
+    var preampDB: Double
 
-    public init(
+    init(
       fftSize: Int = 8192,
       outputLength: Int? = nil,
       floorDB: Double = -80,
@@ -83,7 +83,7 @@ public enum FIRDesign {
   /// Build a minimum-phase, causal real IR whose magnitude response
   /// matches the chain at every FFT bin. See file header for the
   /// algorithm.
-  public static func minimumPhase(
+  static func minimumPhase(
     from biquads: [BiquadParameters],
     sampleRate: Int,
     options: Options = Options()
@@ -149,7 +149,7 @@ public enum FIRDesign {
   /// the chain. The IR is symmetric around index `(n − 1) / 2`, so
   /// the group delay is constant at `n / 2` samples. Pre-ring is the
   /// well-known cost of constant group delay.
-  public static func linearPhase(
+  static func linearPhase(
     from biquads: [BiquadParameters],
     sampleRate: Int,
     options: Options = Options()
@@ -205,7 +205,7 @@ public enum FIRDesign {
   ///   - designSampleRate: rate the resulting IR will be deployed
   ///     at. Determines the design FFT bin spacing.
   ///   - options: design FFT length, gain caps, correction band.
-  public static func fromMeasurement(
+  static func fromMeasurement(
     measured: FrequencyResponse,
     target: TargetCurve,
     designSampleRate: Int,
@@ -374,20 +374,20 @@ public enum FIRDesign {
   /// Tuning knobs for `fromMeasurement`. Separate type so the
   /// regular `Options` doesn't carry parameters that only apply to
   /// the measurement-driven path.
-  public struct MeasurementDesignOptions: Sendable {
-    public var fftSize: Int
-    public var floorDB: Double
-    public var preampDB: Double
+  struct MeasurementDesignOptions: Sendable {
+    var fftSize: Int
+    var floorDB: Double
+    var preampDB: Double
     /// Cap on per-frequency boost. Real measurements have nulls
     /// (modal cancellations) where `target / measured` is huge —
     /// the cap keeps the IR from chasing them with absurd boosts
     /// the speaker / amp can't deliver anyway.
-    public var maxBoostDB: Double
+    var maxBoostDB: Double
     /// Correction band. Outside `[minFreqHz, maxFreqHz]` the IR
     /// passes through at preamp gain (no correction). The
     /// edges are cosine-tapered over half an octave.
-    public var minFreqHz: Double
-    public var maxFreqHz: Double
+    var minFreqHz: Double
+    var maxFreqHz: Double
     /// Blend between minimum-phase (0.0) and linear-phase (1.0)
     /// reconstruction. `0.0` produces a causal IR with the cepstral
     /// min-phase angle paired with the desired magnitude — ~zero
@@ -396,9 +396,9 @@ public enum FIRDesign {
     /// full magnitude+phase correction. Intermediate values
     /// linearly blend the two phase responses, trading pre-ring on
     /// transients for shorter latency.
-    public var phaseBlend: Double
+    var phaseBlend: Double
 
-    public init(
+    init(
       fftSize: Int = 8192,
       floorDB: Double = -60,
       preampDB: Double = -6,

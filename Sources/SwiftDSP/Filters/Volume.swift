@@ -2,8 +2,8 @@ import Accelerate
 import DSPConfig
 import Foundation
 
-public final class VolumeFilter: Filter {
-  public let name: String
+final class VolumeFilter: Filter {
+  let name: String
   private var fader: Fader
   private var volumeLimit: Double
   private let chunkSize: Int
@@ -20,9 +20,9 @@ public final class VolumeFilter: Filter {
   // Pre-allocated ramp gains for the current chunk to avoid heap allocation on the hot path
   private var currentRampGains: UnsafeMutablePointer<Double>
 
-  public var processingParameters: ProcessingParameters?
+  var processingParameters: ProcessingParameters?
 
-  public init(
+  init(
     name: String = "volume",
     parameters: VolumeParameters = VolumeParameters(),
     sampleRate: Int,
@@ -63,7 +63,7 @@ public final class VolumeFilter: Filter {
 
   /// Pre-calculates target volume levels and generates ramping array once per chunk.
   /// Must be called once per audio chunk before processing individual channel waveforms.
-  public func prepareChunk() {
+  func prepareChunk() {
     guard let params = processingParameters else { return }
 
     let sharedVol = params.targetVolume(for: fader)
@@ -90,7 +90,7 @@ public final class VolumeFilter: Filter {
   }
 
   /// Conforms to `Filter`. Processes a single channel's waveform slice.
-  public func process(waveform: MutableWaveform) {
+  func process(waveform: MutableWaveform) {
     let count = waveform.count
     guard count > 0 else { return }
 
@@ -116,7 +116,7 @@ public final class VolumeFilter: Filter {
 
   /// Advances the fader's ramp steps.
   /// Must be called once per audio chunk after all channels have been processed.
-  public func advanceRamp() {
+  func advanceRamp() {
     guard rampStep > 0 else { return }
 
     if chunkSize > 0 {
@@ -146,7 +146,7 @@ public final class VolumeFilter: Filter {
     }
   }
 
-  public func updateParameters(_ config: FilterConfig, sampleRate: Int) {
+  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
     guard case .volume(let parameters) = config else { return }
     fader = parameters.fader ?? .main
     let rampTimeMs = parameters.rampTime ?? 400.0

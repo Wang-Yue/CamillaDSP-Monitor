@@ -25,25 +25,25 @@ internal enum AudioHistoryBufferError: Error, Sendable, CustomStringConvertible 
 
 /// Maximum number of frames retained per channel. At 48 kHz that's roughly 5.5 s of audio
 /// — enough headroom for an FFT down to ~5 Hz.
-public let kRingBufferCapacity = 262_144
+let kRingBufferCapacity = 262_144
 
 /// Owns one `SPSCAudioRingBuffer` per channel for one side (capture or
 /// playback) of the engine. Resized only between engine starts, when no
 /// audio thread is running. Read by consumers via `readLatest(...)`
 /// (snapshot semantics — same window can be re-read for FFTs at
 /// different lengths), optionally averaging across channels.
-public final class AudioHistoryBuffer: @unchecked Sendable {
-  public private(set) var channels: Int = 0
+final class AudioHistoryBuffer: @unchecked Sendable {
+  private(set) var channels: Int = 0
   private var buffers: [SPSCAudioRingBuffer] = []
   /// Preallocated scratch used by the consumer to average channels
   /// without per-call heap traffic. Sized to the ring's capacity.
   private var averagingScratch: UnsafeMutableBufferPointer<Float>?
 
-  public init() {}
+  init() {}
 
   /// Re-allocate buffers for a new channel layout. Must only be called
   /// while the engine is stopped (no producer touching the ring).
-  public func reset(channels: Int) {
+  func reset(channels: Int) {
     self.channels = channels
     self.buffers = (0..<channels).map { _ in
       SPSCAudioRingBuffer(minimumCapacity: kRingBufferCapacity)
@@ -62,14 +62,14 @@ public final class AudioHistoryBuffer: @unchecked Sendable {
   }
 
   /// Whether any sample has been written on this side yet.
-  public var hasData: Bool {
+  var hasData: Bool {
     for buffer in buffers where buffer.totalSamplesWritten > 0 { return true }
     return false
   }
 
   /// **Producer-only.** Forward each channel's waveform into the matching
   /// lock-free ring.
-  public func append(chunk: AudioChunk) {
+  func append(chunk: AudioChunk) {
     guard chunk.channels == channels, channels > 0 else { return }
     let valid = chunk.validFrames
     guard valid > 0 else { return }
@@ -86,7 +86,7 @@ public final class AudioHistoryBuffer: @unchecked Sendable {
   /// yet.
   ///
   /// `dest` must have capacity for at least `count` Floats.
-  public func readLatest(
+  func readLatest(
     into dest: UnsafeMutablePointer<Float>,
     count: Int,
     channel: Int?

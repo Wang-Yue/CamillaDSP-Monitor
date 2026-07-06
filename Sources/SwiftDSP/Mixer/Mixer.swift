@@ -23,12 +23,12 @@ enum MixerError: Error, Sendable, CustomStringConvertible {
 }
 
 /// Mixer that changes channel count and routes/sums audio between channels.
-public final class AudioMixer {
+final class AudioMixer {
 
-  public let chunkSize: Int
-  public let name: String
-  public let channelsIn: Int
-  public let channelsOut: Int
+  let chunkSize: Int
+  let name: String
+  let channelsIn: Int
+  let channelsOut: Int
 
   private struct PreparedSource {
     let inChannel: Int
@@ -36,7 +36,7 @@ public final class AudioMixer {
   }
   private var mapping: [[PreparedSource]]
 
-  public init(name: String = "mixer", config: MixerConfig, chunkSize: Int) {
+  init(name: String = "mixer", config: MixerConfig, chunkSize: Int) {
     self.name = name
     self.chunkSize = chunkSize
     self.channelsIn = config.channelsIn
@@ -76,7 +76,7 @@ public final class AudioMixer {
   /// `input` and `output` must reference distinct buffers — the mixer
   /// accumulates into the output and reads input concurrently, so aliasing
   /// would corrupt the result.
-  public func process(input: AudioChunk, into output: inout AudioChunk) throws {
+  func process(input: AudioChunk, into output: inout AudioChunk) throws {
     let frames = input.validFrames
     guard frames <= chunkSize else {
       throw MixerError.inputSizeMismatch(needed: chunkSize, got: frames)
@@ -112,7 +112,7 @@ public final class AudioMixer {
     output.validFrames = frames
   }
 
-  public func updateParameters(_ config: MixerConfig) {
+  func updateParameters(_ config: MixerConfig) {
     self.mapping = [[PreparedSource]](repeating: [], count: config.channelsOut)
 
     for map in config.mapping {

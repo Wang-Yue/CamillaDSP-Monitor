@@ -25,7 +25,7 @@
 
 import Foundation
 
-public enum SweepGenerator {
+enum SweepGenerator {
 
   /// Generate a logarithmic sine sweep from `f1` Hz to `f2` Hz over
   /// `durationSeconds`, optionally with raised-cosine fade-in /
@@ -35,7 +35,7 @@ public enum SweepGenerator {
   /// expected to apply playback gain reduction (typically −6 to −12 dB
   /// FS) before sending to the DAC, leaving headroom for the room's
   /// added energy and avoiding clipping in the analog chain.
-  public static func generate(
+  static func generate(
     f1: Double,
     f2: Double,
     durationSeconds: Double,
@@ -79,7 +79,7 @@ public enum SweepGenerator {
   /// at sample index `T · sampleRate` (i.e. at the end of where the
   /// inverse-filter contribution finishes feeding into the
   /// convolution).
-  public static func inverseFilter(
+  static func inverseFilter(
     f1: Double,
     f2: Double,
     durationSeconds: Double,
@@ -108,7 +108,7 @@ public enum SweepGenerator {
   /// Convenience: generate both the sweep and its inverse with a
   /// single call (the inverse-filter computation is cheap, but bundling
   /// keeps callers from accidentally passing mismatched parameters).
-  public static func sweepAndInverse(
+  static func sweepAndInverse(
     f1: Double,
     f2: Double,
     durationSeconds: Double,

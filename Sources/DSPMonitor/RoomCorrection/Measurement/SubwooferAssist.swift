@@ -26,33 +26,33 @@
 import DSPConfig
 import Foundation
 
-public struct SubwooferRecommendation: Sendable {
+struct SubwooferRecommendation: Sendable {
   /// Delay to add to the subwoofer signal so its arrival aligns
   /// with the mains at the listening position. Positive ⇒ delay the
   /// sub; negative ⇒ delay the mains by `|value|` instead.
-  public let subDelayMs: Double
+  let subDelayMs: Double
   /// Suggested crossover frequency. Both filters use this as their
   /// −3 dB corner.
-  public let crossoverHz: Double
+  let crossoverHz: Double
   /// High-pass biquad parameters for the mains.
-  public let mainsHighPass: BiquadParameters
+  let mainsHighPass: BiquadParameters
   /// Low-pass biquad parameters for the sub.
-  public let subLowPass: BiquadParameters
+  let subLowPass: BiquadParameters
   /// Confidence indicator — 0 (don't trust this) to 1 (clean
   /// crossover region detected). Drops when there's no overlap to
   /// pick a frequency in, or when the cross-correlation peak is
   /// ambiguous.
-  public let confidence: Double
+  let confidence: Double
   /// Plain-text rationale the UI surfaces alongside the numbers
   /// (why this crossover, what to watch out for, etc.).
-  public let summary: String
+  let summary: String
 }
 
-public enum SubwooferAssist {
+enum SubwooferAssist {
 
   /// Recommend crossover + delay settings from a sub-only and
   /// mains-only impulse response measured at the same position.
-  public static func recommend(
+  static func recommend(
     mainsIR: ImpulseResponse,
     subIR: ImpulseResponse
   ) -> SubwooferRecommendation? {

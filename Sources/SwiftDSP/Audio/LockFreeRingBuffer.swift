@@ -54,10 +54,10 @@ import Synchronization
 ///     most-recent `count` samples without advancing any cursor.
 ///     The same samples can be re-read across calls. Used by
 ///     `SpectrumAnalyzer` to feed FFTs at different lengths.
-public final class SPSCAudioRingBuffer: @unchecked Sendable {
+final class SPSCAudioRingBuffer: @unchecked Sendable {
 
   /// Capacity in samples (always a power of two).
-  public let capacity: Int
+  let capacity: Int
 
   private let mask: Int
   private let storage: UnsafeMutableBufferPointer<Float>
@@ -72,7 +72,7 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// this entirely.
   private let readIndex = Atomic<UInt64>(0)
 
-  public init(minimumCapacity: Int) {
+  init(minimumCapacity: Int) {
     let cap = SPSCAudioRingBuffer.roundUpToPowerOfTwo(Swift.max(2, minimumCapacity))
     self.capacity = cap
     self.mask = cap - 1
@@ -92,13 +92,13 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// Total samples written since allocation. Observed with
   /// `.relaxed`; callers that need happens-before with the
   /// payload should use `consume` or `readLatest` instead.
-  public var totalSamplesWritten: UInt64 {
+  var totalSamplesWritten: UInt64 {
     writeIndex.load(ordering: .relaxed)
   }
 
   /// Number of samples currently waiting to be consumed (for
   /// consume-style use). Always non-negative.
-  public var availableToRead: Int {
+  var availableToRead: Int {
     let w = writeIndex.load(ordering: .acquiring)
     let r = readIndex.load(ordering: .relaxed)
     return Int(w &- r)
@@ -112,7 +112,7 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// channels`); pass `1` for non-interleaved input. Always
   /// succeeds — if the consumer is too far behind the oldest
   /// unread data is silently overwritten.
-  public func write(source: UnsafePointer<Float>, count: Int, stride: Int = 1) {
+  func write(source: UnsafePointer<Float>, count: Int, stride: Int = 1) {
     guard count > 0 else { return }
     var src = source
     var cnt = count
@@ -156,7 +156,7 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// into the ring. Used by the spectrum-analyzer tap, which feeds
   /// engine-precision `Double` samples into a half-precision ring
   /// to halve memory.
-  public func appendConvertingDoubleToFloat(_ source: UnsafePointer<Double>, count: Int) {
+  func appendConvertingDoubleToFloat(_ source: UnsafePointer<Double>, count: Int) {
     guard count > 0 else { return }
     var src = source
     var cnt = count
@@ -180,7 +180,7 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// **Producer-only.** Write `count` zeros into the ring.
   /// Always succeeds — if the consumer is too far behind the oldest
   /// unread data is silently overwritten.
-  public func writeSilence(count: Int) {
+  func writeSilence(count: Int) {
     guard count > 0 else { return }
     var cnt = count
     if cnt > capacity {
@@ -205,7 +205,7 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// available, in which case the remainder of `dest` is left
   /// untouched and the caller should fill it with silence.
   @discardableResult
-  public func consume(into dest: UnsafeMutablePointer<Float>, count: Int) -> Int {
+  func consume(into dest: UnsafeMutablePointer<Float>, count: Int) -> Int {
     guard count > 0 else { return 0 }
     var r = readIndex.load(ordering: .relaxed)
     let w = writeIndex.load(ordering: .acquiring)
@@ -235,7 +235,7 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// **Consumer-only.** Discard any pending samples without
   /// copying. Useful when the consumer wants to re-sync after a
   /// long stall.
-  public func drain() {
+  func drain() {
     let w = writeIndex.load(ordering: .acquiring)
     readIndex.store(w, ordering: .releasing)
   }
@@ -254,12 +254,12 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// headroom — orders of magnitude longer than the consumer
   /// takes — so the snapshot is effectively atomic and we don't
   /// pay for a seqlock retry loop.
-  public func readLatest(into dest: UnsafeMutablePointer<Float>, count: Int) -> Bool {
+  func readLatest(into dest: UnsafeMutablePointer<Float>, count: Int) -> Bool {
     let written = writeIndex.load(ordering: .acquiring)
     return readLatest(into: dest, count: count, atWrittenIndex: written)
   }
 
-  public func readLatest(
+  func readLatest(
     into dest: UnsafeMutablePointer<Float>,
     count: Int,
     atWrittenIndex written: UInt64
@@ -293,9 +293,9 @@ public final class SPSCAudioRingBuffer: @unchecked Sendable {
 /// Power-of-two capacity. Slots store `Optional<T>` so the consumer
 /// can clear back to `nil` on dequeue, dropping the ARC retain on
 /// any class fields the value contains.
-public final class SPSCQueue<T>: @unchecked Sendable {
+final class SPSCQueue<T>: @unchecked Sendable {
 
-  public let capacity: Int
+  let capacity: Int
 
   private let mask: Int
   /// Slot storage. Each slot holds `nil` when empty; the producer
@@ -306,7 +306,7 @@ public final class SPSCQueue<T>: @unchecked Sendable {
   private let writeIndex = Atomic<UInt64>(0)
   private let readIndex = Atomic<UInt64>(0)
 
-  public init(minimumCapacity: Int) {
+  init(minimumCapacity: Int) {
     let cap = SPSCAudioRingBuffer.roundUpToPowerOfTwo(Swift.max(2, minimumCapacity))
     self.capacity = cap
     self.mask = cap - 1
@@ -325,7 +325,7 @@ public final class SPSCQueue<T>: @unchecked Sendable {
 
   /// Number of currently-queued items. Approximate when read from a
   /// thread that is neither the producer nor the consumer.
-  public var count: Int {
+  var count: Int {
     let w = writeIndex.load(ordering: .acquiring)
     let r = readIndex.load(ordering: .relaxed)
     return Int(w &- r)
@@ -334,7 +334,7 @@ public final class SPSCQueue<T>: @unchecked Sendable {
   /// **Producer-only.** Append `value`; returns `false` (without
   /// storing it) when the queue is at capacity. The caller decides
   /// what to do — drop, log, or retry.
-  public func enqueue(_ value: sending T) -> Bool {
+  func enqueue(_ value: sending T) -> Bool {
     let w = writeIndex.load(ordering: .relaxed)
     let r = readIndex.load(ordering: .acquiring)
     if w &- r >= UInt64(capacity) { return false }
@@ -344,7 +344,7 @@ public final class SPSCQueue<T>: @unchecked Sendable {
   }
 
   /// **Consumer-only.** Pop the next item; returns `nil` when empty.
-  public func dequeue() -> sending T? {
+  func dequeue() -> sending T? {
     let r = readIndex.load(ordering: .relaxed)
     let w = writeIndex.load(ordering: .acquiring)
     if r == w { return nil }
@@ -356,7 +356,7 @@ public final class SPSCQueue<T>: @unchecked Sendable {
   }
 
   /// **Consumer-only.** Discard all queued items.
-  public func drain() {
+  func drain() {
     while dequeue() != nil {}
   }
 }
