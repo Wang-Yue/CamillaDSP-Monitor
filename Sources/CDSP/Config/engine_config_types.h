@@ -317,8 +317,8 @@ typedef struct {
 } playback_device_config_t;
 
 typedef struct {
-    int samplerate;
-    int chunksize;
+    size_t samplerate;
+    size_t chunksize;
     bool enable_rate_adjust;
     bool has_enable_rate_adjust;
     int target_level;
@@ -330,7 +330,7 @@ typedef struct {
     capture_device_config_t capture;
     playback_device_config_t playback;
     /// Capture sample rate when different from playback (requires resampler)
-    int capture_samplerate;
+    size_t capture_samplerate;
     bool has_capture_samplerate;
     /// Silence detection threshold (dB). 0 = disabled.
     double silence_threshold;
@@ -356,7 +356,7 @@ typedef struct {
 
 void capture_device_config_init(capture_device_config_t* config, audio_backend_type_t type, int channels);
 void playback_device_config_init(playback_device_config_t* config, audio_backend_type_t type, int channels);
-void devices_config_init(devices_config_t* config, int samplerate, int chunksize, capture_device_config_t capture, playback_device_config_t playback);
+void devices_config_init(devices_config_t* config, size_t samplerate, size_t chunksize, capture_device_config_t capture, playback_device_config_t playback);
 
 #ifdef __cplusplus
 }

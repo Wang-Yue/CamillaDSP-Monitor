@@ -298,7 +298,7 @@ void playback_device_config_init(playback_device_config_t* config, audio_backend
 /// Capture sample rate when different from playback (requires resampler)
 /// Silence detection threshold (dB). 0 = disabled.
 /// Silence detection timeout (seconds). 0 = disabled.
-void devices_config_init(devices_config_t* config, int samplerate, int chunksize, capture_device_config_t capture, playback_device_config_t playback) {
+void devices_config_init(devices_config_t* config, size_t samplerate, size_t chunksize, capture_device_config_t capture, playback_device_config_t playback) {
     if (!config) return;
     memset(config, 0, sizeof(devices_config_t));
     config->samplerate = samplerate;

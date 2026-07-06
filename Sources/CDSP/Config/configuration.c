@@ -51,11 +51,11 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     if (!config) return 0;
     
     // Top level checks
-    if (config->devices.samplerate <= 0) {
+    if (config->devices.samplerate == 0) {
         config_error_set(err, CONFIG_ERR_VALIDATION, "Sample rate must be positive");
         return -1;
     }
-    if (config->devices.chunksize <= 0) {
+    if (config->devices.chunksize == 0) {
         config_error_set(err, CONFIG_ERR_VALIDATION, "Chunk size must be positive");
         return -1;
     }
@@ -302,8 +302,10 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
     }
     
     const char* json_end = json + strlen(json);
-    config->devices.samplerate = extract_int_in_range(json, json_end, "\"samplerate\"", 0);
-    config->devices.chunksize = extract_int_in_range(json, json_end, "\"chunksize\"", 0);
+    int parsed_sr = extract_int_in_range(json, json_end, "\"samplerate\"", 0);
+    config->devices.samplerate = parsed_sr > 0 ? (size_t)parsed_sr : 0;
+    int parsed_cs = extract_int_in_range(json, json_end, "\"chunksize\"", 0);
+    config->devices.chunksize = parsed_cs > 0 ? (size_t)parsed_cs : 0;
     config->devices.queuelimit = extract_int_in_range(json, json_end, "\"queuelimit\"", 0);
     config->devices.has_queuelimit = (config->devices.queuelimit > 0);
     config->devices.enable_rate_adjust = extract_bool_in_range(json, json_end, "\"enable_rate_adjust\"", false);
@@ -316,8 +318,9 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
     config->devices.has_silence_threshold = (config->devices.silence_threshold != 0.0);
     config->devices.silence_timeout = extract_double_in_range(json, json_end, "\"silence_timeout\"", 0.0);
     config->devices.has_silence_timeout = (config->devices.silence_timeout > 0.0);
-    config->devices.capture_samplerate = extract_int_in_range(json, json_end, "\"capture_samplerate\"", 0);
-    config->devices.has_capture_samplerate = (config->devices.capture_samplerate > 0);
+    int parsed_cap_sr = extract_int_in_range(json, json_end, "\"capture_samplerate\"", 0);
+    config->devices.capture_samplerate = parsed_cap_sr > 0 ? (size_t)parsed_cap_sr : 0;
+    config->devices.has_capture_samplerate = (parsed_cap_sr > 0);
     config->devices.volume_ramp_time = extract_double_in_range(json, json_end, "\"volume_ramp_time\"", 0.0);
     config->devices.has_volume_ramp_time = (config->devices.volume_ramp_time > 0.0);
     config->devices.volume_limit = extract_double_in_range(json, json_end, "\"volume_limit\"", 0.0);

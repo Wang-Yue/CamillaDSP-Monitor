@@ -232,7 +232,7 @@ spectrum_status_t dsp_engine_get_spectrum(
 ) {
     if (!engine || !engine->core || !engine->spectrum) return SPECTRUM_ERROR_EMPTY;
     audio_history_buffer_t* buf = is_capture ? engine->capture_buffer : engine->playback_buffer;
-    size_t samplerate = (size_t)engine->core->current_config->devices.samplerate;
+    size_t samplerate = engine->core->current_config->devices.samplerate;
     return spectrum_analyzer_compute(engine->spectrum, buf, channel, min_freq, max_freq, n_bins, samplerate, out_result);
 }
 

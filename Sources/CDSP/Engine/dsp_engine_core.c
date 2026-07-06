@@ -132,8 +132,8 @@ bool dsp_engine_core_start(dsp_engine_core_t* core, audio_backend_error_t* err) 
     // with a non-1:1 base ratio. When unset both rates collapse
     // to `samplerate` and any resampler runs at 1:1 (used solely
     // as a drift-correction surface for rate-adjust).
-    size_t pipeline_rate = (size_t)core->current_config->devices.samplerate;
-    size_t capture_rate = core->current_config->devices.has_capture_samplerate ? (size_t)core->current_config->devices.capture_samplerate : pipeline_rate;
+    size_t pipeline_rate = core->current_config->devices.samplerate;
+    size_t capture_rate = core->current_config->devices.has_capture_samplerate ? core->current_config->devices.capture_samplerate : pipeline_rate;
 
     // Create the resampler first so we can adopt its (possibly
     // rounded) chunk size before opening the audio devices.
@@ -149,7 +149,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core, audio_backend_error_t* err) 
     // honour that rounded value or `process(input:into:)` will
     // throw `inputSizeMismatch`. The async resamplers don't round,
     // so this is a no-op for them.
-    size_t requested_chunk_size = (size_t)core->current_config->devices.chunksize;
+    size_t requested_chunk_size = core->current_config->devices.chunksize;
     size_t capture_chunk_size = core->resampler ? audio_resampler_get_chunk_size(core->resampler) : requested_chunk_size;
     size_t playback_chunk_size = core->resampler ? audio_resampler_get_max_output_frames(core->resampler) : capture_chunk_size;
     core->effective_playback_chunk_size = playback_chunk_size;
