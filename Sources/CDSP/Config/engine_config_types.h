@@ -91,16 +91,18 @@ typedef struct {
 } audio_samples_t;
 
 // MARK: - Capability data model
+#if defined(__APPLE__)
 typedef enum {
-    SAMPLE_FORMAT_S16 = 0,
-    SAMPLE_FORMAT_S24,
-    SAMPLE_FORMAT_S32,
-    SAMPLE_FORMAT_F32,
-    SAMPLE_FORMAT_INVALID = -1
-} sample_format_t;
+    COREAUDIO_SAMPLE_FORMAT_S16 = 0,
+    COREAUDIO_SAMPLE_FORMAT_S24,
+    COREAUDIO_SAMPLE_FORMAT_S32,
+    COREAUDIO_SAMPLE_FORMAT_F32,
+    COREAUDIO_SAMPLE_FORMAT_INVALID = -1
+} coreaudio_sample_format_t;
 
-const char* sample_format_to_string(sample_format_t fmt);
-sample_format_t sample_format_from_string(const char* str);
+const char* coreaudio_sample_format_to_string(coreaudio_sample_format_t fmt);
+coreaudio_sample_format_t coreaudio_sample_format_from_string(const char* str);
+#endif
 
 typedef struct {
     int samplerate;
@@ -158,11 +160,40 @@ typedef enum {
 const char* sdm_filter_to_string(sdm_filter_t filter);
 sdm_filter_t sdm_filter_from_string(const char* str);
 
+#if defined(__linux__)
+typedef enum {
+    ALSA_SAMPLE_FORMAT_S16_LE = 0,
+    ALSA_SAMPLE_FORMAT_S24_3_LE,
+    ALSA_SAMPLE_FORMAT_S24_4_LE,
+    ALSA_SAMPLE_FORMAT_S32_LE,
+    ALSA_SAMPLE_FORMAT_F32_LE,
+    ALSA_SAMPLE_FORMAT_F64_LE,
+    ALSA_SAMPLE_FORMAT_INVALID = -1
+} alsa_sample_format_t;
+
+const char* alsa_sample_format_to_string(alsa_sample_format_t fmt);
+alsa_sample_format_t alsa_sample_format_from_string(const char* str);
+#endif
+
 typedef struct {
     audio_backend_type_t type;
     int channels;
     char device[256];
     bool has_device;
+#if defined(__linux__)
+    alsa_sample_format_t format;
+#else
+    coreaudio_sample_format_t format;
+#endif
+    bool has_format;
+#if defined(__linux__)
+    bool stop_on_inactive;
+    bool has_stop_on_inactive;
+    char link_volume_control[256];
+    bool has_link_volume_control;
+    char link_mute_control[256];
+    bool has_link_mute_control;
+#endif
     /// If true, bypass DoP detection and handle signal strictly as PCM. Default is false.
     bool bypass_dop;
     bool has_bypass_dop;
@@ -178,6 +209,12 @@ typedef struct {
     int channels;
     char device[256];
     bool has_device;
+#if defined(__linux__)
+    alsa_sample_format_t format;
+#else
+    coreaudio_sample_format_t format;
+#endif
+    bool has_format;
     bool exclusive;
     bool has_exclusive;
     bool output_dop;

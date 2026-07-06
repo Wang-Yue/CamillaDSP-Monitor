@@ -27,6 +27,57 @@ TEST(DSPEngineSetConfigAndReload) {
     dsp_engine_t* engine = dsp_engine_create();
     ASSERT_TRUE(engine != NULL);
 
+#if defined(__linux__)
+    const char* json1 = "{\n"
+        "    \"devices\": {\n"
+        "        \"samplerate\": 44100,\n"
+        "        \"chunksize\": 1024,\n"
+        "        \"capture\": {\n"
+        "            \"type\": \"Alsa\",\n"
+        "            \"device\": \"null\",\n"
+        "            \"channels\": 2\n"
+        "        },\n"
+        "        \"playback\": {\n"
+        "            \"type\": \"Alsa\",\n"
+        "            \"device\": \"null\",\n"
+        "            \"channels\": 2\n"
+        "        }\n"
+        "    }\n"
+        "}";
+
+    const char* json2 = "{\n"
+        "    \"devices\": {\n"
+        "        \"samplerate\": 44100,\n"
+        "        \"chunksize\": 1024,\n"
+        "        \"capture\": {\n"
+        "            \"type\": \"Alsa\",\n"
+        "            \"device\": \"null\",\n"
+        "            \"channels\": 2\n"
+        "        },\n"
+        "        \"playback\": {\n"
+        "            \"type\": \"Alsa\",\n"
+        "            \"device\": \"null\",\n"
+        "            \"channels\": 2\n"
+        "        }\n"
+        "    },\n"
+        "    \"mixers\": [{\n"
+        "        \"name\": \"mymixer\",\n"
+        "        \"channels_in\": 2,\n"
+        "        \"channels_out\": 2,\n"
+        "        \"mapping\": [{\n"
+        "            \"dest\": 0,\n"
+        "            \"sources\": [{\"channel\": 0, \"gain\": 0.0, \"inverted\": false, \"mute\": false}]\n"
+        "        }, {\n"
+        "            \"dest\": 1,\n"
+        "            \"sources\": [{\"channel\": 1, \"gain\": 0.0, \"inverted\": false, \"mute\": false}]\n"
+        "        }]\n"
+        "    }],\n"
+        "    \"pipeline\": [{\n"
+        "        \"type\": \"Mixer\",\n"
+        "        \"name\": \"mymixer\"\n"
+        "    }]\n"
+        "}";
+#else
     const char* json1 = "{\n"
         "    \"devices\": {\n"
         "        \"samplerate\": 44100,\n"
@@ -72,6 +123,7 @@ TEST(DSPEngineSetConfigAndReload) {
         "        \"name\": \"mymixer\"\n"
         "    }]\n"
         "}";
+#endif
 
     audio_backend_error_t err;
     dsp_engine_set_config(engine, json1, &err);

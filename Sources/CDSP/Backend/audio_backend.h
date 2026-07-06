@@ -87,11 +87,13 @@ struct playback_backend {
     const playback_backend_vtable_t* vtable;
 };
 
+typedef struct processing_parameters processing_parameters_t;
+
 // Factory functions
 /// Create a capture backend instance based on the configuration.
-capture_backend_t* create_capture_backend(const capture_device_config_t* config, int sample_rate, int chunk_size, backend_error_t* err);
+capture_backend_t* create_capture_backend(const capture_device_config_t* config, int sample_rate, int chunk_size, processing_parameters_t* params, backend_error_t* err);
 /// Create a playback backend instance based on the configuration.
-playback_backend_t* create_playback_backend(const playback_device_config_t* config, int sample_rate, int chunk_size, backend_error_t* err);
+playback_backend_t* create_playback_backend(const playback_device_config_t* config, int sample_rate, int chunk_size, processing_parameters_t* params, backend_error_t* err);
 
 // CaptureBackend wrapper methods
 /// Open the capture device

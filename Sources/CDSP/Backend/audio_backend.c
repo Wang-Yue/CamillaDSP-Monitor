@@ -14,7 +14,7 @@
 #include <stdlib.h>
 
 /// Create a capture backend instance based on the configuration.
-capture_backend_t* create_capture_backend(const capture_device_config_t* config, int sample_rate, int chunk_size, backend_error_t* err) {
+capture_backend_t* create_capture_backend(const capture_device_config_t* config, int sample_rate, int chunk_size, processing_parameters_t* params, backend_error_t* err) {
     if (!config) {
         if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "Config is NULL");
         return NULL;
@@ -25,7 +25,7 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
             return core_audio_capture_create(config, sample_rate, chunk_size, err);
 #elif defined(__linux__)
         case AUDIO_BACKEND_TYPE_ALSA:
-            return alsa_capture_create(config, sample_rate, chunk_size, err);
+            return alsa_capture_create(config, sample_rate, chunk_size, params, err);
 #elif defined(_WIN32)
         case AUDIO_BACKEND_TYPE_WASAPI:
             if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "WASAPI is not implemented yet");
@@ -38,7 +38,7 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
 }
 
 /// Create a playback backend instance based on the configuration.
-playback_backend_t* create_playback_backend(const playback_device_config_t* config, int sample_rate, int chunk_size, backend_error_t* err) {
+playback_backend_t* create_playback_backend(const playback_device_config_t* config, int sample_rate, int chunk_size, processing_parameters_t* params, backend_error_t* err) {
     if (!config) {
         if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "Config is NULL");
         return NULL;
@@ -49,7 +49,7 @@ playback_backend_t* create_playback_backend(const playback_device_config_t* conf
             return core_audio_playback_create(config, sample_rate, chunk_size, err);
 #elif defined(__linux__)
         case AUDIO_BACKEND_TYPE_ALSA:
-            return alsa_playback_create(config, sample_rate, chunk_size, err);
+            return alsa_playback_create(config, sample_rate, chunk_size, params, err);
 #elif defined(_WIN32)
         case AUDIO_BACKEND_TYPE_WASAPI:
             if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "WASAPI is not implemented yet");

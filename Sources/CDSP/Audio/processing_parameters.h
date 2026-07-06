@@ -38,7 +38,7 @@ typedef enum {
 
 // MARK: - Storage
 
-typedef struct {
+typedef struct processing_parameters {
     /// Target volume (dB) for fader 0-4 — what the user has asked for. UI thread writes; VolumeFilter reads on every chunk.
     atomic_double_t target_volumes[FADER_COUNT];
     /// Current volume (dB) for fader 0-4 — tracking ramp progress.

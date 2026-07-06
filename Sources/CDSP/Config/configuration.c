@@ -382,6 +382,25 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
         if (extract_string_in_range(cap_pos, cap_end, "\"device\"", config->devices.capture.device, sizeof(config->devices.capture.device))) {
             config->devices.capture.has_device = true;
         }
+        char fmt_str[64];
+        if (extract_string_in_range(cap_pos, cap_end, "\"format\"", fmt_str, sizeof(fmt_str))) {
+#if defined(__linux__)
+            config->devices.capture.format = alsa_sample_format_from_string(fmt_str);
+#else
+            config->devices.capture.format = sample_format_from_string(fmt_str);
+#endif
+            config->devices.capture.has_format = true;
+        }
+#if defined(__linux__)
+        config->devices.capture.stop_on_inactive = extract_bool_in_range(cap_pos, cap_end, "\"stop_on_inactive\"", false);
+        config->devices.capture.has_stop_on_inactive = true;
+        if (extract_string_in_range(cap_pos, cap_end, "\"link_volume_control\"", config->devices.capture.link_volume_control, sizeof(config->devices.capture.link_volume_control))) {
+            config->devices.capture.has_link_volume_control = true;
+        }
+        if (extract_string_in_range(cap_pos, cap_end, "\"link_mute_control\"", config->devices.capture.link_mute_control, sizeof(config->devices.capture.link_mute_control))) {
+            config->devices.capture.has_link_mute_control = true;
+        }
+#endif
         config->devices.capture.bypass_dop = extract_bool_in_range(cap_pos, cap_end, "\"bypass_dop\"", false);
         config->devices.capture.has_bypass_dop = true;
         config->devices.capture.dop_cutoff_hz = extract_double_in_range(cap_pos, cap_end, "\"dop_cutoff_hz\"", 20000.0);
@@ -401,6 +420,15 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
 #endif
         if (extract_string_in_range(play_pos, play_end, "\"device\"", config->devices.playback.device, sizeof(config->devices.playback.device))) {
             config->devices.playback.has_device = true;
+        }
+        char fmt_str[64];
+        if (extract_string_in_range(play_pos, play_end, "\"format\"", fmt_str, sizeof(fmt_str))) {
+#if defined(__linux__)
+            config->devices.playback.format = alsa_sample_format_from_string(fmt_str);
+#else
+            config->devices.playback.format = sample_format_from_string(fmt_str);
+#endif
+            config->devices.playback.has_format = true;
         }
         config->devices.playback.exclusive = extract_bool_in_range(play_pos, play_end, "\"exclusive\"", false);
         config->devices.playback.has_exclusive = true;

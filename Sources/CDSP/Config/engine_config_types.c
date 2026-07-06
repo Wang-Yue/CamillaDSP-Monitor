@@ -75,24 +75,51 @@ void audio_backend_error_description(const audio_backend_error_t* err, char* out
 }
 
 // MARK: - Capability data model
-const char* sample_format_to_string(sample_format_t fmt) {
+#if defined(__APPLE__)
+const char* coreaudio_sample_format_to_string(coreaudio_sample_format_t fmt) {
     switch (fmt) {
-        case SAMPLE_FORMAT_S16: return "S16";
-        case SAMPLE_FORMAT_S24: return "S24";
-        case SAMPLE_FORMAT_S32: return "S32";
-        case SAMPLE_FORMAT_F32: return "F32";
+        case COREAUDIO_SAMPLE_FORMAT_S16: return "S16";
+        case COREAUDIO_SAMPLE_FORMAT_S24: return "S24";
+        case COREAUDIO_SAMPLE_FORMAT_S32: return "S32";
+        case COREAUDIO_SAMPLE_FORMAT_F32: return "F32";
         default: return "Invalid";
     }
 }
 
-sample_format_t sample_format_from_string(const char* str) {
-    if (!str) return SAMPLE_FORMAT_INVALID;
-    if (strcmp(str, "S16") == 0) return SAMPLE_FORMAT_S16;
-    if (strcmp(str, "S24") == 0) return SAMPLE_FORMAT_S24;
-    if (strcmp(str, "S32") == 0) return SAMPLE_FORMAT_S32;
-    if (strcmp(str, "F32") == 0) return SAMPLE_FORMAT_F32;
-    return SAMPLE_FORMAT_INVALID;
+coreaudio_sample_format_t coreaudio_sample_format_from_string(const char* str) {
+    if (!str) return COREAUDIO_SAMPLE_FORMAT_INVALID;
+    if (strcmp(str, "S16") == 0) return COREAUDIO_SAMPLE_FORMAT_S16;
+    if (strcmp(str, "S24") == 0) return COREAUDIO_SAMPLE_FORMAT_S24;
+    if (strcmp(str, "S32") == 0) return COREAUDIO_SAMPLE_FORMAT_S32;
+    if (strcmp(str, "F32") == 0) return COREAUDIO_SAMPLE_FORMAT_F32;
+    return COREAUDIO_SAMPLE_FORMAT_INVALID;
 }
+#endif
+
+#if defined(__linux__)
+const char* alsa_sample_format_to_string(alsa_sample_format_t fmt) {
+    switch (fmt) {
+        case ALSA_SAMPLE_FORMAT_S16_LE: return "S16_LE";
+        case ALSA_SAMPLE_FORMAT_S24_3_LE: return "S24_3_LE";
+        case ALSA_SAMPLE_FORMAT_S24_4_LE: return "S24_4_LE";
+        case ALSA_SAMPLE_FORMAT_S32_LE: return "S32_LE";
+        case ALSA_SAMPLE_FORMAT_F32_LE: return "F32_LE";
+        case ALSA_SAMPLE_FORMAT_F64_LE: return "F64_LE";
+        default: return "Invalid";
+    }
+}
+
+alsa_sample_format_t alsa_sample_format_from_string(const char* str) {
+    if (!str) return ALSA_SAMPLE_FORMAT_INVALID;
+    if (strcmp(str, "S16_LE") == 0) return ALSA_SAMPLE_FORMAT_S16_LE;
+    if (strcmp(str, "S24_3_LE") == 0) return ALSA_SAMPLE_FORMAT_S24_3_LE;
+    if (strcmp(str, "S24_4_LE") == 0) return ALSA_SAMPLE_FORMAT_S24_4_LE;
+    if (strcmp(str, "S32_LE") == 0) return ALSA_SAMPLE_FORMAT_S32_LE;
+    if (strcmp(str, "F32_LE") == 0) return ALSA_SAMPLE_FORMAT_F32_LE;
+    if (strcmp(str, "F64_LE") == 0) return ALSA_SAMPLE_FORMAT_F64_LE;
+    return ALSA_SAMPLE_FORMAT_INVALID;
+}
+#endif
 
 // MARK: - Device Config Models
 

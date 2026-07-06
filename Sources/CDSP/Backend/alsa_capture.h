@@ -14,7 +14,8 @@ extern "C" {
 
 typedef struct alsa_capture alsa_capture_t;
 
-capture_backend_t* alsa_capture_create(const capture_device_config_t* config, int sample_rate, int chunk_size, backend_error_t* err);
+typedef struct processing_parameters processing_parameters_t;
+capture_backend_t* alsa_capture_create(const capture_device_config_t* config, int sample_rate, int chunk_size, processing_parameters_t* params, backend_error_t* err);
 bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err);
 bool alsa_capture_read(alsa_capture_t* capture, size_t frames, audio_chunk_t* chunk, backend_error_t* err);
 void alsa_capture_close(alsa_capture_t* capture);

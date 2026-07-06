@@ -160,12 +160,12 @@ bool dsp_engine_core_start(dsp_engine_core_t* core, audio_backend_error_t* err) 
 
     backend_error_t berr;
     backend_error_init(&berr, BACKEND_ERROR_NONE, "");
-    core->capture = create_capture_backend(&core->current_config->devices.capture, (int)capture_rate, (int)capture_chunk_size, &berr);
+    core->capture = create_capture_backend(&core->current_config->devices.capture, (int)capture_rate, (int)capture_chunk_size, core->processing_params, &berr);
     if (!core->capture || berr.type != BACKEND_ERROR_NONE) {
         if (err) { err->type = AUDIO_BACKEND_ERR_COMMAND_SEND; snprintf(err->message, sizeof(err->message), "%s", berr.message); }
         return false;
     }
-    core->playback = create_playback_backend(&core->current_config->devices.playback, (int)pipeline_rate, (int)playback_chunk_size, &berr);
+    core->playback = create_playback_backend(&core->current_config->devices.playback, (int)pipeline_rate, (int)playback_chunk_size, core->processing_params, &berr);
     if (!core->playback || berr.type != BACKEND_ERROR_NONE) {
         if (err) { err->type = AUDIO_BACKEND_ERR_COMMAND_SEND; snprintf(err->message, sizeof(err->message), "%s", berr.message); }
         return false;

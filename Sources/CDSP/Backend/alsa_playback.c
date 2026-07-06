@@ -15,6 +15,10 @@ struct alsa_playback {
     int channels;
     int chunk_size;
 
+    bool has_format;
+    alsa_sample_format_t requested_format;
+    processing_parameters_t* params;
+
     snd_pcm_t* pcm;
     snd_pcm_format_t format;
     bool paused;
@@ -71,7 +75,7 @@ static const playback_backend_vtable_t ALSA_PLAYBACK_VTABLE = {
     .destroy = vtable_destroy
 };
 
-playback_backend_t* alsa_playback_create(const playback_device_config_t* config, int sample_rate, int chunk_size, backend_error_t* err) {
+playback_backend_t* alsa_playback_create(const playback_device_config_t* config, int sample_rate, int chunk_size, processing_parameters_t* params, backend_error_t* err) {
     (void)err;
     alsa_playback_t* playback = (alsa_playback_t*)calloc(1, sizeof(alsa_playback_t));
     if (!playback) return NULL;
@@ -86,6 +90,10 @@ playback_backend_t* alsa_playback_create(const playback_device_config_t* config,
     playback->sample_rate = sample_rate;
     playback->channels = config->channels;
     playback->chunk_size = chunk_size;
+
+    playback->has_format = config->has_format;
+    playback->requested_format = config->format;
+    playback->params = params;
 
     playback_backend_t* backend = (playback_backend_t*)calloc(1, sizeof(playback_backend_t));
     if (!backend) {
@@ -121,13 +129,38 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
         return false;
     }
 
-    snd_pcm_format_t formats[] = {
-        SND_PCM_FORMAT_FLOAT_LE,
-        SND_PCM_FORMAT_S32_LE,
-        SND_PCM_FORMAT_S16_LE
-    };
+    snd_pcm_format_t formats[5];
+    size_t num_formats = 0;
+    if (playback->has_format) {
+        if (playback->requested_format == ALSA_SAMPLE_FORMAT_S16_LE) {
+            formats[0] = SND_PCM_FORMAT_S16_LE;
+            num_formats = 1;
+        } else if (playback->requested_format == ALSA_SAMPLE_FORMAT_S24_3_LE) {
+            formats[0] = SND_PCM_FORMAT_S24_3LE;
+            num_formats = 1;
+        } else if (playback->requested_format == ALSA_SAMPLE_FORMAT_S24_4_LE) {
+            formats[0] = SND_PCM_FORMAT_S24_LE;
+            num_formats = 1;
+        } else if (playback->requested_format == ALSA_SAMPLE_FORMAT_S32_LE) {
+            formats[0] = SND_PCM_FORMAT_S32_LE;
+            num_formats = 1;
+        } else if (playback->requested_format == ALSA_SAMPLE_FORMAT_F32_LE) {
+            formats[0] = SND_PCM_FORMAT_FLOAT_LE;
+            num_formats = 1;
+        } else if (playback->requested_format == ALSA_SAMPLE_FORMAT_F64_LE) {
+            formats[0] = SND_PCM_FORMAT_FLOAT64_LE;
+            num_formats = 1;
+        }
+    } else {
+        formats[0] = SND_PCM_FORMAT_FLOAT_LE;
+        formats[1] = SND_PCM_FORMAT_S32_LE;
+        formats[2] = SND_PCM_FORMAT_S24_3LE;
+        formats[3] = SND_PCM_FORMAT_S16_LE;
+        num_formats = 4;
+    }
+
     bool format_ok = false;
-    for (size_t i = 0; i < sizeof(formats)/sizeof(formats[0]); i++) {
+    for (size_t i = 0; i < num_formats; i++) {
         rc = snd_pcm_hw_params_set_format(playback->pcm, params, formats[i]);
         if (rc >= 0) {
             playback->format = formats[i];
@@ -137,7 +170,7 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
     }
     if (!format_ok) {
         snd_pcm_close(playback->pcm);
-        if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "No supported ALSA format (Float, S32, S16) available");
+        if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "Requested or supported ALSA format not available");
         return false;
     }
 
@@ -183,6 +216,12 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
     size_t sample_size = 4;
     if (playback->format == SND_PCM_FORMAT_S16_LE) {
         sample_size = 2;
+    } else if (playback->format == SND_PCM_FORMAT_S24_3LE) {
+        sample_size = 3;
+    } else if (playback->format == SND_PCM_FORMAT_S24_LE) {
+        sample_size = 4;
+    } else if (playback->format == SND_PCM_FORMAT_FLOAT64_LE) {
+        sample_size = 8;
     }
     playback->interleaved_buf_size = playback->chunk_size * playback->channels * sample_size;
     playback->interleaved_buf = malloc(playback->interleaved_buf_size);
@@ -213,6 +252,37 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk, 
                 if (val > 1.0) val = 1.0;
                 else if (val < -1.0) val = -1.0;
                 dst[f * playback->channels + c] = (int32_t)(val * 2147483647.0);
+            }
+        }
+    } else if (playback->format == SND_PCM_FORMAT_S24_3LE) {
+        uint8_t* dst = (uint8_t*)playback->interleaved_buf;
+        for (size_t f = 0; f < frames; f++) {
+            for (size_t c = 0; c < (size_t)playback->channels; c++) {
+                double val = audio_chunk_get_channel(chunk, c)[f];
+                if (val > 1.0) val = 1.0;
+                else if (val < -1.0) val = -1.0;
+                int32_t ival = (int32_t)(val * 8388607.0);
+                size_t offset = (f * playback->channels + c) * 3;
+                dst[offset] = ival & 0xFF;
+                dst[offset+1] = (ival >> 8) & 0xFF;
+                dst[offset+2] = (ival >> 16) & 0xFF;
+            }
+        }
+    } else if (playback->format == SND_PCM_FORMAT_S24_LE) {
+        int32_t* dst = (int32_t*)playback->interleaved_buf;
+        for (size_t f = 0; f < frames; f++) {
+            for (size_t c = 0; c < (size_t)playback->channels; c++) {
+                double val = audio_chunk_get_channel(chunk, c)[f];
+                if (val > 1.0) val = 1.0;
+                else if (val < -1.0) val = -1.0;
+                dst[f * playback->channels + c] = (int32_t)(val * 8388607.0);
+            }
+        }
+    } else if (playback->format == SND_PCM_FORMAT_FLOAT64_LE) {
+        double* dst = (double*)playback->interleaved_buf;
+        for (size_t f = 0; f < frames; f++) {
+            for (size_t c = 0; c < (size_t)playback->channels; c++) {
+                dst[f * playback->channels + c] = audio_chunk_get_channel(chunk, c)[f];
             }
         }
     } else if (playback->format == SND_PCM_FORMAT_S16_LE) {

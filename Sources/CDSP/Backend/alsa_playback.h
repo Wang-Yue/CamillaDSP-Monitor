@@ -14,7 +14,8 @@ extern "C" {
 
 typedef struct alsa_playback alsa_playback_t;
 
-playback_backend_t* alsa_playback_create(const playback_device_config_t* config, int sample_rate, int chunk_size, backend_error_t* err);
+typedef struct processing_parameters processing_parameters_t;
+playback_backend_t* alsa_playback_create(const playback_device_config_t* config, int sample_rate, int chunk_size, processing_parameters_t* params, backend_error_t* err);
 bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err);
 bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk, backend_error_t* err);
 void alsa_playback_close(alsa_playback_t* playback);
