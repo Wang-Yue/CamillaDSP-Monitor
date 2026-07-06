@@ -1,7 +1,10 @@
-// Top-level configuration data structures. The JSON loader lives in
-// `ConfigLoader.swift`; per-domain validation lives next to each
-// validated type (`BiquadParameters.validate`, `MixerConfig.validate`,
-// etc.). This file is data-only.
+// Top-level configuration data structures and validation logic. The JSON loader
+// lives in `ConfigLoader.swift`.
+//
+// This file owns:
+//   1. Top-level configuration models (DSPConfiguration and PipelineStep).
+//   2. Cross-component validation logic, including schema checks and the
+//      pipeline walk that tracks channel layouts.
 
 import Foundation
 
@@ -45,4 +48,137 @@ public enum PipelineStepType: String, Codable, Sendable {
   case filter = "Filter"
   case mixer = "Mixer"
   case processor = "Processor"
+}
+
+extension DSPConfiguration {
+  public func validate() throws {
+    try validateTopLevelFields()
+
+    if let filters = filters {
+      for (name, filterConfig) in filters {
+        do {
+          try filterConfig.validate(sampleRate: devices.samplerate)
+        } catch {
+          throw ConfigError.invalidFilter("Filter '\(name)': \(error)")
+        }
+      }
+    }
+
+    if let mixers = mixers {
+      for (name, mixerConfig) in mixers {
+        do {
+          try mixerConfig.validate()
+        } catch {
+          throw ConfigError.invalidMixer("Mixer '\(name)': \(error)")
+        }
+      }
+    }
+
+    if let processors = processors {
+      for (name, processorConfig) in processors {
+        do {
+          try processorConfig.validate()
+        } catch {
+          throw ConfigError.invalidFilter("Processor '\(name)': \(error)")
+        }
+      }
+    }
+
+    try validatePipeline()
+  }
+
+  private func validateTopLevelFields() throws {
+    guard devices.samplerate > 0 else {
+      throw ConfigError.validationError("Sample rate must be positive")
+    }
+    guard devices.chunksize > 0 else {
+      throw ConfigError.validationError("Chunk size must be positive")
+    }
+    guard devices.capture.channels > 0 else {
+      throw ConfigError.validationError("Capture channels must be positive")
+    }
+    guard devices.playback.channels > 0 else {
+      throw ConfigError.validationError("Playback channels must be positive")
+    }
+  }
+
+  private func validatePipeline() throws {
+    var numChannels = devices.capture.channels
+
+    if let pipeline = pipeline {
+      for (i, step) in pipeline.enumerated() {
+        // A bypassed step is skipped during processing and does not
+        // affect channel counts.
+        if step.bypassed == true { continue }
+
+        switch step.type {
+        case .filter:
+          guard let names = step.names, !names.isEmpty else {
+            throw ConfigError.invalidPipeline("Filter step \(i) must have 'names'")
+          }
+          guard step.channel != nil || step.channels != nil else {
+            throw ConfigError.invalidPipeline("Filter step \(i) must have 'channel' or 'channels'")
+          }
+          for name in names {
+            guard filters?[name] != nil else {
+              throw ConfigError.invalidPipeline(
+                "Filter '\(name)' referenced in pipeline but not defined")
+            }
+          }
+          var channelIndices: [Int] = []
+          if let ch = step.channel { channelIndices = [ch] }
+          if let chs = step.channels { channelIndices = chs }
+          for ch in channelIndices {
+            guard ch < numChannels else {
+              throw ConfigError.invalidPipeline(
+                "Filter step \(i) references channel \(ch) but pipeline only has \(numChannels) channel(s) at this point"
+              )
+            }
+          }
+
+        case .mixer:
+          guard let name = step.name else {
+            throw ConfigError.invalidPipeline("Mixer step \(i) must have 'name'")
+          }
+          guard let mixerConfig = mixers?[name] else {
+            throw ConfigError.invalidPipeline(
+              "Mixer '\(name)' referenced in pipeline but not defined")
+          }
+          guard mixerConfig.channelsIn == numChannels else {
+            throw ConfigError.invalidPipeline(
+              "Mixer '\(name)' expects \(mixerConfig.channelsIn) input channel(s) but pipeline has \(numChannels) at this point"
+            )
+          }
+          numChannels = mixerConfig.channelsOut
+
+        case .processor:
+          guard let name = step.name else {
+            throw ConfigError.invalidPipeline("Processor step \(i) must have 'name'")
+          }
+          guard let processorConfig = processors?[name] else {
+            throw ConfigError.invalidPipeline(
+              "Processor '\(name)' referenced in pipeline but not defined")
+          }
+          let expectedChannels: Int
+          switch processorConfig {
+          case .compressor(let p): expectedChannels = p.channels
+          case .noiseGate(let p): expectedChannels = p.channels
+          case .race(let p): expectedChannels = p.channels
+          }
+          guard expectedChannels == numChannels else {
+            throw ConfigError.invalidPipeline(
+              "Processor '\(name)' expects \(expectedChannels) channel(s) but pipeline has \(numChannels) at this point"
+            )
+          }
+        }
+      }
+    }
+
+    let playbackChannels = devices.playback.channels
+    guard numChannels == playbackChannels else {
+      throw ConfigError.invalidPipeline(
+        "Pipeline outputs \(numChannels) channel(s) but playback device expects \(playbackChannels)"
+      )
+    }
+  }
 }

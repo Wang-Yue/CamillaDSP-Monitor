@@ -60,8 +60,7 @@ func isCloseRelative(_ left: Double, _ right: Double, _ maxdiff: Double) -> Bool
     )
     let sr = sampleRate ?? Int(fs)
     let config = FilterConfig.biquad(params)
-    try config.validate()
-    try params.validate(sampleRate: sr)
+    try config.validate(sampleRate: sr)
     return try BiquadFilter.computeCoefficients(params, sampleRate: sr)
   }
 

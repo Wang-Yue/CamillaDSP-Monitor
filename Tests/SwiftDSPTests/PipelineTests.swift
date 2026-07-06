@@ -160,7 +160,7 @@ import Testing
     config.filters = ["mygain": filterConfig]
 
     // We force a step with channel 2 (out of bounds) into the pipeline!
-    // Note: ConfigLoader.validate would catch this, but we are testing Pipeline's resilience!
+    // Note: DSPConfiguration.validate would catch this, but we are testing Pipeline's resilience!
     let step = PipelineStep(type: .filter, channel: 2, names: ["mygain"])
     config.pipeline = [step]
 

@@ -344,10 +344,10 @@ public enum FilterConfig: Codable, Sendable, Equatable {
     }
   }
 
-  public func validate() throws {
+  public func validate(sampleRate: Int) throws {
     switch self {
-    case .biquad:
-      break
+    case .biquad(let params):
+      try params.validate(sampleRate: sampleRate)
     case .gain(let params):
       try params.validate()
     case .loudness(let params):
@@ -358,16 +358,16 @@ public enum FilterConfig: Codable, Sendable, Equatable {
       try params.validate()
     case .delay(let params):
       try params.validate()
-    case .biquadCombo:
-      break
+    case .biquadCombo(let params):
+      try params.validate(sampleRate: sampleRate)
     case .diffEq(let params):
       try params.validate()
     case .dither(let params):
       try params.validate()
     case .limiter(let params):
       try params.validate()
-    case .lookaheadLimiter:
-      break
+    case .lookaheadLimiter(let params):
+      try params.validate(sampleRate: sampleRate)
     }
   }
 
@@ -801,6 +801,73 @@ public struct VolumeParameters: Codable, Sendable, Equatable {
       guard r >= 0 else {
         throw ConfigError.invalidFilter("Volume ramp time cannot be negative, got \(r)")
       }
+    }
+  }
+}
+
+extension BiquadParameters {
+  public func validate(sampleRate: Int) throws {
+    guard type != nil else {
+      throw ConfigError.invalidFilter("Biquad filter missing 'type'")
+    }
+
+    let nyquist = Double(sampleRate) / 2.0
+
+    if let freq = freq {
+      try Self.checkFreq(freq, nyquist: nyquist, label: "freq")
+    }
+    if let q = q {
+      try Self.checkPositive(q, label: "Q")
+    }
+    if let slope = slope {
+      try Self.checkPositive(slope, label: "slope")
+      guard slope <= 12.0 else {
+        throw ConfigError.invalidFilter("slope must be <= 12.0 dB/oct, got \(slope)")
+      }
+    }
+    if let bw = bandwidth {
+      try Self.checkPositive(bw, label: "bandwidth")
+    }
+    if let fn = freqNotch {
+      try Self.checkFreq(fn, nyquist: nyquist, label: "freq_notch")
+    }
+    if let fp = freqPole {
+      try Self.checkFreq(fp, nyquist: nyquist, label: "freq_pole")
+    }
+    if let fa = freqAct {
+      try Self.checkFreq(fa, nyquist: nyquist, label: "freq_act")
+    }
+    if let ft = freqTarget {
+      try Self.checkFreq(ft, nyquist: nyquist, label: "freq_target")
+    }
+    if let qa = qAct {
+      try Self.checkPositive(qa, label: "q_act")
+    }
+    if let qt = qTarget {
+      try Self.checkPositive(qt, label: "q_target")
+    }
+
+    // Stability check: pole positions of the realised coefficients must
+    // lie strictly inside the unit circle.
+    if let coeffs = BiquadCoefficients.compute(parameters: self, sampleRate: sampleRate) {
+      if abs(coeffs.a2) >= 1.0 || abs(coeffs.a1) >= 1.0 + coeffs.a2 {
+        throw ConfigError.invalidFilter("Unstable biquad filter specified")
+      }
+    }
+  }
+
+  private static func checkFreq(_ freq: Double, nyquist: Double, label: String) throws {
+    guard freq > 0 else {
+      throw ConfigError.invalidFilter("\(label) must be > 0, got \(freq)")
+    }
+    guard freq < nyquist else {
+      throw ConfigError.invalidFilter("\(label) must be < Nyquist (\(nyquist) Hz), got \(freq)")
+    }
+  }
+
+  private static func checkPositive(_ value: Double, label: String) throws {
+    guard value > 0 else {
+      throw ConfigError.invalidFilter("\(label) must be > 0, got \(value)")
     }
   }
 }

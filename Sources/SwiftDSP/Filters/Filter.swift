@@ -33,7 +33,7 @@ public enum FilterFactory {
     chunkSize: Int,
     processingParameters: ProcessingParameters? = nil
   ) throws -> Filter {
-    try config.validate()
+    try config.validate(sampleRate: sampleRate)
     switch config {
     case .gain(let p):
       return GainFilter(name: name, parameters: p)
@@ -51,7 +51,6 @@ public enum FilterFactory {
     case .loudness(let p):
       return LoudnessFilter(name: name, parameters: p, sampleRate: sampleRate)
     case .biquad(let p):
-      try p.validate(sampleRate: sampleRate)
       return try BiquadFilter(
         name: name,
         coefficients: BiquadFilter.computeCoefficients(p, sampleRate: sampleRate))
@@ -61,7 +60,6 @@ public enum FilterFactory {
     case .delay(let p):
       return DelayFilter(name: name, parameters: p, sampleRate: sampleRate)
     case .biquadCombo(let p):
-      try p.validate(sampleRate: sampleRate)
       return try BiquadComboFilter(name: name, parameters: p, sampleRate: sampleRate)
     case .diffEq(let p):
       return DiffEqFilter(name: name, parameters: p)
@@ -70,7 +68,6 @@ public enum FilterFactory {
     case .limiter(let p):
       return LimiterFilter(name: name, parameters: p)
     case .lookaheadLimiter(let p):
-      try p.validate(sampleRate: sampleRate)
       return LookaheadLimiterFilter(
         name: name, parameters: p, sampleRate: sampleRate, chunkSize: chunkSize)
     }

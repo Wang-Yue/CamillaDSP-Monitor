@@ -60,7 +60,7 @@ import Testing
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
         playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     do {
-      _ = try ConfigLoader.validate(config)
+      try config.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.validationError(let msg) = error else {
@@ -79,7 +79,7 @@ import Testing
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
         playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     do {
-      _ = try ConfigLoader.validate(config)
+      try config.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.validationError(let msg) = error else {
@@ -98,7 +98,7 @@ import Testing
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 0),
         playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     do {
-      _ = try ConfigLoader.validate(config)
+      try config.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.validationError(let msg) = error else {
@@ -115,7 +115,7 @@ import Testing
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
         playback: PlaybackDeviceConfig(type: .coreAudio, channels: 0)))
     do {
-      _ = try ConfigLoader.validate(config)
+      try config.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.validationError(let msg) = error else {
@@ -137,7 +137,7 @@ import Testing
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidPipeline(let msg) = error else {
@@ -159,7 +159,7 @@ import Testing
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidPipeline(let msg) = error else {
@@ -181,7 +181,7 @@ import Testing
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidPipeline(let msg) = error else {
@@ -205,7 +205,7 @@ import Testing
     fullConfig.filters = ["myfilter": filter]
     fullConfig.pipeline = [step]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidPipeline(let msg) = error else {
@@ -227,7 +227,7 @@ import Testing
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidPipeline(let msg) = error else {
@@ -249,7 +249,7 @@ import Testing
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidPipeline(let msg) = error else {
@@ -273,7 +273,7 @@ import Testing
     fullConfig.mixers = ["mymixer": mixer]
     fullConfig.pipeline = [step]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidPipeline(let msg) = error else {
@@ -297,7 +297,7 @@ import Testing
     fullConfig.mixers = ["mymixer": mixer]
     fullConfig.pipeline = [step]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidPipeline(let msg) = error else {
@@ -321,7 +321,7 @@ import Testing
     fullConfig.filters = ["myfilter": filter]
     fullConfig.pipeline = [step]
     // Should NOT throw because the step is bypassed!
-    try ConfigLoader.validate(fullConfig)
+    try fullConfig.validate()
   }
 
   @Test func ConfigErrorDescription() {
@@ -412,7 +412,7 @@ import Testing
     var fullConfig = config
     fullConfig.filters = ["mygain": filter]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidFilter(let msg) = error else {
@@ -435,7 +435,7 @@ import Testing
     var fullConfig = config
     fullConfig.mixers = ["mymixer": mixer]
     do {
-      _ = try ConfigLoader.validate(fullConfig)
+      try fullConfig.validate()
       Issue.record("Expected error to be thrown")
     } catch {
       guard case ConfigError.invalidMixer(let msg) = error else {
