@@ -1,226 +1,279 @@
 #include "configuration.h"
-#include <string.h>
+
 #include <stdlib.h>
+#include <string.h>
 
 // Top-level configuration validation and memory management.
 
-filter_config_t* dsp_config_get_filter(const dsp_config_t* config, const char* name) {
-    if (!config || !name) return NULL;
-    for (size_t i = 0; i < config->filters_count; i++) {
-        if (strcmp(config->filters[i].name, name) == 0) {
-            return &config->filters[i].filter;
-        }
+filter_config_t* dsp_config_get_filter(const dsp_config_t* config,
+                                       const char* name) {
+  if (!config || !name) return NULL;
+  for (size_t i = 0; i < config->filters_count; i++) {
+    if (strcmp(config->filters[i].name, name) == 0) {
+      return &config->filters[i].filter;
     }
-    return NULL;
+  }
+  return NULL;
 }
 
-mixer_config_t* dsp_config_get_mixer(const dsp_config_t* config, const char* name) {
-    if (!config || !name) return NULL;
-    for (size_t i = 0; i < config->mixers_count; i++) {
-        if (strcmp(config->mixers[i].name, name) == 0) {
-            return &config->mixers[i].mixer;
-        }
+mixer_config_t* dsp_config_get_mixer(const dsp_config_t* config,
+                                     const char* name) {
+  if (!config || !name) return NULL;
+  for (size_t i = 0; i < config->mixers_count; i++) {
+    if (strcmp(config->mixers[i].name, name) == 0) {
+      return &config->mixers[i].mixer;
     }
-    return NULL;
+  }
+  return NULL;
 }
 
-processor_config_t* dsp_config_get_processor(const dsp_config_t* config, const char* name) {
-    if (!config || !name) return NULL;
-    for (size_t i = 0; i < config->processors_count; i++) {
-        if (strcmp(config->processors[i].name, name) == 0) {
-            return &config->processors[i].processor;
-        }
+processor_config_t* dsp_config_get_processor(const dsp_config_t* config,
+                                             const char* name) {
+  if (!config || !name) return NULL;
+  for (size_t i = 0; i < config->processors_count; i++) {
+    if (strcmp(config->processors[i].name, name) == 0) {
+      return &config->processors[i].processor;
     }
-    return NULL;
+  }
+  return NULL;
 }
 
 int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
-    if (!config) return 0;
-    
-    // Top level checks
-    if (config->devices.samplerate == 0) {
-        config_error_set(err, CONFIG_ERR_VALIDATION, "Sample rate must be positive");
-        return -1;
+  if (!config) return 0;
+
+  // Top level checks
+  if (config->devices.samplerate == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION,
+                     "Sample rate must be positive");
+    return -1;
+  }
+  if (config->devices.chunksize == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "Chunk size must be positive");
+    return -1;
+  }
+  if (config->devices.capture.channels <= 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION,
+                     "Capture channels must be positive");
+    return -1;
+  }
+  if (config->devices.playback.channels <= 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION,
+                     "Playback channels must be positive");
+    return -1;
+  }
+
+  // Validate filters
+  for (size_t i = 0; i < config->filters_count; i++) {
+    config_error_t sub_err;
+    config_error_init(&sub_err);
+    if (filter_config_validate(&config->filters[i].filter,
+                               config->devices.samplerate, &sub_err) != 0) {
+      config_error_set(err, CONFIG_ERR_INVALID_FILTER, "Filter '%s': %s",
+                       config->filters[i].name, sub_err.message);
+      return -1;
     }
-    if (config->devices.chunksize == 0) {
-        config_error_set(err, CONFIG_ERR_VALIDATION, "Chunk size must be positive");
-        return -1;
+  }
+
+  // Validate mixers
+  for (size_t i = 0; i < config->mixers_count; i++) {
+    config_error_t sub_err;
+    config_error_init(&sub_err);
+    if (mixer_config_validate(&config->mixers[i].mixer, &sub_err) != 0) {
+      config_error_set(err, CONFIG_ERR_INVALID_MIXER, "Mixer '%s': %s",
+                       config->mixers[i].name, sub_err.message);
+      return -1;
     }
-    if (config->devices.capture.channels <= 0) {
-        config_error_set(err, CONFIG_ERR_VALIDATION, "Capture channels must be positive");
-        return -1;
+  }
+
+  // Validate processors
+  for (size_t i = 0; i < config->processors_count; i++) {
+    config_error_t sub_err;
+    config_error_init(&sub_err);
+    if (processor_config_validate(&config->processors[i].processor, &sub_err) !=
+        0) {
+      config_error_set(err, CONFIG_ERR_INVALID_FILTER, "Processor '%s': %s",
+                       config->processors[i].name, sub_err.message);
+      return -1;
     }
-    if (config->devices.playback.channels <= 0) {
-        config_error_set(err, CONFIG_ERR_VALIDATION, "Playback channels must be positive");
-        return -1;
-    }
-    
-    // Validate filters
-    for (size_t i = 0; i < config->filters_count; i++) {
-        config_error_t sub_err;
-        config_error_init(&sub_err);
-        if (filter_config_validate(&config->filters[i].filter, config->devices.samplerate, &sub_err) != 0) {
-            config_error_set(err, CONFIG_ERR_INVALID_FILTER, "Filter '%s': %s", config->filters[i].name, sub_err.message);
+  }
+
+  // Validate pipeline
+  int num_channels = config->devices.capture.channels;
+  for (size_t i = 0; i < config->pipeline_count; i++) {
+    const pipeline_step_t* step = &config->pipeline[i];
+    if (step->bypassed) continue;
+
+    switch (step->type) {
+      case PIPELINE_STEP_TYPE_FILTER: {
+        if (!step->names || step->names_count == 0) {
+          config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                           "Filter step %zu must have 'names'", i);
+          return -1;
+        }
+        if (!step->has_channel &&
+            (!step->channels || step->channels_count == 0)) {
+          config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                           "Filter step %zu must have 'channel' or 'channels'",
+                           i);
+          return -1;
+        }
+        for (size_t j = 0; j < step->names_count; j++) {
+          if (!dsp_config_get_filter(config, step->names[j])) {
+            config_error_set(
+                err, CONFIG_ERR_INVALID_PIPELINE,
+                "Filter '%s' referenced in pipeline but not defined",
+                step->names[j]);
             return -1;
+          }
         }
-    }
-    
-    // Validate mixers
-    for (size_t i = 0; i < config->mixers_count; i++) {
-        config_error_t sub_err;
-        config_error_init(&sub_err);
-        if (mixer_config_validate(&config->mixers[i].mixer, &sub_err) != 0) {
-            config_error_set(err, CONFIG_ERR_INVALID_MIXER, "Mixer '%s': %s", config->mixers[i].name, sub_err.message);
+        if (step->has_channel) {
+          if (step->channel >= num_channels) {
+            config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                             "Filter step %zu references channel %d but "
+                             "pipeline only has %d channel(s) at this point",
+                             i, step->channel, num_channels);
             return -1;
+          }
         }
-    }
-    
-    // Validate processors
-    for (size_t i = 0; i < config->processors_count; i++) {
-        config_error_t sub_err;
-        config_error_init(&sub_err);
-        if (processor_config_validate(&config->processors[i].processor, &sub_err) != 0) {
-            config_error_set(err, CONFIG_ERR_INVALID_FILTER, "Processor '%s': %s", config->processors[i].name, sub_err.message);
+        for (size_t j = 0; j < step->channels_count; j++) {
+          if (step->channels[j] >= num_channels) {
+            config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                             "Filter step %zu references channel %d but "
+                             "pipeline only has %d channel(s) at this point",
+                             i, step->channels[j], num_channels);
             return -1;
+          }
         }
-    }
-    
-    // Validate pipeline
-    int num_channels = config->devices.capture.channels;
-    for (size_t i = 0; i < config->pipeline_count; i++) {
-        const pipeline_step_t* step = &config->pipeline[i];
-        if (step->bypassed) continue;
-        
-        switch (step->type) {
-            case PIPELINE_STEP_TYPE_FILTER: {
-                if (!step->names || step->names_count == 0) {
-                    config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Filter step %zu must have 'names'", i);
-                    return -1;
-                }
-                if (!step->has_channel && (!step->channels || step->channels_count == 0)) {
-                    config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Filter step %zu must have 'channel' or 'channels'", i);
-                    return -1;
-                }
-                for (size_t j = 0; j < step->names_count; j++) {
-                    if (!dsp_config_get_filter(config, step->names[j])) {
-                        config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Filter '%s' referenced in pipeline but not defined", step->names[j]);
-                        return -1;
-                    }
-                }
-                if (step->has_channel) {
-                    if (step->channel >= num_channels) {
-                        config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Filter step %zu references channel %d but pipeline only has %d channel(s) at this point", i, step->channel, num_channels);
-                        return -1;
-                    }
-                }
-                for (size_t j = 0; j < step->channels_count; j++) {
-                    if (step->channels[j] >= num_channels) {
-                        config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Filter step %zu references channel %d but pipeline only has %d channel(s) at this point", i, step->channels[j], num_channels);
-                        return -1;
-                    }
-                }
-                break;
-            }
-            case PIPELINE_STEP_TYPE_MIXER: {
-                if (!step->has_name || step->name[0] == '\0') {
-                    config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Mixer step %zu must have 'name'", i);
-                    return -1;
-                }
-                const mixer_config_t* mixer = dsp_config_get_mixer(config, step->name);
-                if (!mixer) {
-                    config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Mixer '%s' referenced in pipeline but not defined", step->name);
-                    return -1;
-                }
-                if (mixer->channels_in != (size_t)num_channels) {
-                    config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Mixer '%s' expects %d input channel(s) but pipeline has %d at this point", step->name, mixer->channels_in, num_channels);
-                    return -1;
-                }
-                num_channels = mixer->channels_out;
-                break;
-            }
-            case PIPELINE_STEP_TYPE_PROCESSOR: {
-                if (!step->has_name || step->name[0] == '\0') {
-                    config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Processor step %zu must have 'name'", i);
-                    return -1;
-                }
-                const processor_config_t* proc = dsp_config_get_processor(config, step->name);
-                if (!proc) {
-                    config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Processor '%s' referenced in pipeline but not defined", step->name);
-                    return -1;
-                }
-                int expected_channels = 0;
-                switch (proc->type) {
-                    case PROCESSOR_TYPE_COMPRESSOR: expected_channels = proc->parameters.compressor.channels; break;
-                    case PROCESSOR_TYPE_NOISE_GATE: expected_channels = proc->parameters.noise_gate.channels; break;
-                    case PROCESSOR_TYPE_RACE: expected_channels = proc->parameters.race.channels; break;
-                }
-                if (expected_channels != num_channels) {
-                    config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Processor '%s' expects %d channel(s) but pipeline has %d at this point", step->name, expected_channels, num_channels);
-                    return -1;
-                }
-                break;
-            }
+        break;
+      }
+      case PIPELINE_STEP_TYPE_MIXER: {
+        if (!step->has_name || step->name[0] == '\0') {
+          config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                           "Mixer step %zu must have 'name'", i);
+          return -1;
         }
+        const mixer_config_t* mixer = dsp_config_get_mixer(config, step->name);
+        if (!mixer) {
+          config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                           "Mixer '%s' referenced in pipeline but not defined",
+                           step->name);
+          return -1;
+        }
+        if (mixer->channels_in != (size_t)num_channels) {
+          config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                           "Mixer '%s' expects %d input channel(s) but "
+                           "pipeline has %d at this point",
+                           step->name, mixer->channels_in, num_channels);
+          return -1;
+        }
+        num_channels = mixer->channels_out;
+        break;
+      }
+      case PIPELINE_STEP_TYPE_PROCESSOR: {
+        if (!step->has_name || step->name[0] == '\0') {
+          config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                           "Processor step %zu must have 'name'", i);
+          return -1;
+        }
+        const processor_config_t* proc =
+            dsp_config_get_processor(config, step->name);
+        if (!proc) {
+          config_error_set(
+              err, CONFIG_ERR_INVALID_PIPELINE,
+              "Processor '%s' referenced in pipeline but not defined",
+              step->name);
+          return -1;
+        }
+        int expected_channels = 0;
+        switch (proc->type) {
+          case PROCESSOR_TYPE_COMPRESSOR:
+            expected_channels = proc->parameters.compressor.channels;
+            break;
+          case PROCESSOR_TYPE_NOISE_GATE:
+            expected_channels = proc->parameters.noise_gate.channels;
+            break;
+          case PROCESSOR_TYPE_RACE:
+            expected_channels = proc->parameters.race.channels;
+            break;
+        }
+        if (expected_channels != num_channels) {
+          config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                           "Processor '%s' expects %d channel(s) but pipeline "
+                           "has %d at this point",
+                           step->name, expected_channels, num_channels);
+          return -1;
+        }
+        break;
+      }
     }
-    
-    int playback_channels = config->devices.playback.channels;
-    if (num_channels != playback_channels) {
-        config_error_set(err, CONFIG_ERR_INVALID_PIPELINE, "Pipeline outputs %d channel(s) but playback device expects %d", num_channels, playback_channels);
-        return -1;
-    }
-    
-    return 0;
+  }
+
+  int playback_channels = config->devices.playback.channels;
+  if (num_channels != playback_channels) {
+    config_error_set(
+        err, CONFIG_ERR_INVALID_PIPELINE,
+        "Pipeline outputs %d channel(s) but playback device expects %d",
+        num_channels, playback_channels);
+    return -1;
+  }
+
+  return 0;
 }
 
 void dsp_config_free(dsp_config_t* config) {
-    if (!config) return;
-    if (config->filters) {
-        for (size_t i = 0; i < config->filters_count; i++) {
-            if (config->filters[i].filter.type == FILTER_TYPE_CONV) {
-                free(config->filters[i].filter.parameters.conv.values);
-            } else if (config->filters[i].filter.type == FILTER_TYPE_BIQUAD_COMBO) {
-                free(config->filters[i].filter.parameters.biquad_combo.gains);
-            } else if (config->filters[i].filter.type == FILTER_TYPE_DIFF_EQ) {
-                free(config->filters[i].filter.parameters.diff_eq.a);
-                free(config->filters[i].filter.parameters.diff_eq.b);
-            }
-        }
-        free(config->filters);
+  if (!config) return;
+  if (config->filters) {
+    for (size_t i = 0; i < config->filters_count; i++) {
+      if (config->filters[i].filter.type == FILTER_TYPE_CONV) {
+        free(config->filters[i].filter.parameters.conv.values);
+      } else if (config->filters[i].filter.type == FILTER_TYPE_BIQUAD_COMBO) {
+        free(config->filters[i].filter.parameters.biquad_combo.gains);
+      } else if (config->filters[i].filter.type == FILTER_TYPE_DIFF_EQ) {
+        free(config->filters[i].filter.parameters.diff_eq.a);
+        free(config->filters[i].filter.parameters.diff_eq.b);
+      }
     }
-    if (config->mixers) {
-        for (size_t i = 0; i < config->mixers_count; i++) {
-            if (config->mixers[i].mixer.mapping) {
-                for (size_t j = 0; j < config->mixers[i].mixer.mapping_count; j++) {
-                    free(config->mixers[i].mixer.mapping[j].sources);
-                }
-                free(config->mixers[i].mixer.mapping);
-            }
+    free(config->filters);
+  }
+  if (config->mixers) {
+    for (size_t i = 0; i < config->mixers_count; i++) {
+      if (config->mixers[i].mixer.mapping) {
+        for (size_t j = 0; j < config->mixers[i].mixer.mapping_count; j++) {
+          free(config->mixers[i].mixer.mapping[j].sources);
         }
-        free(config->mixers);
+        free(config->mixers[i].mixer.mapping);
+      }
     }
-    if (config->processors) {
-        for (size_t i = 0; i < config->processors_count; i++) {
-            if (config->processors[i].processor.type == PROCESSOR_TYPE_COMPRESSOR) {
-                free(config->processors[i].processor.parameters.compressor.monitor_channels);
-                free(config->processors[i].processor.parameters.compressor.process_channels);
-            } else if (config->processors[i].processor.type == PROCESSOR_TYPE_NOISE_GATE) {
-                free(config->processors[i].processor.parameters.noise_gate.monitor_channels);
-                free(config->processors[i].processor.parameters.noise_gate.process_channels);
-            }
+    free(config->mixers);
+  }
+  if (config->processors) {
+    for (size_t i = 0; i < config->processors_count; i++) {
+      if (config->processors[i].processor.type == PROCESSOR_TYPE_COMPRESSOR) {
+        free(config->processors[i]
+                 .processor.parameters.compressor.monitor_channels);
+        free(config->processors[i]
+                 .processor.parameters.compressor.process_channels);
+      } else if (config->processors[i].processor.type ==
+                 PROCESSOR_TYPE_NOISE_GATE) {
+        free(config->processors[i]
+                 .processor.parameters.noise_gate.monitor_channels);
+        free(config->processors[i]
+                 .processor.parameters.noise_gate.process_channels);
+      }
+    }
+    free(config->processors);
+  }
+  if (config->pipeline) {
+    for (size_t i = 0; i < config->pipeline_count; i++) {
+      free(config->pipeline[i].channels);
+      if (config->pipeline[i].names) {
+        for (size_t j = 0; j < config->pipeline[i].names_count; j++) {
+          free(config->pipeline[i].names[j]);
         }
-        free(config->processors);
+        free(config->pipeline[i].names);
+      }
     }
-    if (config->pipeline) {
-        for (size_t i = 0; i < config->pipeline_count; i++) {
-            free(config->pipeline[i].channels);
-            if (config->pipeline[i].names) {
-                for (size_t j = 0; j < config->pipeline[i].names_count; j++) {
-                    free(config->pipeline[i].names[j]);
-                }
-                free(config->pipeline[i].names);
-            }
-        }
-        free(config->pipeline);
-    }
-    free(config);
+    free(config->pipeline);
+  }
+  free(config);
 }

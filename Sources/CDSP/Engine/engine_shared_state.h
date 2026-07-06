@@ -32,52 +32,69 @@
 // queued items, and the consumer drains until empty before waiting
 // again.
 
-#include "Audio/lock_free_ring_buffer.h"
 #include "Audio/audio_chunk.h"
+#include "Audio/lock_free_ring_buffer.h"
 #ifdef __APPLE__
 #include <dispatch/dispatch.h>
 typedef dispatch_semaphore_t engine_semaphore_t;
-static inline bool engine_sem_init(engine_semaphore_t* sem) { *sem = dispatch_semaphore_create(0); return *sem != NULL; }
-static inline void engine_sem_destroy(engine_semaphore_t* sem) { if (*sem) dispatch_release(*sem); }
-static inline void engine_sem_signal(engine_semaphore_t sem) { if (sem) dispatch_semaphore_signal(sem); }
-static inline void engine_sem_wait(engine_semaphore_t sem) { if (sem) dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER); }
+static inline bool engine_sem_init(engine_semaphore_t* sem) {
+  *sem = dispatch_semaphore_create(0);
+  return *sem != NULL;
+}
+static inline void engine_sem_destroy(engine_semaphore_t* sem) {
+  if (*sem) dispatch_release(*sem);
+}
+static inline void engine_sem_signal(engine_semaphore_t sem) {
+  if (sem) dispatch_semaphore_signal(sem);
+}
+static inline void engine_sem_wait(engine_semaphore_t sem) {
+  if (sem) dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
+}
 #elif defined(__linux__)
 #include <semaphore.h>
 #include <stdlib.h>
 typedef sem_t* engine_semaphore_t;
 static inline bool engine_sem_init(engine_semaphore_t* sem) {
-    *sem = (sem_t*)malloc(sizeof(sem_t));
-    if (!*sem) return false;
-    return sem_init(*sem, 0, 0) == 0;
+  *sem = (sem_t*)malloc(sizeof(sem_t));
+  if (!*sem) return false;
+  return sem_init(*sem, 0, 0) == 0;
 }
 static inline void engine_sem_destroy(engine_semaphore_t* sem) {
-    if (*sem) {
-        sem_destroy(*sem);
-        free(*sem);
-        *sem = NULL;
-    }
+  if (*sem) {
+    sem_destroy(*sem);
+    free(*sem);
+    *sem = NULL;
+  }
 }
-static inline void engine_sem_signal(engine_semaphore_t sem) { if (sem) sem_post(sem); }
-static inline void engine_sem_wait(engine_semaphore_t sem) { if (sem) sem_wait(sem); }
+static inline void engine_sem_signal(engine_semaphore_t sem) {
+  if (sem) sem_post(sem);
+}
+static inline void engine_sem_wait(engine_semaphore_t sem) {
+  if (sem) sem_wait(sem);
+}
 #elif defined(_WIN32)
 #include <windows.h>
 typedef HANDLE engine_semaphore_t;
 static inline bool engine_sem_init(engine_semaphore_t* sem) {
-    *sem = CreateSemaphore(NULL, 0, 32767, NULL);
-    return *sem != NULL;
+  *sem = CreateSemaphore(NULL, 0, 32767, NULL);
+  return *sem != NULL;
 }
 static inline void engine_sem_destroy(engine_semaphore_t* sem) {
-    if (*sem) {
-        CloseHandle(*sem);
-        *sem = NULL;
-    }
+  if (*sem) {
+    CloseHandle(*sem);
+    *sem = NULL;
+  }
 }
-static inline void engine_sem_signal(engine_semaphore_t sem) { if (sem) ReleaseSemaphore(sem, 1, NULL); }
-static inline void engine_sem_wait(engine_semaphore_t sem) { if (sem) WaitForSingleObject(sem, INFINITE); }
+static inline void engine_sem_signal(engine_semaphore_t sem) {
+  if (sem) ReleaseSemaphore(sem, 1, NULL);
+}
+static inline void engine_sem_wait(engine_semaphore_t sem) {
+  if (sem) WaitForSingleObject(sem, INFINITE);
+}
 #endif
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdatomic.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,43 +106,44 @@ extern "C" {
 /// any thread without coordination beyond what each individual
 /// field's API requires.
 typedef struct {
-    /// Bounded SPSC FIFO from the capture thread to the processing
-    /// thread. `enqueue` returns `false` when full; the producer drops
-    /// the chunk rather than allocate.
-    spsc_queue_t* captured_queue;
+  /// Bounded SPSC FIFO from the capture thread to the processing
+  /// thread. `enqueue` returns `false` when full; the producer drops
+  /// the chunk rather than allocate.
+  spsc_queue_t* captured_queue;
 
-    /// Bounded SPSC FIFO from the processing thread to the playback
-    /// thread.
-    spsc_queue_t* processed_queue;
+  /// Bounded SPSC FIFO from the processing thread to the playback
+  /// thread.
+  spsc_queue_t* processed_queue;
 
-    /// Wakeup signal for the processing thread. The capture thread
-    /// signals after every successful `enqueue`.
-    engine_semaphore_t captured_semaphore;
+  /// Wakeup signal for the processing thread. The capture thread
+  /// signals after every successful `enqueue`.
+  engine_semaphore_t captured_semaphore;
 
-    /// Wakeup signal for the playback thread. The processing thread
-    /// signals after every successful `enqueue`.
-    engine_semaphore_t processed_semaphore;
+  /// Wakeup signal for the playback thread. The processing thread
+  /// signals after every successful `enqueue`.
+  engine_semaphore_t processed_semaphore;
 
-    /// Stop flag. Written exactly once (false → true) per engine run.
-    /// Each loop polls between iterations and exits when set.
-    _Atomic bool should_stop;
+  /// Stop flag. Written exactly once (false → true) per engine run.
+  /// Each loop polls between iterations and exits when set.
+  _Atomic bool should_stop;
 
-    /// Resampler relative-ratio (≈ 1.0). Published by the playback
-    /// thread (rate-adjust controller); consumed by the processing
-    /// thread once per chunk via `setRelativeRatio`.
-    atomic_double_t* resampler_ratio;
+  /// Resampler relative-ratio (≈ 1.0). Published by the playback
+  /// thread (rate-adjust controller); consumed by the processing
+  /// thread once per chunk via `setRelativeRatio`.
+  atomic_double_t* resampler_ratio;
 
-    /// Monotonic count of chunks dropped at the capture→processing
-    /// boundary because `capturedQueue` was full. Bumped from the
-    /// audio thread without formatting; observed by the actor.
-    _Atomic uint64_t captured_drop_counter;
+  /// Monotonic count of chunks dropped at the capture→processing
+  /// boundary because `capturedQueue` was full. Bumped from the
+  /// audio thread without formatting; observed by the actor.
+  _Atomic uint64_t captured_drop_counter;
 } engine_shared_state_t;
 
-engine_shared_state_t* engine_shared_state_create(size_t captured_queue_depth, size_t processed_queue_depth);
+engine_shared_state_t* engine_shared_state_create(size_t captured_queue_depth,
+                                                  size_t processed_queue_depth);
 void engine_shared_state_free(engine_shared_state_t* state);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLIB_ENGINE_ENGINE_SHARED_STATE_H
+#endif  // CLIB_ENGINE_ENGINE_SHARED_STATE_H

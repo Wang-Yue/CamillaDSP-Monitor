@@ -31,33 +31,37 @@
 // init and freed in deinit. The hot path runs purely on raw pointers — no
 // allocations, no closures.
 
-#include "arbitrary_complex_fft.h"
-#include "Audio/double_helpers.h"
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+
+#include "Audio/double_helpers.h"
+#include "arbitrary_complex_fft.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /// Mixed-radix complex FFT supporting `N = 2^a · 3^b · 5^c · 7^d`. Returns
-/// `nil` (or NULL in C) if `N` has any prime factor > 7 — caller should fall back to
-/// Bluestein in that case.
+/// `nil` (or NULL in C) if `N` has any prime factor > 7 — caller should fall
+/// back to Bluestein in that case.
 typedef struct mixed_radix_fft mixed_radix_fft_t;
 
 mixed_radix_fft_t* mixed_radix_fft_create(size_t n);
 /// Run the N-point DFT. `inverse=false` is the unnormalised forward
 /// transform; `inverse=true` is the unnormalised inverse, so the caller
 /// is responsible for any `1/N` normalisation.
-void mixed_radix_fft_execute(mixed_radix_fft_t* fft, waveform_t real_in, waveform_t imag_in, mutable_waveform_t real_out, mutable_waveform_t imag_out, bool inverse);
+void mixed_radix_fft_execute(mixed_radix_fft_t* fft, waveform_t real_in,
+                             waveform_t imag_in, mutable_waveform_t real_out,
+                             mutable_waveform_t imag_out, bool inverse);
 void mixed_radix_fft_free(mixed_radix_fft_t* fft);
 
-static inline arbitrary_complex_fft_t* mixed_radix_fft_as_arbitrary(mixed_radix_fft_t* fft) {
-    return (arbitrary_complex_fft_t*)fft;
+static inline arbitrary_complex_fft_t* mixed_radix_fft_as_arbitrary(
+    mixed_radix_fft_t* fft) {
+  return (arbitrary_complex_fft_t*)fft;
 }
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLIB_FFT_MIXEDRADIXFFT_H
+#endif  // CLIB_FFT_MIXEDRADIXFFT_H

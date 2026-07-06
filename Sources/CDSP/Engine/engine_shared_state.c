@@ -30,33 +30,40 @@
 // again.
 
 #include "engine_shared_state.h"
+
 #include <stdlib.h>
 
-engine_shared_state_t* engine_shared_state_create(size_t captured_queue_depth, size_t processed_queue_depth) {
-    engine_shared_state_t* state = (engine_shared_state_t*)malloc(sizeof(engine_shared_state_t));
-    if (!state) return NULL;
+engine_shared_state_t* engine_shared_state_create(
+    size_t captured_queue_depth, size_t processed_queue_depth) {
+  engine_shared_state_t* state =
+      (engine_shared_state_t*)malloc(sizeof(engine_shared_state_t));
+  if (!state) return NULL;
 
-    state->captured_queue = spsc_queue_create(captured_queue_depth > 0 ? captured_queue_depth : 16);
-    state->processed_queue = spsc_queue_create(processed_queue_depth > 0 ? processed_queue_depth : 16);
-    engine_sem_init(&state->captured_semaphore);
-    engine_sem_init(&state->processed_semaphore);
-    atomic_init(&state->should_stop, false);
-    state->resampler_ratio = atomic_double_create(1.0);
-    atomic_init(&state->captured_drop_counter, 0);
+  state->captured_queue =
+      spsc_queue_create(captured_queue_depth > 0 ? captured_queue_depth : 16);
+  state->processed_queue =
+      spsc_queue_create(processed_queue_depth > 0 ? processed_queue_depth : 16);
+  engine_sem_init(&state->captured_semaphore);
+  engine_sem_init(&state->processed_semaphore);
+  atomic_init(&state->should_stop, false);
+  state->resampler_ratio = atomic_double_create(1.0);
+  atomic_init(&state->captured_drop_counter, 0);
 
-    if (!state->captured_queue || !state->processed_queue || !state->captured_semaphore || !state->processed_semaphore || !state->resampler_ratio) {
-        engine_shared_state_free(state);
-        return NULL;
-    }
-    return state;
+  if (!state->captured_queue || !state->processed_queue ||
+      !state->captured_semaphore || !state->processed_semaphore ||
+      !state->resampler_ratio) {
+    engine_shared_state_free(state);
+    return NULL;
+  }
+  return state;
 }
 
 void engine_shared_state_free(engine_shared_state_t* state) {
-    if (!state) return;
-    if (state->captured_queue) spsc_queue_free(state->captured_queue);
-    if (state->processed_queue) spsc_queue_free(state->processed_queue);
-    engine_sem_destroy(&state->captured_semaphore);
-    engine_sem_destroy(&state->processed_semaphore);
-    if (state->resampler_ratio) atomic_double_free(state->resampler_ratio);
-    free(state);
+  if (!state) return;
+  if (state->captured_queue) spsc_queue_free(state->captured_queue);
+  if (state->processed_queue) spsc_queue_free(state->processed_queue);
+  engine_sem_destroy(&state->captured_semaphore);
+  engine_sem_destroy(&state->processed_semaphore);
+  if (state->resampler_ratio) atomic_double_free(state->resampler_ratio);
+  free(state);
 }

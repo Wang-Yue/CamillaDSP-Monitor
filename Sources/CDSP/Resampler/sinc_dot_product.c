@@ -6,6 +6,7 @@
 #include "sinc_dot_product.h"
 
 /// Inlined dot product function wrapper for external callers.
-double sinc_dot_product_fn(const double* wave, const double* kernel, size_t count) {
-    return sinc_dot_product(wave, kernel, count);
+double sinc_dot_product_fn(const double* wave, const double* kernel,
+                           size_t count) {
+  return sinc_dot_product(wave, kernel, count);
 }

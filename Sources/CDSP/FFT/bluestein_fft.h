@@ -32,10 +32,11 @@
 // nested `withUnsafe*` closures. All complex multiplications run through
 // `vDSP_zvmulD`, which on Apple Silicon issues packed NEON `fmla.2d` pairs.
 
-#include "arbitrary_complex_fft.h"
-#include "Audio/double_helpers.h"
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+
+#include "Audio/double_helpers.h"
+#include "arbitrary_complex_fft.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,15 +64,18 @@ bluestein_fft_t* bluestein_fft_create(size_t n);
 ///
 /// vDSP convention for `vDSP_zvmulD`'s `Conjugate` arg: `+1` = `C = A · B`,
 /// `-1` = `C = A · conj(B)`.
-void bluestein_fft_execute(bluestein_fft_t* fft, waveform_t real_in, waveform_t imag_in, mutable_waveform_t real_out, mutable_waveform_t imag_out, bool inverse);
+void bluestein_fft_execute(bluestein_fft_t* fft, waveform_t real_in,
+                           waveform_t imag_in, mutable_waveform_t real_out,
+                           mutable_waveform_t imag_out, bool inverse);
 void bluestein_fft_free(bluestein_fft_t* fft);
 
-static inline arbitrary_complex_fft_t* bluestein_fft_as_arbitrary(bluestein_fft_t* fft) {
-    return (arbitrary_complex_fft_t*)fft;
+static inline arbitrary_complex_fft_t* bluestein_fft_as_arbitrary(
+    bluestein_fft_t* fft) {
+  return (arbitrary_complex_fft_t*)fft;
 }
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLIB_FFT_BLUESTEINFFT_H
+#endif  // CLIB_FFT_BLUESTEINFFT_H

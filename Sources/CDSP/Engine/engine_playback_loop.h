@@ -27,18 +27,18 @@
 //     `adjustPeriod` (~10 s default), so its formatting cost is
 //     negligible per chunk.
 
+#include <stdbool.h>
+#include <stddef.h>
+
+#include "Audio/processing_parameters.h"
+#include "Backend/audio_backend.h"
 #include "engine_shared_state.h"
 #include "engine_state_machine.h"
-#include "Backend/audio_backend.h"
 #include "rate_controller.h"
-#include "Audio/processing_parameters.h"
-#include <stddef.h>
-#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /// `@unchecked Sendable` is a *transfer* vouch, not a *share*
 /// vouch: the instance is safe to cross the Thread spawn boundary
@@ -47,33 +47,26 @@ extern "C" {
 /// and stopwatch are all loop-local state with no synchronisation
 /// and are *not* safe to use from multiple threads concurrently.
 typedef struct {
-    engine_shared_state_t* shared;
-    capture_backend_t* capture;
-    playback_backend_t* playback;
-    processing_parameters_t* processing_params;
-    size_t pipeline_rate;
-    size_t chunk_size;
-    bool pitch_supported;
-    bool rate_adjust_enabled;
-    double adjust_period;
-    int target_level;
-    engine_stop_callback_t on_stop;
-    void* on_stop_ctx;
+  engine_shared_state_t* shared;
+  capture_backend_t* capture;
+  playback_backend_t* playback;
+  processing_parameters_t* processing_params;
+  size_t pipeline_rate;
+  size_t chunk_size;
+  bool pitch_supported;
+  bool rate_adjust_enabled;
+  double adjust_period;
+  int target_level;
+  engine_stop_callback_t on_stop;
+  void* on_stop_ctx;
 } engine_playback_loop_t;
 
 engine_playback_loop_t* engine_playback_loop_create(
-    engine_shared_state_t* shared,
-    capture_backend_t* capture,
-    playback_backend_t* playback,
-    processing_parameters_t* processing_params,
-    size_t pipeline_rate,
-    size_t chunk_size,
-    bool rate_adjust_enabled,
-    double adjust_period,
-    int target_level,
-    engine_stop_callback_t on_stop,
-    void* on_stop_ctx
-);
+    engine_shared_state_t* shared, capture_backend_t* capture,
+    playback_backend_t* playback, processing_parameters_t* processing_params,
+    size_t pipeline_rate, size_t chunk_size, bool rate_adjust_enabled,
+    double adjust_period, int target_level, engine_stop_callback_t on_stop,
+    void* on_stop_ctx);
 
 void engine_playback_loop_free(engine_playback_loop_t* loop);
 void engine_playback_loop_run(engine_playback_loop_t* loop);
@@ -82,4 +75,4 @@ void engine_playback_loop_run(engine_playback_loop_t* loop);
 }
 #endif
 
-#endif // CLIB_ENGINE_ENGINE_PLAYBACK_LOOP_H
+#endif  // CLIB_ENGINE_ENGINE_PLAYBACK_LOOP_H

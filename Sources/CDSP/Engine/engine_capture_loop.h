@@ -21,19 +21,19 @@
 //     `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (vDSO read on
 //     Darwin — no syscall).
 
-#include "engine_shared_state.h"
-#include "engine_state_machine.h"
-#include "Backend/audio_backend.h"
+#include <stdbool.h>
+#include <stddef.h>
+
 #include "Audio/processing_parameters.h"
 #include "Audio/silence_counter.h"
+#include "Backend/audio_backend.h"
 #include "DoP/dop_decoder.h"
-#include <stddef.h>
-#include <stdbool.h>
+#include "engine_shared_state.h"
+#include "engine_state_machine.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /// `@unchecked Sendable` is a *transfer* vouch, not a *share*
 /// vouch: the instance is safe to cross the Thread spawn boundary
@@ -43,71 +43,63 @@ extern "C" {
 /// internal synchronisation and is *not* safe to use from multiple
 /// threads concurrently.
 typedef struct {
-    engine_shared_state_t* shared;
-    engine_state_machine_t* state_machine;
-    capture_backend_t* capture;
-    playback_backend_t* playback;
-    processing_parameters_t* processing_params;
-    dop_decoder_t* dop_decoder;
+  engine_shared_state_t* shared;
+  engine_state_machine_t* state_machine;
+  capture_backend_t* capture;
+  playback_backend_t* playback;
+  processing_parameters_t* processing_params;
+  dop_decoder_t* dop_decoder;
 
-    size_t chunk_size;
-    size_t channels;
-    size_t samplerate;
-    double last_observed_pending_rate;
-    bool has_last_observed_pending_rate;
-    double last_observed_playback_pending_rate;
-    bool has_last_observed_playback_pending_rate;
+  size_t chunk_size;
+  size_t channels;
+  size_t samplerate;
+  double last_observed_pending_rate;
+  bool has_last_observed_pending_rate;
+  double last_observed_playback_pending_rate;
+  bool has_last_observed_playback_pending_rate;
 
-    /// Hooked stop callback. Invoked when capture decides the engine
-    /// must shut down (format change / capture error / stall). The
-    /// host wires this to `DSPEngineCore.stop(reason:)` so the once-CAS
-    /// teardown runs exactly once even when several signals fire
-    /// concurrently.
-    engine_stop_callback_t on_stop;
-    void* on_stop_ctx;
+  /// Hooked stop callback. Invoked when capture decides the engine
+  /// must shut down (format change / capture error / stall). The
+  /// host wires this to `DSPEngineCore.stop(reason:)` so the once-CAS
+  /// teardown runs exactly once even when several signals fire
+  /// concurrently.
+  engine_stop_callback_t on_stop;
+  void* on_stop_ctx;
 
-    // Loop-private state.
+  // Loop-private state.
 
-    // MARK: - SilenceCounter
-    /// Counts consecutive silent chunks against a dB threshold and
-    /// reports back the desired engine state. `update(signalPeakDb:)`
-    /// returns `.paused` once silence has persisted for at least the
-    /// configured timeout, `.running` otherwise.
-    ///
-    /// Disabled when `timeoutSeconds <= 0` — in that case `update`
-    /// always returns `.running`.
-    silence_counter_t silence_counter;
+  // MARK: - SilenceCounter
+  /// Counts consecutive silent chunks against a dB threshold and
+  /// reports back the desired engine state. `update(signalPeakDb:)`
+  /// returns `.paused` once silence has persisted for at least the
+  /// configured timeout, `.running` otherwise.
+  ///
+  /// Disabled when `timeoutSeconds <= 0` — in that case `update`
+  /// always returns `.running`.
+  silence_counter_t silence_counter;
 
-    // MARK: - StallWatchdog
-    /// Detects a hung capture device — `read` returning no data for
-    /// longer than `timeoutSeconds` consecutively. The watchdog records
-    /// the monotonic time of the most recent successful read and reports
-    /// `true` exactly once per stall (subsequent ticks return `false`
-    /// until the next successful read clears the flag).
-    ///
-    /// Backed by `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` — a vDSO
-    /// read on Darwin, no syscall, suitable for invocation on every
-    /// audio-thread iteration.
-    uint64_t watchdog_last_success_ns;
-    bool watchdog_triggered;
-    double watchdog_timeout_seconds;
+  // MARK: - StallWatchdog
+  /// Detects a hung capture device — `read` returning no data for
+  /// longer than `timeoutSeconds` consecutively. The watchdog records
+  /// the monotonic time of the most recent successful read and reports
+  /// `true` exactly once per stall (subsequent ticks return `false`
+  /// until the next successful read clears the flag).
+  ///
+  /// Backed by `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` — a vDSO
+  /// read on Darwin, no syscall, suitable for invocation on every
+  /// audio-thread iteration.
+  uint64_t watchdog_last_success_ns;
+  bool watchdog_triggered;
+  double watchdog_timeout_seconds;
 } engine_capture_loop_t;
 
 engine_capture_loop_t* engine_capture_loop_create(
-    engine_shared_state_t* shared,
-    engine_state_machine_t* state_machine,
-    capture_backend_t* capture,
-    playback_backend_t* playback,
-    processing_parameters_t* processing_params,
-    dop_decoder_t* dop_decoder,
-    size_t chunk_size,
-    size_t channels,
-    size_t samplerate,
-    double silence_threshold_db,
-    double silence_timeout_seconds,
-    engine_stop_callback_t on_stop,
-    void* on_stop_ctx
-);
+    engine_shared_state_t* shared, engine_state_machine_t* state_machine,
+    capture_backend_t* capture, playback_backend_t* playback,
+    processing_parameters_t* processing_params, dop_decoder_t* dop_decoder,
+    size_t chunk_size, size_t channels, size_t samplerate,
+    double silence_threshold_db, double silence_timeout_seconds,
+    engine_stop_callback_t on_stop, void* on_stop_ctx);
 
 void engine_capture_loop_free(engine_capture_loop_t* loop);
 void engine_capture_loop_run(engine_capture_loop_t* loop);
@@ -116,4 +108,4 @@ void engine_capture_loop_run(engine_capture_loop_t* loop);
 }
 #endif
 
-#endif // CLIB_ENGINE_ENGINE_CAPTURE_LOOP_H
+#endif  // CLIB_ENGINE_ENGINE_CAPTURE_LOOP_H

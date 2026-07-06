@@ -16,11 +16,12 @@
 //   - https://www.dsprelated.com/showarticle/4.php (Real FFT from complex FFT)
 //   - https://en.wikipedia.org/wiki/Fast_Fourier_transform#Real-input_FFTs
 
-#include "real_fft.h"
-#include "arbitrary_complex_fft.h"
-#include "Audio/double_helpers.h"
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+
+#include "Audio/double_helpers.h"
+#include "arbitrary_complex_fft.h"
+#include "real_fft.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,17 +34,24 @@ extern "C" {
 /// inverse unpack) and never re-decides the backend.
 typedef struct complex_inner_real_fft complex_inner_real_fft_t;
 
-complex_inner_real_fft_t* complex_inner_real_fft_create(size_t length, arbitrary_complex_fft_t* inner);
-void complex_inner_real_fft_forward(complex_inner_real_fft_t* fft, waveform_t real_in, mutable_waveform_t spec_re, mutable_waveform_t spec_im);
-void complex_inner_real_fft_inverse(complex_inner_real_fft_t* fft, waveform_t spec_re, waveform_t spec_im, mutable_waveform_t real_out);
+complex_inner_real_fft_t* complex_inner_real_fft_create(
+    size_t length, arbitrary_complex_fft_t* inner);
+void complex_inner_real_fft_forward(complex_inner_real_fft_t* fft,
+                                    waveform_t real_in,
+                                    mutable_waveform_t spec_re,
+                                    mutable_waveform_t spec_im);
+void complex_inner_real_fft_inverse(complex_inner_real_fft_t* fft,
+                                    waveform_t spec_re, waveform_t spec_im,
+                                    mutable_waveform_t real_out);
 void complex_inner_real_fft_free(complex_inner_real_fft_t* fft);
 
-static inline real_fft_backend_t* complex_inner_real_fft_as_backend(complex_inner_real_fft_t* fft) {
-    return (real_fft_backend_t*)fft;
+static inline real_fft_backend_t* complex_inner_real_fft_as_backend(
+    complex_inner_real_fft_t* fft) {
+  return (real_fft_backend_t*)fft;
 }
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLIB_FFT_COMPLEXINNERREALFFT_H
+#endif  // CLIB_FFT_COMPLEXINNERREALFFT_H

@@ -16,13 +16,15 @@ extern "C" {
 /// This is the standard Darwin/macOS idiom for real-time audio threads.
 ///
 /// - Parameters:
-///   - name: A descriptive name of the thread (e.g. Capture, Playback, Processing).
+///   - name: A descriptive name of the thread (e.g. Capture, Playback,
+///   Processing).
 ///   - buffer_frames: The buffer size in frames.
 ///   - sample_rate: The sample rate in Hz.
-void set_realtime_thread_priority(const char* name, size_t buffer_frames, size_t sample_rate);
+void set_realtime_thread_priority(const char* name, size_t buffer_frames,
+                                  size_t sample_rate);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLIB_ENGINE_THREAD_PRIORITY_H
+#endif  // CLIB_ENGINE_THREAD_PRIORITY_H

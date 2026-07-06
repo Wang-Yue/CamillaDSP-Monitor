@@ -22,20 +22,19 @@
 extern "C" {
 #endif
 
-/// A high-performance descriptive view of a single channel's mutable buffer pointer
+/// A high-performance descriptive view of a single channel's mutable buffer
+/// pointer
 typedef double* mutable_waveform_t;
 /// A high-performance descriptive view of a single channel's buffer pointer
 typedef const double* waveform_t;
 
 /// Convert dB to linear gain
-static inline double double_from_db(double db) {
-    return pow(10.0, db / 20.0);
-}
+static inline double double_from_db(double db) { return pow(10.0, db / 20.0); }
 
 /// Convert linear gain to dB. Returns -1000.0 for zero/negative input.
 static inline double doubleo_db(double linear) {
-    if (linear <= 0.0) return -1000.0;
-    return 20.0 * log10(linear);
+  if (linear <= 0.0) return -1000.0;
+  return 20.0 * log10(linear);
 }
 
 /// Vectorized DSP operations using Apple Accelerate (vDSP) or fallback C loops.
@@ -49,105 +48,112 @@ static inline double doubleo_db(double linear) {
 /// ownership checks on the audio thread.
 
 /// Multiply vector by scalar in-place: buffer[i] *= scalar for i < count.
-static inline void dsp_ops_scalar_multiply(mutable_waveform_t buffer, double scalar, size_t count) {
+static inline void dsp_ops_scalar_multiply(mutable_waveform_t buffer,
+                                           double scalar, size_t count) {
 #if defined(__APPLE__)
-    vDSP_vsmulD(buffer, 1, &scalar, buffer, 1, count);
+  vDSP_vsmulD(buffer, 1, &scalar, buffer, 1, count);
 #elif defined(__linux__)
-    cblas_dscal((int)count, scalar, buffer, 1);
+  cblas_dscal((int)count, scalar, buffer, 1);
 #else
-    for (size_t i = 0; i < count; i++) {
-        buffer[i] *= scalar;
-    }
+  for (size_t i = 0; i < count; i++) {
+    buffer[i] *= scalar;
+  }
 #endif
 }
 
 /// Zero `count` samples in-place.
 static inline void dsp_ops_clear(mutable_waveform_t buffer, size_t count) {
 #if defined(__APPLE__)
-    vDSP_vclrD(buffer, 1, count);
+  vDSP_vclrD(buffer, 1, count);
 #elif defined(__linux__)
-    memset(buffer, 0, count * sizeof(double));
+  memset(buffer, 0, count * sizeof(double));
 #else
-    for (size_t i = 0; i < count; i++) {
-        buffer[i] = 0.0;
-    }
+  for (size_t i = 0; i < count; i++) {
+    buffer[i] = 0.0;
+  }
 #endif
 }
 
-/// Add `a[0..<count]` into `b[0..<count]` (in-place on `b`). Must satisfy `count <= a.count` and `count <= b.count`.
-static inline void dsp_ops_add(waveform_t a, mutable_waveform_t b, size_t count) {
+/// Add `a[0..<count]` into `b[0..<count]` (in-place on `b`). Must satisfy
+/// `count <= a.count` and `count <= b.count`.
+static inline void dsp_ops_add(waveform_t a, mutable_waveform_t b,
+                               size_t count) {
 #if defined(__APPLE__)
-    vDSP_vaddD(a, 1, b, 1, b, 1, count);
+  vDSP_vaddD(a, 1, b, 1, b, 1, count);
 #elif defined(__linux__)
-    cblas_daxpy((int)count, 1.0, a, 1, b, 1);
+  cblas_daxpy((int)count, 1.0, a, 1, b, 1);
 #else
-    for (size_t i = 0; i < count; i++) {
-        b[i] += a[i];
-    }
+  for (size_t i = 0; i < count; i++) {
+    b[i] += a[i];
+  }
 #endif
 }
 
-/// Multiply two vectors element-wise: b[0..<count] = a[0..<count] * b[0..<count]
-static inline void dsp_ops_multiply(waveform_t a, mutable_waveform_t b, size_t count) {
+/// Multiply two vectors element-wise: b[0..<count] = a[0..<count] *
+/// b[0..<count]
+static inline void dsp_ops_multiply(waveform_t a, mutable_waveform_t b,
+                                    size_t count) {
 #if defined(__APPLE__)
-    vDSP_vmulD(a, 1, b, 1, b, 1, count);
+  vDSP_vmulD(a, 1, b, 1, b, 1, count);
 #else
-    for (size_t i = 0; i < count; i++) {
-        b[i] *= a[i];
-    }
+  for (size_t i = 0; i < count; i++) {
+    b[i] *= a[i];
+  }
 #endif
 }
 
 /// Multiply-accumulate: accumulator[0..<count] += a[0..<count] * scalar
-static inline void dsp_ops_multiply_add(waveform_t a, double scalar, mutable_waveform_t accumulator, size_t count) {
+static inline void dsp_ops_multiply_add(waveform_t a, double scalar,
+                                        mutable_waveform_t accumulator,
+                                        size_t count) {
 #if defined(__APPLE__)
-    // result = (a * scalar) + accumulator, written into accumulator.
-    vDSP_vsmaD(a, 1, &scalar, accumulator, 1, accumulator, 1, count);
+  // result = (a * scalar) + accumulator, written into accumulator.
+  vDSP_vsmaD(a, 1, &scalar, accumulator, 1, accumulator, 1, count);
 #elif defined(__linux__)
-    cblas_daxpy((int)count, scalar, a, 1, accumulator, 1);
+  cblas_daxpy((int)count, scalar, a, 1, accumulator, 1);
 #else
-    for (size_t i = 0; i < count; i++) {
-        accumulator[i] += a[i] * scalar;
-    }
+  for (size_t i = 0; i < count; i++) {
+    accumulator[i] += a[i] * scalar;
+  }
 #endif
 }
 
 /// Find peak absolute value across the first `count` samples of the buffer.
 static inline double dsp_ops_peak_absolute(waveform_t buffer, size_t count) {
-    if (count == 0) return 0.0;
+  if (count == 0) return 0.0;
 #if defined(__APPLE__)
-    double res = 0.0;
-    vDSP_maxmgvD(buffer, 1, &res, count);
-    return res;
+  double res = 0.0;
+  vDSP_maxmgvD(buffer, 1, &res, count);
+  return res;
 #elif defined(__linux__)
-    int idx = cblas_idamax((int)count, buffer, 1);
-    return fabs(buffer[idx]);
+  int idx = cblas_idamax((int)count, buffer, 1);
+  return fabs(buffer[idx]);
 #else
-    double res = 0.0;
-    for (size_t i = 0; i < count; i++) {
-        double val = fabs(buffer[i]);
-        if (val > res) res = val;
-    }
-    return res;
+  double res = 0.0;
+  for (size_t i = 0; i < count; i++) {
+    double val = fabs(buffer[i]);
+    if (val > res) res = val;
+  }
+  return res;
 #endif
 }
 
 /// Compute root-mean-square over the first `count` samples of the buffer.
 static inline double dsp_ops_rms(waveform_t buffer, size_t count) {
-    if (count == 0) return 0.0;
+  if (count == 0) return 0.0;
 #if defined(__APPLE__)
-    double res = 0.0;
-    vDSP_rmsqvD(buffer, 1, &res, count);
-    return res;
+  double res = 0.0;
+  vDSP_rmsqvD(buffer, 1, &res, count);
+  return res;
 #elif defined(__linux__)
-    double norm = cblas_dnrm2((int)count, buffer, 1);
-    return norm / sqrt((double)count);
+  double norm = cblas_dnrm2((int)count, buffer, 1);
+  return norm / sqrt((double)count);
 #else
-    double sum = 0.0;
-    for (size_t i = 0; i < count; i++) {
-        sum += buffer[i] * buffer[i];
-    }
-    return sqrt(sum / count);
+  double sum = 0.0;
+  for (size_t i = 0; i < count; i++) {
+    sum += buffer[i] * buffer[i];
+  }
+  return sqrt(sum / count);
 #endif
 }
 
@@ -155,4 +161,4 @@ static inline double dsp_ops_rms(waveform_t buffer, size_t count) {
 }
 #endif
 
-#endif // CLIB_AUDIO_DOUBLE_HELPERS_H
+#endif  // CLIB_AUDIO_DOUBLE_HELPERS_H

@@ -9,10 +9,11 @@
 // roughly doubles the throughput of the "complex-FFT-via-half-N" path
 // for sizes like 1024/2048/4096.
 
-#include "real_fft.h"
-#include "Audio/double_helpers.h"
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+
+#include "Audio/double_helpers.h"
+#include "real_fft.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,16 +36,20 @@ typedef struct vdsp_real_fft vdsp_real_fft_t;
 /// `vDSP_create_fftsetupD` fails — caller falls back to the
 /// complex-inner backend.
 vdsp_real_fft_t* vdsp_real_fft_create(size_t length);
-void vdsp_real_fft_forward(vdsp_real_fft_t* fft, waveform_t real_in, mutable_waveform_t spec_re, mutable_waveform_t spec_im);
-void vdsp_real_fft_inverse(vdsp_real_fft_t* fft, waveform_t spec_re, waveform_t spec_im, mutable_waveform_t real_out);
+void vdsp_real_fft_forward(vdsp_real_fft_t* fft, waveform_t real_in,
+                           mutable_waveform_t spec_re,
+                           mutable_waveform_t spec_im);
+void vdsp_real_fft_inverse(vdsp_real_fft_t* fft, waveform_t spec_re,
+                           waveform_t spec_im, mutable_waveform_t real_out);
 void vdsp_real_fft_free(vdsp_real_fft_t* fft);
 
-static inline real_fft_backend_t* vdsp_real_fft_as_backend(vdsp_real_fft_t* fft) {
-    return (real_fft_backend_t*)fft;
+static inline real_fft_backend_t* vdsp_real_fft_as_backend(
+    vdsp_real_fft_t* fft) {
+  return (real_fft_backend_t*)fft;
 }
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLIB_FFT_VDSPREALFFT_H
+#endif  // CLIB_FFT_VDSPREALFFT_H

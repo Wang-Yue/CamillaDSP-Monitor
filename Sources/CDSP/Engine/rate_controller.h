@@ -34,8 +34,8 @@
 // `ζ` directly is a more honest way to tune than groping for raw
 // gains, so the convenience initializer takes that route.
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -61,20 +61,24 @@ extern "C" {
 /// conditional-integration form of anti-windup, which prevents the
 /// integrator from accumulating during sustained saturation.
 typedef struct {
-    double target_level;
-    double interval;
-    double kp;
-    double ki;
-    double frames_per_interval;
-    double accumulated;
-    int ramp_steps;
-    double ramp_trigger_limit;
-    double ramp_start;
-    int ramp_step;
+  double target_level;
+  double interval;
+  double kp;
+  double ki;
+  double frames_per_interval;
+  double accumulated;
+  int ramp_steps;
+  double ramp_trigger_limit;
+  double ramp_start;
+  int ramp_step;
 } pi_rate_controller_t;
 
-pi_rate_controller_t* pi_rate_controller_create_default(int samplerate, double interval, int target_level);
-pi_rate_controller_t* pi_rate_controller_create(int samplerate, double interval, int target_level, double kp, double ki);
+pi_rate_controller_t* pi_rate_controller_create_default(int samplerate,
+                                                        double interval,
+                                                        int target_level);
+pi_rate_controller_t* pi_rate_controller_create(int samplerate, double interval,
+                                                int target_level, double kp,
+                                                double ki);
 double pi_rate_controller_next(pi_rate_controller_t* pi, double level);
 void pi_rate_controller_free(pi_rate_controller_t* pi);
 
@@ -86,8 +90,8 @@ void pi_rate_controller_free(pi_rate_controller_t* pi);
 /// effect is a simple boxcar low-pass that filters chunk-level noise
 /// out of the controller's input.
 typedef struct {
-    double sum;
-    int count;
+  double sum;
+  int count;
 } averager_t;
 
 void averager_init(averager_t* avg);
@@ -106,7 +110,7 @@ bool averager_get_average(const averager_t* avg, double* out_val);
 /// vDSO read — no syscall, suitable for invocation on every processed
 /// audio chunk.
 typedef struct {
-    uint64_t start_ns;
+  uint64_t start_ns;
 } stopwatch_t;
 
 void stopwatch_init(stopwatch_t* sw);
@@ -117,4 +121,4 @@ double stopwatch_elapsed_seconds(const stopwatch_t* sw);
 }
 #endif
 
-#endif // CLIB_ENGINE_RATE_CONTROLLER_H
+#endif  // CLIB_ENGINE_RATE_CONTROLLER_H

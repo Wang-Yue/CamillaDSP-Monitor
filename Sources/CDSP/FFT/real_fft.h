@@ -38,16 +38,21 @@
 //   - https://www.dsprelated.com/showarticle/4.php (Real FFT from complex FFT)
 //   - https://en.wikipedia.org/wiki/Fast_Fourier_transform#Real-input_FFTs
 
-#include "Audio/double_helpers.h"
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+
+#include "Audio/double_helpers.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef void (*real_fft_backend_forward_fn)(void* ctx, waveform_t real_in, mutable_waveform_t spec_re, mutable_waveform_t spec_im);
-typedef void (*real_fft_backend_inverse_fn)(void* ctx, waveform_t spec_re, waveform_t spec_im, mutable_waveform_t real_out);
+typedef void (*real_fft_backend_forward_fn)(void* ctx, waveform_t real_in,
+                                            mutable_waveform_t spec_re,
+                                            mutable_waveform_t spec_im);
+typedef void (*real_fft_backend_inverse_fn)(void* ctx, waveform_t spec_re,
+                                            waveform_t spec_im,
+                                            mutable_waveform_t real_out);
 typedef void (*real_fft_backend_free_fn)(void* ctx);
 
 /// Module-internal protocol implemented by every real-FFT backend
@@ -57,10 +62,10 @@ typedef void (*real_fft_backend_free_fn)(void* ctx);
 /// `inverse` (twice per resampler chunk per channel) and is invisible
 /// against the actual FFT cost.
 typedef struct {
-    void* ctx;
-    real_fft_backend_forward_fn forward;
-    real_fft_backend_inverse_fn inverse;
-    real_fft_backend_free_fn free;
+  void* ctx;
+  real_fft_backend_forward_fn forward;
+  real_fft_backend_inverse_fn inverse;
+  real_fft_backend_free_fn free;
 } real_fft_backend_t;
 
 /// Real-input/output FFT of length `length = 2N` (even). Forward
@@ -71,27 +76,29 @@ typedef struct {
 /// the file-level header for the routing decision tree. Callers never
 /// see (or pick) a backend; they just get a correctly-sized real FFT.
 typedef struct {
-    /// Time-domain length (must be even).
-    size_t length;
-    /// Number of unique complex bins in the spectrum (= length/2 + 1).
-    size_t spectrum_length;
-    real_fft_backend_t* backend;
+  /// Time-domain length (must be even).
+  size_t length;
+  /// Number of unique complex bins in the spectrum (= length/2 + 1).
+  size_t spectrum_length;
+  real_fft_backend_t* backend;
 } real_fft_t;
 
 real_fft_t* real_fft_create(size_t length);
 /// Forward 2N-point real FFT. Produces the `N + 1` unique complex bins.
 /// `realIn` length must be ≥ `length`; `specRe`/`specIm` length must be
 /// ≥ `spectrumLength`.
-void real_fft_forward(real_fft_t* fft, waveform_t real_in, mutable_waveform_t spec_re, mutable_waveform_t spec_im);
+void real_fft_forward(real_fft_t* fft, waveform_t real_in,
+                      mutable_waveform_t spec_re, mutable_waveform_t spec_im);
 /// Inverse 2N-point real FFT. Reads the `N + 1` unique complex bins from
 /// `specRe`/`specIm` and writes `length` real samples into `realOut`.
 /// Output is scaled by `length` (round-trip with `forward` multiplies by
 /// `length`).
-void real_fft_inverse(real_fft_t* fft, waveform_t spec_re, waveform_t spec_im, mutable_waveform_t real_out);
+void real_fft_inverse(real_fft_t* fft, waveform_t spec_re, waveform_t spec_im,
+                      mutable_waveform_t real_out);
 void real_fft_free(real_fft_t* fft);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLIB_FFT_REALFFT_H
+#endif  // CLIB_FFT_REALFFT_H

@@ -1,9 +1,10 @@
 #ifndef CLIB_DOP_SIGMA_DELTA_MODULATOR_H
 #define CLIB_DOP_SIGMA_DELTA_MODULATOR_H
 
-#include "Config/engine_config_types.h"
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+
+#include "Config/engine_config_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,18 +23,20 @@ extern "C" {
 /// coefficients into pointer storage so the hot loop avoids re-copying
 /// the SDMFilter struct (and its `[Double]` ARC traffic) on every call.
 typedef struct {
-    int idx;
-    double prev_y;
-    double non_trellis_state[16];
-    double cached_a[8];
-    double cached_g[8];
-    int cached_order;
-    sdm_filter_t name;
-    uint32_t freq;
+  int idx;
+  double prev_y;
+  double non_trellis_state[16];
+  double cached_a[8];
+  double cached_g[8];
+  int cached_order;
+  sdm_filter_t name;
+  uint32_t freq;
 } sigma_delta_modulator_t;
 
-sigma_delta_modulator_t* sigma_delta_modulator_create(sdm_filter_t filter_name, uint32_t freq);
-void sigma_delta_modulator_init(sigma_delta_modulator_t* mod, sdm_filter_t filter_name, uint32_t freq);
+sigma_delta_modulator_t* sigma_delta_modulator_create(sdm_filter_t filter_name,
+                                                      uint32_t freq);
+void sigma_delta_modulator_init(sigma_delta_modulator_t* mod,
+                                sdm_filter_t filter_name, uint32_t freq);
 double sigma_delta_modulator_sample(sigma_delta_modulator_t* mod, double x);
 void sigma_delta_modulator_free(sigma_delta_modulator_t* mod);
 
@@ -41,4 +44,4 @@ void sigma_delta_modulator_free(sigma_delta_modulator_t* mod);
 }
 #endif
 
-#endif // CLIB_DOP_SIGMA_DELTA_MODULATOR_H
+#endif  // CLIB_DOP_SIGMA_DELTA_MODULATOR_H

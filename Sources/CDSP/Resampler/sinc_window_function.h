@@ -5,6 +5,7 @@
 #define CLIB_RESAMPLER_SINC_WINDOW_FUNCTION_H
 
 #include <stddef.h>
+
 #include "Audio/double_helpers.h"
 
 #ifdef __cplusplus
@@ -15,15 +16,16 @@ extern "C" {
 /// squared versions of the periodic base window — wider main lobe but stronger
 /// stopband attenuation.
 typedef enum {
-    WINDOW_FUNCTION_HANN = 0,
-    WINDOW_FUNCTION_HANN2,
-    WINDOW_FUNCTION_BLACKMAN,
-    WINDOW_FUNCTION_BLACKMAN2,
-    WINDOW_FUNCTION_BLACKMAN_HARRIS,
-    WINDOW_FUNCTION_BLACKMAN_HARRIS2
+  WINDOW_FUNCTION_HANN = 0,
+  WINDOW_FUNCTION_HANN2,
+  WINDOW_FUNCTION_BLACKMAN,
+  WINDOW_FUNCTION_BLACKMAN2,
+  WINDOW_FUNCTION_BLACKMAN_HARRIS,
+  WINDOW_FUNCTION_BLACKMAN_HARRIS2
 } window_function_t;
 
-window_function_t window_function_from_string(const char* str, window_function_t default_val);
+window_function_t window_function_from_string(const char* str,
+                                              window_function_t default_val);
 const char* window_function_to_string(window_function_t wf);
 
 /// Periodic window value at sample index `i` of a length-`n` window.
@@ -50,10 +52,11 @@ double calculate_cutoff(size_t sinc_len, window_function_t window);
 ///   2. Sum y, divide by `factor`.
 ///   3. Decimate: `sincs[factor - n - 1][p] = y[factor*p + n] / norm`.
 /// Stored layout: `table[s * sincLen + p] == sincs[s][p]`.
-double* make_sinc_table(size_t sinc_len, size_t oversampling_factor, window_function_t window, double fc);
+double* make_sinc_table(size_t sinc_len, size_t oversampling_factor,
+                        window_function_t window, double fc);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLIB_RESAMPLER_SINC_WINDOW_FUNCTION_H
+#endif  // CLIB_RESAMPLER_SINC_WINDOW_FUNCTION_H

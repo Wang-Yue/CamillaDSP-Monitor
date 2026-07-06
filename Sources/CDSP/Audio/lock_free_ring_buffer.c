@@ -1,5 +1,7 @@
-// Single-producer / single-consumer lock-free primitives used by the audio thread.
+// Single-producer / single-consumer lock-free primitives used by the audio
+// thread.
 #include "Audio/lock_free_ring_buffer.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,241 +11,260 @@
 
 // MARK: - SPSCAudioRingBuffer Implementation
 
-spsc_audio_ring_buffer_t* spsc_audio_ring_buffer_create(size_t minimum_capacity) {
-    size_t cap = spsc_audio_ring_buffer_round_up_to_power_of_two(minimum_capacity < 2 ? 2 : minimum_capacity);
-    spsc_audio_ring_buffer_t* ring = (spsc_audio_ring_buffer_t*)malloc(sizeof(spsc_audio_ring_buffer_t));
-    if (!ring) return NULL;
-    ring->capacity = cap;
-    ring->mask = cap - 1;
-    ring->storage = (float*)calloc(cap, sizeof(float));
-    if (!ring->storage) {
-        free(ring);
-        return NULL;
-    }
-    atomic_init(&ring->write_index, 0);
-    atomic_init(&ring->read_index, 0);
-    return ring;
+spsc_audio_ring_buffer_t* spsc_audio_ring_buffer_create(
+    size_t minimum_capacity) {
+  size_t cap = spsc_audio_ring_buffer_round_up_to_power_of_two(
+      minimum_capacity < 2 ? 2 : minimum_capacity);
+  spsc_audio_ring_buffer_t* ring =
+      (spsc_audio_ring_buffer_t*)malloc(sizeof(spsc_audio_ring_buffer_t));
+  if (!ring) return NULL;
+  ring->capacity = cap;
+  ring->mask = cap - 1;
+  ring->storage = (float*)calloc(cap, sizeof(float));
+  if (!ring->storage) {
+    free(ring);
+    return NULL;
+  }
+  atomic_init(&ring->write_index, 0);
+  atomic_init(&ring->read_index, 0);
+  return ring;
 }
 
 void spsc_audio_ring_buffer_free(spsc_audio_ring_buffer_t* ring) {
-    if (!ring) return;
-    free(ring->storage);
-    free(ring);
+  if (!ring) return;
+  free(ring->storage);
+  free(ring);
 }
 
-void spsc_audio_ring_buffer_write(spsc_audio_ring_buffer_t* ring, const float* source, size_t count, size_t stride) {
-    if (count == 0 || !ring || !source) return;
-    const float* src = source;
-    size_t cnt = count;
-    if (cnt > ring->capacity) {
-        size_t skip = cnt - ring->capacity;
-        src += skip * stride;
-        cnt = ring->capacity;
-    }
-    uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_relaxed);
-    size_t write_offset = (size_t)(w & ring->mask);
-    size_t first_chunk = ring->capacity - write_offset;
-    if (first_chunk > cnt) first_chunk = cnt;
+void spsc_audio_ring_buffer_write(spsc_audio_ring_buffer_t* ring,
+                                  const float* source, size_t count,
+                                  size_t stride) {
+  if (count == 0 || !ring || !source) return;
+  const float* src = source;
+  size_t cnt = count;
+  if (cnt > ring->capacity) {
+    size_t skip = cnt - ring->capacity;
+    src += skip * stride;
+    cnt = ring->capacity;
+  }
+  uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_relaxed);
+  size_t write_offset = (size_t)(w & ring->mask);
+  size_t first_chunk = ring->capacity - write_offset;
+  if (first_chunk > cnt) first_chunk = cnt;
 
-    if (stride == 1) {
-        memcpy(ring->storage + write_offset, src, first_chunk * sizeof(float));
-        if (first_chunk < cnt) {
-            memcpy(ring->storage, src + first_chunk, (cnt - first_chunk) * sizeof(float));
-        }
-    } else {
-#ifdef __APPLE__
-        // Strided copy: extract every `stride`-th element of `source`
-        // into the contiguous ring slot. `vDSP_vsadd` with a zero
-        // scalar is a stride-aware copy — there's no dedicated
-        // strided memcpy in vDSP.
-        float zero = 0.0f;
-        vDSP_vsadd(src, stride, &zero, ring->storage + write_offset, 1, first_chunk);
-        if (first_chunk < cnt) {
-            vDSP_vsadd(src + (stride * first_chunk), stride, &zero, ring->storage, 1, cnt - first_chunk);
-        }
-#else
-        for (size_t i = 0; i < first_chunk; i++) {
-            ring->storage[write_offset + i] = src[i * stride];
-        }
-        if (first_chunk < cnt) {
-            for (size_t i = 0; i < cnt - first_chunk; i++) {
-                ring->storage[i] = src[(first_chunk + i) * stride];
-            }
-        }
-#endif
-    }
-    atomic_store_explicit(&ring->write_index, w + cnt, memory_order_release);
-}
-
-void spsc_audio_ring_buffer_append_converting_double_to_float(spsc_audio_ring_buffer_t* ring, const double* source, size_t count) {
-    if (count == 0 || !ring || !source) return;
-    const double* src = source;
-    size_t cnt = count;
-    if (cnt > ring->capacity) {
-        size_t skip = cnt - ring->capacity;
-        src += skip;
-        cnt = ring->capacity;
-    }
-    uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_relaxed);
-    size_t write_offset = (size_t)(w & ring->mask);
-    size_t first_chunk = ring->capacity - write_offset;
-    if (first_chunk > cnt) first_chunk = cnt;
-
-#ifdef __APPLE__
-    // vDSP_vdpsp: convert and store Double->Float, no allocation.
-    vDSP_vdpsp(src, 1, ring->storage + write_offset, 1, first_chunk);
+  if (stride == 1) {
+    memcpy(ring->storage + write_offset, src, first_chunk * sizeof(float));
     if (first_chunk < cnt) {
-        vDSP_vdpsp(src + first_chunk, 1, ring->storage, 1, cnt - first_chunk);
+      memcpy(ring->storage, src + first_chunk,
+             (cnt - first_chunk) * sizeof(float));
+    }
+  } else {
+#ifdef __APPLE__
+    // Strided copy: extract every `stride`-th element of `source`
+    // into the contiguous ring slot. `vDSP_vsadd` with a zero
+    // scalar is a stride-aware copy — there's no dedicated
+    // strided memcpy in vDSP.
+    float zero = 0.0f;
+    vDSP_vsadd(src, stride, &zero, ring->storage + write_offset, 1,
+               first_chunk);
+    if (first_chunk < cnt) {
+      vDSP_vsadd(src + (stride * first_chunk), stride, &zero, ring->storage, 1,
+                 cnt - first_chunk);
     }
 #else
     for (size_t i = 0; i < first_chunk; i++) {
-        ring->storage[write_offset + i] = (float)src[i];
+      ring->storage[write_offset + i] = src[i * stride];
     }
     if (first_chunk < cnt) {
-        for (size_t i = 0; i < cnt - first_chunk; i++) {
-            ring->storage[i] = (float)src[first_chunk + i];
-        }
+      for (size_t i = 0; i < cnt - first_chunk; i++) {
+        ring->storage[i] = src[(first_chunk + i) * stride];
+      }
     }
 #endif
-    atomic_store_explicit(&ring->write_index, w + cnt, memory_order_release);
+  }
+  atomic_store_explicit(&ring->write_index, w + cnt, memory_order_release);
 }
 
-void spsc_audio_ring_buffer_write_silence(spsc_audio_ring_buffer_t* ring, size_t count) {
-    if (count == 0 || !ring) return;
-    size_t cnt = count;
-    if (cnt > ring->capacity) {
-        cnt = ring->capacity;
-    }
-    uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_relaxed);
-    size_t write_offset = (size_t)(w & ring->mask);
-    size_t first_chunk = ring->capacity - write_offset;
-    if (first_chunk > cnt) first_chunk = cnt;
+void spsc_audio_ring_buffer_append_converting_double_to_float(
+    spsc_audio_ring_buffer_t* ring, const double* source, size_t count) {
+  if (count == 0 || !ring || !source) return;
+  const double* src = source;
+  size_t cnt = count;
+  if (cnt > ring->capacity) {
+    size_t skip = cnt - ring->capacity;
+    src += skip;
+    cnt = ring->capacity;
+  }
+  uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_relaxed);
+  size_t write_offset = (size_t)(w & ring->mask);
+  size_t first_chunk = ring->capacity - write_offset;
+  if (first_chunk > cnt) first_chunk = cnt;
 
-    memset(ring->storage + write_offset, 0, first_chunk * sizeof(float));
-    if (first_chunk < cnt) {
-        memset(ring->storage, 0, (cnt - first_chunk) * sizeof(float));
+#ifdef __APPLE__
+  // vDSP_vdpsp: convert and store Double->Float, no allocation.
+  vDSP_vdpsp(src, 1, ring->storage + write_offset, 1, first_chunk);
+  if (first_chunk < cnt) {
+    vDSP_vdpsp(src + first_chunk, 1, ring->storage, 1, cnt - first_chunk);
+  }
+#else
+  for (size_t i = 0; i < first_chunk; i++) {
+    ring->storage[write_offset + i] = (float)src[i];
+  }
+  if (first_chunk < cnt) {
+    for (size_t i = 0; i < cnt - first_chunk; i++) {
+      ring->storage[i] = (float)src[first_chunk + i];
     }
-    atomic_store_explicit(&ring->write_index, w + cnt, memory_order_release);
+  }
+#endif
+  atomic_store_explicit(&ring->write_index, w + cnt, memory_order_release);
 }
 
-size_t spsc_audio_ring_buffer_consume(spsc_audio_ring_buffer_t* ring, float* dest, size_t count) {
-    if (count == 0 || !ring || !dest) return 0;
-    uint64_t r = atomic_load_explicit(&ring->read_index, memory_order_relaxed);
-    uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_acquire);
-    size_t avail = (size_t)(w - r);
+void spsc_audio_ring_buffer_write_silence(spsc_audio_ring_buffer_t* ring,
+                                          size_t count) {
+  if (count == 0 || !ring) return;
+  size_t cnt = count;
+  if (cnt > ring->capacity) {
+    cnt = ring->capacity;
+  }
+  uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_relaxed);
+  size_t write_offset = (size_t)(w & ring->mask);
+  size_t first_chunk = ring->capacity - write_offset;
+  if (first_chunk > cnt) first_chunk = cnt;
 
-    if (avail > ring->capacity) {
-        // Producer has overwritten unread data. Advance read pointer to the
-        // oldest valid data (write_index - capacity).
-        r = w - (uint64_t)ring->capacity;
-        atomic_store_explicit(&ring->read_index, r, memory_order_release);
-        avail = ring->capacity;
-    }
+  memset(ring->storage + write_offset, 0, first_chunk * sizeof(float));
+  if (first_chunk < cnt) {
+    memset(ring->storage, 0, (cnt - first_chunk) * sizeof(float));
+  }
+  atomic_store_explicit(&ring->write_index, w + cnt, memory_order_release);
+}
 
-    size_t n = avail < count ? avail : count;
-    if (n == 0) return 0;
+size_t spsc_audio_ring_buffer_consume(spsc_audio_ring_buffer_t* ring,
+                                      float* dest, size_t count) {
+  if (count == 0 || !ring || !dest) return 0;
+  uint64_t r = atomic_load_explicit(&ring->read_index, memory_order_relaxed);
+  uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_acquire);
+  size_t avail = (size_t)(w - r);
 
-    size_t read_offset = (size_t)(r & ring->mask);
-    size_t first_chunk = ring->capacity - read_offset;
-    if (first_chunk > n) first_chunk = n;
+  if (avail > ring->capacity) {
+    // Producer has overwritten unread data. Advance read pointer to the
+    // oldest valid data (write_index - capacity).
+    r = w - (uint64_t)ring->capacity;
+    atomic_store_explicit(&ring->read_index, r, memory_order_release);
+    avail = ring->capacity;
+  }
 
-    memcpy(dest, ring->storage + read_offset, first_chunk * sizeof(float));
-    if (first_chunk < n) {
-        memcpy(dest + first_chunk, ring->storage, (n - first_chunk) * sizeof(float));
-    }
-    atomic_store_explicit(&ring->read_index, r + n, memory_order_release);
-    return n;
+  size_t n = avail < count ? avail : count;
+  if (n == 0) return 0;
+
+  size_t read_offset = (size_t)(r & ring->mask);
+  size_t first_chunk = ring->capacity - read_offset;
+  if (first_chunk > n) first_chunk = n;
+
+  memcpy(dest, ring->storage + read_offset, first_chunk * sizeof(float));
+  if (first_chunk < n) {
+    memcpy(dest + first_chunk, ring->storage,
+           (n - first_chunk) * sizeof(float));
+  }
+  atomic_store_explicit(&ring->read_index, r + n, memory_order_release);
+  return n;
 }
 
 void spsc_audio_ring_buffer_drain(spsc_audio_ring_buffer_t* ring) {
-    if (!ring) return;
-    uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_acquire);
-    atomic_store_explicit(&ring->read_index, w, memory_order_release);
+  if (!ring) return;
+  uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_acquire);
+  atomic_store_explicit(&ring->read_index, w, memory_order_release);
 }
 
-bool spsc_audio_ring_buffer_read_latest_at(const spsc_audio_ring_buffer_t* ring, float* dest, size_t count, uint64_t written) {
-    if (!ring || !dest || count == 0 || count > ring->capacity) return false;
-    if (written < (uint64_t)count) return false;
-    size_t end_idx = (size_t)(written & ring->mask);
-    size_t start_idx = (end_idx + ring->capacity - count) & ring->mask;
-    size_t first_chunk = ring->capacity - start_idx;
-    if (first_chunk > count) first_chunk = count;
+bool spsc_audio_ring_buffer_read_latest_at(const spsc_audio_ring_buffer_t* ring,
+                                           float* dest, size_t count,
+                                           uint64_t written) {
+  if (!ring || !dest || count == 0 || count > ring->capacity) return false;
+  if (written < (uint64_t)count) return false;
+  size_t end_idx = (size_t)(written & ring->mask);
+  size_t start_idx = (end_idx + ring->capacity - count) & ring->mask;
+  size_t first_chunk = ring->capacity - start_idx;
+  if (first_chunk > count) first_chunk = count;
 
-    memcpy(dest, ring->storage + start_idx, first_chunk * sizeof(float));
-    if (first_chunk < count) {
-        memcpy(dest + first_chunk, ring->storage, (count - first_chunk) * sizeof(float));
-    }
-    return true;
+  memcpy(dest, ring->storage + start_idx, first_chunk * sizeof(float));
+  if (first_chunk < count) {
+    memcpy(dest + first_chunk, ring->storage,
+           (count - first_chunk) * sizeof(float));
+  }
+  return true;
 }
 
-bool spsc_audio_ring_buffer_read_latest(const spsc_audio_ring_buffer_t* ring, float* dest, size_t count) {
-    if (!ring) return false;
-    uint64_t written = atomic_load_explicit((_Atomic uint64_t*)&ring->write_index, memory_order_acquire);
-    return spsc_audio_ring_buffer_read_latest_at(ring, dest, count, written);
+bool spsc_audio_ring_buffer_read_latest(const spsc_audio_ring_buffer_t* ring,
+                                        float* dest, size_t count) {
+  if (!ring) return false;
+  uint64_t written = atomic_load_explicit((_Atomic uint64_t*)&ring->write_index,
+                                          memory_order_acquire);
+  return spsc_audio_ring_buffer_read_latest_at(ring, dest, count, written);
 }
 
 // MARK: - SPSCQueue Implementation
 
 spsc_queue_t* spsc_queue_create(size_t minimum_capacity) {
-    size_t cap = spsc_audio_ring_buffer_round_up_to_power_of_two(minimum_capacity < 2 ? 2 : minimum_capacity);
-    spsc_queue_t* queue = (spsc_queue_t*)malloc(sizeof(spsc_queue_t));
-    if (!queue) return NULL;
-    queue->capacity = cap;
-    queue->mask = cap - 1;
-    queue->storage = (void**)calloc(cap, sizeof(void*));
-    if (!queue->storage) {
-        free(queue);
-        return NULL;
-    }
-    atomic_init(&queue->write_index, 0);
-    atomic_init(&queue->read_index, 0);
-    return queue;
+  size_t cap = spsc_audio_ring_buffer_round_up_to_power_of_two(
+      minimum_capacity < 2 ? 2 : minimum_capacity);
+  spsc_queue_t* queue = (spsc_queue_t*)malloc(sizeof(spsc_queue_t));
+  if (!queue) return NULL;
+  queue->capacity = cap;
+  queue->mask = cap - 1;
+  queue->storage = (void**)calloc(cap, sizeof(void*));
+  if (!queue->storage) {
+    free(queue);
+    return NULL;
+  }
+  atomic_init(&queue->write_index, 0);
+  atomic_init(&queue->read_index, 0);
+  return queue;
 }
 
 void spsc_queue_free(spsc_queue_t* queue) {
-    if (!queue) return;
-    // Clearing each slot to NULL; deinitialize then deallocate the raw storage.
-    free(queue->storage);
-    free(queue);
+  if (!queue) return;
+  // Clearing each slot to NULL; deinitialize then deallocate the raw storage.
+  free(queue->storage);
+  free(queue);
 }
 
 bool spsc_queue_enqueue(spsc_queue_t* queue, void* value) {
-    if (!queue) return false;
-    uint64_t w = atomic_load_explicit(&queue->write_index, memory_order_relaxed);
-    uint64_t r = atomic_load_explicit(&queue->read_index, memory_order_acquire);
-    if (w - r >= (uint64_t)queue->capacity) return false;
-    queue->storage[(size_t)(w & queue->mask)] = value;
-    atomic_store_explicit(&queue->write_index, w + 1, memory_order_release);
-    return true;
+  if (!queue) return false;
+  uint64_t w = atomic_load_explicit(&queue->write_index, memory_order_relaxed);
+  uint64_t r = atomic_load_explicit(&queue->read_index, memory_order_acquire);
+  if (w - r >= (uint64_t)queue->capacity) return false;
+  queue->storage[(size_t)(w & queue->mask)] = value;
+  atomic_store_explicit(&queue->write_index, w + 1, memory_order_release);
+  return true;
 }
 
 void* spsc_queue_dequeue(spsc_queue_t* queue) {
-    if (!queue) return NULL;
-    uint64_t r = atomic_load_explicit(&queue->read_index, memory_order_relaxed);
-    uint64_t w = atomic_load_explicit(&queue->write_index, memory_order_acquire);
-    if (r == w) return NULL;
-    size_t slot = (size_t)(r & queue->mask);
-    void* value = queue->storage[slot];
-    queue->storage[slot] = NULL;
-    atomic_store_explicit(&queue->read_index, r + 1, memory_order_release);
-    return value;
+  if (!queue) return NULL;
+  uint64_t r = atomic_load_explicit(&queue->read_index, memory_order_relaxed);
+  uint64_t w = atomic_load_explicit(&queue->write_index, memory_order_acquire);
+  if (r == w) return NULL;
+  size_t slot = (size_t)(r & queue->mask);
+  void* value = queue->storage[slot];
+  queue->storage[slot] = NULL;
+  atomic_store_explicit(&queue->read_index, r + 1, memory_order_release);
+  return value;
 }
 
 void spsc_queue_drain(spsc_queue_t* queue) {
-    if (!queue) return;
-    while (spsc_queue_dequeue(queue) != NULL) {}
+  if (!queue) return;
+  while (spsc_queue_dequeue(queue) != NULL) {
+  }
 }
 
 // MARK: - AtomicDouble Implementation
 
 atomic_double_t* atomic_double_create(double value) {
-    atomic_double_t* a = (atomic_double_t*)malloc(sizeof(atomic_double_t));
-    if (!a) return NULL;
-    atomic_double_init(a, value);
-    return a;
+  atomic_double_t* a = (atomic_double_t*)malloc(sizeof(atomic_double_t));
+  if (!a) return NULL;
+  atomic_double_init(a, value);
+  return a;
 }
 
 void atomic_double_free(atomic_double_t* a) {
-    if (!a) return;
-    free(a);
+  if (!a) return;
+  free(a);
 }

@@ -3,10 +3,13 @@
  * @brief Implementation of the RACE cross-talk cancellation processor.
  *
  * Implementation details:
- * - Delay Unit Conversion: Converts user-configured delay units into milliseconds/samples.
- * - Latency Compensation: Subtracted 1 sample period (e.g. 1000.0/sample_rate in ms) from target delay to compensate for 1-sample processing feedback latency:
- *   compensated_delay = max(delay - sample_period, 0.0)
- * - Gain Setup: Configured with negative dB attenuation and inverted phase (`inverted = true`).
+ * - Delay Unit Conversion: Converts user-configured delay units into
+ * milliseconds/samples.
+ * - Latency Compensation: Subtracted 1 sample period (e.g. 1000.0/sample_rate
+ * in ms) from target delay to compensate for 1-sample processing feedback
+ * latency: compensated_delay = max(delay - sample_period, 0.0)
+ * - Gain Setup: Configured with negative dB attenuation and inverted phase
+ * (`inverted = true`).
  * - Real-time processing (`race_processor_process`):
  *   Sample-by-sample feedback loop evaluating:
  *   1. added_A = val_A + feedback_B; added_B = val_B + feedback_A
@@ -16,148 +19,199 @@
  */
 
 #include "race_processor.h"
+
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 
-race_processor_t* race_processor_create(const char* name, const race_parameters_t* params, int sample_rate) {
-    if (!params || sample_rate <= 0) return NULL;
+race_processor_t* race_processor_create(const char* name,
+                                        const race_parameters_t* params,
+                                        int sample_rate) {
+  if (!params || sample_rate <= 0) return NULL;
 
-    race_processor_t* processor = (race_processor_t*)calloc(1, sizeof(race_processor_t));
-    if (!processor) return NULL;
+  race_processor_t* processor =
+      (race_processor_t*)calloc(1, sizeof(race_processor_t));
+  if (!processor) return NULL;
 
-    if (name) {
-        strncpy(processor->name, name, sizeof(processor->name) - 1);
-        processor->name[sizeof(processor->name) - 1] = '\0';
-    } else {
-        strcpy(processor->name, "race");
-    }
+  if (name) {
+    strncpy(processor->name, name, sizeof(processor->name) - 1);
+    processor->name[sizeof(processor->name) - 1] = '\0';
+  } else {
+    strcpy(processor->name, "race");
+  }
 
-    processor->channel_a = params->channel_a < params->channel_b ? params->channel_a : params->channel_b;
-    processor->channel_b = params->channel_a > params->channel_b ? params->channel_a : params->channel_b;
+  processor->channel_a = params->channel_a < params->channel_b
+                             ? params->channel_a
+                             : params->channel_b;
+  processor->channel_b = params->channel_a > params->channel_b
+                             ? params->channel_a
+                             : params->channel_b;
 
-    delay_unit_t unit = params->has_delay_unit ? params->delay_unit : DELAY_UNIT_MS;
-    double sample_period = 1.0;
-    switch (unit) {
-        case DELAY_UNIT_US: sample_period = 1000000.0 / (double)sample_rate; break;
-        case DELAY_UNIT_MS: sample_period = 1000.0 / (double)sample_rate; break;
-        case DELAY_UNIT_MM: sample_period = 343.0 * 1000.0 / (double)sample_rate; break;
-        case DELAY_UNIT_SAMPLES: sample_period = 1.0; break;
-        default: sample_period = 1000.0 / (double)sample_rate; break;
-    }
-    double comp_delay = params->delay - sample_period;
-    if (comp_delay < 0.0) comp_delay = 0.0;
+  delay_unit_t unit =
+      params->has_delay_unit ? params->delay_unit : DELAY_UNIT_MS;
+  double sample_period = 1.0;
+  switch (unit) {
+    case DELAY_UNIT_US:
+      sample_period = 1000000.0 / (double)sample_rate;
+      break;
+    case DELAY_UNIT_MS:
+      sample_period = 1000.0 / (double)sample_rate;
+      break;
+    case DELAY_UNIT_MM:
+      sample_period = 343.0 * 1000.0 / (double)sample_rate;
+      break;
+    case DELAY_UNIT_SAMPLES:
+      sample_period = 1.0;
+      break;
+    default:
+      sample_period = 1000.0 / (double)sample_rate;
+      break;
+  }
+  double comp_delay = params->delay - sample_period;
+  if (comp_delay < 0.0) comp_delay = 0.0;
 
-    delay_parameters_t dparams = {0};
-    dparams.delay = comp_delay;
-    dparams.unit = unit;
-    dparams.subsample = params->has_subsample_delay ? params->subsample_delay : false;
+  delay_parameters_t dparams = {0};
+  dparams.delay = comp_delay;
+  dparams.unit = unit;
+  dparams.subsample =
+      params->has_subsample_delay ? params->subsample_delay : false;
 
-    processor->delay_a = delay_filter_create("race-DelayA", &dparams, sample_rate);
-    processor->delay_b = delay_filter_create("race-DelayB", &dparams, sample_rate);
+  processor->delay_a =
+      delay_filter_create("race-DelayA", &dparams, sample_rate);
+  processor->delay_b =
+      delay_filter_create("race-DelayB", &dparams, sample_rate);
 
-    gain_parameters_t gparams = {0};
-    gparams.gain = -params->attenuation;
-    gparams.has_gain = true;
-    gparams.scale = GAIN_SCALE_DB;
-    gparams.inverted = true;
-    gparams.mute = false;
+  gain_parameters_t gparams = {0};
+  gparams.gain = -params->attenuation;
+  gparams.has_gain = true;
+  gparams.scale = GAIN_SCALE_DB;
+  gparams.inverted = true;
+  gparams.mute = false;
 
-    processor->gain = gain_filter_create("race-Gain", &gparams);
-    processor->feedback_a = 0.0;
-    processor->feedback_b = 0.0;
+  processor->gain = gain_filter_create("race-Gain", &gparams);
+  processor->feedback_a = 0.0;
+  processor->feedback_b = 0.0;
 
-    if (!processor->delay_a || !processor->delay_b || !processor->gain) {
-        race_processor_free(processor);
-        return NULL;
-    }
+  if (!processor->delay_a || !processor->delay_b || !processor->gain) {
+    race_processor_free(processor);
+    return NULL;
+  }
 
-    return processor;
+  return processor;
 }
 
 void race_processor_free(race_processor_t* processor) {
-    if (!processor) return;
-    if (processor->delay_a) delay_filter_free(processor->delay_a);
-    if (processor->delay_b) delay_filter_free(processor->delay_b);
-    if (processor->gain) gain_filter_free(processor->gain);
-    free(processor);
+  if (!processor) return;
+  if (processor->delay_a) delay_filter_free(processor->delay_a);
+  if (processor->delay_b) delay_filter_free(processor->delay_b);
+  if (processor->gain) gain_filter_free(processor->gain);
+  free(processor);
 }
 
 void race_processor_process(race_processor_t* processor, audio_chunk_t* chunk) {
-    if (!processor || !chunk) return;
-    size_t count = chunk->valid_frames;
-    if (count == 0 || !processor->delay_a || !processor->delay_b || !processor->gain) return;
+  if (!processor || !chunk) return;
+  size_t count = chunk->valid_frames;
+  if (count == 0 || !processor->delay_a || !processor->delay_b ||
+      !processor->gain)
+    return;
 
-    double* base_a = audio_chunk_get_channel(chunk, processor->channel_a);
-    double* base_b = audio_chunk_get_channel(chunk, processor->channel_b);
-    if (!base_a || !base_b) return;
+  double* base_a = audio_chunk_get_channel(chunk, processor->channel_a);
+  double* base_b = audio_chunk_get_channel(chunk, processor->channel_b);
+  if (!base_a || !base_b) return;
 
-    // Evaluate sample-by-sample recursive cross-talk cancellation loop
-    for (size_t i = 0; i < count; i++) {
-        double val_a = base_a[i];
-        double val_b = base_b[i];
+  // Evaluate sample-by-sample recursive cross-talk cancellation loop
+  for (size_t i = 0; i < count; i++) {
+    double val_a = base_a[i];
+    double val_b = base_b[i];
 
-        // Step 1: Add contralateral cancellation feedback signal from previous sample step
-        double added_a = val_a + processor->feedback_b;
-        double added_b = val_b + processor->feedback_a;
+    // Step 1: Add contralateral cancellation feedback signal from previous
+    // sample step
+    double added_a = val_a + processor->feedback_b;
+    double added_b = val_b + processor->feedback_a;
 
-        // Step 2: Pass combined signals through delay filters representing interaural time difference (ITD)
-        processor->feedback_a = delay_filter_process_single(processor->delay_a, added_a);
-        processor->feedback_b = delay_filter_process_single(processor->delay_b, added_b);
+    // Step 2: Pass combined signals through delay filters representing
+    // interaural time difference (ITD)
+    processor->feedback_a =
+        delay_filter_process_single(processor->delay_a, added_a);
+    processor->feedback_b =
+        delay_filter_process_single(processor->delay_b, added_b);
 
-        // Step 3: Pass delayed signals through gain filter representing acoustic attenuation and phase inversion
-        processor->feedback_a = gain_filter_process_single(processor->gain, processor->feedback_a);
-        processor->feedback_b = gain_filter_process_single(processor->gain, processor->feedback_b);
+    // Step 3: Pass delayed signals through gain filter representing acoustic
+    // attenuation and phase inversion
+    processor->feedback_a =
+        gain_filter_process_single(processor->gain, processor->feedback_a);
+    processor->feedback_b =
+        gain_filter_process_single(processor->gain, processor->feedback_b);
 
-        // Step 4: Output cross-talk cancelled samples in place
-        base_a[i] = added_a;
-        base_b[i] = added_b;
-    }
+    // Step 4: Output cross-talk cancelled samples in place
+    base_a[i] = added_a;
+    base_b[i] = added_b;
+  }
 }
 
+void race_processor_update_parameters(race_processor_t* processor,
+                                      const processor_config_t* config,
+                                      int sample_rate) {
+  if (!processor || !config || sample_rate <= 0) return;
+  if (config->type != PROCESSOR_TYPE_RACE) return;
+  const race_parameters_t* params = &config->parameters.race;
 
-void race_processor_update_parameters(race_processor_t* processor, const processor_config_t* config, int sample_rate) {
-    if (!processor || !config || sample_rate <= 0) return;
-    if (config->type != PROCESSOR_TYPE_RACE) return;
-    const race_parameters_t* params = &config->parameters.race;
+  processor->channel_a = params->channel_a < params->channel_b
+                             ? params->channel_a
+                             : params->channel_b;
+  processor->channel_b = params->channel_a > params->channel_b
+                             ? params->channel_a
+                             : params->channel_b;
 
-    processor->channel_a = params->channel_a < params->channel_b ? params->channel_a : params->channel_b;
-    processor->channel_b = params->channel_a > params->channel_b ? params->channel_a : params->channel_b;
+  delay_unit_t unit =
+      params->has_delay_unit ? params->delay_unit : DELAY_UNIT_MS;
+  double sample_period = 1.0;
+  switch (unit) {
+    case DELAY_UNIT_US:
+      sample_period = 1000000.0 / (double)sample_rate;
+      break;
+    case DELAY_UNIT_MS:
+      sample_period = 1000.0 / (double)sample_rate;
+      break;
+    case DELAY_UNIT_MM:
+      sample_period = 343.0 * 1000.0 / (double)sample_rate;
+      break;
+    case DELAY_UNIT_SAMPLES:
+      sample_period = 1.0;
+      break;
+    default:
+      sample_period = 1000.0 / (double)sample_rate;
+      break;
+  }
+  double comp_delay = params->delay - sample_period;
+  if (comp_delay < 0.0) comp_delay = 0.0;
 
-    delay_unit_t unit = params->has_delay_unit ? params->delay_unit : DELAY_UNIT_MS;
-    double sample_period = 1.0;
-    switch (unit) {
-        case DELAY_UNIT_US: sample_period = 1000000.0 / (double)sample_rate; break;
-        case DELAY_UNIT_MS: sample_period = 1000.0 / (double)sample_rate; break;
-        case DELAY_UNIT_MM: sample_period = 343.0 * 1000.0 / (double)sample_rate; break;
-        case DELAY_UNIT_SAMPLES: sample_period = 1.0; break;
-        default: sample_period = 1000.0 / (double)sample_rate; break;
-    }
-    double comp_delay = params->delay - sample_period;
-    if (comp_delay < 0.0) comp_delay = 0.0;
+  delay_parameters_t dparams = {0};
+  dparams.delay = comp_delay;
+  dparams.unit = unit;
+  dparams.subsample =
+      params->has_subsample_delay ? params->subsample_delay : false;
 
-    delay_parameters_t dparams = {0};
-    dparams.delay = comp_delay;
-    dparams.unit = unit;
-    dparams.subsample = params->has_subsample_delay ? params->subsample_delay : false;
+  filter_config_t dconfig = {0};
+  dconfig.type = FILTER_TYPE_DELAY;
+  dconfig.parameters.delay = dparams;
 
-    filter_config_t dconfig = {0};
-    dconfig.type = FILTER_TYPE_DELAY;
-    dconfig.parameters.delay = dparams;
+  if (processor->delay_a)
+    delay_filter_update_parameters(processor->delay_a, &dconfig, sample_rate);
+  if (processor->delay_b)
+    delay_filter_update_parameters(processor->delay_b, &dconfig, sample_rate);
 
-    if (processor->delay_a) delay_filter_update_parameters(processor->delay_a, &dconfig, sample_rate);
-    if (processor->delay_b) delay_filter_update_parameters(processor->delay_b, &dconfig, sample_rate);
+  gain_parameters_t gparams = {0};
+  gparams.gain = -params->attenuation;
+  gparams.has_gain = true;
+  gparams.scale = GAIN_SCALE_DB;
+  gparams.inverted = true;
+  gparams.mute = false;
 
-    gain_parameters_t gparams = {0};
-    gparams.gain = -params->attenuation;
-    gparams.has_gain = true;
-    gparams.scale = GAIN_SCALE_DB;
-    gparams.inverted = true;
-    gparams.mute = false;
+  filter_config_t gconfig = {0};
+  gconfig.type = FILTER_TYPE_GAIN;
+  gconfig.parameters.gain = gparams;
 
-    filter_config_t gconfig = {0};
-    gconfig.type = FILTER_TYPE_GAIN;
-    gconfig.parameters.gain = gparams;
-
-    if (processor->gain) gain_filter_update_parameters(processor->gain, &gconfig, sample_rate);
+  if (processor->gain)
+    gain_filter_update_parameters(processor->gain, &gconfig, sample_rate);
 }

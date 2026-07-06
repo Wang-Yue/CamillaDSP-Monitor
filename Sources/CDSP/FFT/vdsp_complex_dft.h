@@ -6,10 +6,11 @@
 // inner transform when the size qualifies — Apple's tuned mixed-radix
 // is typically faster than `MixedRadixFFT` in this regime.
 
-#include "arbitrary_complex_fft.h"
-#include "Audio/double_helpers.h"
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+
+#include "Audio/double_helpers.h"
+#include "arbitrary_complex_fft.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,15 +28,18 @@ extern "C" {
 typedef struct vdsp_complex_dft vdsp_complex_dft_t;
 
 vdsp_complex_dft_t* vdsp_complex_dft_create(size_t n);
-void vdsp_complex_dft_execute(vdsp_complex_dft_t* dft, waveform_t real_in, waveform_t imag_in, mutable_waveform_t real_out, mutable_waveform_t imag_out, bool inverse);
+void vdsp_complex_dft_execute(vdsp_complex_dft_t* dft, waveform_t real_in,
+                              waveform_t imag_in, mutable_waveform_t real_out,
+                              mutable_waveform_t imag_out, bool inverse);
 void vdsp_complex_dft_free(vdsp_complex_dft_t* dft);
 
-static inline arbitrary_complex_fft_t* vdsp_complex_dft_as_arbitrary(vdsp_complex_dft_t* dft) {
-    return (arbitrary_complex_fft_t*)dft;
+static inline arbitrary_complex_fft_t* vdsp_complex_dft_as_arbitrary(
+    vdsp_complex_dft_t* dft) {
+  return (arbitrary_complex_fft_t*)dft;
 }
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // CLIB_FFT_VDSPCOMPLEXDFT_H
+#endif  // CLIB_FFT_VDSPCOMPLEXDFT_H

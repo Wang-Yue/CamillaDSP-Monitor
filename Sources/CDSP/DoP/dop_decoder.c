@@ -25,10 +25,11 @@
 #define _GNU_SOURCE
 #endif
 #include "dop_decoder.h"
-#include <stdlib.h>
-#include <string.h>
+
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -48,9 +49,9 @@
 #define DOP_LOG_SETTLE_CHUNKS 4
 // Filter / lookup-table layout.
 #define DOP_REAL_TAPS 511
-#define DOP_NUM_TAPS 512  // padded so 8-bit slicing is exact
+#define DOP_NUM_TAPS 512    // padded so 8-bit slicing is exact
 #define DOP_NUM_CTABLES 64  // 64
-#define DOP_FIFO_SIZE 64  // power of 2
+#define DOP_FIFO_SIZE 64    // power of 2
 #define DOP_FIFO_MASK 63
 // One of the standard DSD silence patterns. Initializing the FIFO to
 // this rather than zero (= all `-1` = DC saturated) means the first
@@ -58,16 +59,16 @@
 #define DOP_SILENCE_BYTE 0x69
 
 static double bessel_i0(double x) {
-    double sum = 1.0;
-    double denominator = 1.0;
-    double i = 1.0;
-    while (i < 25.0) {
-        denominator *= i;
-        double term = pow(x / 2.0, i) / denominator;
-        sum += term * term;
-        i += 1.0;
-    }
-    return sum;
+  double sum = 1.0;
+  double denominator = 1.0;
+  double i = 1.0;
+  while (i < 25.0) {
+    denominator *= i;
+    double term = pow(x / 2.0, i) / denominator;
+    sum += term * term;
+    i += 1.0;
+  }
+  return sum;
 }
 
 /// Build the byte-indexed filter lookup tables for a 511-tap, β=11
@@ -85,227 +86,244 @@ static double bessel_i0(double x) {
 /// payload and bit 0 of that byte is the latest of the frame's 16
 /// DSD samples (LSB-first within byte = newer first within byte).
 static double* build_ctables(double sample_rate, double cutoff_hz) {
-    double beta = 11.0;
-    double dsd_rate = sample_rate * 16.0;
-    double cutoff = cutoff_hz / dsd_rate;
-    double alpha = (double)(DOP_REAL_TAPS - 1) / 2.0;
-    double i0_beta = bessel_i0(beta);
+  double beta = 11.0;
+  double dsd_rate = sample_rate * 16.0;
+  double cutoff = cutoff_hz / dsd_rate;
+  double alpha = (double)(DOP_REAL_TAPS - 1) / 2.0;
+  double i0_beta = bessel_i0(beta);
 
-    double raw_h[DOP_REAL_TAPS];
-    double total_sum = 0.0;
-    for (int i = 0; i < DOP_REAL_TAPS; i++) {
-        double t = (double)i - alpha;
-        double sinc_val = 0.0;
-        if (t == 0.0) {
-            sinc_val = 2.0 * cutoff;
-        } else {
-            double angle = 2.0 * M_PI * cutoff * t;
-            sinc_val = sin(angle) / (M_PI * t);
-        }
-        double widx = sqrt(1.0 - pow(t / alpha, 2.0));
-        double window_val = bessel_i0(beta * widx) / i0_beta;
-        raw_h[i] = sinc_val * window_val;
-        total_sum += raw_h[i];
-    }
-
-    double taps[DOP_NUM_TAPS];
-    memset(taps, 0, sizeof(taps));
-    for (int i = 0; i < DOP_REAL_TAPS; i++) {
-        taps[i] = raw_h[i] / total_sum;
-    }
-
-    size_t total_elements = DOP_NUM_CTABLES * 256;
-    double* p = (double*)calloc(total_elements, sizeof(double));
-    if (!p) return NULL;
-
-    for (int i = 0; i < DOP_NUM_CTABLES; i++) {
-        for (int b = 0; b < 256; b++) {
-            double sum = 0.0;
-            for (int m = 0; m < 8; m++) {
-                int tap = i * 8 + m;
-                double h = taps[tap];
-                int bit = (b >> m) & 1;
-                sum += h * (bit == 1 ? 1.0 : -1.0);
-            }
-            p[i * 256 + b] = sum;
-        }
-    }
-    return p;
-}
-
-dop_decoder_t* dop_decoder_create(int channels, double sample_rate, bool bypass_dop, double cutoff_hz) {
-    if (channels <= 0) return NULL;
-    dop_decoder_t* dec = (dop_decoder_t*)calloc(1, sizeof(dop_decoder_t));
-    if (!dec) return NULL;
-    dec->channels = channels;
-    dec->bypass_dop = bypass_dop;
-    dec->channel_states = (dop_decoder_channel_state_t*)calloc(channels, sizeof(dop_decoder_channel_state_t));
-    if (!dec->channel_states) {
-        free(dec);
-        return NULL;
-    }
-    for (int ch = 0; ch < channels; ch++) {
-        memset(dec->channel_states[ch].fifo, DOP_SILENCE_BYTE, DOP_FIFO_SIZE);
-    }
-    dec->ctables = build_ctables(sample_rate, cutoff_hz);
-    if (!dec->ctables) {
-        free(dec->channel_states);
-        free(dec);
-        return NULL;
-    }
-    return dec;
-}
-
-static void process_channel(dop_decoder_channel_state_t* state, mutable_waveform_t buf, size_t frames, const double* tables) {
-    if (!buf) return;
-    uint8_t* fifo = state->fifo;
-    int pos = state->fifo_pos;
-
-    for (size_t t = 0; t < frames; t++) {
-        double raw = buf[t];
-
-        // Recover both 24- and 32-bit container interpretations. DoP is most
-        // commonly carried as right-aligned 24-bit-in-32-bit (marker at bits
-        // 23..16 of int24). MPD's flavor encodes a true 32-bit value
-        // 0xff05XXXX / 0xfffaXXXX where the top byte sign-extends and the
-        // marker is still at bits 23..16 — same shift, different float scale.
-        double v32 = round(raw * 2147483648.0);
-        int32_t val32 = 0;
-        if (v32 >= 2147483647.0) val32 = 2147483647;
-        else if (v32 <= -2147483648.0) val32 = -2147483647 - 1;
-        else val32 = (int32_t)v32;
-        uint8_t marker32 = (uint8_t)(((uint32_t)val32 >> 16) & 0xFF);
-
-        double v24 = round(raw * 8388608.0);
-        int32_t val24 = 0;
-        if (v24 >= 8388607.0) val24 = 8388607;
-        else if (v24 <= -8388608.0) val24 = -8388608;
-        else val24 = (int32_t)v24;
-        uint8_t marker24 = (uint8_t)(((uint32_t)val24 >> 16) & 0xFF);
-
-        if (!state->container_known) {
-            if (marker32 == 0x05 || marker32 == 0xFA) {
-                state->is_32bit_container = true;
-            } else if (marker24 == 0x05 || marker24 == 0xFA) {
-                state->is_32bit_container = false;
-            }
-        }
-
-        uint8_t marker = state->is_32bit_container ? marker32 : marker24;
-        uint16_t dsd_word = state->is_32bit_container ? (uint16_t)((uint32_t)val32 & 0xFFFF) : (uint16_t)((uint32_t)val24 & 0xFFFF);
-
-        bool is_marker_valid = (marker == 0x05 || marker == 0xFA);
-        // First-ever frame on this channel passes vacuously; subsequent
-        // frames must alternate between 0x05 and 0xFA.
-        bool alternates = (state->last_marker == 0 || marker != state->last_marker);
-        bool valid = is_marker_valid && alternates;
-
-        if (valid) {
-            state->consec_valid++;
-            state->consec_invalid = 0;
-            state->last_marker = marker;
-            if (!state->container_known && state->consec_valid >= 4) {
-                state->container_known = true;
-            }
-            if (!state->is_active && state->consec_valid >= DOP_ACTIVATE_THRESHOLD) {
-                state->is_active = true;
-            }
-        } else {
-            state->consec_invalid++;
-            state->consec_valid = 0;
-            if (state->consec_invalid >= DOP_DEACTIVATE_THRESHOLD) {
-                state->last_marker = 0;
-                state->container_known = false;
-                if (state->is_active) {
-                    state->is_active = false;
-                    memset(fifo, DOP_SILENCE_BYTE, DOP_FIFO_SIZE);
-                    pos = 0;
-                }
-            }
-        }
-
-        // Push the frame's two DSD bytes whenever we either have a
-        // current valid marker (warming the filter pre-lock) or are
-        // already locked on (trusting the lock through isolated marker
-        // bit-errors). Either way, by the time `isActive` flips true the
-        // FIFO already holds 32 frames of real DSD data, so the first
-        // decoded sample is not a silence-fill transient.
-        bool push = valid || state->is_active;
-        if (push) {
-            uint8_t dsd_hi = (uint8_t)((dsd_word >> 8) & 0xFF);
-            uint8_t dsd_lo = (uint8_t)(dsd_word & 0xFF);
-            fifo[pos] = dsd_hi;
-            pos = (pos + 1) & DOP_FIFO_MASK;
-            fifo[pos] = dsd_lo;
-            pos = (pos + 1) & DOP_FIFO_MASK;
-        }
-
-        if (state->is_active) {
-            // y[n] = Σ_{i<numCtables} ctables[i][fifo[(pos-1-i) & mask]].
-            // ctable[i] precomputes the contribution of bits 0..7 of the
-            // byte at offset `i` to filter taps i*8 .. i*8+7 — see
-            // buildCtables for the bit/tap mapping.
-            double acc = 0.0;
-            for (int i = 0; i < DOP_NUM_CTABLES; i++) {
-                int byte_idx = (pos - 1 - i) & DOP_FIFO_MASK;
-                int b = (int)fifo[byte_idx];
-                acc += tables[i * 256 + b];
-            }
-            // The trellis-friendly sigma-delta modulators in the test suite
-            // pre-scale input by 0.5 for noise-shaper headroom; this 2× compensates
-            // so SINAD compares against full-amplitude sin. Real DoP streams
-            // from DACs that don't pre-scale will be 6 dB hot — handle at a higher level
-            // if that becomes a problem.
-            buf[t] = acc * 2.0;
-        }
-    }
-
-    state->fifo_pos = pos;
-}
-
-bool dop_decoder_detect_and_process(dop_decoder_t* decoder, audio_chunk_t* chunk) {
-    if (!decoder || !chunk) return false;
-    if (decoder->bypass_dop) {
-        decoder->is_dop_active = false;
-        return false;
-    }
-
-    size_t valid_frames = chunk->valid_frames;
-    if (valid_frames == 0 || (int)chunk->buffers->channels != decoder->channels) return false;
-
-    for (int ch = 0; ch < decoder->channels; ch++) {
-        process_channel(&decoder->channel_states[ch], audio_chunk_get_channel(chunk, ch), valid_frames, decoder->ctables);
-    }
-
-    bool all_active = true;
-    for (int ch = 0; ch < decoder->channels; ch++) {
-        if (!decoder->channel_states[ch].is_active) {
-            all_active = false;
-            break;
-        }
-    }
-    decoder->is_dop_active = all_active;
-
-    // Log debouncer: only log a transition once the new state has been
-    // observed for `logSettleChunks` consecutive chunks. This filters out
-    // the lock→lost→lock churn that fires at stream start when the source
-    // has brief silence between DoP bursts.
-    if (decoder->is_dop_active == decoder->last_seen_active) {
-        decoder->chunks_at_seen_state++;
+  double raw_h[DOP_REAL_TAPS];
+  double total_sum = 0.0;
+  for (int i = 0; i < DOP_REAL_TAPS; i++) {
+    double t = (double)i - alpha;
+    double sinc_val = 0.0;
+    if (t == 0.0) {
+      sinc_val = 2.0 * cutoff;
     } else {
-        decoder->last_seen_active = decoder->is_dop_active;
-        decoder->chunks_at_seen_state = 1;
+      double angle = 2.0 * M_PI * cutoff * t;
+      sinc_val = sin(angle) / (M_PI * t);
     }
-    if (decoder->chunks_at_seen_state >= DOP_LOG_SETTLE_CHUNKS && decoder->last_seen_active != decoder->logged_active) {
-        decoder->logged_active = decoder->last_seen_active;
+    double widx = sqrt(1.0 - pow(t / alpha, 2.0));
+    double window_val = bessel_i0(beta * widx) / i0_beta;
+    raw_h[i] = sinc_val * window_val;
+    total_sum += raw_h[i];
+  }
+
+  double taps[DOP_NUM_TAPS];
+  memset(taps, 0, sizeof(taps));
+  for (int i = 0; i < DOP_REAL_TAPS; i++) {
+    taps[i] = raw_h[i] / total_sum;
+  }
+
+  size_t total_elements = DOP_NUM_CTABLES * 256;
+  double* p = (double*)calloc(total_elements, sizeof(double));
+  if (!p) return NULL;
+
+  for (int i = 0; i < DOP_NUM_CTABLES; i++) {
+    for (int b = 0; b < 256; b++) {
+      double sum = 0.0;
+      for (int m = 0; m < 8; m++) {
+        int tap = i * 8 + m;
+        double h = taps[tap];
+        int bit = (b >> m) & 1;
+        sum += h * (bit == 1 ? 1.0 : -1.0);
+      }
+      p[i * 256 + b] = sum;
+    }
+  }
+  return p;
+}
+
+dop_decoder_t* dop_decoder_create(int channels, double sample_rate,
+                                  bool bypass_dop, double cutoff_hz) {
+  if (channels <= 0) return NULL;
+  dop_decoder_t* dec = (dop_decoder_t*)calloc(1, sizeof(dop_decoder_t));
+  if (!dec) return NULL;
+  dec->channels = channels;
+  dec->bypass_dop = bypass_dop;
+  dec->channel_states = (dop_decoder_channel_state_t*)calloc(
+      channels, sizeof(dop_decoder_channel_state_t));
+  if (!dec->channel_states) {
+    free(dec);
+    return NULL;
+  }
+  for (int ch = 0; ch < channels; ch++) {
+    memset(dec->channel_states[ch].fifo, DOP_SILENCE_BYTE, DOP_FIFO_SIZE);
+  }
+  dec->ctables = build_ctables(sample_rate, cutoff_hz);
+  if (!dec->ctables) {
+    free(dec->channel_states);
+    free(dec);
+    return NULL;
+  }
+  return dec;
+}
+
+static void process_channel(dop_decoder_channel_state_t* state,
+                            mutable_waveform_t buf, size_t frames,
+                            const double* tables) {
+  if (!buf) return;
+  uint8_t* fifo = state->fifo;
+  int pos = state->fifo_pos;
+
+  for (size_t t = 0; t < frames; t++) {
+    double raw = buf[t];
+
+    // Recover both 24- and 32-bit container interpretations. DoP is most
+    // commonly carried as right-aligned 24-bit-in-32-bit (marker at bits
+    // 23..16 of int24). MPD's flavor encodes a true 32-bit value
+    // 0xff05XXXX / 0xfffaXXXX where the top byte sign-extends and the
+    // marker is still at bits 23..16 — same shift, different float scale.
+    double v32 = round(raw * 2147483648.0);
+    int32_t val32 = 0;
+    if (v32 >= 2147483647.0)
+      val32 = 2147483647;
+    else if (v32 <= -2147483648.0)
+      val32 = -2147483647 - 1;
+    else
+      val32 = (int32_t)v32;
+    uint8_t marker32 = (uint8_t)(((uint32_t)val32 >> 16) & 0xFF);
+
+    double v24 = round(raw * 8388608.0);
+    int32_t val24 = 0;
+    if (v24 >= 8388607.0)
+      val24 = 8388607;
+    else if (v24 <= -8388608.0)
+      val24 = -8388608;
+    else
+      val24 = (int32_t)v24;
+    uint8_t marker24 = (uint8_t)(((uint32_t)val24 >> 16) & 0xFF);
+
+    if (!state->container_known) {
+      if (marker32 == 0x05 || marker32 == 0xFA) {
+        state->is_32bit_container = true;
+      } else if (marker24 == 0x05 || marker24 == 0xFA) {
+        state->is_32bit_container = false;
+      }
     }
 
-    return decoder->is_dop_active;
+    uint8_t marker = state->is_32bit_container ? marker32 : marker24;
+    uint16_t dsd_word = state->is_32bit_container
+                            ? (uint16_t)((uint32_t)val32 & 0xFFFF)
+                            : (uint16_t)((uint32_t)val24 & 0xFFFF);
+
+    bool is_marker_valid = (marker == 0x05 || marker == 0xFA);
+    // First-ever frame on this channel passes vacuously; subsequent
+    // frames must alternate between 0x05 and 0xFA.
+    bool alternates = (state->last_marker == 0 || marker != state->last_marker);
+    bool valid = is_marker_valid && alternates;
+
+    if (valid) {
+      state->consec_valid++;
+      state->consec_invalid = 0;
+      state->last_marker = marker;
+      if (!state->container_known && state->consec_valid >= 4) {
+        state->container_known = true;
+      }
+      if (!state->is_active && state->consec_valid >= DOP_ACTIVATE_THRESHOLD) {
+        state->is_active = true;
+      }
+    } else {
+      state->consec_invalid++;
+      state->consec_valid = 0;
+      if (state->consec_invalid >= DOP_DEACTIVATE_THRESHOLD) {
+        state->last_marker = 0;
+        state->container_known = false;
+        if (state->is_active) {
+          state->is_active = false;
+          memset(fifo, DOP_SILENCE_BYTE, DOP_FIFO_SIZE);
+          pos = 0;
+        }
+      }
+    }
+
+    // Push the frame's two DSD bytes whenever we either have a
+    // current valid marker (warming the filter pre-lock) or are
+    // already locked on (trusting the lock through isolated marker
+    // bit-errors). Either way, by the time `isActive` flips true the
+    // FIFO already holds 32 frames of real DSD data, so the first
+    // decoded sample is not a silence-fill transient.
+    bool push = valid || state->is_active;
+    if (push) {
+      uint8_t dsd_hi = (uint8_t)((dsd_word >> 8) & 0xFF);
+      uint8_t dsd_lo = (uint8_t)(dsd_word & 0xFF);
+      fifo[pos] = dsd_hi;
+      pos = (pos + 1) & DOP_FIFO_MASK;
+      fifo[pos] = dsd_lo;
+      pos = (pos + 1) & DOP_FIFO_MASK;
+    }
+
+    if (state->is_active) {
+      // y[n] = Σ_{i<numCtables} ctables[i][fifo[(pos-1-i) & mask]].
+      // ctable[i] precomputes the contribution of bits 0..7 of the
+      // byte at offset `i` to filter taps i*8 .. i*8+7 — see
+      // buildCtables for the bit/tap mapping.
+      double acc = 0.0;
+      for (int i = 0; i < DOP_NUM_CTABLES; i++) {
+        int byte_idx = (pos - 1 - i) & DOP_FIFO_MASK;
+        int b = (int)fifo[byte_idx];
+        acc += tables[i * 256 + b];
+      }
+      // The trellis-friendly sigma-delta modulators in the test suite
+      // pre-scale input by 0.5 for noise-shaper headroom; this 2× compensates
+      // so SINAD compares against full-amplitude sin. Real DoP streams
+      // from DACs that don't pre-scale will be 6 dB hot — handle at a higher
+      // level if that becomes a problem.
+      buf[t] = acc * 2.0;
+    }
+  }
+
+  state->fifo_pos = pos;
+}
+
+bool dop_decoder_detect_and_process(dop_decoder_t* decoder,
+                                    audio_chunk_t* chunk) {
+  if (!decoder || !chunk) return false;
+  if (decoder->bypass_dop) {
+    decoder->is_dop_active = false;
+    return false;
+  }
+
+  size_t valid_frames = chunk->valid_frames;
+  if (valid_frames == 0 || (int)chunk->buffers->channels != decoder->channels)
+    return false;
+
+  for (int ch = 0; ch < decoder->channels; ch++) {
+    process_channel(&decoder->channel_states[ch],
+                    audio_chunk_get_channel(chunk, ch), valid_frames,
+                    decoder->ctables);
+  }
+
+  bool all_active = true;
+  for (int ch = 0; ch < decoder->channels; ch++) {
+    if (!decoder->channel_states[ch].is_active) {
+      all_active = false;
+      break;
+    }
+  }
+  decoder->is_dop_active = all_active;
+
+  // Log debouncer: only log a transition once the new state has been
+  // observed for `logSettleChunks` consecutive chunks. This filters out
+  // the lock→lost→lock churn that fires at stream start when the source
+  // has brief silence between DoP bursts.
+  if (decoder->is_dop_active == decoder->last_seen_active) {
+    decoder->chunks_at_seen_state++;
+  } else {
+    decoder->last_seen_active = decoder->is_dop_active;
+    decoder->chunks_at_seen_state = 1;
+  }
+  if (decoder->chunks_at_seen_state >= DOP_LOG_SETTLE_CHUNKS &&
+      decoder->last_seen_active != decoder->logged_active) {
+    decoder->logged_active = decoder->last_seen_active;
+  }
+
+  return decoder->is_dop_active;
 }
 
 void dop_decoder_free(dop_decoder_t* decoder) {
-    if (!decoder) return;
-    if (decoder->channel_states) free(decoder->channel_states);
-    if (decoder->ctables) free(decoder->ctables);
-    free(decoder);
+  if (!decoder) return;
+  if (decoder->channel_states) free(decoder->channel_states);
+  if (decoder->ctables) free(decoder->ctables);
+  free(decoder);
 }

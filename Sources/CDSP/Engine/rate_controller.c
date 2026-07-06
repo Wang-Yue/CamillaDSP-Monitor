@@ -34,8 +34,9 @@
 #define _GNU_SOURCE
 #endif
 #include "rate_controller.h"
-#include <stdlib.h>
+
 #include <math.h>
+#include <stdlib.h>
 #include <time.h>
 
 #ifdef __APPLE__
@@ -60,75 +61,85 @@
 /// clamped to the same band — this is the standard
 /// conditional-integration form of anti-windup, which prevents the
 /// integrator from accumulating during sustained saturation.
-pi_rate_controller_t* pi_rate_controller_create(int samplerate, double interval, int target_level, double kp, double ki) {
-    if (samplerate <= 0 || interval <= 0.0) return NULL;
-    pi_rate_controller_t* pi = (pi_rate_controller_t*)calloc(1, sizeof(pi_rate_controller_t));
-    if (!pi) return NULL;
+pi_rate_controller_t* pi_rate_controller_create(int samplerate, double interval,
+                                                int target_level, double kp,
+                                                double ki) {
+  if (samplerate <= 0 || interval <= 0.0) return NULL;
+  pi_rate_controller_t* pi =
+      (pi_rate_controller_t*)calloc(1, sizeof(pi_rate_controller_t));
+  if (!pi) return NULL;
 
-    pi->target_level = (double)target_level;
-    pi->interval = interval;
-    pi->kp = kp;
-    pi->ki = ki;
-    pi->frames_per_interval = interval * (double)samplerate;
-    pi->accumulated = 0.0;
-    pi->ramp_steps = 20;
-    pi->ramp_trigger_limit = 0.33;
-    pi->ramp_start = (double)target_level;
-    pi->ramp_step = 20;  // Start fully stabilized by default
+  pi->target_level = (double)target_level;
+  pi->interval = interval;
+  pi->kp = kp;
+  pi->ki = ki;
+  pi->frames_per_interval = interval * (double)samplerate;
+  pi->accumulated = 0.0;
+  pi->ramp_steps = 20;
+  pi->ramp_trigger_limit = 0.33;
+  pi->ramp_start = (double)target_level;
+  pi->ramp_step = 20;  // Start fully stabilized by default
 
-    return pi;
+  return pi;
 }
 
-pi_rate_controller_t* pi_rate_controller_create_default(int samplerate, double interval, int target_level) {
-    // Default gains for the controller
-    return pi_rate_controller_create(samplerate, interval, target_level, 0.2, 0.004);
+pi_rate_controller_t* pi_rate_controller_create_default(int samplerate,
+                                                        double interval,
+                                                        int target_level) {
+  // Default gains for the controller
+  return pi_rate_controller_create(samplerate, interval, target_level, 0.2,
+                                   0.004);
 }
 
 double pi_rate_controller_next(pi_rate_controller_t* pi, double level) {
-    if (!pi) return 1.0;
+  if (!pi) return 1.0;
 
-    if (pi->ramp_step >= pi->ramp_steps && fabs((pi->target_level - level) / pi->target_level) > pi->ramp_trigger_limit) {
-        pi->ramp_start = level;
-        pi->ramp_step = 0;
-    }
-    if (pi->ramp_step == 0) {
-        pi->ramp_start = level;
-    }
+  if (pi->ramp_step >= pi->ramp_steps &&
+      fabs((pi->target_level - level) / pi->target_level) >
+          pi->ramp_trigger_limit) {
+    pi->ramp_start = level;
+    pi->ramp_step = 0;
+  }
+  if (pi->ramp_step == 0) {
+    pi->ramp_start = level;
+  }
 
-    double current_target;
-    if (pi->ramp_step < pi->ramp_steps) {
-        pi->ramp_step += 1;
-        double progress = (double)(pi->ramp_steps - pi->ramp_step) / (double)pi->ramp_steps;
-        current_target = pi->ramp_start + (pi->target_level - pi->ramp_start) * (1.0 - pow(progress, 4));
-    } else {
-        current_target = pi->target_level;
-    }
+  double current_target;
+  if (pi->ramp_step < pi->ramp_steps) {
+    pi->ramp_step += 1;
+    double progress =
+        (double)(pi->ramp_steps - pi->ramp_step) / (double)pi->ramp_steps;
+    current_target = pi->ramp_start + (pi->target_level - pi->ramp_start) *
+                                          (1.0 - pow(progress, 4));
+  } else {
+    current_target = pi->target_level;
+  }
 
-    double err = level - current_target;
-    double rel_err = err / pi->frames_per_interval;
-    pi->accumulated += rel_err * pi->interval;
+  double err = level - current_target;
+  double rel_err = err / pi->frames_per_interval;
+  pi->accumulated += rel_err * pi->interval;
 
-    // Anti-windup: clamp the integrator term to the safe saturation band (±0.005)
-    double max_val = 0.005;
-    double min_val = -0.005;
-    if (pi->accumulated * pi->ki > max_val) {
-        pi->accumulated = max_val / pi->ki;
-    } else if (pi->accumulated * pi->ki < min_val) {
-        pi->accumulated = min_val / pi->ki;
-    }
+  // Anti-windup: clamp the integrator term to the safe saturation band (±0.005)
+  double max_val = 0.005;
+  double min_val = -0.005;
+  if (pi->accumulated * pi->ki > max_val) {
+    pi->accumulated = max_val / pi->ki;
+  } else if (pi->accumulated * pi->ki < min_val) {
+    pi->accumulated = min_val / pi->ki;
+  }
 
-    double proportional = pi->kp * rel_err;
-    double integral = pi->ki * pi->accumulated;
-    double output = proportional + integral;
-    double clamped_output = output;
-    if (clamped_output > max_val) clamped_output = max_val;
-    if (clamped_output < min_val) clamped_output = min_val;
+  double proportional = pi->kp * rel_err;
+  double integral = pi->ki * pi->accumulated;
+  double output = proportional + integral;
+  double clamped_output = output;
+  if (clamped_output > max_val) clamped_output = max_val;
+  if (clamped_output < min_val) clamped_output = min_val;
 
-    return 1.0 - clamped_output;
+  return 1.0 - clamped_output;
 }
 
 void pi_rate_controller_free(pi_rate_controller_t* pi) {
-    if (pi) free(pi);
+  if (pi) free(pi);
 }
 
 // MARK: - Averager
@@ -139,30 +150,30 @@ void pi_rate_controller_free(pi_rate_controller_t* pi) {
 /// effect is a simple boxcar low-pass that filters chunk-level noise
 /// out of the controller's input.
 void averager_init(averager_t* avg) {
-    if (!avg) return;
-    avg->sum = 0.0;
-    avg->count = 0;
+  if (!avg) return;
+  avg->sum = 0.0;
+  avg->count = 0;
 }
 
 void averager_add(averager_t* avg, double value) {
-    if (!avg) return;
-    avg->sum += value;
-    avg->count += 1;
+  if (!avg) return;
+  avg->sum += value;
+  avg->count += 1;
 }
 
 void averager_restart(averager_t* avg) {
-    if (!avg) return;
-    avg->sum = 0.0;
-    avg->count = 0;
+  if (!avg) return;
+  avg->sum = 0.0;
+  avg->count = 0;
 }
 
 /// Mean of the samples added since the last `restart()`. `nil` when
 /// no samples have been added yet — the caller decides what an
 /// empty window means in their context.
 bool averager_get_average(const averager_t* avg, double* out_val) {
-    if (!avg || avg->count <= 0) return false;
-    if (out_val) *out_val = avg->sum / (double)avg->count;
-    return true;
+  if (!avg || avg->count <= 0) return false;
+  if (out_val) *out_val = avg->sum / (double)avg->count;
+  return true;
 }
 
 // MARK: - Stopwatch
@@ -173,26 +184,26 @@ bool averager_get_average(const averager_t* avg, double* out_val) {
 /// audio chunk.
 static uint64_t get_current_ns(void) {
 #ifdef __APPLE__
-    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+  return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
 #else
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 #endif
 }
 
 void stopwatch_init(stopwatch_t* sw) {
-    if (!sw) return;
-    sw->start_ns = get_current_ns();
+  if (!sw) return;
+  sw->start_ns = get_current_ns();
 }
 
 void stopwatch_restart(stopwatch_t* sw) {
-    if (!sw) return;
-    sw->start_ns = get_current_ns();
+  if (!sw) return;
+  sw->start_ns = get_current_ns();
 }
 
 double stopwatch_elapsed_seconds(const stopwatch_t* sw) {
-    if (!sw) return 0.0;
-    uint64_t now = get_current_ns();
-    return (double)(now - sw->start_ns) / 1000000000.0;
+  if (!sw) return 0.0;
+  uint64_t now = get_current_ns();
+  return (double)(now - sw->start_ns) / 1000000000.0;
 }

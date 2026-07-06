@@ -1,336 +1,411 @@
 #if defined(__linux__)
 #define _GNU_SOURCE
 #endif
-#include "Engine/dsp_engine.h"
-#include "Server/websocket_server.h"
-#include "Pipeline/config_loader.h"
-#include "Pipeline/state_file.h"
-#include "Config/configuration.h"
-#include "Config/log_level.h"
-#include "Config/engine_config_types.h"
-#include "Audio/double_helpers.h"
+#include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <stdbool.h>
 #include <unistd.h>
-#include <signal.h>
+
+#include "Audio/double_helpers.h"
+#include "Config/configuration.h"
+#include "Config/engine_config_types.h"
+#include "Config/log_level.h"
+#include "Engine/dsp_engine.h"
+#include "Pipeline/config_loader.h"
+#include "Pipeline/state_file.h"
+#include "Server/websocket_server.h"
 
 static volatile sig_atomic_t keep_running = 1;
 
 static void sig_handler(int sig) {
-    (void)sig;
-    keep_running = 0;
+  (void)sig;
+  keep_running = 0;
 }
 
 static void print_usage(void) {
-    printf("Usage: dsp-cli [CONFIGFILE] [OPTIONS]\n"
-           "  CONFIGFILE        Path to JSON/YAML configuration file.\n\n"
-           "Options:\n"
-           "  -h, --help        Print this help message.\n"
-           "  -c, --check       Check config file and exit.\n"
-           "  -s, --statefile   Use the given file to persist volume/mute state.\n"
-           "  -w, --wait        Wait for config from websocket (starts inactive).\n"
-           "  --no_config       Ignore config file in statefile and start without.\n"
-           "  -p, --port        Port for the WebSocket control server.\n"
-           "  -a, --address     IP address to bind WebSocket server to (defaults to 127.0.0.1).\n"
-           "  -l, --loglevel    Log level (trace, debug, info, warn, error). Defaults to info.\n"
-           "  -o, --logfile     Write logs to the given file path.\n"
-           "  -g, --gain        Initial gain in dB for main volume control.\n"
-           "  --gain1           Initial gain in dB for Aux1 fader.\n"
-           "  --gain2           Initial gain in dB for Aux2 fader.\n"
-           "  --gain3           Initial gain in dB for Aux3 fader.\n"
-           "  --gain4           Initial gain in dB for Aux4 fader.\n"
-           "  -m, --mute        Start with main volume control muted.\n"
-           "  --mute1           Start with Aux1 fader muted.\n"
-           "  --mute2           Start with Aux2 fader muted.\n"
-           "  --mute3           Start with Aux3 fader muted.\n"
-           "  --mute4           Start with Aux4 fader muted.\n"
-           "  -r, --samplerate  Override samplerate in config.\n"
-           "  -n, --channels    Override number of channels of capture device in config.\n\n"
-           "Supported device types:\n"
+  printf(
+      "Usage: dsp-cli [CONFIGFILE] [OPTIONS]\n"
+      "  CONFIGFILE        Path to JSON/YAML configuration file.\n\n"
+      "Options:\n"
+      "  -h, --help        Print this help message.\n"
+      "  -c, --check       Check config file and exit.\n"
+      "  -s, --statefile   Use the given file to persist volume/mute state.\n"
+      "  -w, --wait        Wait for config from websocket (starts inactive).\n"
+      "  --no_config       Ignore config file in statefile and start without.\n"
+      "  -p, --port        Port for the WebSocket control server.\n"
+      "  -a, --address     IP address to bind WebSocket server to (defaults to "
+      "127.0.0.1).\n"
+      "  -l, --loglevel    Log level (trace, debug, info, warn, error). "
+      "Defaults to info.\n"
+      "  -o, --logfile     Write logs to the given file path.\n"
+      "  -g, --gain        Initial gain in dB for main volume control.\n"
+      "  --gain1           Initial gain in dB for Aux1 fader.\n"
+      "  --gain2           Initial gain in dB for Aux2 fader.\n"
+      "  --gain3           Initial gain in dB for Aux3 fader.\n"
+      "  --gain4           Initial gain in dB for Aux4 fader.\n"
+      "  -m, --mute        Start with main volume control muted.\n"
+      "  --mute1           Start with Aux1 fader muted.\n"
+      "  --mute2           Start with Aux2 fader muted.\n"
+      "  --mute3           Start with Aux3 fader muted.\n"
+      "  --mute4           Start with Aux4 fader muted.\n"
+      "  -r, --samplerate  Override samplerate in config.\n"
+      "  -n, --channels    Override number of channels of capture device in "
+      "config.\n\n"
+      "Supported device types:\n"
 #if defined(__APPLE__)
-           "  Capture: CoreAudio, File, Stdin, Generator\n"
-           "  Playback: CoreAudio, File, Stdout\n"
+      "  Capture: CoreAudio, File, Stdin, Generator\n"
+      "  Playback: CoreAudio, File, Stdout\n"
 #elif defined(__linux__)
-           "  Capture: ALSA, Pulse, PipeWire, File, Stdin, Generator\n"
-           "  Playback: ALSA, Pulse, PipeWire, File, Stdout\n"
+      "  Capture: ALSA, Pulse, PipeWire, File, Stdin, Generator\n"
+      "  Playback: ALSA, Pulse, PipeWire, File, Stdout\n"
 #else
-           "  Capture: File, Stdin, Generator\n"
-           "  Playback: File, Stdout\n"
+      "  Capture: File, Stdin, Generator\n"
+      "  Playback: File, Stdout\n"
 #endif
-    );
+  );
 }
 
 static char* read_file_to_string(const char* path) {
-    FILE* fp = fopen(path, "rb");
-    if (!fp) return NULL;
-    fseek(fp, 0, SEEK_END);
-    long len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    if (len < 0) { fclose(fp); return NULL; }
-    char* buf = (char*)malloc((size_t)len + 1);
-    if (!buf) { fclose(fp); return NULL; }
-    size_t read_bytes = fread(buf, 1, (size_t)len, fp);
-    buf[read_bytes] = '\0';
+  FILE* fp = fopen(path, "rb");
+  if (!fp) return NULL;
+  fseek(fp, 0, SEEK_END);
+  long len = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  if (len < 0) {
     fclose(fp);
-    return buf;
+    return NULL;
+  }
+  char* buf = (char*)malloc((size_t)len + 1);
+  if (!buf) {
+    fclose(fp);
+    return NULL;
+  }
+  size_t read_bytes = fread(buf, 1, (size_t)len, fp);
+  buf[read_bytes] = '\0';
+  fclose(fp);
+  return buf;
 }
 
 int main(int argc, char** argv) {
-    signal(SIGINT, sig_handler);
-    signal(SIGTERM, sig_handler);
+  signal(SIGINT, sig_handler);
+  signal(SIGTERM, sig_handler);
 
-    const char* config_path = NULL;
-    const char* state_file_path = NULL;
-    bool check_only = false;
-    uint16_t port = 0;
-    bool has_port = false;
-    const char* bind_address = "127.0.0.1";
-    bool wait_config = false;
-    bool no_config = false;
-    const char* log_level_str = "info";
-    
-    double initial_gains[FADER_COUNT];
-    bool has_initial_gains[FADER_COUNT];
-    bool initial_mutes[FADER_COUNT];
-    bool has_initial_mutes[FADER_COUNT];
-    for (int i = 0; i < FADER_COUNT; i++) {
-        initial_gains[i] = 0.0;
-        has_initial_gains[i] = false;
-        initial_mutes[i] = false;
-        has_initial_mutes[i] = false;
-    }
-    
-    int samplerate_override = -1;
-    int channels_override = -1;
+  const char* config_path = NULL;
+  const char* state_file_path = NULL;
+  bool check_only = false;
+  uint16_t port = 0;
+  bool has_port = false;
+  const char* bind_address = "127.0.0.1";
+  bool wait_config = false;
+  bool no_config = false;
+  const char* log_level_str = "info";
 
-    for (int i = 1; i < argc; i++) {
-        const char* arg = argv[i];
-        if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
-            print_usage();
-            return 0;
-        } else if (strcmp(arg, "-c") == 0 || strcmp(arg, "--check") == 0) {
-            check_only = true;
-        } else if (strcmp(arg, "-w") == 0 || strcmp(arg, "--wait") == 0) {
-            wait_config = true;
-        } else if (strcmp(arg, "--no_config") == 0) {
-            no_config = true;
-        } else if (strcmp(arg, "-s") == 0 || strcmp(arg, "--statefile") == 0) {
-            if (i + 1 < argc) { state_file_path = argv[++i]; }
-            else { printf("Error: Missing value for %s\n", arg); return 1; }
-        } else if (strcmp(arg, "-p") == 0 || strcmp(arg, "--port") == 0) {
-            if (i + 1 < argc) { port = (uint16_t)atoi(argv[++i]); has_port = true; }
-            else { printf("Error: Invalid port for %s\n", arg); return 1; }
-        } else if (strcmp(arg, "-a") == 0 || strcmp(arg, "--address") == 0) {
-            if (i + 1 < argc) { bind_address = argv[++i]; }
-            else { printf("Error: Missing value for %s\n", arg); return 1; }
-        } else if (strcmp(arg, "-l") == 0 || strcmp(arg, "--loglevel") == 0) {
-            if (i + 1 < argc) { log_level_str = argv[++i]; }
-            else { printf("Error: Missing value for %s\n", arg); return 1; }
-        } else if (strcmp(arg, "-o") == 0 || strcmp(arg, "--logfile") == 0) {
-            if (i + 1 < argc) {
-                printf("Note: Native file logging is not supported. Please redirect stdout/stderr instead: > %s 2>&1\n", argv[++i]);
-            } else { printf("Error: Missing value for %s\n", arg); return 1; }
-        } else if (strcmp(arg, "-g") == 0 || strcmp(arg, "--gain") == 0) {
-            if (i + 1 < argc) { initial_gains[0] = atof(argv[++i]); has_initial_gains[0] = true; }
-            else { printf("Error: Invalid gain value\n"); return 1; }
-        } else if (strcmp(arg, "--gain1") == 0) {
-            if (i + 1 < argc) { initial_gains[1] = atof(argv[++i]); has_initial_gains[1] = true; }
-            else { printf("Error: Invalid gain1 value\n"); return 1; }
-        } else if (strcmp(arg, "--gain2") == 0) {
-            if (i + 1 < argc) { initial_gains[2] = atof(argv[++i]); has_initial_gains[2] = true; }
-            else { printf("Error: Invalid gain2 value\n"); return 1; }
-        } else if (strcmp(arg, "--gain3") == 0) {
-            if (i + 1 < argc) { initial_gains[3] = atof(argv[++i]); has_initial_gains[3] = true; }
-            else { printf("Error: Invalid gain3 value\n"); return 1; }
-        } else if (strcmp(arg, "--gain4") == 0) {
-            if (i + 1 < argc) { initial_gains[4] = atof(argv[++i]); has_initial_gains[4] = true; }
-            else { printf("Error: Invalid gain4 value\n"); return 1; }
-        } else if (strcmp(arg, "-m") == 0 || strcmp(arg, "--mute") == 0) {
-            initial_mutes[0] = true;
-            has_initial_mutes[0] = true;
-        } else if (strcmp(arg, "--mute1") == 0) {
-            initial_mutes[1] = true;
-            has_initial_mutes[1] = true;
-        } else if (strcmp(arg, "--mute2") == 0) {
-            initial_mutes[2] = true;
-            has_initial_mutes[2] = true;
-        } else if (strcmp(arg, "--mute3") == 0) {
-            initial_mutes[3] = true;
-            has_initial_mutes[3] = true;
-        } else if (strcmp(arg, "--mute4") == 0) {
-            initial_mutes[4] = true;
-            has_initial_mutes[4] = true;
-        } else if (strcmp(arg, "-r") == 0 || strcmp(arg, "--samplerate") == 0) {
-            if (i + 1 < argc) { samplerate_override = atoi(argv[++i]); }
-            else { printf("Error: Invalid samplerate value\n"); return 1; }
-        } else if (strcmp(arg, "-n") == 0 || strcmp(arg, "--channels") == 0) {
-            if (i + 1 < argc) { channels_override = atoi(argv[++i]); }
-            else { printf("Error: Invalid channels value\n"); return 1; }
-        } else {
-            if (arg[0] != '-') {
-                config_path = arg;
-            } else {
-                printf("Unknown option: %s\n", arg);
-                print_usage();
-                return 1;
-            }
-        }
-    }
+  double initial_gains[FADER_COUNT];
+  bool has_initial_gains[FADER_COUNT];
+  bool initial_mutes[FADER_COUNT];
+  bool has_initial_mutes[FADER_COUNT];
+  for (int i = 0; i < FADER_COUNT; i++) {
+    initial_gains[i] = 0.0;
+    has_initial_gains[i] = false;
+    initial_mutes[i] = false;
+    has_initial_mutes[i] = false;
+  }
 
-    dsp_engine_set_log_level(log_level_from_string(log_level_str));
+  int samplerate_override = -1;
+  int channels_override = -1;
 
-    if (check_only) {
-        if (!config_path) {
-            printf("Error: Missing config file to check.\n");
-            return 1;
-        }
-        char* json = read_file_to_string(config_path);
-        if (!json) {
-            printf("Configuration check failed: Could not read file.\n");
-            return 1;
-        }
-        dsp_config_t* parsed = NULL;
-        config_error_t cerr;
-        if (config_loader_parse(json, &parsed, &cerr) != 0 || !parsed) {
-            printf("Configuration check failed: %s\n", cerr.message);
-            free(json);
-            return 1;
-        }
-        printf("Configuration is valid.\n");
-        dsp_config_free(parsed);
-        free(json);
-        return 0;
-    }
-
-    // Load state file if present
-    char* allocated_config_path = NULL;
-    dsp_state_t loaded_state;
-    bool has_loaded_state = false;
-    if (state_file_path) {
-        if (dsp_state_load(state_file_path, &loaded_state)) {
-            has_loaded_state = true;
-            if (!config_path && !no_config && loaded_state.has_config_path) {
-                allocated_config_path = strdup(loaded_state.config_path);
-                config_path = allocated_config_path;
-            }
-        }
-    }
-
-    if (has_loaded_state) {
-        for (int i = 0; i < FADER_COUNT; i++) {
-            if (!has_initial_gains[i]) {
-                initial_gains[i] = loaded_state.volume[i];
-                has_initial_gains[i] = true;
-            }
-            if (!has_initial_mutes[i]) {
-                initial_mutes[i] = loaded_state.mute[i];
-                has_initial_mutes[i] = true;
-            }
-        }
-    }
-
-    char* config_json = NULL;
-    if (!wait_config && !no_config) {
-        if (!config_path) {
-            printf("Error: Missing required configuration file.\n");
-            print_usage();
-            return 1;
-        }
-        config_json = read_file_to_string(config_path);
-        if (!config_json) {
-            printf("Failed to load configuration: Could not read file %s\n", config_path);
-            return 1;
-        }
-        dsp_config_t* parsed = NULL;
-        config_error_t cerr;
-        if (config_loader_parse(config_json, &parsed, &cerr) != 0 || !parsed) {
-            printf("Failed to load configuration: %s\n", cerr.message);
-            free(config_json);
-            return 1;
-        }
-        if (samplerate_override > 0) parsed->devices.samplerate = samplerate_override;
-        if (channels_override > 0) parsed->devices.capture.channels = channels_override;
-        dsp_config_free(parsed);
-    }
-
-    dsp_engine_t* engine = dsp_engine_create();
-    if (!engine) {
-        printf("Error starting engine: Failed to allocate engine\n");
-        if (config_json) free(config_json);
+  for (int i = 1; i < argc; i++) {
+    const char* arg = argv[i];
+    if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
+      print_usage();
+      return 0;
+    } else if (strcmp(arg, "-c") == 0 || strcmp(arg, "--check") == 0) {
+      check_only = true;
+    } else if (strcmp(arg, "-w") == 0 || strcmp(arg, "--wait") == 0) {
+      wait_config = true;
+    } else if (strcmp(arg, "--no_config") == 0) {
+      no_config = true;
+    } else if (strcmp(arg, "-s") == 0 || strcmp(arg, "--statefile") == 0) {
+      if (i + 1 < argc) {
+        state_file_path = argv[++i];
+      } else {
+        printf("Error: Missing value for %s\n", arg);
         return 1;
-    }
-
-    if (config_json) {
-        audio_backend_error_t berr;
-        if (dsp_engine_set_config(engine, config_json, &berr)) {
-            printf("Engine started successfully.\n");
-        } else {
-            printf("Error starting engine: %s\n", berr.message);
-            dsp_engine_free(engine);
-            free(config_json);
-            return 1;
-        }
-        free(config_json);
+      }
+    } else if (strcmp(arg, "-p") == 0 || strcmp(arg, "--port") == 0) {
+      if (i + 1 < argc) {
+        port = (uint16_t)atoi(argv[++i]);
+        has_port = true;
+      } else {
+        printf("Error: Invalid port for %s\n", arg);
+        return 1;
+      }
+    } else if (strcmp(arg, "-a") == 0 || strcmp(arg, "--address") == 0) {
+      if (i + 1 < argc) {
+        bind_address = argv[++i];
+      } else {
+        printf("Error: Missing value for %s\n", arg);
+        return 1;
+      }
+    } else if (strcmp(arg, "-l") == 0 || strcmp(arg, "--loglevel") == 0) {
+      if (i + 1 < argc) {
+        log_level_str = argv[++i];
+      } else {
+        printf("Error: Missing value for %s\n", arg);
+        return 1;
+      }
+    } else if (strcmp(arg, "-o") == 0 || strcmp(arg, "--logfile") == 0) {
+      if (i + 1 < argc) {
+        printf(
+            "Note: Native file logging is not supported. Please redirect "
+            "stdout/stderr instead: > %s 2>&1\n",
+            argv[++i]);
+      } else {
+        printf("Error: Missing value for %s\n", arg);
+        return 1;
+      }
+    } else if (strcmp(arg, "-g") == 0 || strcmp(arg, "--gain") == 0) {
+      if (i + 1 < argc) {
+        initial_gains[0] = atof(argv[++i]);
+        has_initial_gains[0] = true;
+      } else {
+        printf("Error: Invalid gain value\n");
+        return 1;
+      }
+    } else if (strcmp(arg, "--gain1") == 0) {
+      if (i + 1 < argc) {
+        initial_gains[1] = atof(argv[++i]);
+        has_initial_gains[1] = true;
+      } else {
+        printf("Error: Invalid gain1 value\n");
+        return 1;
+      }
+    } else if (strcmp(arg, "--gain2") == 0) {
+      if (i + 1 < argc) {
+        initial_gains[2] = atof(argv[++i]);
+        has_initial_gains[2] = true;
+      } else {
+        printf("Error: Invalid gain2 value\n");
+        return 1;
+      }
+    } else if (strcmp(arg, "--gain3") == 0) {
+      if (i + 1 < argc) {
+        initial_gains[3] = atof(argv[++i]);
+        has_initial_gains[3] = true;
+      } else {
+        printf("Error: Invalid gain3 value\n");
+        return 1;
+      }
+    } else if (strcmp(arg, "--gain4") == 0) {
+      if (i + 1 < argc) {
+        initial_gains[4] = atof(argv[++i]);
+        has_initial_gains[4] = true;
+      } else {
+        printf("Error: Invalid gain4 value\n");
+        return 1;
+      }
+    } else if (strcmp(arg, "-m") == 0 || strcmp(arg, "--mute") == 0) {
+      initial_mutes[0] = true;
+      has_initial_mutes[0] = true;
+    } else if (strcmp(arg, "--mute1") == 0) {
+      initial_mutes[1] = true;
+      has_initial_mutes[1] = true;
+    } else if (strcmp(arg, "--mute2") == 0) {
+      initial_mutes[2] = true;
+      has_initial_mutes[2] = true;
+    } else if (strcmp(arg, "--mute3") == 0) {
+      initial_mutes[3] = true;
+      has_initial_mutes[3] = true;
+    } else if (strcmp(arg, "--mute4") == 0) {
+      initial_mutes[4] = true;
+      has_initial_mutes[4] = true;
+    } else if (strcmp(arg, "-r") == 0 || strcmp(arg, "--samplerate") == 0) {
+      if (i + 1 < argc) {
+        samplerate_override = atoi(argv[++i]);
+      } else {
+        printf("Error: Invalid samplerate value\n");
+        return 1;
+      }
+    } else if (strcmp(arg, "-n") == 0 || strcmp(arg, "--channels") == 0) {
+      if (i + 1 < argc) {
+        channels_override = atoi(argv[++i]);
+      } else {
+        printf("Error: Invalid channels value\n");
+        return 1;
+      }
     } else {
-        printf("Starting engine in inactive state (waiting for websocket configuration)...\n");
+      if (arg[0] != '-') {
+        config_path = arg;
+      } else {
+        printf("Unknown option: %s\n", arg);
+        print_usage();
+        return 1;
+      }
     }
+  }
 
-    for (int i = 0; i < FADER_COUNT; i++) {
-        if (has_initial_gains[i]) {
-            dsp_engine_set_fader_volume(engine, (fader_t)i, (float)initial_gains[i]);
-        }
-        if (initial_mutes[i]) {
-            dsp_engine_set_fader_mute(engine, (fader_t)i, true);
-        }
+  dsp_engine_set_log_level(log_level_from_string(log_level_str));
+
+  if (check_only) {
+    if (!config_path) {
+      printf("Error: Missing config file to check.\n");
+      return 1;
     }
-
-    active_config_path_t* active_path = active_config_path_create(config_path);
-
-    websocket_server_t* server = NULL;
-    if (has_port) {
-        server = websocket_server_create(port, bind_address, active_path);
-        if (state_file_path) {
-            websocket_server_set_state_file(server, state_file_path);
-        }
-        websocket_server_set_engine(server, dsp_engine_get_interface(engine));
-        if (websocket_server_start(server)) {
-            printf("WebSocket server running on %s:%u\n", bind_address, port);
-        } else {
-            printf("Error starting WebSocket server\n");
-        }
+    char* json = read_file_to_string(config_path);
+    if (!json) {
+      printf("Configuration check failed: Could not read file.\n");
+      return 1;
     }
-
-    printf("Press Ctrl+C to stop.\n");
-    while (keep_running) {
-        sleep(1);
-        if (server && server->has_state_file_path && server->unsaved_state_changes) {
-            dsp_state_t state_to_save;
-            memset(&state_to_save, 0, sizeof(state_to_save));
-            
-            const char* current_path = active_config_path_get(active_path);
-            if (current_path && current_path[0]) {
-                strncpy(state_to_save.config_path, current_path, sizeof(state_to_save.config_path) - 1);
-                state_to_save.has_config_path = true;
-            }
-            
-            for (int i = 0; i < 5; i++) {
-                state_to_save.volume[i] = dsp_engine_get_fader_volume(engine, (fader_t)i);
-                state_to_save.mute[i] = dsp_engine_is_fader_muted(engine, (fader_t)i);
-            }
-            
-            if (dsp_state_save(server->state_file_path, &state_to_save)) {
-                server->unsaved_state_changes = false;
-            }
-        }
+    dsp_config_t* parsed = NULL;
+    config_error_t cerr;
+    if (config_loader_parse(json, &parsed, &cerr) != 0 || !parsed) {
+      printf("Configuration check failed: %s\n", cerr.message);
+      free(json);
+      return 1;
     }
-
-    if (server) websocket_server_free(server);
-    if (active_path) active_config_path_free(active_path);
-    dsp_engine_free(engine);
-    if (allocated_config_path) free(allocated_config_path);
-    printf("Engine stopped.\n");
+    printf("Configuration is valid.\n");
+    dsp_config_free(parsed);
+    free(json);
     return 0;
+  }
+
+  // Load state file if present
+  char* allocated_config_path = NULL;
+  dsp_state_t loaded_state;
+  bool has_loaded_state = false;
+  if (state_file_path) {
+    if (dsp_state_load(state_file_path, &loaded_state)) {
+      has_loaded_state = true;
+      if (!config_path && !no_config && loaded_state.has_config_path) {
+        allocated_config_path = strdup(loaded_state.config_path);
+        config_path = allocated_config_path;
+      }
+    }
+  }
+
+  if (has_loaded_state) {
+    for (int i = 0; i < FADER_COUNT; i++) {
+      if (!has_initial_gains[i]) {
+        initial_gains[i] = loaded_state.volume[i];
+        has_initial_gains[i] = true;
+      }
+      if (!has_initial_mutes[i]) {
+        initial_mutes[i] = loaded_state.mute[i];
+        has_initial_mutes[i] = true;
+      }
+    }
+  }
+
+  char* config_json = NULL;
+  if (!wait_config && !no_config) {
+    if (!config_path) {
+      printf("Error: Missing required configuration file.\n");
+      print_usage();
+      return 1;
+    }
+    config_json = read_file_to_string(config_path);
+    if (!config_json) {
+      printf("Failed to load configuration: Could not read file %s\n",
+             config_path);
+      return 1;
+    }
+    dsp_config_t* parsed = NULL;
+    config_error_t cerr;
+    if (config_loader_parse(config_json, &parsed, &cerr) != 0 || !parsed) {
+      printf("Failed to load configuration: %s\n", cerr.message);
+      free(config_json);
+      return 1;
+    }
+    if (samplerate_override > 0)
+      parsed->devices.samplerate = samplerate_override;
+    if (channels_override > 0)
+      parsed->devices.capture.channels = channels_override;
+    dsp_config_free(parsed);
+  }
+
+  dsp_engine_t* engine = dsp_engine_create();
+  if (!engine) {
+    printf("Error starting engine: Failed to allocate engine\n");
+    if (config_json) free(config_json);
+    return 1;
+  }
+
+  if (config_json) {
+    audio_backend_error_t berr;
+    if (dsp_engine_set_config(engine, config_json, &berr)) {
+      printf("Engine started successfully.\n");
+    } else {
+      printf("Error starting engine: %s\n", berr.message);
+      dsp_engine_free(engine);
+      free(config_json);
+      return 1;
+    }
+    free(config_json);
+  } else {
+    printf(
+        "Starting engine in inactive state (waiting for websocket "
+        "configuration)...\n");
+  }
+
+  for (int i = 0; i < FADER_COUNT; i++) {
+    if (has_initial_gains[i]) {
+      dsp_engine_set_fader_volume(engine, (fader_t)i, (float)initial_gains[i]);
+    }
+    if (initial_mutes[i]) {
+      dsp_engine_set_fader_mute(engine, (fader_t)i, true);
+    }
+  }
+
+  active_config_path_t* active_path = active_config_path_create(config_path);
+
+  websocket_server_t* server = NULL;
+  if (has_port) {
+    server = websocket_server_create(port, bind_address, active_path);
+    if (state_file_path) {
+      websocket_server_set_state_file(server, state_file_path);
+    }
+    websocket_server_set_engine(server, dsp_engine_get_interface(engine));
+    if (websocket_server_start(server)) {
+      printf("WebSocket server running on %s:%u\n", bind_address, port);
+    } else {
+      printf("Error starting WebSocket server\n");
+    }
+  }
+
+  printf("Press Ctrl+C to stop.\n");
+  while (keep_running) {
+    sleep(1);
+    if (server && server->has_state_file_path &&
+        server->unsaved_state_changes) {
+      dsp_state_t state_to_save;
+      memset(&state_to_save, 0, sizeof(state_to_save));
+
+      const char* current_path = active_config_path_get(active_path);
+      if (current_path && current_path[0]) {
+        strncpy(state_to_save.config_path, current_path,
+                sizeof(state_to_save.config_path) - 1);
+        state_to_save.has_config_path = true;
+      }
+
+      for (int i = 0; i < 5; i++) {
+        state_to_save.volume[i] =
+            dsp_engine_get_fader_volume(engine, (fader_t)i);
+        state_to_save.mute[i] = dsp_engine_is_fader_muted(engine, (fader_t)i);
+      }
+
+      if (dsp_state_save(server->state_file_path, &state_to_save)) {
+        server->unsaved_state_changes = false;
+      }
+    }
+  }
+
+  if (server) websocket_server_free(server);
+  if (active_path) active_config_path_free(active_path);
+  dsp_engine_free(engine);
+  if (allocated_config_path) free(allocated_config_path);
+  printf("Engine stopped.\n");
+  return 0;
 }

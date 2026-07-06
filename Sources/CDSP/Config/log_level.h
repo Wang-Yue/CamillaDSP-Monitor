@@ -1,20 +1,20 @@
 #ifndef CLIB_CONFIG_LOG_LEVEL_H
 #define CLIB_CONFIG_LOG_LEVEL_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef enum {
-    LOG_LEVEL_OFF = 0,
-    LOG_LEVEL_ERROR = 1,
-    LOG_LEVEL_WARN = 2,
-    LOG_LEVEL_INFO = 3,
-    LOG_LEVEL_DEBUG = 4,
-    LOG_LEVEL_TRACE = 5
+  LOG_LEVEL_OFF = 0,
+  LOG_LEVEL_ERROR = 1,
+  LOG_LEVEL_WARN = 2,
+  LOG_LEVEL_INFO = 3,
+  LOG_LEVEL_DEBUG = 4,
+  LOG_LEVEL_TRACE = 5
 } log_level_t;
 
 /// Compact byte encoding for `Atomic<UInt8>` storage in
@@ -28,4 +28,4 @@ log_level_t log_level_from_string(const char* str);
 }
 #endif
 
-#endif // CLIB_CONFIG_LOG_LEVEL_H
+#endif  // CLIB_CONFIG_LOG_LEVEL_H

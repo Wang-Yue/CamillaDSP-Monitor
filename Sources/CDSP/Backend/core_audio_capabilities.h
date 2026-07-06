@@ -5,11 +5,12 @@
 
 #ifdef __APPLE__
 
-#include "core_audio_device.h"
-#include "Config/engine_config_types.h"
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+
+#include "Config/engine_config_types.h"
+#include "core_audio_device.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,11 +38,15 @@ extern const size_t CORE_AUDIO_STANDARD_RATES_COUNT;
 /// Names of all devices visible to the system in the requested
 /// direction. Empty when no devices match (no mics connected, no
 /// output devices, etc.).
-int core_audio_capabilities_available_device_names(bool is_capture, char out_names[][256], int max_names);
+int core_audio_capabilities_available_device_names(bool is_capture,
+                                                   char out_names[][256],
+                                                   int max_names);
 
 /// Name of the system-default device in the requested direction,
 /// if one is configured. Useful as the initial value for a picker.
-bool core_audio_capabilities_default_device_name(bool is_capture, char* out_name, size_t max_len);
+bool core_audio_capabilities_default_device_name(bool is_capture,
+                                                 char* out_name,
+                                                 size_t max_len);
 
 /// Maximum channel count the named device exposes across any of
 /// its physical formats. When `name` is `nil` the system default
@@ -52,14 +57,16 @@ bool core_audio_capabilities_default_device_name(bool is_capture, char* out_name
 /// reports. Used by the room-correction UI to populate per-channel
 /// pickers (e.g. left/right speaker, calibrated mic capsule on a
 /// stereo interface).
-int core_audio_capabilities_channel_count(const char* device_name, bool is_capture);
+int core_audio_capabilities_channel_count(const char* device_name,
+                                          bool is_capture);
 
 /// Build the capability descriptor for a named device. Returns `nil`
 /// if the device cannot be located. All low-level HAL plumbing is
 /// delegated to `CoreAudioDevice`; this layer only adds the
 /// physical-format probe + aggregation that's specific to the UI's
 /// `AudioDeviceDescriptor` shape.
-audio_device_descriptor_t* core_audio_capabilities_describe(const char* device_name, bool is_capture);
+audio_device_descriptor_t* core_audio_capabilities_describe(
+    const char* device_name, bool is_capture);
 
 /// Free the audio device descriptor and its internal capability sets.
 void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
@@ -68,6 +75,6 @@ void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 }
 #endif
 
-#endif // __APPLE__
+#endif  // __APPLE__
 
-#endif // CLIB_BACKEND_CORE_AUDIO_CAPABILITIES_H
+#endif  // CLIB_BACKEND_CORE_AUDIO_CAPABILITIES_H
