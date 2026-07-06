@@ -400,13 +400,11 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
             if (config->devices.capture.type == AUDIO_BACKEND_TYPE_FILE || config->devices.capture.type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
                 config->devices.capture.file_format = binary_sample_format_from_string(fmt_str);
                 config->devices.capture.has_file_format = true;
-            } else if (config->devices.capture.type == AUDIO_BACKEND_TYPE_WASAPI) {
 #if defined(_WIN32)
+            } else if (config->devices.capture.type == AUDIO_BACKEND_TYPE_WASAPI) {
                 config->devices.capture.format = wasapi_sample_format_from_string(fmt_str);
                 config->devices.capture.has_format = true;
-#endif
             } else if (config->devices.capture.type == AUDIO_BACKEND_TYPE_ASIO) {
-#if defined(_WIN32)
                 config->devices.capture.asio_format = asio_sample_format_from_string(fmt_str);
                 config->devices.capture.has_asio_format = true;
 #endif
@@ -486,13 +484,11 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
             if (config->devices.playback.type == AUDIO_BACKEND_TYPE_FILE || config->devices.playback.type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
                 config->devices.playback.file_format = binary_sample_format_from_string(fmt_str);
                 config->devices.playback.has_file_format = true;
-            } else if (config->devices.playback.type == AUDIO_BACKEND_TYPE_WASAPI) {
 #if defined(_WIN32)
+            } else if (config->devices.playback.type == AUDIO_BACKEND_TYPE_WASAPI) {
                 config->devices.playback.format = wasapi_sample_format_from_string(fmt_str);
                 config->devices.playback.has_format = true;
-#endif
             } else if (config->devices.playback.type == AUDIO_BACKEND_TYPE_ASIO) {
-#if defined(_WIN32)
                 config->devices.playback.asio_format = asio_sample_format_from_string(fmt_str);
                 config->devices.playback.has_asio_format = true;
 #endif

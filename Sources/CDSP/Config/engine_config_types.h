@@ -131,15 +131,19 @@ typedef struct {
 
 /// Audio I/O backend.
 typedef enum {
+#if defined(__APPLE__)
     AUDIO_BACKEND_TYPE_CORE_AUDIO = 0,
+#elif defined(__linux__)
     AUDIO_BACKEND_TYPE_ALSA = 1,
     AUDIO_BACKEND_TYPE_PULSE_AUDIO = 2,
     AUDIO_BACKEND_TYPE_PIPEWIRE = 3,
+#elif defined(_WIN32)
     AUDIO_BACKEND_TYPE_WASAPI = 4,
+    AUDIO_BACKEND_TYPE_ASIO = 8,
+#endif
     AUDIO_BACKEND_TYPE_FILE = 5,
     AUDIO_BACKEND_TYPE_STDIN_OUT = 6,
     AUDIO_BACKEND_TYPE_GENERATOR = 7,
-    AUDIO_BACKEND_TYPE_ASIO = 8,
     AUDIO_BACKEND_TYPE_INVALID = -1
 } audio_backend_type_t;
 

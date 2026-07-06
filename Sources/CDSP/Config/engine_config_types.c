@@ -125,27 +125,35 @@ alsa_sample_format_t alsa_sample_format_from_string(const char* str) {
 
 const char* audio_backend_type_to_string(audio_backend_type_t type) {
     switch (type) {
+#if defined(__APPLE__)
         case AUDIO_BACKEND_TYPE_CORE_AUDIO: return "CoreAudio";
+#elif defined(__linux__)
         case AUDIO_BACKEND_TYPE_ALSA: return "Alsa";
         case AUDIO_BACKEND_TYPE_PULSE_AUDIO: return "Pulse";
         case AUDIO_BACKEND_TYPE_PIPEWIRE: return "Pipewire";
+#elif defined(_WIN32)
         case AUDIO_BACKEND_TYPE_WASAPI: return "Wasapi";
+        case AUDIO_BACKEND_TYPE_ASIO: return "Asio";
+#endif
         case AUDIO_BACKEND_TYPE_FILE: return "File";
         case AUDIO_BACKEND_TYPE_STDIN_OUT: return "Stdin";
         case AUDIO_BACKEND_TYPE_GENERATOR: return "SignalGenerator";
-        case AUDIO_BACKEND_TYPE_ASIO: return "Asio";
         default: return "Unknown";
     }
 }
 
 audio_backend_type_t audio_backend_type_from_string(const char* str) {
     if (!str) return AUDIO_BACKEND_TYPE_INVALID;
+#if defined(__APPLE__)
     if (strcasecmp(str, "CoreAudio") == 0 || strcasecmp(str, "Core Audio") == 0) return AUDIO_BACKEND_TYPE_CORE_AUDIO;
+#elif defined(__linux__)
     if (strcasecmp(str, "Alsa") == 0 || strcasecmp(str, "ALSA") == 0) return AUDIO_BACKEND_TYPE_ALSA;
     if (strcasecmp(str, "Pulse") == 0 || strcasecmp(str, "PulseAudio") == 0) return AUDIO_BACKEND_TYPE_PULSE_AUDIO;
     if (strcasecmp(str, "Pipewire") == 0 || strcasecmp(str, "PipeWire") == 0) return AUDIO_BACKEND_TYPE_PIPEWIRE;
+#elif defined(_WIN32)
     if (strcasecmp(str, "Wasapi") == 0 || strcasecmp(str, "WASAPI") == 0) return AUDIO_BACKEND_TYPE_WASAPI;
     if (strcasecmp(str, "Asio") == 0 || strcasecmp(str, "ASIO") == 0) return AUDIO_BACKEND_TYPE_ASIO;
+#endif
     if (strcasecmp(str, "File") == 0 || strcasecmp(str, "RawFile") == 0 || strcasecmp(str, "WavFile") == 0) return AUDIO_BACKEND_TYPE_FILE;
     if (strcasecmp(str, "Stdin") == 0 || strcasecmp(str, "Stdout") == 0 || strcasecmp(str, "STDIN") == 0 || strcasecmp(str, "STDOUT") == 0) return AUDIO_BACKEND_TYPE_STDIN_OUT;
     if (strcasecmp(str, "SignalGenerator") == 0 || strcasecmp(str, "Generator") == 0) return AUDIO_BACKEND_TYPE_GENERATOR;
