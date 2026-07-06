@@ -8,7 +8,7 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
     LDFLAGS ?= -framework Accelerate -framework AudioToolbox -framework CoreAudio -framework CoreFoundation
 else
-    LDFLAGS ?= -lm -lpthread -lasound -lrt -lfftw3 -lopenblas
+    LDFLAGS ?= -lm -lpthread -lasound -lrt -lfftw3 -lopenblas -lpulse-simple -lpulse
     CFLAGS += -march=native
 endif
 
