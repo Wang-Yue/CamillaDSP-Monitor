@@ -68,7 +68,7 @@ pipeline_t* pipeline_create(const dsp_config_t* config, processing_parameters_t*
         return NULL;
     }
 
-    pipeline->frames_per_chunk = explicit_chunk_size > 0 ? explicit_chunk_size : config->devices.chunksize;
+    pipeline->frames_per_chunk = explicit_chunk_size > 0 ? explicit_chunk_size : (size_t)config->devices.chunksize;
     pipeline->rate = config->devices.samplerate;
     pipeline->expected_in_channels = config->devices.capture.channels;
 

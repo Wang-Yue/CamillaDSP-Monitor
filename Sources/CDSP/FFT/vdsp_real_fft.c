@@ -25,6 +25,7 @@ struct vdsp_real_fft {
     double* scratch_im;
 };
 
+#ifdef __APPLE__
 static void vdsp_real_fft_forward_wrapper(void* ctx, waveform_t real_in, mutable_waveform_t spec_re, mutable_waveform_t spec_im) {
     vdsp_real_fft_forward((vdsp_real_fft_t*)ctx, real_in, spec_re, spec_im);
 }
@@ -36,6 +37,7 @@ static void vdsp_real_fft_inverse_wrapper(void* ctx, waveform_t spec_re, wavefor
 static void vdsp_real_fft_free_wrapper(void* ctx) {
     vdsp_real_fft_free((vdsp_real_fft_t*)ctx);
 }
+#endif
 
 vdsp_real_fft_t* vdsp_real_fft_create(size_t length) {
     if (length < 8 || (length & (length - 1)) != 0) return NULL;

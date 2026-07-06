@@ -58,7 +58,8 @@ bool dsp_engine_set_config(dsp_engine_t* engine, const char* json, audio_backend
         }
         if (err) {
             err->type = AUDIO_BACKEND_ERR_CONFIG_PARSE;
-            snprintf(err->message, sizeof(err->message), "%s", cerr.message);
+            strncpy(err->message, cerr.message, sizeof(err->message) - 1);
+            err->message[sizeof(err->message) - 1] = '\0';
         }
         return false;
     }
@@ -303,7 +304,10 @@ int dsp_engine_get_available_devices(const char* backend, bool input, audio_devi
         int count = core_audio_capabilities_available_device_names(input, names, 32);
         if (count > max_devices) count = max_devices;
         for (int i = 0; i < count; i++) {
-            if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
+            if (out_devices) {
+                memcpy(out_devices[i].name, names[i], sizeof(out_devices[i].name));
+                out_devices[i].name[sizeof(out_devices[i].name) - 1] = '\0';
+            }
         }
         return count;
 #else
@@ -315,7 +319,10 @@ int dsp_engine_get_available_devices(const char* backend, bool input, audio_devi
         int count = alsa_capabilities_available_device_names(input, names, 32);
         if (count > max_devices) count = max_devices;
         for (int i = 0; i < count; i++) {
-            if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
+            if (out_devices) {
+                memcpy(out_devices[i].name, names[i], sizeof(out_devices[i].name));
+                out_devices[i].name[sizeof(out_devices[i].name) - 1] = '\0';
+            }
         }
         return count;
 #else
@@ -327,7 +334,10 @@ int dsp_engine_get_available_devices(const char* backend, bool input, audio_devi
         int count = wasapi_capabilities_available_device_names(input, names, 32);
         if (count > max_devices) count = max_devices;
         for (int i = 0; i < count; i++) {
-            if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
+            if (out_devices) {
+                memcpy(out_devices[i].name, names[i], sizeof(out_devices[i].name));
+                out_devices[i].name[sizeof(out_devices[i].name) - 1] = '\0';
+            }
         }
         return count;
 #else
@@ -339,7 +349,10 @@ int dsp_engine_get_available_devices(const char* backend, bool input, audio_devi
         int count = asio_capabilities_available_device_names(input, names, 32);
         if (count > max_devices) count = max_devices;
         for (int i = 0; i < count; i++) {
-            if (out_devices) snprintf(out_devices[i].name, sizeof(out_devices[i].name), "%s", names[i]);
+            if (out_devices) {
+                memcpy(out_devices[i].name, names[i], sizeof(out_devices[i].name));
+                out_devices[i].name[sizeof(out_devices[i].name) - 1] = '\0';
+            }
         }
         return count;
 #else

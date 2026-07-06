@@ -133,7 +133,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core, audio_backend_error_t* err) 
     // to `samplerate` and any resampler runs at 1:1 (used solely
     // as a drift-correction surface for rate-adjust).
     size_t pipeline_rate = (size_t)core->current_config->devices.samplerate;
-    size_t capture_rate = (size_t)(core->current_config->devices.has_capture_samplerate ? core->current_config->devices.capture_samplerate : pipeline_rate);
+    size_t capture_rate = core->current_config->devices.has_capture_samplerate ? (size_t)core->current_config->devices.capture_samplerate : pipeline_rate;
 
     // Create the resampler first so we can adopt its (possibly
     // rounded) chunk size before opening the audio devices.
@@ -201,7 +201,11 @@ bool dsp_engine_core_start(dsp_engine_core_t* core, audio_backend_error_t* err) 
     memset(&cerr, 0, sizeof(cerr));
     core->pipeline = pipeline_create(core->current_config, core->processing_params, playback_chunk_size, &cerr);
     if (!core->pipeline) {
-        if (err) { err->type = AUDIO_BACKEND_ERR_COMMAND_SEND; snprintf(err->message, sizeof(err->message), "%s", cerr.message); }
+        if (err) {
+            err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+            strncpy(err->message, cerr.message, sizeof(err->message) - 1);
+            err->message[sizeof(err->message) - 1] = '\0';
+        }
         return false;
     }
 
@@ -325,7 +329,11 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core, dsp_config_t* new_co
     memset(&cerr, 0, sizeof(cerr));
     pipeline_t* new_pipeline = pipeline_create(new_config, core->processing_params, core->effective_playback_chunk_size, &cerr);
     if (!new_pipeline) {
-        if (err) { err->type = AUDIO_BACKEND_ERR_COMMAND_SEND; snprintf(err->message, sizeof(err->message), "%s", cerr.message); }
+        if (err) {
+            err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+            strncpy(err->message, cerr.message, sizeof(err->message) - 1);
+            err->message[sizeof(err->message) - 1] = '\0';
+        }
         return false;
     }
     if (core->processing_loop) {

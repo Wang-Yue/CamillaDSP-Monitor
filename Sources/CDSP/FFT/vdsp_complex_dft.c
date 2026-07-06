@@ -18,6 +18,7 @@ struct vdsp_complex_dft {
 #endif
 };
 
+#ifdef __APPLE__
 static void vdsp_complex_dft_execute_wrapper(void* ctx, waveform_t real_in, waveform_t imag_in, mutable_waveform_t real_out, mutable_waveform_t imag_out, bool inverse) {
     vdsp_complex_dft_execute((vdsp_complex_dft_t*)ctx, real_in, imag_in, real_out, imag_out, inverse);
 }
@@ -25,6 +26,7 @@ static void vdsp_complex_dft_execute_wrapper(void* ctx, waveform_t real_in, wave
 static void vdsp_complex_dft_free_wrapper(void* ctx) {
     vdsp_complex_dft_free((vdsp_complex_dft_t*)ctx);
 }
+#endif
 
 vdsp_complex_dft_t* vdsp_complex_dft_create(size_t n) {
 #ifdef __APPLE__

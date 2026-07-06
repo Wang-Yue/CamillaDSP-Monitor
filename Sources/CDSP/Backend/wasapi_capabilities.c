@@ -82,6 +82,7 @@ int wasapi_capabilities_available_device_names(bool is_capture, char out_names[]
 }
 
 bool wasapi_capabilities_default_device_name(bool is_capture, char* out_name, size_t max_len) {
+    (void)is_capture;
     snprintf(out_name, max_len, "default");
     return true;
 }
