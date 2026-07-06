@@ -15,8 +15,8 @@ import Foundation
 import Synchronization
 import Testing
 
-@testable import SwiftDSP
 @testable import DSPConfig
+@testable import SwiftDSP
 
 // MARK: - Allocation counter
 //

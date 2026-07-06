@@ -3,8 +3,8 @@
 // Bridges the C library engine (CLib/Engine) to the Swift API surface
 // expected by DSPMonitor and DSPCLI.
 
-import DSPConfig
 import CDSP
+import DSPConfig
 import Foundation
 
 // MARK: - The actor
@@ -134,10 +134,18 @@ public actor DSPEngine {
     }
     var levels = dsp_engine_get_vu_levels(e)
     defer { dsp_engine_free_vu_levels(&levels) }
-    let pbRms = Array(UnsafeBufferPointer(start: levels.playback_rms, count: Int(levels.playback_channels))).map { Float($0) }
-    let pbPeak = Array(UnsafeBufferPointer(start: levels.playback_peak, count: Int(levels.playback_channels))).map { Float($0) }
-    let capRms = Array(UnsafeBufferPointer(start: levels.capture_rms, count: Int(levels.capture_channels))).map { Float($0) }
-    let capPeak = Array(UnsafeBufferPointer(start: levels.capture_peak, count: Int(levels.capture_channels))).map { Float($0) }
+    let pbRms = Array(
+      UnsafeBufferPointer(start: levels.playback_rms, count: Int(levels.playback_channels))
+    ).map { Float($0) }
+    let pbPeak = Array(
+      UnsafeBufferPointer(start: levels.playback_peak, count: Int(levels.playback_channels))
+    ).map { Float($0) }
+    let capRms = Array(
+      UnsafeBufferPointer(start: levels.capture_rms, count: Int(levels.capture_channels))
+    ).map { Float($0) }
+    let capPeak = Array(
+      UnsafeBufferPointer(start: levels.capture_peak, count: Int(levels.capture_channels))
+    ).map { Float($0) }
     return VuLevels(
       playback_rms: pbRms,
       playback_peak: pbPeak,
@@ -195,7 +203,7 @@ public actor DSPEngine {
   }
 
   public func getAvailableDevices(backend: String, input: Bool) async -> [AudioDevice] {
-    guard let _ = engine else { return [] }
+    guard engine != nil else { return [] }
     var devs = [audio_device_t](repeating: audio_device_t(), count: 32)
     let count = backend.withCString { cStr in
       devs.withUnsafeMutableBufferPointer { ptr in
@@ -217,12 +225,14 @@ public actor DSPEngine {
     device: String,
     isCapture: Bool
   ) async -> AudioDeviceDescriptor? {
-    guard let _ = engine else { return nil }
-    guard let desc = backend.withCString({ bStr in
-      device.withCString { dStr in
-        dsp_engine_get_device_capabilities(bStr, dStr, isCapture)
-      }
-    }) else { return nil }
+    guard engine != nil else { return nil }
+    guard
+      let desc = backend.withCString({ bStr in
+        device.withCString { dStr in
+          dsp_engine_get_device_capabilities(bStr, dStr, isCapture)
+        }
+      })
+    else { return nil }
     defer { dsp_engine_free_device_capabilities(desc) }
     let name = withUnsafePointer(to: desc.pointee.name) { ptr in
       ptr.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }

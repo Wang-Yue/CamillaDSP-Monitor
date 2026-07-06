@@ -1,8 +1,8 @@
 import Foundation
 import Testing
 
-@testable import SwiftDSP
 @testable import DSPConfig
+@testable import SwiftDSP
 
 @Suite struct DiffEqTests {
   private static func isClose(_ left: Double, _ right: Double, maxdiff: Double) -> Bool {

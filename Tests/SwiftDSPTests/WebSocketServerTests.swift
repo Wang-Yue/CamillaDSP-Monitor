@@ -1,6 +1,7 @@
-@testable import SwiftDSP
 import Foundation
 import Testing
+
+@testable import SwiftDSP
 
 @Suite struct WebSocketServerTests {
   @Test func TestWebSocketCommands() async throws {

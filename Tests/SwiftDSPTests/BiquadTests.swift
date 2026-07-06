@@ -3,8 +3,8 @@
 import Foundation
 import Testing
 
-@testable import SwiftDSP
 @testable import DSPConfig
+@testable import SwiftDSP
 
 // MARK: - Helpers (match Rust helpers exactly)
 

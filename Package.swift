@@ -80,7 +80,7 @@ case "c":
     )
   ]
 
-default: // rust
+default:  // rust
   dspLibTarget = .target(
     name: "DSPLib",
     dependencies: ["CamillaDSPFFI", "DSPConfig"],
@@ -103,19 +103,20 @@ default: // rust
 }
 
 // MARK: - Core & Engine Targets Assembly
-var targets: [Target] = [
-  .target(
-    name: "DSPConfig",
-    dependencies: [],
-    path: "Sources/DSPConfig"
-  ),
-  dspLibTarget,
-  .executableTarget(
-    name: "DSPMonitor",
-    dependencies: dspMonitorDependencies,
-    path: "Sources/DSPMonitor"
-  ),
-] + engineTargets
+var targets: [Target] =
+  [
+    .target(
+      name: "DSPConfig",
+      dependencies: [],
+      path: "Sources/DSPConfig"
+    ),
+    dspLibTarget,
+    .executableTarget(
+      name: "DSPMonitor",
+      dependencies: dspMonitorDependencies,
+      path: "Sources/DSPMonitor"
+    ),
+  ] + engineTargets
 
 // MARK: - Package Definition
 let package = Package(

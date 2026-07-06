@@ -1,6 +1,6 @@
-import SwiftDSP
 import DSPConfig
 import Foundation
+import SwiftDSP
 
 struct FaderState: Codable {
   var volume: Float

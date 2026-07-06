@@ -9,10 +9,10 @@
 // a synthetic "system" so the UI can be developed and exercised
 // before the real microphone-input path lands.
 
-import SwiftDSP
 import DSPConfig
 import Foundation
 import Observation
+import SwiftDSP
 
 /// What the user told us this position represents. Drives the
 /// subwoofer-crossover assistant: when the session has at least one

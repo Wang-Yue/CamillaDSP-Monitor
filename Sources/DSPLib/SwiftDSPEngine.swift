@@ -7,9 +7,9 @@
 // `DSPEngineCore` plus a `SpectrumAnalyzer` and bridges between the two
 // vocabularies.
 
-import SwiftDSP
 import DSPConfig
 import Foundation
+import SwiftDSP
 
 // MARK: - The actor
 

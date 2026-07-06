@@ -11,8 +11,8 @@
 // stack them.
 
 import AppKit
-import SwiftDSP
 import Observation
+import SwiftDSP
 import SwiftUI
 import UniformTypeIdentifiers
 
