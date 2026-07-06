@@ -421,6 +421,7 @@ internal final class DSPEngineCore {
       shared: shared,
       capture: runtime.capture,
       playback: runtime.playback,
+      processingParams: processingParams,
       pipelineRate: runtime.pipelineRate,
       chunkSize: runtime.playbackChunkSize,
       rateAdjustEnabled: rateAdjustEnabled,

@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 engine_processing_loop_t* engine_processing_loop_create(
     engine_shared_state_t* shared,
@@ -160,6 +161,8 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
                 pending_update_free(update);
             }
 
+            uint64_t res_start = 0;
+            uint64_t res_end = 0;
             if (loop->resampler) {
                 // Resample if configured. The desired ratio is published
                 // by the rate-adjust controller via `shared.resamplerRatio`;
@@ -175,7 +178,9 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
                 // resampler has different input/output chunk sizes, so
                 // swapping would leave scratch holding a too-small array
                 // on the next iteration.
+                res_start = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
                 resampler_error_t rerr = audio_resampler_process(loop->resampler, chunk, loop->resampler_scratch);
+                res_end = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
                 if (rerr != RESAMPLER_OK) {
                     logger_error(&logger, "Processing error: resampler error %d", log_arg_int((int64_t)rerr), log_arg_none(), log_arg_none(), log_arg_none());
                     processing_stop_reason_t reason = { .type = STOP_REASON_UNKNOWN_ERROR };
@@ -207,7 +212,9 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
             }
 
             audio_chunk_t* current_scratch = round_robin_chunk_pool_next(scratch_pool);
+            uint64_t pipe_start = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
             pipeline_error_t perr = pipeline_process(loop->active_pipeline, chunk, current_scratch);
+            uint64_t pipe_end = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
             if (perr != PIPELINE_OK) {
                 logger_error(&logger, "Processing error: pipeline error %d", log_arg_int((int64_t)perr), log_arg_none(), log_arg_none(), log_arg_none());
                 processing_stop_reason_t reason = { .type = STOP_REASON_UNKNOWN_ERROR };
@@ -217,6 +224,40 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
                 return;
             }
             chunk = current_scratch;
+
+            if (loop->processing_params) {
+                size_t frames = chunk->valid_frames;
+                if (frames > 0) {
+                    uint64_t chunk_duration_ns = (uint64_t)frames * 1000000000ULL / loop->pipeline_rate;
+                    if (chunk_duration_ns > 0) {
+                        double p_load = (double)(pipe_end - pipe_start) / (double)chunk_duration_ns;
+                        atomic_double_set(&loop->processing_params->processing_load, p_load);
+
+                        if (loop->resampler) {
+                            double r_load = (double)(res_end - res_start) / (double)chunk_duration_ns;
+                            atomic_double_set(&loop->processing_params->resampler_load, r_load);
+                        } else {
+                            atomic_double_set(&loop->processing_params->resampler_load, 0.0);
+                        }
+                    }
+                }
+
+                // Check for clipped samples on the output chunk
+                size_t channels = audio_chunk_get_channels(chunk);
+                size_t c_frames = chunk->valid_frames;
+                uint64_t clipped = 0;
+                for (size_t c = 0; c < channels; c++) {
+                    mutable_waveform_t data = audio_chunk_get_channel(chunk, c);
+                    for (size_t f = 0; f < c_frames; f++) {
+                        if (data[f] > 1.0 || data[f] < -1.0) {
+                            clipped++;
+                        }
+                    }
+                }
+                if (clipped > 0) {
+                    atomic_fetch_add_explicit(&loop->processing_params->clipped_samples, clipped, memory_order_relaxed);
+                }
+            }
 
             processing_parameters_update_playback_levels(loop->processing_params, chunk);
 

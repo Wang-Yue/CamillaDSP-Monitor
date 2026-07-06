@@ -40,6 +40,7 @@ final class EnginePlaybackLoop: @unchecked Sendable {
   private let shared: EngineSharedState
   private let capture: CaptureBackend
   private let playback: PlaybackBackend
+  private let processingParams: ProcessingParameters?
 
   private let chunkSize: Int
   private let pipelineRate: Int
@@ -55,6 +56,7 @@ final class EnginePlaybackLoop: @unchecked Sendable {
     shared: EngineSharedState,
     capture: CaptureBackend,
     playback: PlaybackBackend,
+    processingParams: ProcessingParameters?,
     pipelineRate: Int,
     chunkSize: Int,
     rateAdjustEnabled: Bool,
@@ -65,6 +67,7 @@ final class EnginePlaybackLoop: @unchecked Sendable {
     self.shared = shared
     self.capture = capture
     self.playback = playback
+    self.processingParams = processingParams
     self.pipelineRate = pipelineRate
     self.chunkSize = chunkSize
     self.pitchSupported = capture.pitchControlSupported
@@ -100,12 +103,11 @@ final class EnginePlaybackLoop: @unchecked Sendable {
       while let chunk = shared.processedQueue.dequeue() {
         if shared.shouldStop.load(ordering: .acquiring) { return }
 
-        // Sample the buffer fill *before* writing — measures what
-        // the rate-adjust controller cares about: how much
-        // already-produced audio is queued in front of the device.
+        let ringFill = playback.bufferLevel
+        let queuedFrames = shared.processedQueue.count * chunkSize
+        processingParams?.bufferLevel.value = Double(ringFill + queuedFrames)
+
         if rateAdjustEnabled, let controller = rateController {
-          let ringFill = playback.bufferLevel
-          let queuedFrames = shared.processedQueue.count * chunkSize
           averager.add(Double(ringFill + queuedFrames))
 
           if stopwatch.elapsedSeconds >= adjustPeriod, let avg = averager.average {
@@ -113,6 +115,7 @@ final class EnginePlaybackLoop: @unchecked Sendable {
             stopwatch.restart()
             averager.restart()
             applySpeed(speed, lastSpeed: &lastSpeed, average: avg)
+            processingParams?.rateAdjust.value = speed
           }
         }
 

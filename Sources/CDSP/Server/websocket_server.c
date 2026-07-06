@@ -179,6 +179,48 @@ void websocket_server_set_state_file(websocket_server_t* server, const char* sta
     }
 }
 
+static uint64_t get_time_ms(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
+}
+
+static void stop_reason_to_string(const processing_stop_reason_t* reason, char* out, size_t max_len) {
+    if (!reason || !out || max_len == 0) return;
+    switch (reason->type) {
+        case STOP_REASON_NONE:
+            snprintf(out, max_len, "\"None\"");
+            break;
+        case STOP_REASON_DONE:
+            snprintf(out, max_len, "\"Done\"");
+            break;
+        case STOP_REASON_CAPTURE_ERROR:
+            snprintf(out, max_len, "\"CaptureError: %s\"", reason->message);
+            break;
+        case STOP_REASON_PLAYBACK_ERROR:
+            snprintf(out, max_len, "\"PlaybackError: %s\"", reason->message);
+            break;
+        case STOP_REASON_CAPTURE_FORMAT_CHANGE:
+            snprintf(out, max_len, "\"CaptureFormatChange(%d)\"", reason->format_change_rate);
+            break;
+        case STOP_REASON_PLAYBACK_FORMAT_CHANGE:
+            snprintf(out, max_len, "\"PlaybackFormatChange(%d)\"", reason->format_change_rate);
+            break;
+        case STOP_REASON_UNKNOWN_ERROR:
+            snprintf(out, max_len, "\"UnknownError: %s\"", reason->message);
+            break;
+        default:
+            snprintf(out, max_len, "\"None\"");
+            break;
+    }
+}
+
+static void format_state_event_payload(processing_state_t state, const processing_stop_reason_t* reason, char* out, size_t max_len) {
+    char reason_str[512] = "\"None\"";
+    stop_reason_to_string(reason, reason_str, sizeof(reason_str));
+    snprintf(out, max_len, "{\"state\":\"%s\",\"stop_reason\":%s}", processing_state_to_string(state), reason_str);
+}
+
 // MARK: - JSON Helpers
 
 static void json_reply(const char* cmd, const char* res_str, const char* val_str, char* out, size_t max_len) {
@@ -670,7 +712,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                 state = status.state;
             }
         }
-        json_reply("GetState", "\"Ok\"", state_to_string(state), out_response, max_len);
+        char val[64];
+        snprintf(val, sizeof(val), "\"%s\"", processing_state_to_string(state));
+        json_reply("GetState", "\"Ok\"", val, out_response, max_len);
     } else if (strcmp(simple, "GetStopReason") == 0) {
         char reason_str[512] = "\"None\"";
         if (server && server->engine && server->engine->get_status) {
@@ -818,17 +862,67 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
             json_reply("GetCaptureRate", "\"Ok\"", "0", out_response, max_len);
         }
     } else if (strcmp(simple, "GetRateAdjust") == 0) {
-        json_reply("GetRateAdjust", "\"Ok\"", "1.0", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            double rate = atomic_double_get(&params->rate_adjust);
+            char val[32];
+            snprintf(val, sizeof(val), "%.17g", rate);
+            json_reply("GetRateAdjust", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetRateAdjust", "\"Ok\"", "1.0", out_response, max_len);
+        }
     } else if (strcmp(simple, "GetBufferLevel") == 0) {
-        json_reply("GetBufferLevel", "\"Ok\"", "0", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            double lvl = atomic_double_get(&params->buffer_level);
+            char val[32];
+            snprintf(val, sizeof(val), "%d", (int)lvl);
+            json_reply("GetBufferLevel", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetBufferLevel", "\"Ok\"", "0", out_response, max_len);
+        }
     } else if (strcmp(simple, "GetClippedSamples") == 0) {
-        json_reply("GetClippedSamples", "\"Ok\"", "0", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            uint64_t clips = atomic_load_explicit(&params->clipped_samples, memory_order_relaxed);
+            char val[32];
+            snprintf(val, sizeof(val), "%llu", clips);
+            json_reply("GetClippedSamples", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetClippedSamples", "\"Ok\"", "0", out_response, max_len);
+        }
     } else if (strcmp(simple, "ResetClippedSamples") == 0) {
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            atomic_store_explicit(&params->clipped_samples, 0ULL, memory_order_relaxed);
+        }
         json_reply("ResetClippedSamples", "\"Ok\"", NULL, out_response, max_len);
     } else if (strcmp(simple, "GetProcessingLoad") == 0) {
-        json_reply("GetProcessingLoad", "\"Ok\"", "0.0", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            double load = atomic_double_get(&params->processing_load);
+            char val[32];
+            snprintf(val, sizeof(val), "%.17g", load);
+            json_reply("GetProcessingLoad", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetProcessingLoad", "\"Ok\"", "0.0", out_response, max_len);
+        }
     } else if (strcmp(simple, "GetResamplerLoad") == 0) {
-        json_reply("GetResamplerLoad", "\"Ok\"", "0.0", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            double load = atomic_double_get(&params->resampler_load);
+            char val[32];
+            snprintf(val, sizeof(val), "%.17g", load);
+            json_reply("GetResamplerLoad", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetResamplerLoad", "\"Ok\"", "0.0", out_response, max_len);
+        }
     } else if (strcmp(simple, "GetSupportedDeviceTypes") == 0) {
         json_reply("GetSupportedDeviceTypes", "\"Ok\"", "[[\"CoreAudio\"],[\"CoreAudio\"]]", out_response, max_len);
     } else if (strcmp(simple, "GetUpdateInterval") == 0) {
@@ -2037,22 +2131,6 @@ static void send_websocket_frame(int fd, const char* response) {
             free(dyn_frame);
         }
     }
-}
-
-static void get_simple_command(const char* in, char* out, size_t max_len) {
-    size_t out_idx = 0;
-    for (size_t i = 0; in[i] && out_idx < max_len - 1; i++) {
-        if (in[i] != '"' && in[i] != ' ' && in[i] != '\r' && in[i] != '\n') {
-            out[out_idx++] = in[i];
-        }
-    }
-    out[out_idx] = '\0';
-}
-
-static uint64_t get_time_ms(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
 }
 
 static void* server_thread_func(void* arg) {

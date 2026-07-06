@@ -31,6 +31,7 @@
 #include "engine_state_machine.h"
 #include "Backend/audio_backend.h"
 #include "rate_controller.h"
+#include "Audio/processing_parameters.h"
 #include <stddef.h>
 #include <stdbool.h>
 
@@ -49,6 +50,7 @@ typedef struct {
     engine_shared_state_t* shared;
     capture_backend_t* capture;
     playback_backend_t* playback;
+    processing_parameters_t* processing_params;
     size_t pipeline_rate;
     size_t chunk_size;
     bool pitch_supported;
@@ -63,6 +65,7 @@ engine_playback_loop_t* engine_playback_loop_create(
     engine_shared_state_t* shared,
     capture_backend_t* capture,
     playback_backend_t* playback,
+    processing_parameters_t* processing_params,
     size_t pipeline_rate,
     size_t chunk_size,
     bool rate_adjust_enabled,

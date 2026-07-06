@@ -53,6 +53,13 @@ typedef struct {
     atomic_double_t* capture_signal_rms;
     atomic_double_t* playback_signal_peak;
     atomic_double_t* playback_signal_rms;
+
+    // MARK: - Telemetry
+    atomic_double_t rate_adjust;
+    atomic_double_t buffer_level;
+    _Atomic uint64_t clipped_samples;
+    atomic_double_t processing_load;
+    atomic_double_t resampler_load;
 } processing_parameters_t;
 
 processing_parameters_t* processing_parameters_create(size_t capture_channels, size_t playback_channels);

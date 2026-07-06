@@ -37,6 +37,12 @@ processing_parameters_t* processing_parameters_create(size_t capture_channels, s
         }
     }
 
+    atomic_double_init(&params->rate_adjust, 1.0);
+    atomic_double_init(&params->buffer_level, 0.0);
+    atomic_init(&params->clipped_samples, 0ULL);
+    atomic_double_init(&params->processing_load, 0.0);
+    atomic_double_init(&params->resampler_load, 0.0);
+
     return params;
 }
 

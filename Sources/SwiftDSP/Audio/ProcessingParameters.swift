@@ -57,7 +57,19 @@ public final class ProcessingParameters: Sendable {
   private let _playbackSignalPeak: AtomicLevels
   private let _playbackSignalRms: AtomicLevels
 
+  // MARK: - Telemetry
+  public let rateAdjust: AtomicDouble
+  public let bufferLevel: AtomicDouble
+  public let clippedSamples: Atomic<UInt64>
+  public let processingLoad: AtomicDouble
+  public let resamplerLoad: AtomicDouble
+
   public init(captureChannels: Int, playbackChannels: Int) {
+    self.rateAdjust = AtomicDouble(1.0)
+    self.bufferLevel = AtomicDouble(0.0)
+    self.clippedSamples = Atomic<UInt64>(0)
+    self.processingLoad = AtomicDouble(0.0)
+    self.resamplerLoad = AtomicDouble(0.0)
     self._targetVolume0 = AtomicDouble(Self.defaultVolume)
     self._targetVolume1 = AtomicDouble(Self.defaultVolume)
     self._targetVolume2 = AtomicDouble(Self.defaultVolume)

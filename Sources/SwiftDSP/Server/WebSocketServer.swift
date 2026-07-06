@@ -669,22 +669,40 @@ public final class WebSocketServer: Sendable {
       return jsonReply("GetCaptureRate", result: .ok, value: "\(config?.devices.samplerate ?? 0)")
 
     case "GetRateAdjust":
-      return jsonReply("GetRateAdjust", result: .ok, value: "1.0")
+      guard let params = processingParams else {
+        return jsonReply("GetRateAdjust", result: .ok, value: "1.0")
+      }
+      return jsonReply("GetRateAdjust", result: .ok, value: "\(params.rateAdjust.value)")
 
     case "GetBufferLevel":
-      return jsonReply("GetBufferLevel", result: .ok, value: "0")
+      guard let params = processingParams else {
+        return jsonReply("GetBufferLevel", result: .ok, value: "0")
+      }
+      return jsonReply("GetBufferLevel", result: .ok, value: "\(Int(params.bufferLevel.value))")
 
     case "GetClippedSamples":
-      return jsonReply("GetClippedSamples", result: .ok, value: "0")
+      guard let params = processingParams else {
+        return jsonReply("GetClippedSamples", result: .ok, value: "0")
+      }
+      return jsonReply(
+        "GetClippedSamples", result: .ok, value: "\(params.clippedSamples.load(ordering: .relaxed))"
+      )
 
     case "ResetClippedSamples":
+      processingParams?.clippedSamples.store(0, ordering: .relaxed)
       return jsonReply("ResetClippedSamples", result: .ok)
 
     case "GetProcessingLoad":
-      return jsonReply("GetProcessingLoad", result: .ok, value: "0.0")
+      guard let params = processingParams else {
+        return jsonReply("GetProcessingLoad", result: .ok, value: "0.0")
+      }
+      return jsonReply("GetProcessingLoad", result: .ok, value: "\(params.processingLoad.value)")
 
     case "GetResamplerLoad":
-      return jsonReply("GetResamplerLoad", result: .ok, value: "0.0")
+      guard let params = processingParams else {
+        return jsonReply("GetResamplerLoad", result: .ok, value: "0.0")
+      }
+      return jsonReply("GetResamplerLoad", result: .ok, value: "\(params.resamplerLoad.value)")
 
     case "GetSupportedDeviceTypes":
       return jsonReply(

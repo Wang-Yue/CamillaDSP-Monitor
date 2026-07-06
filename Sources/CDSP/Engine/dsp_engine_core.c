@@ -226,7 +226,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core, audio_backend_error_t* err) 
     int target_level = core->current_config->devices.has_target_level ? core->current_config->devices.target_level : (int)(playback_chunk_size * 2);
 
     core->playback_loop = engine_playback_loop_create(
-        core->shared, core->capture, core->playback, pipeline_rate, playback_chunk_size,
+        core->shared, core->capture, core->playback, core->processing_params, pipeline_rate, playback_chunk_size,
         rate_adjust_enabled, adjust_period, target_level,
         core_on_stop_callback, core
     );

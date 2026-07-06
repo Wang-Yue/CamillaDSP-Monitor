@@ -120,16 +120,14 @@ final class EngineProcessingLoop: @unchecked Sendable {
           // we sync the resampler to it once per chunk. The
           // resampler's internal state is otherwise owned exclusively
           // by this thread, so no lock is required.
+          var resStart: UInt64 = 0
+          var resEnd: UInt64 = 0
           if let resampler = resampler {
             resampler.setRelativeRatio(shared.resamplerRatio.value)
 
-            // Write into the pre-sized output scratch (sized to
-            // `resampler.maxOutputFrames`), then make that scratch
-            // our working chunk. We can't `swap` here — a non-1:1
-            // resampler has different input/output chunk sizes, so
-            // swapping would leave scratch holding a too-small array
-            // on the next iteration.
+            resStart = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
             try resampler.process(input: chunk, into: &resamplerScratch)
+            resEnd = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
             chunk = resamplerScratch
           }
 
@@ -147,8 +145,41 @@ final class EngineProcessingLoop: @unchecked Sendable {
           }
 
           var currentScratch = scratchPool.next()
+          let pipeStart = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
           try activePipeline.process(input: chunk, into: &currentScratch)
+          let pipeEnd = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
           chunk = currentScratch
+
+          let frames = chunk.validFrames
+          if frames > 0 {
+            let chunkDurationNs = UInt64(frames) * 1_000_000_000 / UInt64(pipelineRate)
+            if chunkDurationNs > 0 {
+              let pipeDurationNs = pipeEnd &- pipeStart
+              processingParams.processingLoad.value =
+                Double(pipeDurationNs) / Double(chunkDurationNs)
+
+              if resampler != nil {
+                let resDurationNs = resEnd &- resStart
+                processingParams.resamplerLoad.value =
+                  Double(resDurationNs) / Double(chunkDurationNs)
+              } else {
+                processingParams.resamplerLoad.value = 0.0
+              }
+            }
+          }
+
+          var clipped: UInt64 = 0
+          for ch in 0..<chunk.channels {
+            let buffer = chunk[ch]
+            for f in 0..<chunk.validFrames {
+              if buffer[f] > 1.0 || buffer[f] < -1.0 {
+                clipped += 1
+              }
+            }
+          }
+          if clipped > 0 {
+            processingParams.clippedSamples.wrappingAdd(clipped, ordering: .relaxed)
+          }
 
           _ = processingParams.updatePlaybackLevels(from: chunk)
 

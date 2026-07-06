@@ -69,6 +69,7 @@ engine_playback_loop_t* engine_playback_loop_create(
     engine_shared_state_t* shared,
     capture_backend_t* capture,
     playback_backend_t* playback,
+    processing_parameters_t* processing_params,
     size_t pipeline_rate,
     size_t chunk_size,
     bool rate_adjust_enabled,
@@ -82,6 +83,7 @@ engine_playback_loop_t* engine_playback_loop_create(
     loop->shared = shared;
     loop->capture = capture;
     loop->playback = playback;
+    loop->processing_params = processing_params;
     loop->pipeline_rate = pipeline_rate;
     loop->chunk_size = chunk_size;
     loop->pitch_supported = capture ? capture_backend_pitch_control_supported(capture) : false;
@@ -130,12 +132,13 @@ void engine_playback_loop_run(engine_playback_loop_t* loop) {
                 return;
             }
 
+            size_t ring_fill = playback_backend_get_buffer_level(loop->playback);
+            size_t queued_frames = spsc_queue_get_count(loop->shared->processed_queue) * loop->chunk_size;
+            if (loop->processing_params) {
+                atomic_double_set(&loop->processing_params->buffer_level, (double)(ring_fill + queued_frames));
+            }
+
             if (loop->rate_adjust_enabled && rate_controller) {
-                // Sample the buffer fill *before* writing — measures what
-                // the rate-adjust controller cares about: how much
-                // already-produced audio is queued in front of the device.
-                size_t ring_fill = playback_backend_get_buffer_level(loop->playback);
-                size_t queued_frames = spsc_queue_get_count(loop->shared->processed_queue) * loop->chunk_size;
                 averager_add(&averager, (double)(ring_fill + queued_frames));
 
                 if (stopwatch_elapsed_seconds(&stopwatch) >= loop->adjust_period) {
@@ -145,6 +148,9 @@ void engine_playback_loop_run(engine_playback_loop_t* loop) {
                         stopwatch_restart(&stopwatch);
                         averager_restart(&averager);
                         apply_speed(loop, speed, &last_speed, avg);
+                        if (loop->processing_params) {
+                            atomic_double_set(&loop->processing_params->rate_adjust, speed);
+                        }
                     }
                 }
             }
