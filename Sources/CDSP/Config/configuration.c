@@ -1,5 +1,6 @@
 #include "configuration.h"
 #include <string.h>
+#include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -375,6 +376,10 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
         char type_str[64];
         if (extract_string_in_range(cap_pos, cap_end, "\"type\"", type_str, sizeof(type_str))) {
             config->devices.capture.type = audio_backend_type_from_string(type_str);
+            if (strcasecmp(type_str, "WavFile") == 0) {
+                config->devices.capture.is_wav = true;
+                config->devices.capture.has_is_wav = true;
+            }
         } else {
 #if defined(__APPLE__)
             config->devices.capture.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
@@ -387,15 +392,29 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
         if (extract_string_in_range(cap_pos, cap_end, "\"device\"", config->devices.capture.device, sizeof(config->devices.capture.device))) {
             config->devices.capture.has_device = true;
         }
+        if (extract_string_in_range(cap_pos, cap_end, "\"filename\"", config->devices.capture.filename, sizeof(config->devices.capture.filename))) {
+            config->devices.capture.has_filename = true;
+        }
         char fmt_str[64];
         if (extract_string_in_range(cap_pos, cap_end, "\"format\"", fmt_str, sizeof(fmt_str))) {
+            if (config->devices.capture.type == AUDIO_BACKEND_TYPE_FILE || config->devices.capture.type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
+                config->devices.capture.file_format = binary_sample_format_from_string(fmt_str);
+                config->devices.capture.has_file_format = true;
+            } else {
 #if defined(__linux__)
-            config->devices.capture.format = alsa_sample_format_from_string(fmt_str);
+                config->devices.capture.format = alsa_sample_format_from_string(fmt_str);
 #else
-            config->devices.capture.format = coreaudio_sample_format_from_string(fmt_str);
+                config->devices.capture.format = coreaudio_sample_format_from_string(fmt_str);
 #endif
-            config->devices.capture.has_format = true;
+                config->devices.capture.has_format = true;
+            }
         }
+        config->devices.capture.skip_bytes = extract_int_in_range(cap_pos, cap_end, "\"skip_bytes\"", 0);
+        config->devices.capture.has_skip_bytes = (config->devices.capture.skip_bytes > 0);
+        config->devices.capture.read_bytes = extract_int_in_range(cap_pos, cap_end, "\"read_bytes\"", 0);
+        config->devices.capture.has_read_bytes = (config->devices.capture.read_bytes > 0);
+        config->devices.capture.extra_samples = extract_int_in_range(cap_pos, cap_end, "\"extra_samples\"", 0);
+        config->devices.capture.has_extra_samples = (config->devices.capture.extra_samples > 0);
 #if defined(__linux__)
         config->devices.capture.stop_on_inactive = extract_bool_in_range(cap_pos, cap_end, "\"stop_on_inactive\"", false);
         config->devices.capture.has_stop_on_inactive = true;
@@ -445,15 +464,25 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
         if (extract_string_in_range(play_pos, play_end, "\"device\"", config->devices.playback.device, sizeof(config->devices.playback.device))) {
             config->devices.playback.has_device = true;
         }
+        if (extract_string_in_range(play_pos, play_end, "\"filename\"", config->devices.playback.filename, sizeof(config->devices.playback.filename))) {
+            config->devices.playback.has_filename = true;
+        }
         char fmt_str[64];
         if (extract_string_in_range(play_pos, play_end, "\"format\"", fmt_str, sizeof(fmt_str))) {
+            if (config->devices.playback.type == AUDIO_BACKEND_TYPE_FILE || config->devices.playback.type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
+                config->devices.playback.file_format = binary_sample_format_from_string(fmt_str);
+                config->devices.playback.has_file_format = true;
+            } else {
 #if defined(__linux__)
-            config->devices.playback.format = alsa_sample_format_from_string(fmt_str);
+                config->devices.playback.format = alsa_sample_format_from_string(fmt_str);
 #else
-            config->devices.playback.format = coreaudio_sample_format_from_string(fmt_str);
+                config->devices.playback.format = coreaudio_sample_format_from_string(fmt_str);
 #endif
-            config->devices.playback.has_format = true;
+                config->devices.playback.has_format = true;
+            }
         }
+        config->devices.playback.is_wav = extract_bool_in_range(play_pos, play_end, "\"wav_header\"", false);
+        config->devices.playback.has_is_wav = true;
         config->devices.playback.exclusive = extract_bool_in_range(play_pos, play_end, "\"exclusive\"", false);
         config->devices.playback.has_exclusive = true;
         config->devices.playback.output_dop = extract_bool_in_range(play_pos, play_end, "\"output_dop\"", false);

@@ -182,6 +182,20 @@ alsa_sample_format_t alsa_sample_format_from_string(const char* str);
 #endif
 
 typedef enum {
+    BINARY_SAMPLE_FORMAT_S16_LE = 0,
+    BINARY_SAMPLE_FORMAT_S24_3_LE,
+    BINARY_SAMPLE_FORMAT_S24_4_RJ_LE,
+    BINARY_SAMPLE_FORMAT_S24_4_LJ_LE,
+    BINARY_SAMPLE_FORMAT_S32_LE,
+    BINARY_SAMPLE_FORMAT_F32_LE,
+    BINARY_SAMPLE_FORMAT_F64_LE,
+    BINARY_SAMPLE_FORMAT_INVALID = -1
+} binary_sample_format_t;
+
+const char* binary_sample_format_to_string(binary_sample_format_t fmt);
+binary_sample_format_t binary_sample_format_from_string(const char* str);
+
+typedef enum {
     SIGNAL_TYPE_SINE = 0,
     SIGNAL_TYPE_SQUARE,
     SIGNAL_TYPE_WHITE_NOISE,
@@ -226,6 +240,18 @@ typedef struct {
     bool has_dop_cutoff_hz;
     generator_signal_t generator;
     bool has_generator;
+    char filename[512];
+    bool has_filename;
+    binary_sample_format_t file_format;
+    bool has_file_format;
+    bool is_wav;
+    bool has_is_wav;
+    int skip_bytes;
+    bool has_skip_bytes;
+    int read_bytes;
+    bool has_read_bytes;
+    int extra_samples;
+    bool has_extra_samples;
 } capture_device_config_t;
 
 typedef struct {
@@ -245,6 +271,12 @@ typedef struct {
     bool has_output_dop;
     sdm_filter_t dop_encoder_filter;
     bool has_dop_encoder_filter;
+    char filename[512];
+    bool has_filename;
+    binary_sample_format_t file_format;
+    bool has_file_format;
+    bool is_wav;
+    bool has_is_wav;
 } playback_device_config_t;
 
 typedef struct {

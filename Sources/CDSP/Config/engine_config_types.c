@@ -206,6 +206,31 @@ sdm_filter_t sdm_filter_from_string(const char* str) {
     return SDM_FILTER_INVALID;
 }
 
+const char* binary_sample_format_to_string(binary_sample_format_t fmt) {
+    switch (fmt) {
+        case BINARY_SAMPLE_FORMAT_S16_LE: return "S16_LE";
+        case BINARY_SAMPLE_FORMAT_S24_3_LE: return "S24_3_LE";
+        case BINARY_SAMPLE_FORMAT_S24_4_RJ_LE: return "S24_4_RJ_LE";
+        case BINARY_SAMPLE_FORMAT_S24_4_LJ_LE: return "S24_4_LJ_LE";
+        case BINARY_SAMPLE_FORMAT_S32_LE: return "S32_LE";
+        case BINARY_SAMPLE_FORMAT_F32_LE: return "F32_LE";
+        case BINARY_SAMPLE_FORMAT_F64_LE: return "F64_LE";
+        default: return "Invalid";
+    }
+}
+
+binary_sample_format_t binary_sample_format_from_string(const char* str) {
+    if (!str) return BINARY_SAMPLE_FORMAT_INVALID;
+    if (strcmp(str, "S16_LE") == 0) return BINARY_SAMPLE_FORMAT_S16_LE;
+    if (strcmp(str, "S24_3_LE") == 0) return BINARY_SAMPLE_FORMAT_S24_3_LE;
+    if (strcmp(str, "S24_4_RJ_LE") == 0) return BINARY_SAMPLE_FORMAT_S24_4_RJ_LE;
+    if (strcmp(str, "S24_4_LJ_LE") == 0) return BINARY_SAMPLE_FORMAT_S24_4_LJ_LE;
+    if (strcmp(str, "S32_LE") == 0) return BINARY_SAMPLE_FORMAT_S32_LE;
+    if (strcmp(str, "F32_LE") == 0) return BINARY_SAMPLE_FORMAT_F32_LE;
+    if (strcmp(str, "F64_LE") == 0) return BINARY_SAMPLE_FORMAT_F64_LE;
+    return BINARY_SAMPLE_FORMAT_INVALID;
+}
+
 /// If true, bypass DoP detection and handle signal strictly as PCM. Default is false.
 /// DoP decimator passband cutoff in Hz. Lower values give higher SINAD by
 /// rejecting more DSD shaping noise; higher values widen the audible
