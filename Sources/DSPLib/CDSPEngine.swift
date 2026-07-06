@@ -23,7 +23,7 @@ extension Fader {
 
 public actor DSPEngine {
   public static let isCEngine = true
-  public static let isSwiftEngine = false
+  public static let isRustEngine = false
   nonisolated(unsafe) private let engine: UnsafeMutablePointer<dsp_engine_t>?
 
   public init() {

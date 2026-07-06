@@ -42,9 +42,9 @@ struct ResamplerDetailView: View {
                   //                  types are supported.
                   ForEach(
                     ResamplerType.allCases.filter { type in
-                      DSPEngine.isSwiftEngine
-                        ? true
-                        : (type != .apple)
+                      DSPEngine.isRustEngine
+                        ? (type != .apple)
+                        : true
                     }
                   ) { type in
                     Text(type.rawValue).tag(type)

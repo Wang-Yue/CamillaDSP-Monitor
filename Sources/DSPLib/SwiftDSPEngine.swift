@@ -14,7 +14,7 @@ import Foundation
 // MARK: - The actor
 
 public actor DSPEngine {
-  public static let isSwiftEngine = true
+  public static let isRustEngine = false
 
   private let engine = SwiftDSPEngine()
 

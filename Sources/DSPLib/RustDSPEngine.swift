@@ -66,7 +66,7 @@ public actor DSPEngine {
 
   // MARK: - Commands
 
-  public static let isSwiftEngine = false
+  public static let isRustEngine = true
 
   public func start(configJson: String) async throws {
     do {

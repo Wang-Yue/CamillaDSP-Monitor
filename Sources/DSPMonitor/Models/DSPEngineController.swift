@@ -90,7 +90,7 @@ final class DSPEngineController {
       channels: devices.captureConfig.channels,
       device: devices.captureConfig.deviceName
     )
-    if DSPEngine.isSwiftEngine {
+    if !DSPEngine.isRustEngine {
       captureConfig.bypassDoP = devices.captureConfig.bypassDoP
       captureConfig.dopCutoffHz = devices.captureConfig.dopCutoffHz
     }
@@ -101,7 +101,7 @@ final class DSPEngineController {
       device: devices.playbackConfig.deviceName,
       exclusive: devices.exclusiveMode
     )
-    if DSPEngine.isSwiftEngine {
+    if !DSPEngine.isRustEngine {
       playbackConfig.outputDoP = devices.playbackConfig.outputDoP
       playbackConfig.dopEncoderFilter = devices.playbackConfig.dopEncoderFilter
     }
@@ -135,10 +135,10 @@ final class DSPEngineController {
       //     `.synchronous` are implemented. `.apple` (the Core Audio
       //     wrapper) maps onto `.asyncSinc`.
       let effectiveType: ResamplerType
-      if DSPEngine.isSwiftEngine {
-        effectiveType = settings.resamplerType
-      } else {
+      if DSPEngine.isRustEngine {
         effectiveType = settings.resamplerType == .apple ? .asyncSinc : settings.resamplerType
+      } else {
+        effectiveType = settings.resamplerType
       }
       let configResamplerType =
         DSPConfig.ResamplerType(rawValue: effectiveType.rawValue) ?? .synchronous

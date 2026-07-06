@@ -65,7 +65,7 @@ struct DevicePickerView: View {
             Divider()
               .padding(.vertical, 2)
 
-            if DSPEngine.isSwiftEngine {
+            if !DSPEngine.isRustEngine {
               Toggle("Bypass DoP Detection", isOn: $bindableDevices.captureConfig.bypassDoP)
 
               HStack {
@@ -143,7 +143,7 @@ struct DevicePickerView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
-            if DSPEngine.isSwiftEngine {
+            if !DSPEngine.isRustEngine {
               let isCapable = [176_400, 352_800, 705_600, 192_000, 384_000, 768_000].contains(
                 bindableDevices.playbackConfig.sampleRate)
 
@@ -219,7 +219,7 @@ struct DevicePickerView: View {
               .frame(width: 120)
             }
 
-            if !DSPEngine.isSwiftEngine {
+            if DSPEngine.isRustEngine {
               Toggle("Stop on Rate Change", isOn: $bindableSettings.stopOnRateChange)
 
               HStack {
