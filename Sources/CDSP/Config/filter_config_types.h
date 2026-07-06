@@ -245,7 +245,7 @@ typedef struct {
     } parameters;
 } filter_config_t;
 
-bool biquad_parameters_validate(const biquad_parameters_t* params, int sample_rate, config_error_t* err);
+int biquad_parameters_validate(const biquad_parameters_t* params, int sample_rate, config_error_t* err);
 int gain_parameters_validate(const gain_parameters_t* params, config_error_t* err);
 int loudness_parameters_validate(const loudness_parameters_t* params, config_error_t* err);
 int conv_parameters_validate(const conv_parameters_t* params, config_error_t* err);

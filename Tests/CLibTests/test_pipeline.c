@@ -733,7 +733,7 @@ TEST(ConfigLoaderParseAndValidate) {
     ASSERT_EQ(0, res);
     ASSERT_TRUE(config != NULL);
 
-    res = config_loader_validate(config, &err);
+    res = dsp_config_validate(config, &err);
     ASSERT_EQ(0, res);
     ASSERT_EQ(CONFIG_ERR_NONE, err.type);
 
@@ -742,7 +742,7 @@ TEST(ConfigLoaderParseAndValidate) {
     dsp_config_t invalid_config;
     init_default_config(&invalid_config);
     invalid_config.devices.samplerate = -1;
-    res = config_loader_validate(&invalid_config, &err);
+    res = dsp_config_validate(&invalid_config, &err);
     ASSERT_NE(0, res);
     ASSERT_EQ(CONFIG_ERR_VALIDATION, err.type);
 }

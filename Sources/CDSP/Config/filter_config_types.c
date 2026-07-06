@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <strings.h>
+#include <math.h>
 
 // Standalone filter configuration types.
 
@@ -305,7 +306,7 @@ int filter_config_validate(const filter_config_t* filter, int sample_rate, confi
         case FILTER_TYPE_GAIN: return gain_parameters_validate(&filter->parameters.gain, err);
         case FILTER_TYPE_VOLUME: return volume_parameters_validate(&filter->parameters.volume, err);
         case FILTER_TYPE_LOUDNESS: return loudness_parameters_validate(&filter->parameters.loudness, err);
-        case FILTER_TYPE_BIQUAD: return biquad_parameters_validate(&filter->parameters.biquad, sample_rate, err) ? 0 : -1;
+        case FILTER_TYPE_BIQUAD: return biquad_parameters_validate(&filter->parameters.biquad, sample_rate, err);
         case FILTER_TYPE_CONV: return conv_parameters_validate(&filter->parameters.conv, err);
         case FILTER_TYPE_DELAY: return delay_parameters_validate(&filter->parameters.delay, err);
         case FILTER_TYPE_BIQUAD_COMBO: return biquad_combo_parameters_validate(&filter->parameters.biquad_combo, sample_rate, err);
@@ -316,3 +317,41 @@ int filter_config_validate(const filter_config_t* filter, int sample_rate, confi
     }
     return 0;
 }
+
+int biquad_parameters_validate(const biquad_parameters_t* params, int sample_rate, config_error_t* err) {
+    if (!params) return -1;
+    double nyquist = (double)sample_rate / 2.0;
+    if (params->type != BIQUAD_TYPE_FREE && params->type != BIQUAD_TYPE_LINKWITZ_TRANSFORM) {
+        if (params->freq <= 0.0 || params->freq >= nyquist) {
+            if (err) config_error_set(err, CONFIG_ERR_INVALID_FILTER, "freq out of range");
+            return -1;
+        }
+    }
+    if (params->type == BIQUAD_TYPE_PEAKING || params->type == BIQUAD_TYPE_LOWPASS ||
+        params->type == BIQUAD_TYPE_HIGHPASS || params->type == BIQUAD_TYPE_BANDPASS ||
+        params->type == BIQUAD_TYPE_NOTCH || params->type == BIQUAD_TYPE_ALLPASS ||
+        params->type == BIQUAD_TYPE_GENERAL_NOTCH || params->type == BIQUAD_TYPE_HIGHSHELF ||
+        params->type == BIQUAD_TYPE_LOWSHELF) {
+        if (params->q <= 0.0 && params->bandwidth <= 0.0 && params->slope <= 0.0) {
+            if (err) config_error_set(err, CONFIG_ERR_INVALID_FILTER, "q out of range");
+            return -1;
+        }
+    }
+    if (params->slope < 0.0 || params->slope > 12.0) {
+        if (err) config_error_set(err, CONFIG_ERR_INVALID_FILTER, "slope out of range");
+        return -1;
+    }
+    // Stability check: pole positions of the realised coefficients must
+    // lie strictly inside the unit circle.
+    biquad_coefficients_t coeffs;
+    if (biquad_coefficients_compute(params, sample_rate, &coeffs)) {
+        if (fabs(coeffs.a2) >= 1.0 || fabs(coeffs.a1) >= 1.0 + coeffs.a2) {
+            if (err) config_error_set(err, CONFIG_ERR_INVALID_FILTER, "unstable biquad");
+            return -1;
+        }
+    } else {
+        return -1;
+    }
+    return 0;
+}
+

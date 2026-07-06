@@ -1,10 +1,13 @@
 #ifndef CLIB_CONFIG_CONFIGURATION_H
 #define CLIB_CONFIG_CONFIGURATION_H
 
-// Top-level configuration data structures. The JSON loader lives in
-// `ConfigLoader.swift`; per-domain validation lives next to each
-// validated type (`BiquadParameters.validate`, `MixerConfig.validate`,
-// etc.). This file is data-only.
+// Top-level configuration data structures and validation logic. The JSON loader
+// lives in `config_loader.c`.
+//
+// This file owns:
+//   1. Top-level configuration models (dsp_config_t and pipeline_step_t).
+//   2. Cross-component validation logic, including schema checks and the
+//      pipeline walk that tracks channel layouts.
 
 #include "config_error.h"
 #include "engine_config_types.h"

@@ -28,10 +28,6 @@ static inline biquad_coefficients_t biquad_coefficients_passthrough(void) {
     return c;
 }
 
-/// Validate parameter ranges for the configured sample rate. Lives
-/// here (rather than next to the parameter struct) because
-/// the parameter struct must not depend on `ConfigError`.
-bool biquad_parameters_validate(const biquad_parameters_t* params, int sample_rate, config_error_t* err);
 bool biquad_coefficients_compute(const biquad_parameters_t* params, int sample_rate, biquad_coefficients_t* out_coeffs);
 
 /// Magnitude response in dB at frequency `f` (Hz). Uses the analytic

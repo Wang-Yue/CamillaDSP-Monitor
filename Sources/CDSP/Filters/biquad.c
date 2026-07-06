@@ -7,45 +7,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-/// Validate parameter ranges for the configured sample rate. Lives
-/// here (rather than next to the parameter struct) because
-/// the parameter struct must not depend on `ConfigError`.
-bool biquad_parameters_validate(const biquad_parameters_t* params, int sample_rate, config_error_t* err) {
-    if (!params) return false;
-    double nyquist = (double)sample_rate / 2.0;
-    if (params->type != BIQUAD_TYPE_FREE && params->type != BIQUAD_TYPE_LINKWITZ_TRANSFORM) {
-        if (params->freq <= 0.0 || params->freq >= nyquist) {
-            if (err) config_error_set(err, CONFIG_ERR_INVALID_FILTER, "freq out of range");
-            return false;
-        }
-    }
-    if (params->type == BIQUAD_TYPE_PEAKING || params->type == BIQUAD_TYPE_LOWPASS ||
-        params->type == BIQUAD_TYPE_HIGHPASS || params->type == BIQUAD_TYPE_BANDPASS ||
-        params->type == BIQUAD_TYPE_NOTCH || params->type == BIQUAD_TYPE_ALLPASS ||
-        params->type == BIQUAD_TYPE_GENERAL_NOTCH || params->type == BIQUAD_TYPE_HIGHSHELF ||
-        params->type == BIQUAD_TYPE_LOWSHELF) {
-        if (params->q <= 0.0 && params->bandwidth <= 0.0 && params->slope <= 0.0) {
-            if (err) config_error_set(err, CONFIG_ERR_INVALID_FILTER, "q out of range");
-            return false;
-        }
-    }
-    if (params->slope < 0.0 || params->slope > 12.0) {
-        if (err) config_error_set(err, CONFIG_ERR_INVALID_FILTER, "slope out of range");
-        return false;
-    }
-    // Stability check: pole positions of the realised coefficients must
-    // lie strictly inside the unit circle.
-    biquad_coefficients_t coeffs;
-    if (biquad_coefficients_compute(params, sample_rate, &coeffs)) {
-        if (fabs(coeffs.a2) >= 1.0 || fabs(coeffs.a1) >= 1.0 + coeffs.a2) {
-            if (err) config_error_set(err, CONFIG_ERR_INVALID_FILTER, "unstable biquad");
-            return false;
-        }
-    } else {
-        return false;
-    }
-    return true;
-}
 
 bool biquad_coefficients_compute(const biquad_parameters_t* params, int sample_rate, biquad_coefficients_t* out_coeffs) {
     if (!params || !out_coeffs || sample_rate <= 0) return false;

@@ -383,23 +383,23 @@ TEST(LinkwitzTransform) {
 TEST(ValidateFreqQ) {
     int fs48 = 48000;
     biquad_parameters_t p1 = { .type = BIQUAD_TYPE_PEAKING, .freq = 1000.0, .q = 2.0, .gain = 1.23 };
-    ASSERT_TRUE(biquad_parameters_validate(&p1, fs48, NULL));
+    ASSERT_EQ(0, biquad_parameters_validate(&p1, fs48, NULL));
     biquad_parameters_t p2 = { .type = BIQUAD_TYPE_PEAKING, .freq = 1000.0, .q = 0.0, .gain = 1.23 };
-    ASSERT_FALSE(biquad_parameters_validate(&p2, fs48, NULL));
+    ASSERT_NE(0, biquad_parameters_validate(&p2, fs48, NULL));
     biquad_parameters_t p3 = { .type = BIQUAD_TYPE_PEAKING, .freq = 25000.0, .q = 1.0, .gain = 1.23 };
-    ASSERT_FALSE(biquad_parameters_validate(&p3, fs48, NULL));
+    ASSERT_NE(0, biquad_parameters_validate(&p3, fs48, NULL));
     biquad_parameters_t p4 = { .type = BIQUAD_TYPE_PEAKING, .freq = 0.0, .q = 1.0, .gain = 1.23 };
-    ASSERT_FALSE(biquad_parameters_validate(&p4, fs48, NULL));
+    ASSERT_NE(0, biquad_parameters_validate(&p4, fs48, NULL));
 }
 
 TEST(ValidateSlope) {
     int fs48 = 48000;
     biquad_parameters_t p1 = { .type = BIQUAD_TYPE_HIGHSHELF, .freq = 1000.0, .gain = 1.23, .slope = 5.0 };
-    ASSERT_TRUE(biquad_parameters_validate(&p1, fs48, NULL));
+    ASSERT_EQ(0, biquad_parameters_validate(&p1, fs48, NULL));
     biquad_parameters_t p2 = { .type = BIQUAD_TYPE_HIGHSHELF, .freq = 1000.0, .gain = 1.23, .slope = 0.0 };
-    ASSERT_FALSE(biquad_parameters_validate(&p2, fs48, NULL));
+    ASSERT_NE(0, biquad_parameters_validate(&p2, fs48, NULL));
     biquad_parameters_t p3 = { .type = BIQUAD_TYPE_HIGHSHELF, .freq = 1000.0, .gain = 1.23, .slope = 15.0 };
-    ASSERT_FALSE(biquad_parameters_validate(&p3, fs48, NULL));
+    ASSERT_NE(0, biquad_parameters_validate(&p3, fs48, NULL));
 }
 
 TEST_MAIN()
