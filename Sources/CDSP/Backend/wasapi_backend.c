@@ -6,6 +6,7 @@
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <ksmedia.h>
+#include <functiondiscoverykeys_devpkey.h>
 
 #include "wasapi_backend.h"
 #include "Logging/app_logger.h"
@@ -253,16 +254,44 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
             for (UINT i = 0; i < count; i++) {
                 IMMDevice* dev = NULL;
                 IMMDeviceCollection_Item(collection, i, &dev);
-                LPWSTR id = NULL;
-                IMMDevice_GetId(dev, &id);
-                char dev_id_char[256];
-                wcstombs(dev_id_char, id, sizeof(dev_id_char));
-                if (strstr(dev_id_char, capture->device) != NULL) {
+                bool matched = false;
+                
+                // 1. Try friendly name matching first
+                IPropertyStore* properties = NULL;
+                HRESULT hr_prop = IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
+                if (SUCCEEDED(hr_prop)) {
+                    PROPVARIANT var;
+                    PropVariantInit(&var);
+                    hr_prop = IPropertyStore_GetValue(properties, &PKEY_Device_FriendlyName, &var);
+                    if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
+                        char friendly_name[256] = {0};
+                        wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name));
+                        if (strstr(friendly_name, capture->device) != NULL) {
+                            matched = true;
+                        }
+                        PropVariantClear(&var);
+                    }
+                    SAFE_RELEASE(properties);
+                }
+                
+                // 2. Fallback to ID matching
+                if (!matched) {
+                    LPWSTR id = NULL;
+                    IMMDevice_GetId(dev, &id);
+                    if (id) {
+                        char dev_id_char[256];
+                        wcstombs(dev_id_char, id, sizeof(dev_id_char));
+                        if (strstr(dev_id_char, capture->device) != NULL) {
+                            matched = true;
+                        }
+                        CoTaskMemFree(id);
+                    }
+                }
+                
+                if (matched) {
                     capture->mm_device = dev;
-                    CoTaskMemFree(id);
                     break;
                 }
-                CoTaskMemFree(id);
                 IMMDevice_Release(dev);
             }
             IMMDeviceCollection_Release(collection);
@@ -496,16 +525,44 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
             for (UINT i = 0; i < count; i++) {
                 IMMDevice* dev = NULL;
                 IMMDeviceCollection_Item(collection, i, &dev);
-                LPWSTR id = NULL;
-                IMMDevice_GetId(dev, &id);
-                char dev_id_char[256];
-                wcstombs(dev_id_char, id, sizeof(dev_id_char));
-                if (strstr(dev_id_char, playback->device) != NULL) {
+                bool matched = false;
+                
+                // 1. Try friendly name matching first
+                IPropertyStore* properties = NULL;
+                HRESULT hr_prop = IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
+                if (SUCCEEDED(hr_prop)) {
+                    PROPVARIANT var;
+                    PropVariantInit(&var);
+                    hr_prop = IPropertyStore_GetValue(properties, &PKEY_Device_FriendlyName, &var);
+                    if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
+                        char friendly_name[256] = {0};
+                        wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name));
+                        if (strstr(friendly_name, playback->device) != NULL) {
+                            matched = true;
+                        }
+                        PropVariantClear(&var);
+                    }
+                    SAFE_RELEASE(properties);
+                }
+                
+                // 2. Fallback to ID matching
+                if (!matched) {
+                    LPWSTR id = NULL;
+                    IMMDevice_GetId(dev, &id);
+                    if (id) {
+                        char dev_id_char[256];
+                        wcstombs(dev_id_char, id, sizeof(dev_id_char));
+                        if (strstr(dev_id_char, playback->device) != NULL) {
+                            matched = true;
+                        }
+                        CoTaskMemFree(id);
+                    }
+                }
+                
+                if (matched) {
                     playback->mm_device = dev;
-                    CoTaskMemFree(id);
                     break;
                 }
-                CoTaskMemFree(id);
                 IMMDevice_Release(dev);
             }
             IMMDeviceCollection_Release(collection);

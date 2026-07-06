@@ -5,6 +5,7 @@
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <ksmedia.h>
+#include <functiondiscoverykeys_devpkey.h>
 
 #include "wasapi_capabilities.h"
 #include "Logging/app_logger.h"
@@ -45,13 +46,31 @@ int wasapi_capabilities_available_device_names(bool is_capture, char out_names[]
         IMMDevice* dev = NULL;
         IMMDeviceCollection_Item(collection, i, &dev);
         if (dev) {
-            LPWSTR id = NULL;
-            IMMDevice_GetId(dev, &id);
-            if (id) {
-                char dev_id_char[256];
-                wcstombs(dev_id_char, id, sizeof(dev_id_char));
-                snprintf(out_names[matched++], 256, "%s", dev_id_char);
-                CoTaskMemFree(id);
+            IPropertyStore* properties = NULL;
+            char name_buf[256] = {0};
+            bool has_name = false;
+            HRESULT hr_prop = IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
+            if (SUCCEEDED(hr_prop)) {
+                PROPVARIANT var;
+                PropVariantInit(&var);
+                hr_prop = IPropertyStore_GetValue(properties, &PKEY_Device_FriendlyName, &var);
+                if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
+                    wcstombs(name_buf, var.pwszVal, sizeof(name_buf));
+                    has_name = true;
+                    PropVariantClear(&var);
+                }
+                SAFE_RELEASE(properties);
+            }
+            if (!has_name) {
+                LPWSTR id = NULL;
+                IMMDevice_GetId(dev, &id);
+                if (id) {
+                    wcstombs(name_buf, id, sizeof(name_buf));
+                    CoTaskMemFree(id);
+                }
+            }
+            if (name_buf[0] != '\0') {
+                snprintf(out_names[matched++], 256, "%s", name_buf);
             }
             IMMDevice_Release(dev);
         }
@@ -92,16 +111,44 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
             for (UINT i = 0; i < count; i++) {
                 IMMDevice* dev = NULL;
                 IMMDeviceCollection_Item(collection, i, &dev);
-                LPWSTR id = NULL;
-                IMMDevice_GetId(dev, &id);
-                char dev_id_char[256];
-                wcstombs(dev_id_char, id, sizeof(dev_id_char));
-                if (strstr(dev_id_char, device_name) != NULL) {
+                bool matched = false;
+                
+                // 1. Try friendly name matching first
+                IPropertyStore* properties = NULL;
+                HRESULT hr_prop = IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
+                if (SUCCEEDED(hr_prop)) {
+                    PROPVARIANT var;
+                    PropVariantInit(&var);
+                    hr_prop = IPropertyStore_GetValue(properties, &PKEY_Device_FriendlyName, &var);
+                    if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
+                        char friendly_name[256] = {0};
+                        wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name));
+                        if (strstr(friendly_name, device_name) != NULL) {
+                            matched = true;
+                        }
+                        PropVariantClear(&var);
+                    }
+                    SAFE_RELEASE(properties);
+                }
+                
+                // 2. Fallback to ID matching
+                if (!matched) {
+                    LPWSTR id = NULL;
+                    IMMDevice_GetId(dev, &id);
+                    if (id) {
+                        char dev_id_char[256];
+                        wcstombs(dev_id_char, id, sizeof(dev_id_char));
+                        if (strstr(dev_id_char, device_name) != NULL) {
+                            matched = true;
+                        }
+                        CoTaskMemFree(id);
+                    }
+                }
+                
+                if (matched) {
                     device = dev;
-                    CoTaskMemFree(id);
                     break;
                 }
-                CoTaskMemFree(id);
                 IMMDevice_Release(dev);
             }
             IMMDeviceCollection_Release(collection);
