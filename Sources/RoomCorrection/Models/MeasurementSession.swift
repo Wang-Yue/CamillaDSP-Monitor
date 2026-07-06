@@ -12,7 +12,6 @@
 import DSPConfig
 import Foundation
 import Observation
-import SwiftDSP
 
 /// What the user told us this position represents. Drives the
 /// subwoofer-crossover assistant: when the session has at least one
@@ -364,10 +363,7 @@ final class MeasurementSession {
     for params in mockChain {
       guard let coeffs = BiquadCoefficients.compute(parameters: params, sampleRate: sampleRate)
       else { continue }
-      let filter = BiquadFilter(coefficients: coeffs)
-      captured.withUnsafeMutableBufferPointer { buf in
-        filter.process(waveform: buf)
-      }
+      filterBiquad(coefficients: coeffs, signal: &captured)
     }
 
     let ir = SweepDeconvolver.deconvolve(
@@ -739,7 +735,7 @@ final class MeasurementSession {
     // Limit to rates ≥ 32 kHz: voice rates (8k/11k/16k/22k) aren't
     // useful for music room correction and just bloat the on-disk
     // footprint.
-    let rates = CoreAudioCapabilities.standardRates.filter { $0 >= 32_000 }
+    let rates = [32000, 44100, 48000, 88200, 96000, 176400, 192000, 352800, 384000, 705600, 768000]
     let presetID = UUID()
     var irPaths: [Int: String] = [:]
     var firstTapCount = 0
@@ -936,5 +932,21 @@ final class MeasurementSession {
     grid = []
     correctionPreset = nil
     status = "No measurement loaded."
+  }
+
+  private func filterBiquad(coefficients coeffs: BiquadCoefficients, signal: inout [Double]) {
+    var x1 = 0.0
+    var x2 = 0.0
+    var y1 = 0.0
+    var y2 = 0.0
+    for i in 0..<signal.count {
+      let x = signal[i]
+      let y = coeffs.b0 * x + coeffs.b1 * x1 + coeffs.b2 * x2 - coeffs.a1 * y1 - coeffs.a2 * y2
+      x2 = x1
+      x1 = x
+      y2 = y1
+      y1 = y
+      signal[i] = y
+    }
   }
 }

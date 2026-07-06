@@ -1,4 +1,3 @@
-import SwiftDSP
 import SwiftUI
 
 @main

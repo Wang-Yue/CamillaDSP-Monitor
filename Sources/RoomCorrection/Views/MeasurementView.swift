@@ -11,8 +11,9 @@
 // stack them.
 
 import AppKit
+import CoreAudio
+import DSPConfig
 import Observation
-import SwiftDSP
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -36,335 +37,379 @@ struct MeasurementView: View {
   /// Kept as view state so the inline panel never competes with the
   /// plot for vertical space.
   @State private var subwooferAssistShown: Bool = false
+  @State private var showSidebar: Bool = true
 
   var body: some View {
     @Bindable var bindable = session
     VStack(spacing: 0) {
-      // Toolbar rows are wrapped in horizontal ScrollViews so a narrow
-      // window scrolls the controls instead of pushing the sidebar
-      // shut. The Menus inside use `.fixedSize()` to keep their
-      // summary labels readable (e.g. "Devices: USB Mic → DAC"), so
-      // the row's intrinsic width is wider than the typical narrow
-      // detail-pane width — without this scroll wrapper, NSSplitView
-      // would prioritise the detail pane and steal sidebar width.
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 12) {
-          Menu {
-            Section("Real measurement") {
-              Button {
-                Task { await session.captureMeasurement(append: false) }
-              } label: {
-                Label("New Capture", systemImage: "mic.circle")
-              }
-              .disabled(session.isCapturing)
-              Button {
-                Task { await session.captureMeasurement(append: true) }
-              } label: {
-                Label("Add Capture as Position", systemImage: "plus.circle")
-              }
-              .disabled(session.isCapturing || session.positions.isEmpty)
-            }
-            Section("Mock") {
-              Button {
-                session.generateMockMeasurement(append: false)
-              } label: {
-                Label("New Mock Measurement", systemImage: "waveform.path")
-              }
-              Button {
-                session.generateMockMeasurement(append: true)
-              } label: {
-                Label("Add Mock Position", systemImage: "plus.circle")
-              }
-              .disabled(session.positions.isEmpty)
-            }
-            Section {
-              Button {
-                chooseImportFRD()
-              } label: {
-                Label("Import FRD as Position…", systemImage: "square.and.arrow.down")
-              }
-            }
-          } label: {
-            if session.isCapturing {
-              Label("Capturing…", systemImage: "mic.circle.fill")
-            } else {
-              Label("Measurement", systemImage: "waveform.path")
+      HStack(spacing: 12) {
+        measurementMenuButton
+        
+        Spacer()
+        
+        panePicker
+        
+        Spacer()
+        
+        sidebarToggleButton
+      }
+      .padding(.horizontal)
+      .padding(.vertical, 8)
+      
+      Divider()
+      
+      HStack(spacing: 0) {
+        VStack(spacing: 0) {
+          Group {
+            switch pane {
+            case .magnitude:
+              magnitudePane
+            case .phase:
+              PhasePlot()
+            case .impulse:
+              ImpulsePlot()
+            case .groupDelay:
+              GroupDelayPlot()
+            case .waterfall:
+              WaterfallPlot()
             }
           }
-          .menuStyle(.button)
-          .fixedSize()
-          .help(
-            """
-            Source of the measurement that's plotted and fed to the auto-fitter:
-            • New Capture — play a Farina log-sweep through the chosen speaker, record from the chosen mic, deconvolve to an impulse response. Replaces the current measurement.
-            • Add Capture as Position — same, but appends to the position list for spatial averaging instead of replacing.
-            • New / Add Mock — synthetic measurement (random tilt + a few resonances) for trying the EQ/FIR pipeline without a real mic.
-            • Import FRD as Position — load an .frd magnitude file (REW / miniDSP) as if it were a captured position.
-            """)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .padding()
 
-          Menu {
-            // Mic → device → channel hierarchy: open Mic to see the
-            // device list and the per-mic channel picker grouped
-            // together. Same shape for Speakers. Helps users grasp
-            // "this channel belongs to this device" rather than four
-            // unrelated sections at the same level.
-            Menu {
-              Section("Device") {
-                Picker("Mic", selection: $bindable.selectedMicName) {
-                  Text("System Default").tag(String?.none)
-                  ForEach(
-                    CoreAudioCapabilities.availableDeviceNames(isCapture: true), id: \.self
-                  ) { name in
-                    Text(name).tag(String?.some(name))
-                  }
-                }
-              }
-              Section("Channel") {
-                Picker("Mic channel", selection: $bindable.selectedInputChannel) {
-                  ForEach(0..<max(1, micChannelCount), id: \.self) { idx in
-                    Text("Channel \(idx + 1)").tag(idx)
-                  }
-                }
-              }
-            } label: {
-              Label("Mic — \(micShortLabel)", systemImage: "mic")
-            }
-            Menu {
-              Section("Device") {
-                Picker("Speakers", selection: $bindable.selectedOutputName) {
-                  Text("System Default").tag(String?.none)
-                  ForEach(
-                    CoreAudioCapabilities.availableDeviceNames(isCapture: false), id: \.self
-                  ) { name in
-                    Text(name).tag(String?.some(name))
-                  }
-                }
-              }
-              Section("Channel") {
-                Picker("Speaker channel", selection: $bindable.selectedOutputChannel) {
-                  Text("All channels").tag(-1)
-                  ForEach(0..<max(1, outputChannelCount), id: \.self) { idx in
-                    Text(outputChannelLabel(idx, total: outputChannelCount)).tag(idx)
-                  }
-                }
-              }
-            } label: {
-              Label("Speakers — \(speakerShortLabel)", systemImage: "hifispeaker")
-            }
-          } label: {
-            Label(devicesLabel, systemImage: "hifispeaker.and.appletv")
+          if !session.positions.isEmpty {
+            Divider()
+            positionsBar
           }
-          .menuStyle(.button)
-          .fixedSize()
-          .help(
-            """
-            Sweep I/O routing:
-            • Mic — device + which capsule (channel) to record from. Pick the calibrated capsule of a stereo / multi-mic interface.
-            • Speakers — device + which physical output the sweep plays through. Choose one channel at a time (Left, Right, LFE, …) so the captured response reflects only that speaker; choose "All channels" for stereo / mono playback through every output.
-            """)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-          Menu {
-            Section("Calibration") {
-              Button {
-                chooseCalibrationFile()
-              } label: {
-                Label("Load Calibration…", systemImage: "doc.badge.plus")
+        if showSidebar {
+          Divider()
+          sidebarView
+            .frame(width: 290)
+            .transition(.move(edge: .trailing))
+        }
+      }
+    }
+  }
+
+  // MARK: - Toolbar Controls
+
+  private var measurementMenuButton: some View {
+    Menu {
+      Section("Real measurement") {
+        Button {
+          Task { await session.captureMeasurement(append: false) }
+        } label: {
+          Label("New Capture", systemImage: "mic.circle")
+        }
+        .disabled(session.isCapturing)
+        Button {
+          Task { await session.captureMeasurement(append: true) }
+        } label: {
+          Label("Add Capture as Position", systemImage: "plus.circle")
+        }
+        .disabled(session.isCapturing || session.positions.isEmpty)
+      }
+      Section("Mock") {
+        Button {
+          session.generateMockMeasurement(append: false)
+        } label: {
+          Label("New Mock Measurement", systemImage: "waveform.path")
+        }
+        Button {
+          session.generateMockMeasurement(append: true)
+        } label: {
+          Label("Add Mock Position", systemImage: "plus.circle")
+        }
+        .disabled(session.positions.isEmpty)
+      }
+      Section {
+        Button {
+          chooseImportFRD()
+        } label: {
+          Label("Import FRD as Position…", systemImage: "square.and.arrow.down")
+        }
+      }
+    } label: {
+      if session.isCapturing {
+        Label("Capturing…", systemImage: "mic.circle.fill")
+      } else {
+        Label("Measure", systemImage: "waveform.path")
+      }
+    }
+    .menuStyle(.button)
+    .fixedSize()
+  }
+
+  private var panePicker: some View {
+    Picker("Pane", selection: $pane) {
+      ForEach(MeasurementPane.allCases) { p in
+        Text(p.rawValue).tag(p)
+      }
+    }
+    .pickerStyle(.segmented)
+    .labelsHidden()
+    .fixedSize()
+  }
+
+  private var sidebarToggleButton: some View {
+    Button {
+      withAnimation(.easeInOut(duration: 0.2)) {
+        showSidebar.toggle()
+      }
+    } label: {
+      Label("Toggle Sidebar", systemImage: "sidebar.right")
+    }
+    .buttonStyle(.borderless)
+    .help("Show/Hide Settings Sidebar")
+  }
+
+  // MARK: - Sidebar view
+
+  private var sidebarView: some View {
+    @Bindable var bindable = session
+    return ScrollView {
+      VStack(spacing: 16) {
+        // Audio Setup
+        SidebarSection("Audio Setup", icon: "hifispeaker.and.appletv") {
+          VStack(alignment: .leading, spacing: 4) {
+            Label("Microphone Input", systemImage: "mic")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
+            
+            Picker("Device", selection: $bindable.selectedMicName) {
+              Text("System Default").tag(String?.none)
+              ForEach(self.availableDeviceNames(isCapture: true), id: \.self) { name in
+                Text(name).tag(String?.some(name))
               }
-              if session.calibration != nil {
-                Button(role: .destructive) {
+            }
+            .labelsHidden()
+            
+            Picker("Channel", selection: $bindable.selectedInputChannel) {
+              ForEach(0..<max(1, micChannelCount), id: \.self) { idx in
+                Text("Channel \(idx + 1)").tag(idx)
+              }
+            }
+            .labelsHidden()
+            .controlSize(.small)
+          }
+          
+          Divider()
+          
+          VStack(alignment: .leading, spacing: 4) {
+            Label("Speaker Output", systemImage: "hifispeaker")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
+            
+            Picker("Device", selection: $bindable.selectedOutputName) {
+              Text("System Default").tag(String?.none)
+              ForEach(self.availableDeviceNames(isCapture: false), id: \.self) { name in
+                Text(name).tag(String?.some(name))
+              }
+            }
+            .labelsHidden()
+            
+            Picker("Channel", selection: $bindable.selectedOutputChannel) {
+              Text("All channels").tag(-1)
+              ForEach(0..<max(1, outputChannelCount), id: \.self) { idx in
+                Text(outputChannelLabel(idx, total: outputChannelCount)).tag(idx)
+              }
+            }
+            .labelsHidden()
+            .controlSize(.small)
+          }
+          
+          Divider()
+          
+          VStack(alignment: .leading, spacing: 4) {
+            Label("Calibration File", systemImage: "checkmark.seal")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
+            
+            HStack {
+              if let path = session.calibrationPath {
+                Text((path as NSString).lastPathComponent)
+                  .font(.caption)
+                  .lineLimit(1)
+                  .truncationMode(.middle)
+                Spacer()
+                Button {
                   session.clearCalibration()
                 } label: {
-                  Label("Clear Calibration", systemImage: "xmark.circle")
+                  Image(systemName: "xmark.circle.fill")
                 }
+                .buttonStyle(.plain)
+              } else {
+                Text("None loaded")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                Spacer()
+                Button("Load…") {
+                  chooseCalibrationFile()
+                }
+                .controlSize(.small)
               }
             }
-            Section("Measurement") {
-              Button {
-                chooseExportPath(includeCalibration: false)
-              } label: {
-                Label("Export FRD…", systemImage: "square.and.arrow.up")
+          }
+          
+          Divider()
+          
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Export Data")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
+            
+            HStack(spacing: 8) {
+              Button(action: { chooseExportPath(includeCalibration: false) }) {
+                Label("Export FRD", systemImage: "square.and.arrow.down")
               }
               .disabled(session.measuredFR == nil)
+              .controlSize(.small)
+              
               if session.calibration != nil {
-                Button {
-                  chooseExportPath(includeCalibration: true)
-                } label: {
-                  Label("Export FRD (calibrated)…", systemImage: "square.and.arrow.up.fill")
+                Button(action: { chooseExportPath(includeCalibration: true) }) {
+                  Label("Calibrated", systemImage: "square.and.arrow.down.fill")
                 }
                 .disabled(session.measuredFR == nil)
+                .controlSize(.small)
               }
             }
-          } label: {
-            if let path = session.calibrationPath {
-              Label((path as NSString).lastPathComponent, systemImage: "checkmark.seal.fill")
-            } else {
-              Label("File", systemImage: "doc")
-            }
           }
-          .menuStyle(.button)
-          .fixedSize()
-          .help(
-            """
-            Calibration & export:
-            • Load Calibration — apply a mic correction file (REW .frd, miniDSP UMIK-1/2, or generic 2- / 3-column text). Subtracted from the measured magnitude so the fitter sees the room, not the mic.
-            • Export FRD — save the current measurement as an REW-format .frd. Useful for sanity-checking in REW or sharing.
-            """)
-
-          Spacer(minLength: 16)
-
-          Picker("Pane", selection: $pane) {
-            ForEach(MeasurementPane.allCases) { p in
-              Text(p.rawValue).tag(p)
-            }
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
-          .fixedSize()
-          .help(
-            """
-            Plot pane:
-            • Magnitude — frequency response with measured / target / corrected overlays beneath the editable EQ.
-            • Phase — wrapped phase of measured + corrected.
-            • Impulse — time-domain impulse response (Tukey-windowed around peak).
-            • Group Delay — −dφ/dω in milliseconds; reveals all-pass behaviour the magnitude pane hides.
-            """)
         }
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .padding(.bottom, 6)
-      }
-
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 12) {
-          Menu {
-            Picker("Display smoothing", selection: $bindable.displaySmoothing) {
-              ForEach(MeasurementSession.DisplaySmoothing.allCases) { s in
-                Text(s.rawValue).tag(s)
-              }
-            }
-          } label: {
-            Label("Smoothing: \(session.displaySmoothing.rawValue)", systemImage: "wave.3.right")
-          }
-          .menuStyle(.button)
-          .fixedSize()
-          .help(
-            """
-            Fractional-octave smoothing applied to the displayed curve only — the auto-fitter still sees the unsmoothed response. Wider smoothing (1/3, 1/6) reads modal regions; tighter (1/24) reveals narrow features. "None" shows the raw FFT bins.
-            """)
-
-          Menu {
-            Picker("FDW", selection: $bindable.fdwCycles) {
-              ForEach(MeasurementSession.FDWCycles.allCases) { c in
-                Text(c.rawValue).tag(c)
-              }
-            }
-          } label: {
-            Label("FDW: \(session.fdwCycles.rawValue)", systemImage: "metronome")
-          }
-          .menuStyle(.button)
-          .fixedSize()
-          .help(
-            """
-            Frequency-dependent windowing applied during analysis. Uses a Hann window whose duration shrinks at higher frequencies (T = cycles / f) to suppress late room reflections while keeping low-frequency mode resolution intact.
-            """)
-
-          Menu {
-            Picker("Target curve", selection: $bindable.targetPreset) {
+        
+        // Target & Analysis
+        SidebarSection("Target & Analysis", icon: "slider.horizontal.3") {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Target Curve")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
+            Picker("Target Preset", selection: $bindable.targetPreset) {
               ForEach(TargetCurve.Preset.allCases) { p in
                 Text(p.rawValue).tag(p)
               }
             }
-          } label: {
-            Label("Target: \(session.targetPreset.rawValue)", systemImage: "scope")
+            .labelsHidden()
           }
-          .menuStyle(.button)
-          .fixedSize()
-          .help(
-            """
-            What the fitter aims at:
-            • Flat — equal-loudness across the band.
-            • Brüel & Kjær — gentle high-frequency roll-off matching B&K's in-room target.
-            • Harman — Olive's preferred curve: ~+4 dB low-shelf below 100 Hz, gentle treble tilt above 1 kHz.
-            """)
-
-          Menu {
-            Section {
-              Toggle(isOn: $bindable.modalMode) {
-                Label("Modal-region constraints", systemImage: "waveform.and.magnifyingglass")
+          
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Display Smoothing")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
+            Picker("Smoothing", selection: $bindable.displaySmoothing) {
+              ForEach(MeasurementSession.DisplaySmoothing.allCases) { s in
+                Text(s.rawValue).tag(s)
               }
             }
-            Section("Schroeder frequency") {
-              Picker("Schroeder", selection: $bindable.schroederHz) {
+            .labelsHidden()
+          }
+          
+          VStack(alignment: .leading, spacing: 4) {
+            Text("FDW (Cycles)")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
+            Picker("FDW Cycles", selection: $bindable.fdwCycles) {
+              ForEach(MeasurementSession.FDWCycles.allCases) { c in
+                Text(c.rawValue).tag(c)
+              }
+            }
+            .labelsHidden()
+          }
+        }
+        
+        // Modal Region
+        SidebarSection("Modal Region", icon: "waveform.and.magnifyingglass") {
+          Toggle("Apply Constraints", isOn: $bindable.modalMode)
+            .font(.caption.bold())
+          
+          if session.modalMode {
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Schroeder Frequency")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+              Picker("Schroeder Corner", selection: $bindable.schroederHz) {
                 ForEach([100.0, 150.0, 200.0, 250.0, 300.0, 400.0], id: \.self) { f in
                   Text("\(Int(f)) Hz").tag(f)
                 }
               }
+              .labelsHidden()
             }
-            Section("Modal min Q") {
+            
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Minimum Q Limit")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
               Picker("Min Q", selection: $bindable.modalMinQ) {
                 ForEach([1.5, 2.0, 2.5, 3.0, 4.0], id: \.self) { q in
                   Text(String(format: "%.1f", q)).tag(q)
                 }
               }
+              .labelsHidden()
             }
-          } label: {
-            Label(modalLabel, systemImage: "waveform.and.magnifyingglass")
           }
-          .menuStyle(.button)
-          .fixedSize()
-          .help(
-            """
-            Modal-region behaviour below the Schroeder frequency:
-            • Modal-region constraints — when on, bands below the Schroeder corner are restricted to negative gain (cuts only — boosts can't fill modal nulls), high Q (≥ Min Q), and no low-shelf placement.
-            • Schroeder frequency — boundary between the modal region (individual room modes) and the diffuse field. Use 2000·√(T60/V): roughly 100 Hz for large lossy rooms, 200 Hz for typical living rooms, 300–400 Hz for small treated rooms.
-            • Min Q — narrower (higher Q) cuts are more surgical but more sensitive to mic placement. 2.0 is a balanced default.
-            """)
-
-          // Generate PEQ doubles as a band-count picker: clicking the
-          // primary button uses the current count; the chevron reveals
-          // alternative counts that both update the session and run
-          // the fit. Replaces the standalone Bands slider that took
-          // too much horizontal space.
-          Menu {
-            Section("Bands to generate") {
+        }
+        
+        // PEQ Design
+        SidebarSection("Parametric EQ (PEQ)", icon: "waveform.badge.magnifyingglass") {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Bands Limit")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
+            Picker("Bands", selection: $bindable.bandCount) {
               ForEach([3, 5, 8, 10, 12, 16, 20], id: \.self) { count in
-                Button {
-                  session.bandCount = count
-                  session.runFit()
-                } label: {
-                  if count == session.bandCount {
-                    Label("\(count) bands", systemImage: "checkmark")
-                  } else {
-                    Text("\(count) bands")
-                  }
-                }
+                Text("\(count) bands").tag(count)
               }
             }
-          } label: {
-            Label(
-              "Generate PEQ (\(session.bandCount))", systemImage: "waveform.badge.magnifyingglass")
-          } primaryAction: {
-            session.runFit()
+            .labelsHidden()
           }
-          .menuStyle(.button)
-          .fixedSize()
+          
+          Button(action: {
+            session.runFit()
+          }) {
+            HStack {
+              Spacer()
+              Label("Generate PEQ", systemImage: "sparkles")
+              Spacer()
+            }
+          }
+          .buttonStyle(.borderedProminent)
+          .controlSize(.regular)
           .disabled(session.measuredMagDB.isEmpty)
-          .help(
-            """
-            Run the parametric-EQ auto-fitter:
-            • Click — fit the current target with up to the indicated number of bands.
-            • Chevron — pick a different band cap (3 / 5 / 8 / 10 / 12 / 16 / 20).
-            The fitter seeds with greedy peakings + endpoint shelves, then runs ~8 passes of golden-section coordinate descent over freq / gain / Q. Bands with |gain| < 0.5 dB are dropped.
-            """)
-
-          Spacer(minLength: 16)
-
-          Menu {
+          
+          Button(action: {
+            applyFitToEQPreset()
+          }) {
+            HStack {
+              Spacer()
+              Label("Add to EQ Presets", systemImage: "plus")
+              Spacer()
+            }
+          }
+          .controlSize(.regular)
+          .disabled(!sessionHasBands)
+        }
+        
+        // FIR Convolution Design
+        SidebarSection("FIR Convolution", icon: "slider.horizontal.below.square.filled.and.square") {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Filter Type")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
             Picker("Type", selection: $bindable.firKind) {
               ForEach(FIRKind.allCases) { k in
                 Text(k.rawValue).tag(k)
               }
             }
+            .labelsHidden()
+          }
+          
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Tap Count Length")
+              .font(.caption.bold())
+              .foregroundStyle(.secondary)
             Picker("Taps", selection: $bindable.firTapCount) {
               Text("2 048").tag(2048)
               Text("4 096").tag(4096)
@@ -372,93 +417,56 @@ struct MeasurementView: View {
               Text("16 384").tag(16_384)
               Text("32 768").tag(32_768)
             }
-            if session.firKind == .measurementDriven {
-              Section("Phase blend") {
-                // Sliders inside SwiftUI Menus render as a row; an
-                // inline picker over a coarse phase grid is more legible.
-                Picker("Phase", selection: phaseBlendBinding) {
-                  Text("Min-phase").tag(0)
-                  Text("25%").tag(25)
-                  Text("50%").tag(50)
-                  Text("75%").tag(75)
-                  Text("Linear-phase").tag(100)
-                }
-              }
-            }
-          } label: {
-            Label(firOptionsLabel, systemImage: "slider.horizontal.3")
+            .labelsHidden()
           }
-          .menuStyle(.button)
-          .fixedSize()
-          .help(
-            """
-            FIR options:
-            • Type — Min-phase (magnitude only, ~0 latency, no pre-ring), Linear-phase (mag + constant group delay = taps/2), From measurement (mag + phase from H = target / measured; the only mode that corrects excess phase).
-            • Taps — filter length. 4k–8k handles most rooms; 16k+ for sharp low-frequency correction.
-            • Phase blend (measurement mode only) — 0 % = min-phase (no latency, no pre-ring) ↔ 100 % = linear-phase (taps/2 latency, full phase correction).
-            """)
-
-          Menu {
-            Button {
-              applyFitToEQPreset()
-            } label: {
-              Label(
-                "Add as EQ Preset", systemImage: "slider.horizontal.below.square.filled.and.square")
-            }
-            .disabled(!sessionHasBands)
-            Button {
-              let existing = loadConvPresets()
-              let preset = session.generateFIR(existingNames: Set(existing.map(\.name)))
-              if let preset = preset {
-                var updated = existing
-                updated.append(preset)
-                saveConvPresets(updated)
+          
+          if session.firKind == .measurementDriven {
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 4) {
+              HStack {
+                Text("Phase Blend")
+                  .font(.caption.bold())
+                  .foregroundStyle(.secondary)
+                Spacer()
+                Text(phaseBlendText(session.firPhaseBlend))
+                  .font(.caption.bold())
+                  .foregroundStyle(.secondary)
               }
-            } label: {
-              Label("Add as FIR (Convolution) Preset", systemImage: "waveform")
+              
+              Slider(value: $bindable.firPhaseBlend, in: 0.0...1.0, step: 0.05)
+                .controlSize(.small)
             }
-            .disabled(!canGenerateFIR)
-          } label: {
-            Label("Add to Preset", systemImage: "square.and.arrow.down")
           }
-          .menuStyle(.button)
-          .fixedSize()
-          .disabled(!sessionHasBands && !canGenerateFIR)
-          .help(
-            """
-            Persist the current correction so a pipeline stage can use it:
-            • Add as EQ Preset — saves the fitted parametric bands to a new EQ preset (sidebar). An EQ stage in the pipeline can then load it.
-            • Add as FIR (Convolution) Preset — designs an impulse response per standard sample rate and saves it as a Convolution preset for a Convolution stage. Uses the FIR options above.
-            """)
-        }
-        .padding(.horizontal)
-        .padding(.bottom, 8)
-      }
-
-      Divider()
-
-      Group {
-        switch pane {
-        case .magnitude:
-          magnitudePane
-        case .phase:
-          PhasePlot()
-        case .impulse:
-          ImpulsePlot()
-        case .groupDelay:
-          GroupDelayPlot()
-        case .waterfall:
-          WaterfallPlot()
+          
+          Button(action: {
+            let existing = loadConvPresets()
+            let preset = session.generateFIR(existingNames: Set(existing.map(\.name)))
+            if let preset = preset {
+              var updated = existing
+              updated.append(preset)
+              saveConvPresets(updated)
+            }
+          }) {
+            HStack {
+              Spacer()
+              Label("Add to FIR Presets", systemImage: "plus")
+              Spacer()
+            }
+          }
+          .controlSize(.regular)
+          .disabled(!canGenerateFIR)
         }
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
       .padding()
-
-      if !session.positions.isEmpty {
-        Divider()
-        positionsBar
-      }
     }
+    .background(Color(nsColor: .underPageBackgroundColor))
+  }
+
+  private func phaseBlendText(_ val: Double) -> String {
+    if val <= 0.01 { return "Min-phase" }
+    if val >= 0.99 { return "Linear-phase" }
+    return String(format: "%.0f%%", val * 100)
   }
 
   /// Channel count of the currently-selected mic. Falls back to 2
@@ -467,7 +475,7 @@ struct MeasurementView: View {
   /// Two is a sensible default that lets the picker offer a left/right
   /// choice without spuriously forcing channel 1 only.
   private var micChannelCount: Int {
-    let n = CoreAudioCapabilities.channelCount(
+    let n = self.channelCount(
       deviceName: session.selectedMicName, isCapture: true)
     return n > 0 ? n : 2
   }
@@ -475,7 +483,7 @@ struct MeasurementView: View {
   /// Channel count of the currently-selected output device. Same
   /// fallback rationale as `micChannelCount`.
   private var outputChannelCount: Int {
-    let n = CoreAudioCapabilities.channelCount(
+    let n = self.channelCount(
       deviceName: session.selectedOutputName, isCapture: false)
     return n > 0 ? n : 2
   }
@@ -777,6 +785,127 @@ struct MeasurementView: View {
       let presets = try? JSONDecoder().decode([ConvolutionPreset].self, from: data)
     else { return [] }
     return presets
+  }
+
+  private func availableDeviceNames(isCapture: Bool) -> [String] {
+    var addr = AudioObjectPropertyAddress(
+      mSelector: kAudioHardwarePropertyDevices,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    var size: UInt32 = 0
+    guard
+      AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size)
+        == noErr, size > 0
+    else {
+      return []
+    }
+    let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+    var ids = [AudioDeviceID](repeating: 0, count: count)
+    guard
+      AudioObjectGetPropertyData(
+        AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids) == noErr
+    else {
+      return []
+    }
+
+    var names = [String]()
+    for id in ids {
+      var streamsAddr = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyStreams,
+        mScope: isCapture ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
+        mElement: kAudioObjectPropertyElementMain
+      )
+      var streamsSize: UInt32 = 0
+      guard AudioObjectGetPropertyDataSize(id, &streamsAddr, 0, nil, &streamsSize) == noErr,
+        streamsSize > 0
+      else {
+        continue
+      }
+
+      var nameAddr = AudioObjectPropertyAddress(
+        mSelector: kAudioObjectPropertyName,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+      )
+      var devName: Unmanaged<CFString>?
+      var nameSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+      if AudioObjectGetPropertyData(id, &nameAddr, 0, nil, &nameSize, &devName) == noErr,
+        let cfName = devName?.takeRetainedValue() as String?
+      {
+        names.append(cfName)
+      }
+    }
+    return names.sorted()
+  }
+
+  private func channelCount(deviceName: String?, isCapture: Bool) -> Int {
+    guard let name = deviceName, !name.isEmpty else { return 0 }
+
+    var addr = AudioObjectPropertyAddress(
+      mSelector: kAudioHardwarePropertyDevices,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    var size: UInt32 = 0
+    guard
+      AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size)
+        == noErr, size > 0
+    else {
+      return 0
+    }
+    let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+    var ids = [AudioDeviceID](repeating: 0, count: count)
+    guard
+      AudioObjectGetPropertyData(
+        AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids) == noErr
+    else {
+      return 0
+    }
+
+    var deviceID: AudioDeviceID?
+    for id in ids {
+      var nameAddr = AudioObjectPropertyAddress(
+        mSelector: kAudioObjectPropertyName,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+      )
+      var devName: Unmanaged<CFString>?
+      var nameSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+      if AudioObjectGetPropertyData(id, &nameAddr, 0, nil, &nameSize, &devName) == noErr,
+        let cfName = devName?.takeRetainedValue() as String?,
+        cfName == name
+      {
+        deviceID = id
+        break
+      }
+    }
+
+    guard let id = deviceID else { return 0 }
+
+    var configAddr = AudioObjectPropertyAddress(
+      mSelector: kAudioDevicePropertyStreamConfiguration,
+      mScope: isCapture ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    var configSize: UInt32 = 0
+    guard AudioObjectGetPropertyDataSize(id, &configAddr, 0, nil, &configSize) == noErr,
+      configSize > 0
+    else {
+      return 0
+    }
+    let bufferList = UnsafeMutablePointer<AudioBufferList>.allocate(capacity: Int(configSize))
+    defer { bufferList.deallocate() }
+    guard AudioObjectGetPropertyData(id, &configAddr, 0, nil, &configSize, bufferList) == noErr
+    else {
+      return 0
+    }
+    let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
+    var channels = 0
+    for buffer in buffers {
+      channels += Int(buffer.mNumberChannels)
+    }
+    return channels
   }
 }
 
@@ -1234,6 +1363,46 @@ struct SubwooferAssistPanel: View {
     VStack(alignment: .leading, spacing: 1) {
       Text(label).font(.caption2).foregroundStyle(.secondary)
       Text(value).font(.system(.caption, design: .monospaced)).bold()
+    }
+  }
+}
+
+// MARK: - Sidebar section view helper
+
+private struct SidebarSection<Content: View>: View {
+  let title: String
+  let icon: String
+  let content: Content
+
+  init(_ title: String, icon: String, @ViewBuilder content: () -> Content) {
+    self.title = title
+    self.icon = icon
+    self.content = content()
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 6) {
+        Image(systemName: icon)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text(title.uppercased())
+          .font(.system(size: 10, weight: .bold))
+          .foregroundStyle(.secondary)
+      }
+      .padding(.horizontal, 4)
+
+      VStack(alignment: .leading, spacing: 12) {
+        content
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(12)
+      .background(Color(nsColor: .windowBackgroundColor).opacity(0.4))
+      .cornerRadius(8)
+      .overlay(
+        RoundedRectangle(cornerRadius: 8)
+          .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+      )
     }
   }
 }

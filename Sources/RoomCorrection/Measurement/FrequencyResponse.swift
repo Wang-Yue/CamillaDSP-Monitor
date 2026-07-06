@@ -103,33 +103,21 @@ public struct FrequencyResponse: Sendable {
   public static func from(impulseResponse ir: ImpulseResponse, fftSize: Int? = nil)
     -> FrequencyResponse
   {
-    let n = max(2, fftSize ?? (ir.count + (ir.count % 2)))
-    precondition(
-      n % 2 == 0 && n >= ir.count, "FrequencyResponse: fftSize must be even and ≥ ir.count")
+    func nextPowerOfTwo(_ val: Int) -> Int {
+      var p = 8
+      while p < val { p *= 2 }
+      return p
+    }
+    let n = nextPowerOfTwo(max(8, fftSize ?? ir.count))
     let bins = n / 2 + 1
-    let fft = RealFFT(length: n)
+    let fft = MeasurementFFT(length: n)
 
-    let padded = UnsafeMutablePointer<Double>.allocate(capacity: n)
-    padded.initialize(repeating: 0, count: n)
-    defer {
-      padded.deinitialize(count: n)
-      padded.deallocate()
-    }
-    ir.samples.withUnsafeBufferPointer { src in
-      if let base = src.baseAddress {
-        padded.update(from: base, count: ir.samples.count)
-      }
-    }
+    var padded = [Double](repeating: 0, count: n)
+    padded.replaceSubrange(0..<ir.samples.count, with: ir.samples)
 
     var re = [Double](repeating: 0, count: bins)
     var im = [Double](repeating: 0, count: bins)
-    re.withUnsafeMutableBufferPointer { reBuf in
-      im.withUnsafeMutableBufferPointer { imBuf in
-        if let reBase = reBuf.baseAddress, let imBase = imBuf.baseAddress {
-          fft.forward(realIn: padded, specRe: reBase, specIm: imBase)
-        }
-      }
-    }
+    fft.forward(realIn: padded, specRe: &re, specIm: &im)
     return FrequencyResponse(real: re, imag: im, sampleRate: ir.sampleRate, fftSize: n)
   }
 
@@ -218,11 +206,10 @@ public struct FrequencyResponse: Sendable {
       hann[i] = 0.5 * (1.0 - cos(2.0 * Double.pi * Double(i) / Double(windowLength - 1)))
     }
 
-    let fft = RealFFT(length: fftSize)
+    let fft = MeasurementFFT(length: fftSize)
     let bins = fftSize / 2 + 1
 
-    let padded = UnsafeMutablePointer<Double>.allocate(capacity: fftSize)
-    defer { padded.deallocate() }
+    var padded = [Double](repeating: 0, count: fftSize)
 
     var slices: [(time: Double, response: FrequencyResponse)] = []
     slices.reserveCapacity(sliceCount)
@@ -232,7 +219,7 @@ public struct FrequencyResponse: Sendable {
       let t = Double(sampleOffset) / Double(ir.sampleRate)
       let sliceStart = p + sampleOffset
 
-      padded.initialize(repeating: 0, count: fftSize)
+      for i in 0..<fftSize { padded[i] = 0.0 }
 
       // Apply window to the extracted block
       for wIdx in 0..<windowLength {
@@ -244,15 +231,7 @@ public struct FrequencyResponse: Sendable {
 
       var re = [Double](repeating: 0, count: bins)
       var im = [Double](repeating: 0, count: bins)
-      re.withUnsafeMutableBufferPointer { reBuf in
-        im.withUnsafeMutableBufferPointer { imBuf in
-          if let reBase = reBuf.baseAddress, let imBase = imBuf.baseAddress {
-            fft.forward(realIn: padded, specRe: reBase, specIm: imBase)
-          }
-        }
-      }
-
-      padded.deinitialize(count: fftSize)
+      fft.forward(realIn: padded, specRe: &re, specIm: &im)
 
       let fr = FrequencyResponse(real: re, imag: im, sampleRate: ir.sampleRate, fftSize: fftSize)
       slices.append((time: t, response: fr))

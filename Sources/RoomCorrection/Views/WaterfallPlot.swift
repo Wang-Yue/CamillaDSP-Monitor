@@ -4,7 +4,6 @@
 // layered path renderer. Slices are computed via the `stft` utility
 // on the background thread to maintain high UI responsiveness.
 
-import SwiftDSP
 import SwiftUI
 
 struct WaterfallPlot: View {

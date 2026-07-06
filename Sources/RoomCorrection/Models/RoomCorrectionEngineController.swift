@@ -2,7 +2,6 @@ import DSPConfig
 import DSPLib
 import Foundation
 import Observation
-import SwiftDSP
 
 @MainActor
 @Observable

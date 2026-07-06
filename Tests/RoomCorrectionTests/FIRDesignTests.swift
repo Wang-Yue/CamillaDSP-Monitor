@@ -14,6 +14,7 @@ import Foundation
 import Testing
 
 @testable import DSPConfig
+@testable import RoomCorrection
 @testable import SwiftDSP
 
 @Suite struct FIRDesignTests {

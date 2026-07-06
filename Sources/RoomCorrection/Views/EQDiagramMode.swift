@@ -1,8 +1,8 @@
 // EQDiagramMode - Interactive frequency response diagram with draggable band handles
 
 import AppKit
+import DSPConfig
 import Observation
-import SwiftDSP
 import SwiftUI
 
 // MARK: - Scroll Wheel Monitor (for Q adjustment)

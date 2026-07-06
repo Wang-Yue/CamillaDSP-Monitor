@@ -90,7 +90,7 @@ public enum FIRDesign {
   ) -> [Double] {
     let n = options.fftSize
     let bins = n / 2 + 1
-    let fft = RealFFT(length: n)
+    let fft = MeasurementFFT(length: n)
 
     // Step 1-2: build log-magnitude spectrum from the biquad chain.
     let floorLin = pow(10.0, options.floorDB / 20.0)
@@ -156,7 +156,7 @@ public enum FIRDesign {
   ) -> [Double] {
     let n = options.fftSize
     let bins = n / 2 + 1
-    let fft = RealFFT(length: n)
+    let fft = MeasurementFFT(length: n)
 
     // Build the magnitude spectrum from the chain. For linear phase,
     // we want IR even-symmetric around the centre, which corresponds
@@ -213,7 +213,7 @@ public enum FIRDesign {
   ) -> [Double] {
     let n = options.fftSize
     let bins = n / 2 + 1
-    let fft = RealFFT(length: n)
+    let fft = MeasurementFFT(length: n)
 
     let measuredBinHz = Double(measured.sampleRate) / Double(measured.fftSize)
     let designBinHz = Double(designSampleRate) / Double(n)
@@ -320,7 +320,7 @@ public enum FIRDesign {
   /// via real cepstrum: ifft(log|H|) → causal-only cepstrum → fft →
   /// imag part is the min-phase angle (Smith §10.3).
   private static func computeMinimumPhaseAngle(
-    magnitude: [Double], fft: RealFFT, floorLin: Double
+    magnitude: [Double], fft: MeasurementFFT, floorLin: Double
   ) -> [Double] {
     let bins = magnitude.count
     let n = fft.length
@@ -428,17 +428,9 @@ public enum FIRDesign {
     input: [Double],
     re: inout [Double],
     im: inout [Double],
-    fft: RealFFT
+    fft: MeasurementFFT
   ) {
-    input.withUnsafeBufferPointer { src in
-      re.withUnsafeMutableBufferPointer { reBuf in
-        im.withUnsafeMutableBufferPointer { imBuf in
-          if let s = src.baseAddress, let r = reBuf.baseAddress, let i = imBuf.baseAddress {
-            fft.forward(realIn: s, specRe: r, specIm: i)
-          }
-        }
-      }
-    }
+    fft.forward(realIn: input, specRe: &re, specIm: &im)
   }
 
   /// Inverse FFT of a *real-valued* spectrum (imag = 0 implicitly).
@@ -446,7 +438,7 @@ public enum FIRDesign {
   /// `fft.length`. Output is normalised so `inverse(forward(x)) ≈ x`.
   private static func inverseFFTRealSpectrum(
     re: [Double],
-    fft: RealFFT
+    fft: MeasurementFFT
   ) -> [Double] {
     let n = fft.length
     let bins = n / 2 + 1
@@ -460,25 +452,14 @@ public enum FIRDesign {
   private static func inverseFFTComplexSpectrum(
     re: [Double],
     im: [Double],
-    fft: RealFFT
+    fft: MeasurementFFT
   ) -> [Double] {
     let n = fft.length
     var out = [Double](repeating: 0, count: n)
-    re.withUnsafeBufferPointer { reBuf in
-      im.withUnsafeBufferPointer { imBuf in
-        out.withUnsafeMutableBufferPointer { outBuf in
-          if let r = reBuf.baseAddress, let i = imBuf.baseAddress, let o = outBuf.baseAddress {
-            fft.inverse(specRe: r, specIm: i, realOut: o)
-          }
-        }
-      }
-    }
-    var invN = 1.0 / Double(n)
-    out.withUnsafeMutableBufferPointer { o in
-      if let base = o.baseAddress {
-        vDSP_vsmulD(base, 1, &invN, base, 1, vDSP_Length(n))
-      }
-    }
+    fft.inverse(specRe: re, specIm: im, realOut: &out)
+
+    let invN = 1.0 / Double(n)
+    vDSP.multiply(invN, out, result: &out)
     return out
   }
 }

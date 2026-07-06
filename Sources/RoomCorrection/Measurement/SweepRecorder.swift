@@ -21,6 +21,7 @@
 //     the sweep, and keeps a clean buffer of room reverb tail to
 //     deconvolve.
 
+import AVFoundation
 import Accelerate
 import AudioToolbox
 import CoreAudio
@@ -86,19 +87,46 @@ public enum SweepRecorder {
     trailingSilenceSeconds: Double = 0.5,
     playbackGainDB: Double = -12.0
   ) async throws -> Result {
-    let outChannels = CoreAudioCapabilities.channelCount(
-      deviceName: outputDeviceName, isCapture: false)
+    let outputDeviceID = deviceID(forName: outputDeviceName, isCapture: false)
+    let outChannels =
+      outputDeviceID != nil ? channelCount(for: outputDeviceID!, isCapture: false) : 2
     let usableOutChannels = max(1, outChannels)
     let routeChannels = max(2, max(usableOutChannels, outputChannel + 1))
+
+    let inputDeviceID = deviceID(forName: inputDeviceName, isCapture: true)
+    let inChannels = inputDeviceID != nil ? channelCount(for: inputDeviceID!, isCapture: true) : 1
+    let usableInChannels = max(1, inChannels)
 
     let leadSamples = Int(leadingSilenceSeconds * Double(sampleRate))
     let tailSamples = Int(trailingSilenceSeconds * Double(sampleRate))
     let totalPlaySamples = leadSamples + sweep.count + tailSamples
     let gain = Double(pow(10.0, playbackGainDB / 20.0))
 
-    // Pre-generate the full time-domain sweep for every route channel
-    var playData = [[Double]](
-      repeating: [Double](repeating: 0, count: totalPlaySamples), count: routeChannels)
+    let outputFormat = AVAudioFormat(
+      commonFormat: .pcmFormatFloat32,
+      sampleRate: Double(sampleRate),
+      channels: AVAudioChannelCount(routeChannels),
+      interleaved: false
+    )!
+
+    guard
+      let pcmBuffer = AVAudioPCMBuffer(
+        pcmFormat: outputFormat, frameCapacity: AVAudioFrameCount(totalPlaySamples))
+    else {
+      throw CaptureError.engineStartFailed("Could not allocate PCM buffer.")
+    }
+    pcmBuffer.frameLength = AVAudioFrameCount(totalPlaySamples)
+
+    // Zero out all channels first
+    for ch in 0..<routeChannels {
+      guard let channelData = pcmBuffer.floatChannelData else { continue }
+      let ptr = channelData[ch]
+      for i in 0..<totalPlaySamples {
+        ptr[i] = 0.0
+      }
+    }
+
+    // Fill target channels with sweep
     let targetChannels: Range<Int> =
       outputChannel < 0
       ? 0..<routeChannels
@@ -106,100 +134,98 @@ public enum SweepRecorder {
         let c = max(0, min(outputChannel, routeChannels - 1))
         return c..<(c + 1)
       }()
+
     for ch in targetChannels {
+      guard let channelData = pcmBuffer.floatChannelData else { continue }
+      let ptr = channelData[ch]
       for i in 0..<sweep.count {
-        playData[ch][leadSamples + i] = sweep[i] * gain
+        ptr[i + leadSamples] = Float(sweep[i] * gain)
       }
     }
 
-    let playbackConfig = PlaybackDeviceConfig(
-      type: .coreAudio,
-      channels: routeChannels,
-      device: outputDeviceName)
+    let engine = AVAudioEngine()
+    let player = AVAudioPlayerNode()
+    engine.attach(player)
 
-    let playbackBackend = CoreAudioPlayback(
-      config: playbackConfig,
-      sampleRate: sampleRate,
-      chunkSize: 4096)
-
-    do {
-      try playbackBackend.open()
-    } catch {
-      throw CaptureError.engineStartFailed(
-        "Could not open playback device: \(error.localizedDescription)")
+    // Set current devices on input/output nodes
+    if let inputDeviceID {
+      var id = inputDeviceID
+      let inputUnit = engine.inputNode.audioUnit!
+      AudioUnitSetProperty(
+        inputUnit,
+        kAudioOutputUnitProperty_CurrentDevice,
+        kAudioUnitScope_Global,
+        0,
+        &id,
+        UInt32(MemoryLayout<AudioDeviceID>.size)
+      )
     }
-    defer { playbackBackend.close() }
 
-    let inChannels = CoreAudioCapabilities.channelCount(
-      deviceName: inputDeviceName, isCapture: true)
-    let usableInChannels = max(1, inChannels)
-    let captureConfig = CaptureDeviceConfig(
-      type: .coreAudio,
-      channels: usableInChannels,
-      device: inputDeviceName)
-
-    let captureBackend = CoreAudioCapture(
-      config: captureConfig,
-      sampleRate: sampleRate,
-      chunkSize: 4096)
-
-    do {
-      try captureBackend.open()
-    } catch {
-      throw CaptureError.engineStartFailed(
-        "Could not open capture device: \(error.localizedDescription)")
+    if let outputDeviceID {
+      var id = outputDeviceID
+      let outputUnit = engine.outputNode.audioUnit!
+      AudioUnitSetProperty(
+        outputUnit,
+        kAudioOutputUnitProperty_CurrentDevice,
+        kAudioUnitScope_Global,
+        0,
+        &id,
+        UInt32(MemoryLayout<AudioDeviceID>.size)
+      )
     }
-    defer { captureBackend.close() }
 
-    let recorded = RecordingSink(
-      targetSampleRate: Double(sampleRate),
-      channels: usableInChannels,
-      inputChannel: inputChannel)
+    // Connect player to engine output node using outputFormat
+    engine.connect(player, to: engine.outputNode, format: outputFormat)
 
-    let totalDurationSeconds =
-      leadingSilenceSeconds + Double(sweep.count) / Double(sampleRate)
-      + trailingSilenceSeconds
-    let startTimestamp = Date()
+    let inputFormat = AVAudioFormat(
+      commonFormat: .pcmFormatFloat32,
+      sampleRate: Double(sampleRate),
+      channels: AVAudioChannelCount(usableInChannels),
+      interleaved: false
+    )!
 
-    var inChunk = AudioChunk(frames: 4096, channels: usableInChannels)
-    var outChunk = AudioChunk(frames: 4096, channels: routeChannels)
-    var playCursor = 0
+    var recordedSamples = [Double]()
+    let lock = NSLock()
 
-    // Stream playback slices and accumulate capture chunks simultaneously
-    while Date().timeIntervalSince(startTimestamp) < totalDurationSeconds + 0.3 {
-      // Push playback frames if space is available in the backend SPSC ring
-      let freeSpace = 32768 - playbackBackend.bufferLevel
-      if freeSpace >= 4096, playCursor < totalPlaySamples {
-        let toWrite = min(4096, totalPlaySamples - playCursor)
-        for ch in 0..<routeChannels {
-          let dst = outChunk[ch]
-          let src = playData[ch]
-          for i in 0..<toWrite {
-            dst[i] = src[playCursor + i]
-          }
+    engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { buffer, time in
+      guard let channelData = buffer.floatChannelData else { return }
+      let frames = Int(buffer.frameLength)
+      let ch = max(0, min(inputChannel, Int(buffer.format.channelCount) - 1))
+      let ptr = channelData[ch]
+
+      lock.withLock {
+        for i in 0..<frames {
+          recordedSamples.append(Double(ptr[i]))
         }
-        outChunk.validFrames = toWrite
-        try? playbackBackend.write(chunk: outChunk)
-        playCursor += toWrite
-      }
-
-      // Pull capture frames if available
-      if try captureBackend.read(frames: 4096, into: &inChunk) {
-        recorded.append(chunk: inChunk)
-      } else {
-        try await Task.sleep(nanoseconds: 5_000_000)
       }
     }
 
-    let captured = recorded.snapshot()
+    do {
+      try engine.start()
+    } catch {
+      throw CaptureError.engineStartFailed(error.localizedDescription)
+    }
+
+    await player.scheduleBuffer(pcmBuffer)
+
+    player.play()
+
+    let totalDurationSeconds = Double(totalPlaySamples) / Double(sampleRate)
+    let nanoseconds = UInt64((totalDurationSeconds + 0.5) * 1_000_000_000)
+    try? await Task.sleep(nanoseconds: nanoseconds)
+
+    player.stop()
+    engine.stop()
+    engine.inputNode.removeTap(onBus: 0)
+
+    let captured = lock.withLock { recordedSamples }
+
     if captured.isEmpty {
       throw CaptureError.captureBufferEmpty
     }
 
     // Cross-correlate with the inverse sweep to find where the
-    // played sweep starts in the recording. The inverse has a sharp
-    // autocorrelation peak (that's the whole point of Farina's
-    // method), so we get sub-buffer alignment for free.
+    // played sweep starts in the recording.
     let alignmentSamples = locateSweepStart(
       in: captured, inverse: inverse)
     guard let startSample = alignmentSamples else {
@@ -264,38 +290,84 @@ public enum SweepRecorder {
     }
     return out
   }
-}
 
-// MARK: - Recording sink
-
-/// Thread-safe accumulator for input chunks. The engine's capture loop
-/// calls `append`; the main thread calls `snapshot` once playback completes.
-private final class RecordingSink: @unchecked Sendable {
-  private let lock = NSLock()
-  private var buffer: [Double] = []
-  private let inputChannel: Int
-
-  init(targetSampleRate: Double, channels: Int, inputChannel: Int) {
-    self.inputChannel = max(0, min(inputChannel, max(channels - 1, 0)))
-    buffer.reserveCapacity(Int(targetSampleRate * 30))
-  }
-
-  func append(chunk: AudioChunk) {
-    let frames = chunk.validFrames
-    if frames <= 0 { return }
-    let chCount = chunk.channels
-    let ch = max(0, min(inputChannel, chCount - 1))
-    let srcPtr = chunk[ch]
-    lock.lock()
-    defer { lock.unlock() }
-    for i in 0..<frames {
-      buffer.append(srcPtr[i])
+  private static func deviceID(forName name: String?, isCapture: Bool) -> AudioDeviceID? {
+    guard let name = name, !name.isEmpty else {
+      var addr = AudioObjectPropertyAddress(
+        mSelector: isCapture
+          ? kAudioHardwarePropertyDefaultInputDevice : kAudioHardwarePropertyDefaultOutputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+      )
+      var id = AudioDeviceID(0)
+      var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+      if AudioObjectGetPropertyData(
+        AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &id) == noErr
+      {
+        return id
+      }
+      return nil
     }
+
+    var addr = AudioObjectPropertyAddress(
+      mSelector: kAudioHardwarePropertyDevices,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    var size: UInt32 = 0
+    guard
+      AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size)
+        == noErr, size > 0
+    else {
+      return nil
+    }
+    let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+    var ids = [AudioDeviceID](repeating: 0, count: count)
+    guard
+      AudioObjectGetPropertyData(
+        AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids) == noErr
+    else {
+      return nil
+    }
+
+    for id in ids {
+      var nameAddr = AudioObjectPropertyAddress(
+        mSelector: kAudioObjectPropertyName,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+      )
+      var devName: Unmanaged<CFString>?
+      var nameSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+      if AudioObjectGetPropertyData(id, &nameAddr, 0, nil, &nameSize, &devName) == noErr,
+        let cfName = devName?.takeRetainedValue() as String?,
+        cfName == name
+      {
+        return id
+      }
+    }
+    return nil
   }
 
-  func snapshot() -> [Double] {
-    lock.lock()
-    defer { lock.unlock() }
-    return buffer
+  private static func channelCount(for deviceID: AudioDeviceID, isCapture: Bool) -> Int {
+    var addr = AudioObjectPropertyAddress(
+      mSelector: kAudioDevicePropertyStreamConfiguration,
+      mScope: isCapture ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    var size: UInt32 = 0
+    guard AudioObjectGetPropertyDataSize(deviceID, &addr, 0, nil, &size) == noErr, size > 0 else {
+      return 0
+    }
+    let bufferList = UnsafeMutablePointer<AudioBufferList>.allocate(capacity: Int(size))
+    defer { bufferList.deallocate() }
+    guard AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, bufferList) == noErr else {
+      return 0
+    }
+    let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
+    var channels = 0
+    for buffer in buffers {
+      channels += Int(buffer.mNumberChannels)
+    }
+    return channels
   }
 }

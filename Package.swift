@@ -37,7 +37,7 @@ case "swift":
     ),
     .executableTarget(
       name: "RoomCorrection",
-      dependencies: ["DSPLib", "DSPConfig", "SwiftDSP"],
+      dependencies: ["DSPLib", "DSPConfig"],
       path: "Sources/RoomCorrection"
     ),
     .executableTarget(
@@ -49,6 +49,11 @@ case "swift":
       name: "SwiftDSPTests",
       dependencies: ["DSPLib", "SwiftDSP", "DSPConfig"],
       path: "Tests/SwiftDSPTests"
+    ),
+    .testTarget(
+      name: "RoomCorrectionTests",
+      dependencies: ["DSPLib", "SwiftDSP", "DSPConfig", "RoomCorrection"],
+      path: "Tests/RoomCorrectionTests"
     ),
   ]
   products.append(contentsOf: [
