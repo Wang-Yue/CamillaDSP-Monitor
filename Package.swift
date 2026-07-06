@@ -37,7 +37,7 @@ case "swift":
     ),
     .executableTarget(
       name: "RoomCorrection",
-      dependencies: ["DSPLib", "DSPConfig"],
+      dependencies: ["DSPConfig"],
       path: "Sources/RoomCorrection"
     ),
     .executableTarget(

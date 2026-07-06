@@ -13,6 +13,14 @@
 
 import Foundation
 
+extension Double {
+  @inlinable
+  public static func toDB(_ linear: Double) -> Double {
+    if linear <= 0 { return -1000.0 }
+    return 20.0 * log10(linear)
+  }
+}
+
 public struct FrequencyResponse: Sendable {
   public let real: [Double]
   public let imag: [Double]

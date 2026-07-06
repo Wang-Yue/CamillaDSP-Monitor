@@ -51,7 +51,6 @@ struct EQDiagramMode: View {
   @Bindable var preset: EQPreset
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
-  @Environment(RoomCorrectionEngineController.self) var dsp
   /// Optional measurement-context overlay drawn beneath the EQ
   /// curves. Default `nil` keeps EQ Preset Detail's appearance
   /// unchanged; the Room Correction view passes a populated overlay
@@ -112,7 +111,6 @@ struct EQReferenceOverlay {
 
 struct EQFrequencyResponseView: View {
   let preset: EQPreset
-  @Environment(RoomCorrectionEngineController.self) var dsp
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
   /// Optional measurement-context overlay. Default is `nil` so EQ
@@ -292,7 +290,6 @@ struct EQFrequencyResponseView: View {
     // Multiplicative scaling so it feels natural at all Q values
     let factor = delta > 0 ? 1.05 : 0.95
     band.q = max(0.1, min(20.0, band.q * factor))
-    dsp.applyConfig()
   }
 
   private func drawGrid(w: Double, h: Double) -> some View {
@@ -391,9 +388,7 @@ struct EQFrequencyResponseView: View {
               let newDB = yToDB(value.location.y, height: h)
               band.gain = max(-20, min(20, (newDB * 2).rounded() / 2))
             }
-            dsp.applyConfig()
           }.onEnded { _ in
-            dsp.applyConfig()
           }
         )
         .onTapGesture { selectedBandID = band.id }
@@ -404,7 +399,6 @@ struct EQFrequencyResponseView: View {
 struct EQBandListBar: View {
   let preset: EQPreset
   @Binding var selectedBandID: UUID?
-  @Environment(RoomCorrectionEngineController.self) var dsp
 
   var body: some View {
     HStack {
@@ -426,7 +420,6 @@ struct EQBandListBar: View {
       HStack(spacing: 12) {
         Button {
           preset.addBand()
-          dsp.applyConfig()
         } label: {
           Image(systemName: "plus.circle")
         }.buttonStyle(.plain)
@@ -443,7 +436,6 @@ struct EQBandChip: View {
   let isSelected: Bool
   let color: Color
   @Binding var selectedBandID: UUID?
-  @Environment(RoomCorrectionEngineController.self) var dsp
   var body: some View {
     HStack(spacing: 4) {
       Circle().fill(color).frame(width: 6, height: 6)
@@ -493,7 +485,6 @@ struct EQBandChip: View {
       .contextMenu {
         Button {
           band.isEnabled.toggle()
-          dsp.applyConfig()
         } label: {
           Label(
             band.isEnabled ? "Disable Band" : "Enable Band",
@@ -504,7 +495,6 @@ struct EQBandChip: View {
           ForEach(EQBandType.allCases) { type in
             Button(type.rawValue) {
               band.type = type
-              dsp.applyConfig()
             }
           }
         } label: {
@@ -515,7 +505,6 @@ struct EQBandChip: View {
           if let idx = preset.bands.firstIndex(where: { $0.id == band.id }) {
             preset.removeBand(at: idx)
             selectedBandID = nil
-            dsp.applyConfig()
           }
         } label: {
           Label("Delete", systemImage: "trash")

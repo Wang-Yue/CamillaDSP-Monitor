@@ -210,7 +210,8 @@ public enum SweepRecorder {
       channels: AVAudioChannelCount(routeChannels),
       interleaved: false
     )!
-    playbackEngine.connect(playbackEngine.mainMixerNode, to: playbackEngine.outputNode, format: nominalOutputFormat)
+    playbackEngine.connect(
+      playbackEngine.mainMixerNode, to: playbackEngine.outputNode, format: nominalOutputFormat)
 
     do {
       try playbackEngine.start()
@@ -228,7 +229,9 @@ public enum SweepRecorder {
     if Int(hwInput.sampleRate) != sampleRate {
       playbackEngine.stop()
       captureEngine.stop()
-      throw CaptureError.formatMismatch("Input device sample rate (\(Int(hwInput.sampleRate)) Hz) must match measurement sample rate (\(sampleRate) Hz). Please check Audio MIDI Setup.")
+      throw CaptureError.formatMismatch(
+        "Input device sample rate (\(Int(hwInput.sampleRate)) Hz) must match measurement sample rate (\(sampleRate) Hz). Please check Audio MIDI Setup."
+      )
     }
 
     // Tap the mixer node on the capture engine
@@ -245,13 +248,11 @@ public enum SweepRecorder {
       }
     }
 
-    player.scheduleBuffer(pcmBuffer, completionHandler: nil)
-
     player.play()
+    await player.scheduleBuffer(pcmBuffer)
 
-    let totalDurationSeconds = Double(totalPlaySamples) / Double(sampleRate)
-    let nanoseconds = UInt64((totalDurationSeconds + 0.5) * 1_000_000_000)
-    try? await Task.sleep(nanoseconds: nanoseconds)
+    let tailNanoseconds = UInt64((trailingSilenceSeconds + 0.5) * 1_000_000_000)
+    try? await Task.sleep(nanoseconds: tailNanoseconds)
 
     player.stop()
     playbackEngine.stop()
@@ -337,7 +338,8 @@ public enum SweepRecorder {
       throw CaptureError.permissionDenied
     }
     if status == .notDetermined {
-      let granted = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+      let granted = await withCheckedContinuation {
+        (continuation: CheckedContinuation<Bool, Never>) in
         AVCaptureDevice.requestAccess(for: .audio) { response in
           continuation.resume(returning: response)
         }

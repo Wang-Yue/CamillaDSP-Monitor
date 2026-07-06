@@ -44,20 +44,20 @@ struct MeasurementView: View {
     VStack(spacing: 0) {
       HStack(spacing: 12) {
         measurementMenuButton
-        
+
         Spacer()
-        
+
         panePicker
-        
+
         Spacer()
-        
+
         sidebarToggleButton
       }
       .padding(.horizontal)
       .padding(.vertical, 8)
-      
+
       Divider()
-      
+
       HStack(spacing: 0) {
         VStack(spacing: 0) {
           Group {
@@ -91,9 +91,9 @@ struct MeasurementView: View {
             .transition(.move(edge: .trailing))
         }
       }
-      
+
       Divider()
-      
+
       HStack(spacing: 8) {
         Image(systemName: "info.circle")
           .font(.caption)
@@ -194,7 +194,7 @@ struct MeasurementView: View {
             Label("Microphone Input", systemImage: "mic")
               .font(.caption.bold())
               .foregroundStyle(.secondary)
-            
+
             Picker("Device", selection: $bindable.selectedMicName) {
               Text("System Default").tag(String?.none)
               ForEach(self.availableDeviceNames(isCapture: true), id: \.self) { name in
@@ -202,7 +202,7 @@ struct MeasurementView: View {
               }
             }
             .labelsHidden()
-            
+
             Picker("Channel", selection: $bindable.selectedInputChannel) {
               ForEach(0..<max(1, micChannelCount), id: \.self) { idx in
                 Text("Channel \(idx + 1)").tag(idx)
@@ -211,14 +211,14 @@ struct MeasurementView: View {
             .labelsHidden()
             .controlSize(.small)
           }
-          
+
           Divider()
-          
+
           VStack(alignment: .leading, spacing: 4) {
             Label("Speaker Output", systemImage: "hifispeaker")
               .font(.caption.bold())
               .foregroundStyle(.secondary)
-            
+
             Picker("Device", selection: $bindable.selectedOutputName) {
               Text("System Default").tag(String?.none)
               ForEach(self.availableDeviceNames(isCapture: false), id: \.self) { name in
@@ -226,7 +226,7 @@ struct MeasurementView: View {
               }
             }
             .labelsHidden()
-            
+
             Picker("Channel", selection: $bindable.selectedOutputChannel) {
               Text("All channels").tag(-1)
               ForEach(0..<max(1, outputChannelCount), id: \.self) { idx in
@@ -236,14 +236,14 @@ struct MeasurementView: View {
             .labelsHidden()
             .controlSize(.small)
           }
-          
+
           Divider()
-          
+
           VStack(alignment: .leading, spacing: 4) {
             Label("Calibration File", systemImage: "checkmark.seal")
               .font(.caption.bold())
               .foregroundStyle(.secondary)
-            
+
             HStack {
               if let path = session.calibrationPath {
                 Text((path as NSString).lastPathComponent)
@@ -269,21 +269,21 @@ struct MeasurementView: View {
               }
             }
           }
-          
+
           Divider()
-          
+
           VStack(alignment: .leading, spacing: 6) {
             Text("Export Data")
               .font(.caption.bold())
               .foregroundStyle(.secondary)
-            
+
             HStack(spacing: 8) {
               Button(action: { chooseExportPath(includeCalibration: false) }) {
                 Label("Export FRD", systemImage: "square.and.arrow.down")
               }
               .disabled(session.measuredFR == nil)
               .controlSize(.small)
-              
+
               if session.calibration != nil {
                 Button(action: { chooseExportPath(includeCalibration: true) }) {
                   Label("Calibrated", systemImage: "square.and.arrow.down.fill")
@@ -294,7 +294,7 @@ struct MeasurementView: View {
             }
           }
         }
-        
+
         // Target & Analysis
         SidebarSection("Target & Analysis", icon: "slider.horizontal.3") {
           VStack(alignment: .leading, spacing: 4) {
@@ -308,7 +308,7 @@ struct MeasurementView: View {
             }
             .labelsHidden()
           }
-          
+
           VStack(alignment: .leading, spacing: 4) {
             Text("Display Smoothing")
               .font(.caption.bold())
@@ -320,7 +320,7 @@ struct MeasurementView: View {
             }
             .labelsHidden()
           }
-          
+
           VStack(alignment: .leading, spacing: 4) {
             Text("FDW (Cycles)")
               .font(.caption.bold())
@@ -333,15 +333,15 @@ struct MeasurementView: View {
             .labelsHidden()
           }
         }
-        
+
         // Modal Region
         SidebarSection("Modal Region", icon: "waveform.and.magnifyingglass") {
           Toggle("Apply Constraints", isOn: $bindable.modalMode)
             .font(.caption.bold())
-          
+
           if session.modalMode {
             Divider()
-            
+
             VStack(alignment: .leading, spacing: 4) {
               Text("Schroeder Frequency")
                 .font(.caption.bold())
@@ -353,7 +353,7 @@ struct MeasurementView: View {
               }
               .labelsHidden()
             }
-            
+
             VStack(alignment: .leading, spacing: 4) {
               Text("Minimum Q Limit")
                 .font(.caption.bold())
@@ -367,7 +367,7 @@ struct MeasurementView: View {
             }
           }
         }
-        
+
         // PEQ Design
         SidebarSection("Parametric EQ (PEQ)", icon: "waveform.badge.magnifyingglass") {
           VStack(alignment: .leading, spacing: 4) {
@@ -381,7 +381,7 @@ struct MeasurementView: View {
             }
             .labelsHidden()
           }
-          
+
           Button(action: {
             session.runFit()
           }) {
@@ -394,7 +394,7 @@ struct MeasurementView: View {
           .buttonStyle(.borderedProminent)
           .controlSize(.regular)
           .disabled(session.measuredMagDB.isEmpty)
-          
+
           Button(action: {
             applyFitToEQPreset()
           }) {
@@ -407,9 +407,10 @@ struct MeasurementView: View {
           .controlSize(.regular)
           .disabled(!sessionHasBands)
         }
-        
+
         // FIR Convolution Design
-        SidebarSection("FIR Convolution", icon: "slider.horizontal.below.square.filled.and.square") {
+        SidebarSection("FIR Convolution", icon: "slider.horizontal.below.square.filled.and.square")
+        {
           VStack(alignment: .leading, spacing: 4) {
             Text("Filter Type")
               .font(.caption.bold())
@@ -421,7 +422,7 @@ struct MeasurementView: View {
             }
             .labelsHidden()
           }
-          
+
           VStack(alignment: .leading, spacing: 4) {
             Text("Tap Count Length")
               .font(.caption.bold())
@@ -435,10 +436,10 @@ struct MeasurementView: View {
             }
             .labelsHidden()
           }
-          
+
           if session.firKind == .measurementDriven {
             Divider()
-            
+
             VStack(alignment: .leading, spacing: 4) {
               HStack {
                 Text("Phase Blend")
@@ -449,12 +450,12 @@ struct MeasurementView: View {
                   .font(.caption.bold())
                   .foregroundStyle(.secondary)
               }
-              
+
               Slider(value: $bindable.firPhaseBlend, in: 0.0...1.0, step: 0.05)
                 .controlSize(.small)
             }
           }
-          
+
           Button(action: {
             let existing = loadConvPresets()
             let preset = session.generateFIR(existingNames: Set(existing.map(\.name)))
