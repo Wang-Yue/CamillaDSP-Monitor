@@ -11,6 +11,7 @@
 #include "alsa_capture.h"
 #include "alsa_playback.h"
 #endif
+#include "generator_capture.h"
 #include <stdlib.h>
 
 /// Create a capture backend instance based on the configuration.
@@ -31,6 +32,8 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
             if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "WASAPI is not implemented yet");
             return NULL;
 #endif
+        case AUDIO_BACKEND_TYPE_GENERATOR:
+            return generator_capture_create(config, sample_rate, chunk_size, params, err);
         default:
             if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, "Unsupported capture backend type");
             return NULL;

@@ -129,38 +129,50 @@ const char* audio_backend_type_to_string(audio_backend_type_t type) {
         case AUDIO_BACKEND_TYPE_CORE_AUDIO: return "CoreAudio";
 #elif defined(__linux__)
         case AUDIO_BACKEND_TYPE_ALSA: return "Alsa";
+        case AUDIO_BACKEND_TYPE_PULSE_AUDIO: return "Pulse";
+        case AUDIO_BACKEND_TYPE_PIPEWIRE: return "Pipewire";
 #elif defined(_WIN32)
         case AUDIO_BACKEND_TYPE_WASAPI: return "Wasapi";
 #endif
+        case AUDIO_BACKEND_TYPE_FILE: return "File";
+        case AUDIO_BACKEND_TYPE_STDIN_OUT: return "Stdin";
+        case AUDIO_BACKEND_TYPE_GENERATOR: return "SignalGenerator";
         default: return "Unknown";
     }
 }
 
 audio_backend_type_t audio_backend_type_from_string(const char* str) {
-    if (!str) {
-#if defined(__APPLE__)
-        return AUDIO_BACKEND_TYPE_CORE_AUDIO;
-#elif defined(__linux__)
-        return AUDIO_BACKEND_TYPE_ALSA;
-#elif defined(_WIN32)
-        return AUDIO_BACKEND_TYPE_WASAPI;
-#endif
-    }
+    if (!str) return AUDIO_BACKEND_TYPE_INVALID;
 #if defined(__APPLE__)
     if (strcasecmp(str, "CoreAudio") == 0 || strcasecmp(str, "Core Audio") == 0) return AUDIO_BACKEND_TYPE_CORE_AUDIO;
 #elif defined(__linux__)
     if (strcasecmp(str, "Alsa") == 0 || strcasecmp(str, "ALSA") == 0) return AUDIO_BACKEND_TYPE_ALSA;
+    if (strcasecmp(str, "Pulse") == 0 || strcasecmp(str, "PulseAudio") == 0) return AUDIO_BACKEND_TYPE_PULSE_AUDIO;
+    if (strcasecmp(str, "Pipewire") == 0 || strcasecmp(str, "PipeWire") == 0) return AUDIO_BACKEND_TYPE_PIPEWIRE;
 #elif defined(_WIN32)
     if (strcasecmp(str, "Wasapi") == 0 || strcasecmp(str, "WASAPI") == 0) return AUDIO_BACKEND_TYPE_WASAPI;
 #endif
+    if (strcasecmp(str, "File") == 0 || strcasecmp(str, "RawFile") == 0 || strcasecmp(str, "WavFile") == 0) return AUDIO_BACKEND_TYPE_FILE;
+    if (strcasecmp(str, "Stdin") == 0 || strcasecmp(str, "Stdout") == 0 || strcasecmp(str, "STDIN") == 0 || strcasecmp(str, "STDOUT") == 0) return AUDIO_BACKEND_TYPE_STDIN_OUT;
+    if (strcasecmp(str, "SignalGenerator") == 0 || strcasecmp(str, "Generator") == 0) return AUDIO_BACKEND_TYPE_GENERATOR;
+    return AUDIO_BACKEND_TYPE_INVALID;
+}
 
-#if defined(__APPLE__)
-    return AUDIO_BACKEND_TYPE_CORE_AUDIO;
-#elif defined(__linux__)
-    return AUDIO_BACKEND_TYPE_ALSA;
-#elif defined(_WIN32)
-    return AUDIO_BACKEND_TYPE_WASAPI;
-#endif
+const char* signal_type_to_string(signal_type_t type) {
+    switch (type) {
+        case SIGNAL_TYPE_SINE: return "Sine";
+        case SIGNAL_TYPE_SQUARE: return "Square";
+        case SIGNAL_TYPE_WHITE_NOISE: return "WhiteNoise";
+        default: return "Invalid";
+    }
+}
+
+signal_type_t signal_type_from_string(const char* str) {
+    if (!str) return SIGNAL_TYPE_INVALID;
+    if (strcasecmp(str, "Sine") == 0) return SIGNAL_TYPE_SINE;
+    if (strcasecmp(str, "Square") == 0) return SIGNAL_TYPE_SQUARE;
+    if (strcasecmp(str, "WhiteNoise") == 0 || strcasecmp(str, "White Noise") == 0) return SIGNAL_TYPE_WHITE_NOISE;
+    return SIGNAL_TYPE_INVALID;
 }
 
 const char* sdm_filter_to_string(sdm_filter_t filter) {

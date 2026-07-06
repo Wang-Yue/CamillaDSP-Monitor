@@ -132,12 +132,18 @@ typedef struct {
 /// Audio I/O backend.
 typedef enum {
 #if defined(__APPLE__)
-    AUDIO_BACKEND_TYPE_CORE_AUDIO = 0
+    AUDIO_BACKEND_TYPE_CORE_AUDIO = 0,
 #elif defined(__linux__)
-    AUDIO_BACKEND_TYPE_ALSA = 1
+    AUDIO_BACKEND_TYPE_ALSA = 1,
+    AUDIO_BACKEND_TYPE_PULSE_AUDIO = 2,
+    AUDIO_BACKEND_TYPE_PIPEWIRE = 3,
 #elif defined(_WIN32)
-    AUDIO_BACKEND_TYPE_WASAPI = 2
+    AUDIO_BACKEND_TYPE_WASAPI = 4,
 #endif
+    AUDIO_BACKEND_TYPE_FILE = 5,
+    AUDIO_BACKEND_TYPE_STDIN_OUT = 6,
+    AUDIO_BACKEND_TYPE_GENERATOR = 7,
+    AUDIO_BACKEND_TYPE_INVALID = -1
 } audio_backend_type_t;
 
 const char* audio_backend_type_to_string(audio_backend_type_t type);
@@ -175,6 +181,22 @@ const char* alsa_sample_format_to_string(alsa_sample_format_t fmt);
 alsa_sample_format_t alsa_sample_format_from_string(const char* str);
 #endif
 
+typedef enum {
+    SIGNAL_TYPE_SINE = 0,
+    SIGNAL_TYPE_SQUARE,
+    SIGNAL_TYPE_WHITE_NOISE,
+    SIGNAL_TYPE_INVALID = -1
+} signal_type_t;
+
+const char* signal_type_to_string(signal_type_t type);
+signal_type_t signal_type_from_string(const char* str);
+
+typedef struct {
+    signal_type_t type;
+    double frequency;
+    double level;
+} generator_signal_t;
+
 typedef struct {
     audio_backend_type_t type;
     int channels;
@@ -202,6 +224,8 @@ typedef struct {
     /// passband (and let through more ultrasonic content). Default 20 kHz.
     double dop_cutoff_hz;
     bool has_dop_cutoff_hz;
+    generator_signal_t generator;
+    bool has_generator;
 } capture_device_config_t;
 
 typedef struct {

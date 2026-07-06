@@ -372,13 +372,18 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
     if (cap_pos) {
         const char* cap_end = find_section_end(cap_pos);
         config->devices.capture.channels = extract_int_in_range(cap_pos, cap_end, "\"channels\"", 0);
+        char type_str[64];
+        if (extract_string_in_range(cap_pos, cap_end, "\"type\"", type_str, sizeof(type_str))) {
+            config->devices.capture.type = audio_backend_type_from_string(type_str);
+        } else {
 #if defined(__APPLE__)
-        config->devices.capture.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
+            config->devices.capture.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
 #elif defined(__linux__)
-        config->devices.capture.type = AUDIO_BACKEND_TYPE_ALSA;
+            config->devices.capture.type = AUDIO_BACKEND_TYPE_ALSA;
 #elif defined(_WIN32)
-        config->devices.capture.type = AUDIO_BACKEND_TYPE_WASAPI;
+            config->devices.capture.type = AUDIO_BACKEND_TYPE_WASAPI;
 #endif
+        }
         if (extract_string_in_range(cap_pos, cap_end, "\"device\"", config->devices.capture.device, sizeof(config->devices.capture.device))) {
             config->devices.capture.has_device = true;
         }
@@ -387,7 +392,7 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
 #if defined(__linux__)
             config->devices.capture.format = alsa_sample_format_from_string(fmt_str);
 #else
-            config->devices.capture.format = sample_format_from_string(fmt_str);
+            config->devices.capture.format = coreaudio_sample_format_from_string(fmt_str);
 #endif
             config->devices.capture.has_format = true;
         }
@@ -405,19 +410,38 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
         config->devices.capture.has_bypass_dop = true;
         config->devices.capture.dop_cutoff_hz = extract_double_in_range(cap_pos, cap_end, "\"dop_cutoff_hz\"", 20000.0);
         config->devices.capture.has_dop_cutoff_hz = true;
+
+        const char* sig_pos = strstr(cap_pos, "\"signal\"");
+        if (sig_pos && sig_pos < cap_end) {
+            const char* sig_end = find_section_end(sig_pos);
+            char sig_type_str[64];
+            if (extract_string_in_range(sig_pos, sig_end, "\"type\"", sig_type_str, sizeof(sig_type_str))) {
+                config->devices.capture.generator.type = signal_type_from_string(sig_type_str);
+            } else {
+                config->devices.capture.generator.type = SIGNAL_TYPE_SINE;
+            }
+            config->devices.capture.generator.frequency = extract_double_in_range(sig_pos, sig_end, "\"freq\"", 1000.0);
+            config->devices.capture.generator.level = extract_double_in_range(sig_pos, sig_end, "\"level\"", 0.0);
+            config->devices.capture.has_generator = true;
+        }
     }
     
     const char* play_pos = strstr(json, "\"playback\"");
     if (play_pos) {
         const char* play_end = find_section_end(play_pos);
         config->devices.playback.channels = extract_int_in_range(play_pos, play_end, "\"channels\"", 0);
+        char type_str[64];
+        if (extract_string_in_range(play_pos, play_end, "\"type\"", type_str, sizeof(type_str))) {
+            config->devices.playback.type = audio_backend_type_from_string(type_str);
+        } else {
 #if defined(__APPLE__)
-        config->devices.playback.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
+            config->devices.playback.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
 #elif defined(__linux__)
-        config->devices.playback.type = AUDIO_BACKEND_TYPE_ALSA;
+            config->devices.playback.type = AUDIO_BACKEND_TYPE_ALSA;
 #elif defined(_WIN32)
-        config->devices.playback.type = AUDIO_BACKEND_TYPE_WASAPI;
+            config->devices.playback.type = AUDIO_BACKEND_TYPE_WASAPI;
 #endif
+        }
         if (extract_string_in_range(play_pos, play_end, "\"device\"", config->devices.playback.device, sizeof(config->devices.playback.device))) {
             config->devices.playback.has_device = true;
         }
@@ -426,7 +450,7 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
 #if defined(__linux__)
             config->devices.playback.format = alsa_sample_format_from_string(fmt_str);
 #else
-            config->devices.playback.format = sample_format_from_string(fmt_str);
+            config->devices.playback.format = coreaudio_sample_format_from_string(fmt_str);
 #endif
             config->devices.playback.has_format = true;
         }
