@@ -701,10 +701,10 @@ final class MeasurementSession {
   /// stays put).
   ///
   /// - Parameters:
-  ///   - pipeline: The `PipelineStore` to add the generated preset to.
+  ///   - existingNames: The names of existing presets to avoid collision.
   /// - Returns: the new `ConvolutionPreset` if the operation succeeded.
   @discardableResult
-  func generateFIR(into pipeline: PipelineStore) -> ConvolutionPreset? {
+  func generateFIR(existingNames: Set<String>) -> ConvolutionPreset? {
     // Validate inputs based on which design path we'll use.
     if firKind.derivedFromEQ {
       guard let source = correctionPreset, !source.bands.isEmpty else {
@@ -786,30 +786,24 @@ final class MeasurementSession {
       return nil
     }
 
-    let presetName = nextPresetName(in: pipeline, kind: kindLabel)
+    let base = "Room Correction (\(kindLabel))"
+    var presetName = base
+    if existingNames.contains(base) {
+      var i = 2
+      while existingNames.contains("\(base) \(i)") { i += 1 }
+      presetName = "\(base) \(i)"
+    }
+
     let preset = ConvolutionPreset(
       name: presetName,
       irPaths: irPaths,
       taps: firstTapCount,
       kindLabel: kindLabel)
-    pipeline.addConvolutionPreset(preset)
     generatedFIRPath = preset.irPath(forSampleRate: sampleRate)
 
     let rateList = rates.map { String($0 / 1000) + "k" }.joined(separator: " / ")
     status = "Saved “\(presetName)” (\(firstTapCount) taps × \(rates.count) rates: \(rateList))."
     return preset
-  }
-
-  /// Pick a sensible default name for a freshly generated preset.
-  /// Walks the existing list and appends a numeric suffix if the
-  /// base name is taken.
-  private func nextPresetName(in pipeline: PipelineStore, kind: String) -> String {
-    let base = "Room Correction (\(kind))"
-    let names = Set(pipeline.convPresets.map(\.name))
-    if !names.contains(base) { return base }
-    var i = 2
-    while names.contains("\(base) \(i)") { i += 1 }
-    return "\(base) \(i)"
   }
 
   private func persistIR(

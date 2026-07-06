@@ -21,7 +21,6 @@ final class AppState {
   let levels: LevelState
   let vuSettings = VUSettings()  // Added persistent VU settings
   let logManager = LogManager()
-  let measurement = MeasurementSession()
 
   var showLevelMetersInDashboard = true {
     didSet {

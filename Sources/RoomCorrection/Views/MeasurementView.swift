@@ -29,7 +29,7 @@ private enum MeasurementPane: String, CaseIterable, Identifiable {
 
 struct MeasurementView: View {
   @Environment(MeasurementSession.self) var session
-  @Environment(PipelineStore.self) var pipeline
+  // Decoupled from PipelineStore to remove dependency on the main app's model layer
   @State private var pane: MeasurementPane = .magnitude
   /// Selection state for the embedded `EQFrequencyResponseView`. Lives
   /// here (not on the session) because it's purely UI state.
@@ -409,7 +409,13 @@ struct MeasurementView: View {
             }
             .disabled(!sessionHasBands)
             Button {
-              _ = session.generateFIR(into: pipeline)
+              let existing = loadConvPresets()
+              let preset = session.generateFIR(existingNames: Set(existing.map(\.name)))
+              if let preset = preset {
+                var updated = existing
+                updated.append(preset)
+                saveConvPresets(updated)
+              }
             } label: {
               Label("Add as FIR (Convolution) Preset", systemImage: "waveform")
             }
@@ -743,9 +749,36 @@ struct MeasurementView: View {
           type: b.type, freq: b.freq, gain: b.gain, q: b.q,
           isEnabled: b.isEnabled)
       })
-    pipeline.eqPresets.append(copy)
-    pipeline.saveEQPresets()
+    var presets = loadEQPresets()
+    presets.append(copy)
+    saveEQPresets(presets)
     session.status = "Applied as EQ Preset “\(copy.name).” Open it from the sidebar to edit."
+  }
+
+  private func saveEQPresets(_ presets: [EQPreset]) {
+    if let data = try? JSONEncoder().encode(presets) {
+      UserDefaults.standard.set(data, forKey: "eqPresets")
+    }
+  }
+
+  private func loadEQPresets() -> [EQPreset] {
+    guard let data = UserDefaults.standard.data(forKey: "eqPresets"),
+      let presets = try? JSONDecoder().decode([EQPreset].self, from: data)
+    else { return [] }
+    return presets
+  }
+
+  private func saveConvPresets(_ presets: [ConvolutionPreset]) {
+    if let data = try? JSONEncoder().encode(presets) {
+      UserDefaults.standard.set(data, forKey: "convPresets")
+    }
+  }
+
+  private func loadConvPresets() -> [ConvolutionPreset] {
+    guard let data = UserDefaults.standard.data(forKey: "convPresets"),
+      let presets = try? JSONDecoder().decode([ConvolutionPreset].self, from: data)
+    else { return [] }
+    return presets
   }
 }
 

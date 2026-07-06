@@ -254,10 +254,6 @@ final class EQBand: Identifiable, Codable, Equatable {
     return coeffs.gainDB(atFreqHz: f, sampleRate: sampleRate)
   }
 
-  func phaseResponse(atFreq f: Double, sampleRate: Int) -> Double {
-    guard isEnabled, let coeffs = coefficients(sampleRate: sampleRate) else { return 0 }
-    return coeffs.phaseRad(atFreqHz: f, sampleRate: sampleRate)
-  }
 }
 
 @Observable
@@ -299,12 +295,6 @@ final class EQPreset: Identifiable, Codable, Equatable {
       + bands.filter(\.isEnabled).reduce(0.0) {
         $0 + $1.response(atFreq: f, sampleRate: sampleRate)
       }
-  }
-
-  func combinedPhase(atFreq f: Double, sampleRate: Int) -> Double {
-    bands.filter(\.isEnabled).reduce(0.0) {
-      $0 + $1.phaseResponse(atFreq: f, sampleRate: sampleRate)
-    }
   }
 
   // MARK: - AutoEq / EqualizerAPO CSV Format

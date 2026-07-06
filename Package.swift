@@ -76,7 +76,7 @@ let libTargets: [Target] = [
 
 let commonLibDeps: [Target.Dependency] = [
   "DSPConfig", "DSPAudio", "DSPBackend", "DSPDoP", "DSPEngine", "DSPFFT", "DSPFilters",
-  "DSPLogging", "DSPMeasurement", "DSPMixer", "DSPPipeline", "DSPResampler", "DSPProcessors",
+  "DSPLogging", "DSPMixer", "DSPPipeline", "DSPResampler", "DSPProcessors",
 ]
 
 var targets: [Target] = libTargets
@@ -95,13 +95,18 @@ if usePureSwift {
       path: "Sources/DSPMonitor"
     ),
     .executableTarget(
+      name: "RoomCorrection",
+      dependencies: ["DSPLib", "DSPMeasurement"] + commonLibDeps,
+      path: "Sources/RoomCorrection"
+    ),
+    .executableTarget(
       name: "DSPCLI",
       dependencies: ["DSPLib", "DSPServer"] + commonLibDeps,
       path: "Sources/DSPCLI"
     ),
     .testTarget(
       name: "DSPMonitorTests",
-      dependencies: ["DSPLib", "DSPServer"],
+      dependencies: ["DSPLib", "DSPServer", "DSPMeasurement"],
       path: "Tests/DSPMonitorTests"
     ),
   ])
@@ -130,6 +135,11 @@ if usePureSwift {
       path: "Sources/DSPMonitor"
     ),
     .executableTarget(
+      name: "RoomCorrection",
+      dependencies: ["DSPLib", "DSPMeasurement"] + commonLibDeps,
+      path: "Sources/RoomCorrection"
+    ),
+    .executableTarget(
       name: "DSPCLI",
       dependencies: ["DSPLib", "DSPServer"] + commonLibDeps,
       path: "Sources/DSPCLI"
@@ -142,6 +152,7 @@ let package = Package(
   platforms: [.macOS(.v15)],
   products: [
     .executable(name: "DSPMonitor", targets: ["DSPMonitor"]),
+    .executable(name: "RoomCorrection", targets: ["RoomCorrection"]),
     .executable(name: "dsp-cli", targets: ["DSPCLI"]),
     .library(name: "DSPLib", targets: ["DSPLib"]),
   ],
