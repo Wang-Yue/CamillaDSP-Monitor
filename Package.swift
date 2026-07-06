@@ -111,8 +111,7 @@ if usePureSwift {
     ),
   ])
 } else {
-  var rustLibDeps = commonLibDeps
-  rustLibDeps.append("CamillaDSPFFI")
+  let rustLibDeps: [Target.Dependency] = ["CamillaDSPFFI", "DSPConfig"]
 
   targets.append(contentsOf: [
     .target(
@@ -126,36 +125,35 @@ if usePureSwift {
       exclude: ["SwiftDSPEngine.swift"],
       linkerSettings: [
         .linkedLibrary("camilladsp_ffi"),
+        .linkedFramework("AudioToolbox"),
+        .linkedFramework("CoreAudio"),
         .unsafeFlags(["-L", "lib"]),
       ]
     ),
     .executableTarget(
       name: "DSPMonitor",
-      dependencies: ["DSPLib"] + commonLibDeps,
+      dependencies: ["DSPLib", "DSPConfig"],
       path: "Sources/DSPMonitor"
     ),
-    .executableTarget(
-      name: "RoomCorrection",
-      dependencies: ["DSPLib", "DSPMeasurement"] + commonLibDeps,
-      path: "Sources/RoomCorrection"
-    ),
-    .executableTarget(
-      name: "DSPCLI",
-      dependencies: ["DSPLib", "DSPServer"] + commonLibDeps,
-      path: "Sources/DSPCLI"
-    ),
+  ])
+}
+
+var products: [Product] = [
+  .executable(name: "DSPMonitor", targets: ["DSPMonitor"]),
+  .library(name: "DSPLib", targets: ["DSPLib"]),
+]
+
+if usePureSwift {
+  products.append(contentsOf: [
+    .executable(name: "RoomCorrection", targets: ["RoomCorrection"]),
+    .executable(name: "dsp-cli", targets: ["DSPCLI"]),
   ])
 }
 
 let package = Package(
   name: "DSPMonitor",
   platforms: [.macOS(.v15)],
-  products: [
-    .executable(name: "DSPMonitor", targets: ["DSPMonitor"]),
-    .executable(name: "RoomCorrection", targets: ["RoomCorrection"]),
-    .executable(name: "dsp-cli", targets: ["DSPCLI"]),
-    .library(name: "DSPLib", targets: ["DSPLib"]),
-  ],
+  products: products,
   dependencies: dependencies,
   targets: targets
 )

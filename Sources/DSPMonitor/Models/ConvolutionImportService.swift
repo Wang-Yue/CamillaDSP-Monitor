@@ -1,6 +1,3 @@
-import DSPAudio
-import DSPBackend
-import DSPFilters
 import Foundation
 
 @MainActor
@@ -25,9 +22,16 @@ final class ConvolutionImportService {
     }
   }
 
+  private static let allStandardRates: [Int] = [
+    8000, 11025, 16000, 22050, 32000,
+    44100, 48000, 88200, 96000,
+    176400, 192000, 352800, 384000,
+    705600, 768000,
+  ]
+
   /// Supported rates for UI picker (filtered to standard rates >= 32 kHz).
   static var standardRates: [Int] {
-    CoreAudioCapabilities.standardRates.filter { $0 >= 32000 }
+    allStandardRates.filter { $0 >= 32000 }
   }
 
   /// Supported formats for UI picker.
@@ -61,7 +65,7 @@ final class ConvolutionImportService {
 
     // 2. Infer rate from filename if not already populated from WAV header
     if inferredFormat != "WAV" {
-      let rates = CoreAudioCapabilities.standardRates.sorted(by: >)
+      let rates = Self.allStandardRates.sorted(by: >)
       for rate in rates {
         if filename.contains("\(rate)") || filename.contains("\(rate / 1000)k")
           || filename.contains("\(Double(rate) / 1000.0)k")
@@ -106,7 +110,7 @@ final class ConvolutionImportService {
     for item in items {
       // 1. Load time-domain coefficients using ConvCoefficientLoader
       let path = item.fileURL.path
-      let coeffs: [PrcFmt]
+      let coeffs: [Double]
       if item.format == "WAV" {
         coeffs = try ConvCoefficientLoader.loadWAV(path: path, channel: item.channel)
       } else {
@@ -129,7 +133,7 @@ final class ConvolutionImportService {
       // 2. Save standard double-precision little-endian raw floats (.f64) to the persistent directory
       let destURL = dir.appendingPathComponent(
         "Imported-\(presetID.uuidString.prefix(8))-\(item.sampleRate).f64")
-      let data = coeffs.withUnsafeBufferPointer { (buf: UnsafeBufferPointer<PrcFmt>) -> Data in
+      let data = coeffs.withUnsafeBufferPointer { (buf: UnsafeBufferPointer<Double>) -> Data in
         Data(buffer: buf)
       }
       try data.write(to: destURL, options: [.atomic])

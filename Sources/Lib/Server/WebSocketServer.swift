@@ -88,7 +88,10 @@ public final class WebSocketServer: Sendable {
     var broadcastTask: Task<Void, Never>?
   }
 
-  public init(port: UInt16, host: String = "127.0.0.1", activePath: ActiveConfigPath, stateFilePath: String? = nil) {
+  public init(
+    port: UInt16, host: String = "127.0.0.1", activePath: ActiveConfigPath,
+    stateFilePath: String? = nil
+  ) {
     self.port = port
     self.host = host
     self.activePath = activePath
@@ -102,7 +105,6 @@ public final class WebSocketServer: Sendable {
       state.unsavedStateChanges = false
     }
   }
-
 
   public func setEngine(_ engine: SwiftDSPEngine) {
     stateLock.withLock { state in
