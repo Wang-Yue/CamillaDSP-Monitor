@@ -381,6 +381,10 @@ static bool iface_set_config_json(void* ctx, const char* json_str, char* out_err
 static void iface_stop(void* ctx) {
     if (ctx) dsp_engine_stop((dsp_engine_t*)ctx);
 }
+static const dsp_config_t* iface_get_active_config(void* ctx) {
+    if (!ctx) return NULL;
+    return dsp_engine_get_active_config((dsp_engine_t*)ctx);
+}
 
 dsp_engine_interface_t* dsp_engine_get_interface(dsp_engine_t* engine) {
     if (!engine) return NULL;
@@ -389,6 +393,7 @@ dsp_engine_interface_t* dsp_engine_get_interface(dsp_engine_t* engine) {
     iface.get_status = iface_get_status;
     iface.get_processing_parameters = iface_get_processing_parameters;
     iface.get_active_config_json = iface_get_active_config_json;
+    iface.get_active_config = iface_get_active_config;
     iface.get_vu_levels = iface_get_vu_levels;
     iface.get_available_devices = iface_get_available_devices;
     iface.get_device_capabilities = iface_get_device_capabilities;

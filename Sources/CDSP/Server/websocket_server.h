@@ -5,6 +5,7 @@
 #define CLIB_SERVER_WEBSOCKET_SERVER_H
 
 #include "Config/engine_config_types.h"
+#include "Config/configuration.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -33,6 +34,7 @@ typedef struct {
     bool (*get_status)(void* ctx, state_update_t* out_status);
     bool (*get_processing_parameters)(void* ctx, void** out_params);
     bool (*get_active_config_json)(void* ctx, char** out_json);
+    const dsp_config_t* (*get_active_config)(void* ctx);
     bool (*get_vu_levels)(void* ctx, vu_levels_t* out_vu);
     bool (*get_available_devices)(void* ctx, const char* backend, bool is_input, audio_device_t** out_devices, size_t* out_count);
     bool (*get_device_capabilities)(void* ctx, const char* backend, const char* device, bool is_capture, audio_device_descriptor_t** out_desc);
@@ -46,6 +48,44 @@ struct active_config_path {
     bool has_value;
 };
 
+typedef struct {
+    uint64_t timestamp_ms;
+    double* levels;
+} level_sample_t;
+
+typedef struct {
+    level_sample_t samples[300];
+    size_t head;
+    size_t size;
+    size_t channels;
+} level_history_t;
+
+typedef struct {
+    uint64_t last_cap_peak_time;
+    uint64_t last_cap_rms_time;
+    uint64_t last_pb_peak_time;
+    uint64_t last_pb_rms_time;
+    
+    bool state_subscribed;
+    bool vu_subscribed;
+    bool signal_levels_subscribed;
+    char signal_levels_side[16];
+    
+    double vu_max_rate;
+    double vu_attack;
+    double vu_release;
+    
+    uint64_t last_vu_push_time;
+    uint64_t last_signal_levels_push_time;
+    
+    double* vu_pb_rms;
+    double* vu_pb_peak;
+    double* vu_cap_rms;
+    double* vu_cap_peak;
+    size_t vu_pb_channels;
+    size_t vu_cap_channels;
+} client_session_t;
+
 struct websocket_server {
     uint16_t port;
     char host[128];
@@ -56,6 +96,7 @@ struct websocket_server {
     _Atomic bool running;
     pthread_t thread;
     
+    char* active_config_json;
     char* previous_config_json;
     char state_file_path[1024];
     bool has_state_file_path;
@@ -63,6 +104,20 @@ struct websocket_server {
     
     char* active_config_title;
     char* active_config_description;
+    
+    uint32_t update_interval;
+    
+    level_history_t capture_peak_history;
+    level_history_t capture_rms_history;
+    level_history_t playback_peak_history;
+    level_history_t playback_rms_history;
+    
+    double* capture_global_peaks;
+    double* playback_global_peaks;
+    size_t capture_global_peaks_count;
+    size_t playback_global_peaks_count;
+    
+    client_session_t client_sessions[32];
 };
 
 /// Create a new WebSocket control server on the specified port and host.
@@ -81,7 +136,7 @@ void websocket_server_free(websocket_server_t* server);
 // MARK: - Command Handler
 
 /// Handle a control command text (either simple quoted string or JSON object) and populate out_response.
-void websocket_server_handle_command(websocket_server_t* server, const char* command_text, char* out_response, size_t max_len);
+void websocket_server_handle_command(websocket_server_t* server, int client_idx, const char* command_text, char* out_response, size_t max_len);
 
 #ifdef __cplusplus
 }

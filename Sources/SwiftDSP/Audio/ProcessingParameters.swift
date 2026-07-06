@@ -161,6 +161,14 @@ public final class ProcessingParameters: Sendable {
 
   // MARK: - Metrics
 
+  public var captureChannels: Int {
+    return _captureSignalPeak.count
+  }
+
+  public var playbackChannels: Int {
+    return _playbackSignalPeak.count
+  }
+
   public var captureSignalPeak: [Double] {
     get { _captureSignalPeak.snapshot }
     set { _captureSignalPeak.store(newValue) }

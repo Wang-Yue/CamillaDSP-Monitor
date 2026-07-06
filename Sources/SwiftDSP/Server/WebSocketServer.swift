@@ -56,6 +56,113 @@ private func jsonArray(_ values: [Double]) -> String {
   return "[\(values.map { String($0) }.joined(separator: ","))]"
 }
 
+private func dbToAmplitude(_ db: Double) -> Double {
+  if db <= -100.0 { return 0.0 }
+  return pow(10.0, db / 20.0)
+}
+
+private func amplitudeToDb(_ amp: Double) -> Double {
+  if amp <= 0.00001 { return -100.0 }
+  return 20.0 * log10(amp)
+}
+
+private func smoothingAlpha(dtMs: Double, timeConstantMs: Double) -> Double {
+  if timeConstantMs <= 0.0 { return 1.0 }
+  return 1.0 - exp(-dtMs / timeConstantMs)
+}
+
+private struct LevelSample: Sendable {
+  var timestampMs: UInt64
+  var levels: [Double]
+}
+
+private struct LevelHistory: Sendable {
+  private var samples: [LevelSample] = []
+  private var head: Int = 0
+  private var count: Int = 0
+  private(set) var channels: Int = 0
+
+  mutating func reset(channels: Int) {
+    self.channels = channels
+    self.samples = Array(
+      repeating: LevelSample(timestampMs: 0, levels: Array(repeating: -100.0, count: channels)),
+      count: 300)
+    self.head = 0
+    self.count = 0
+  }
+
+  mutating func append(levels: [Double], timestampMs: UInt64) {
+    guard channels > 0 else { return }
+    let safeLevels: [Double]
+    if levels.count < channels {
+      safeLevels = levels + Array(repeating: -100.0, count: channels - levels.count)
+    } else {
+      safeLevels = Array(levels.prefix(channels))
+    }
+    samples[head] = LevelSample(timestampMs: timestampMs, levels: safeLevels)
+    head = (head + 1) % 300
+    count = min(count + 1, 300)
+  }
+
+  func getRmsSince(timestampMs: UInt64) -> [Double] {
+    guard count > 0 && channels > 0 else { return Array(repeating: -100.0, count: channels) }
+    var sumAmps = Array(repeating: 0.0, count: channels)
+    var matchCount = 0
+
+    for i in 0..<count {
+      let idx = (head - 1 - i + 300) % 300
+      let sample = samples[idx]
+      if sample.timestampMs < timestampMs { break }
+      for k in 0..<channels {
+        let amp = dbToAmplitude(sample.levels[k])
+        sumAmps[k] += amp * amp
+      }
+      matchCount += 1
+    }
+
+    if matchCount > 0 {
+      var result = Array(repeating: 0.0, count: channels)
+      for k in 0..<channels {
+        result[k] = amplitudeToDb(sqrt(sumAmps[k] / Double(matchCount)))
+      }
+      return result
+    } else {
+      let latestIdx = (head - 1 + 300) % 300
+      return samples[latestIdx].levels
+    }
+  }
+
+  func getMaxSince(timestampMs: UInt64) -> [Double] {
+    guard count > 0 && channels > 0 else { return Array(repeating: -100.0, count: channels) }
+    var maxAmps = Array(repeating: 0.0, count: channels)
+    var matchCount = 0
+
+    for i in 0..<count {
+      let idx = (head - 1 - i + 300) % 300
+      let sample = samples[idx]
+      if sample.timestampMs < timestampMs { break }
+      for k in 0..<channels {
+        let amp = dbToAmplitude(sample.levels[k])
+        if amp > maxAmps[k] {
+          maxAmps[k] = amp
+        }
+      }
+      matchCount += 1
+    }
+
+    if matchCount > 0 {
+      var result = Array(repeating: 0.0, count: channels)
+      for k in 0..<channels {
+        result[k] = amplitudeToDb(maxAmps[k])
+      }
+      return result
+    } else {
+      let latestIdx = (head - 1 + 300) % 300
+      return samples[latestIdx].levels
+    }
+  }
+}
+
 public final class WebSocketServer: Sendable {
   private let logger = Logger(label: "dsp.websocket")
   private let port: UInt16
@@ -66,9 +173,31 @@ public final class WebSocketServer: Sendable {
   private let stateLock = OSAllocatedUnfairLock(initialState: State())
 
   private struct ConnectionSubscription: Sendable {
+    var lastCapPeakTime: UInt64 = 0
+    var lastCapRmsTime: UInt64 = 0
+    var lastPbPeakTime: UInt64 = 0
+    var lastPbRmsTime: UInt64 = 0
+
     var stateSubscribed: Bool = false
     var vuSubscribed: Bool = false
+    var signalLevelsSubscribed: Bool = false
+    var signalLevelsSide: String = ""
+
+    var vuMaxRate: Double = 0.0
+    var vuAttack: Double = 0.0
+    var vuRelease: Double = 0.0
+
+    var lastVuPushTime: UInt64 = 0
+    var lastSignalLevelsPushTime: UInt64 = 0
+
     var lastState: String = ""
+
+    var vuPbRms: [Double] = []
+    var vuPbPeak: [Double] = []
+    var vuCapRms: [Double] = []
+    var vuCapPeak: [Double] = []
+    var vuPbChannels: Int = 0
+    var vuCapChannels: Int = 0
   }
 
   private struct State {
@@ -83,6 +212,16 @@ public final class WebSocketServer: Sendable {
     var activeConfigDescription: String?
     var engine: SwiftDSPEngine?
     var broadcastTask: Task<Void, Never>?
+
+    var updateInterval: UInt32 = 100
+
+    var capturePeakHistory = LevelHistory()
+    var captureRmsHistory = LevelHistory()
+    var playbackPeakHistory = LevelHistory()
+    var playbackRmsHistory = LevelHistory()
+
+    var captureGlobalPeaks: [Double] = []
+    var playbackGlobalPeaks: [Double] = []
   }
 
   public init(
@@ -149,7 +288,8 @@ public final class WebSocketServer: Sendable {
       state.listener = listener
       state.broadcastTask = Task { [weak self] in
         while !Task.isCancelled {
-          try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+          let interval = self?.stateLock.withLock { $0.updateInterval } ?? 100
+          try? await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000)
           await self?.broadcastTick()
         }
       }
@@ -223,7 +363,75 @@ public final class WebSocketServer: Sendable {
     guard let engine = engine else { return }
 
     let status = await engine.getStatus()
-    let vu = await engine.getVuLevels()
+    let processingParams = await engine.getProcessingParameters()
+
+    let now = UInt64(Date().timeIntervalSince1970 * 1000)
+
+    var currentCapPeak: [Double]?
+    var currentCapRms: [Double]?
+    var currentPbPeak: [Double]?
+    var currentPbRms: [Double]?
+    var capChannels = 0
+    var pbChannels = 0
+
+    if let params = processingParams {
+      capChannels = params.captureChannels
+      pbChannels = params.playbackChannels
+
+      if capChannels > 0 {
+        currentCapPeak = params.captureSignalPeak
+        currentCapRms = params.captureSignalRms
+      }
+      if pbChannels > 0 {
+        currentPbPeak = params.playbackSignalPeak
+        currentPbRms = params.playbackSignalRms
+      }
+    }
+
+    let capChannelsConst = capChannels
+    let pbChannelsConst = pbChannels
+    let currentCapPeakConst = currentCapPeak
+    let currentCapRmsConst = currentCapRms
+    let currentPbPeakConst = currentPbPeak
+    let currentPbRmsConst = currentPbRms
+
+    stateLock.withLock { state in
+      if let capPeak = currentCapPeakConst, let capRms = currentCapRmsConst {
+        if state.capturePeakHistory.channels != capChannelsConst {
+          state.capturePeakHistory.reset(channels: capChannelsConst)
+          state.captureRmsHistory.reset(channels: capChannelsConst)
+        }
+        state.capturePeakHistory.append(levels: capPeak, timestampMs: now)
+        state.captureRmsHistory.append(levels: capRms, timestampMs: now)
+
+        if state.captureGlobalPeaks.count != capChannelsConst {
+          state.captureGlobalPeaks = Array(repeating: -1000.0, count: capChannelsConst)
+        }
+        for k in 0..<capChannelsConst {
+          if capPeak[k] > state.captureGlobalPeaks[k] {
+            state.captureGlobalPeaks[k] = capPeak[k]
+          }
+        }
+      }
+
+      if let pbPeak = currentPbPeakConst, let pbRms = currentPbRmsConst {
+        if state.playbackPeakHistory.channels != pbChannelsConst {
+          state.playbackPeakHistory.reset(channels: pbChannelsConst)
+          state.playbackRmsHistory.reset(channels: pbChannelsConst)
+        }
+        state.playbackPeakHistory.append(levels: pbPeak, timestampMs: now)
+        state.playbackRmsHistory.append(levels: pbRms, timestampMs: now)
+
+        if state.playbackGlobalPeaks.count != pbChannelsConst {
+          state.playbackGlobalPeaks = Array(repeating: -1000.0, count: pbChannelsConst)
+        }
+        for k in 0..<pbChannelsConst {
+          if pbPeak[k] > state.playbackGlobalPeaks[k] {
+            state.playbackGlobalPeaks[k] = pbPeak[k]
+          }
+        }
+      }
+    }
 
     let stateStr: String
     switch status.state {
@@ -247,9 +455,6 @@ public final class WebSocketServer: Sendable {
 
     let stateValueJSON = "{\"state\":\"\(stateStr)\",\"stop_reason\":\"\(reasonStr)\"}"
 
-    let vuData = try? JSONEncoder().encode(vu)
-    let vuValueJSON = vuData.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-
     let connectionsToNotify = stateLock.withLock { state -> [(NWConnection, String)] in
       var list: [(NWConnection, String)] = []
       for conn in state.connections {
@@ -258,15 +463,89 @@ public final class WebSocketServer: Sendable {
 
         if sub.stateSubscribed && sub.lastState != stateStr {
           sub.lastState = stateStr
-          state.subscriptions[id] = sub
           let msg = "{\"StateEvent\":{\"result\":\"Ok\",\"value\":\(stateValueJSON)}}"
           list.append((conn, msg))
         }
 
-        if sub.vuSubscribed {
-          let msg = "{\"VuLevelsEvent\":{\"result\":\"Ok\",\"value\":\(vuValueJSON)}}"
-          list.append((conn, msg))
+        if sub.vuSubscribed && pbChannelsConst > 0 {
+          let interval = sub.vuMaxRate > 0.0 ? 1000.0 / sub.vuMaxRate : 0.0
+          if Double(now - sub.lastVuPushTime) >= interval {
+            let dt = sub.lastVuPushTime == 0 ? 100.0 : Double(now - sub.lastVuPushTime)
+            let attack = smoothingAlpha(dtMs: dt, timeConstantMs: sub.vuAttack)
+            let release = smoothingAlpha(dtMs: dt, timeConstantMs: sub.vuRelease)
+
+            if sub.vuPbRms.count != pbChannelsConst {
+              sub.vuPbRms = currentPbRmsConst ?? Array(repeating: -100.0, count: pbChannelsConst)
+              sub.vuPbPeak = currentPbPeakConst ?? Array(repeating: -100.0, count: pbChannelsConst)
+            } else if let pbRms = currentPbRmsConst, let pbPeak = currentPbPeakConst {
+              for k in 0..<pbChannelsConst {
+                let prevAmp = dbToAmplitude(sub.vuPbRms[k])
+                let currAmp = dbToAmplitude(pbRms[k])
+                let diff = currAmp - prevAmp
+                sub.vuPbRms[k] = amplitudeToDb(prevAmp + (diff > 0 ? attack : release) * diff)
+              }
+              for k in 0..<pbChannelsConst {
+                let prevAmp = dbToAmplitude(sub.vuPbPeak[k])
+                let currAmp = dbToAmplitude(pbPeak[k])
+                let diff = currAmp - prevAmp
+                sub.vuPbPeak[k] = amplitudeToDb(prevAmp + (diff > 0 ? 1.0 : release) * diff)
+              }
+            }
+
+            if capChannelsConst > 0 {
+              if sub.vuCapRms.count != capChannelsConst {
+                sub.vuCapRms =
+                  currentCapRmsConst ?? Array(repeating: -100.0, count: capChannelsConst)
+                sub.vuCapPeak =
+                  currentCapPeakConst ?? Array(repeating: -100.0, count: capChannelsConst)
+              } else if let capRms = currentCapRmsConst, let capPeak = currentCapPeakConst {
+                for k in 0..<capChannelsConst {
+                  let prevAmp = dbToAmplitude(sub.vuCapRms[k])
+                  let currAmp = dbToAmplitude(capRms[k])
+                  let diff = currAmp - prevAmp
+                  sub.vuCapRms[k] = amplitudeToDb(prevAmp + (diff > 0 ? attack : release) * diff)
+                }
+                for k in 0..<capChannelsConst {
+                  let prevAmp = dbToAmplitude(sub.vuCapPeak[k])
+                  let currAmp = dbToAmplitude(capPeak[k])
+                  let diff = currAmp - prevAmp
+                  sub.vuCapPeak[k] = amplitudeToDb(prevAmp + (diff > 0 ? 1.0 : release) * diff)
+                }
+              }
+            }
+
+            let pRmsStr = jsonArray(sub.vuPbRms)
+            let pPkStr = jsonArray(sub.vuPbPeak)
+            let cRmsStr = jsonArray(sub.vuCapRms)
+            let cPkStr = jsonArray(sub.vuCapPeak)
+            let msg =
+              "{\"VuLevelsEvent\":{\"result\":\"Ok\",\"value\":{\"playback_rms\":\(pRmsStr),\"playback_peak\":\(pPkStr),\"capture_rms\":\(cRmsStr),\"capture_peak\":\(cPkStr)}}}"
+            list.append((conn, msg))
+            sub.lastVuPushTime = now
+          }
         }
+
+        if sub.signalLevelsSubscribed {
+          let sendPb = sub.signalLevelsSide == "playback" || sub.signalLevelsSide == "both"
+          let sendCap = sub.signalLevelsSide == "capture" || sub.signalLevelsSide == "both"
+
+          if sendPb, let pbRms = currentPbRmsConst, let pbPeak = currentPbPeakConst {
+            let pRmsStr = jsonArray(pbRms)
+            let pPkStr = jsonArray(pbPeak)
+            let msg =
+              "{\"SignalLevelsEvent\":{\"result\":\"Ok\",\"value\":{\"side\":\"playback\",\"rms\":\(pRmsStr),\"peak\":\(pPkStr)}}}"
+            list.append((conn, msg))
+          }
+          if sendCap, let capRms = currentCapRmsConst, let capPeak = currentCapPeakConst {
+            let cRmsStr = jsonArray(capRms)
+            let cPkStr = jsonArray(capPeak)
+            let msg =
+              "{\"SignalLevelsEvent\":{\"result\":\"Ok\",\"value\":{\"side\":\"capture\",\"rms\":\(cRmsStr),\"peak\":\(cPkStr)}}}"
+            list.append((conn, msg))
+          }
+        }
+
+        state.subscriptions[id] = sub
       }
       return list
     }
@@ -498,6 +777,10 @@ public final class WebSocketServer: Sendable {
         let id = ObjectIdentifier(connection)
         var sub = state.subscriptions[id] ?? ConnectionSubscription()
         sub.vuSubscribed = true
+        sub.vuMaxRate = 0.0
+        sub.vuAttack = 0.0
+        sub.vuRelease = 0.0
+        sub.lastVuPushTime = 0
         state.subscriptions[id] = sub
       }
       return jsonReply("SubscribeVuLevels", result: .ok)
@@ -505,9 +788,12 @@ public final class WebSocketServer: Sendable {
     case "StopSubscription":
       let found = stateLock.withLock { state in
         let id = ObjectIdentifier(connection)
-        if state.subscriptions[id] != nil {
-          state.subscriptions.removeValue(forKey: id)
-          return true
+        if let sub = state.subscriptions[id] {
+          let active = sub.stateSubscribed || sub.vuSubscribed || sub.signalLevelsSubscribed
+          if active {
+            state.subscriptions.removeValue(forKey: id)
+            return true
+          }
         }
         return false
       }
@@ -518,9 +804,144 @@ public final class WebSocketServer: Sendable {
           "StopSubscription", result: .invalidRequestError("No active subscription to stop"))
       }
 
+    case "GetCaptureSignalRmsSinceLast":
+      guard processingParams != nil else {
+        return jsonReply("GetCaptureSignalRmsSinceLast", result: .processingNotRunningError)
+      }
+      let rms = stateLock.withLock { state -> [Double] in
+        let id = ObjectIdentifier(connection)
+        var sub = state.subscriptions[id] ?? ConnectionSubscription()
+        let since = sub.lastCapRmsTime
+        sub.lastCapRmsTime = UInt64(Date().timeIntervalSince1970 * 1000)
+        state.subscriptions[id] = sub
+        return state.captureRmsHistory.getRmsSince(timestampMs: since)
+      }
+      return jsonReply("GetCaptureSignalRmsSinceLast", result: .ok, value: jsonArray(rms))
+
+    case "GetCaptureSignalPeakSinceLast":
+      guard processingParams != nil else {
+        return jsonReply("GetCaptureSignalPeakSinceLast", result: .processingNotRunningError)
+      }
+      let pk = stateLock.withLock { state -> [Double] in
+        let id = ObjectIdentifier(connection)
+        var sub = state.subscriptions[id] ?? ConnectionSubscription()
+        let since = sub.lastCapPeakTime
+        sub.lastCapPeakTime = UInt64(Date().timeIntervalSince1970 * 1000)
+        state.subscriptions[id] = sub
+        return state.capturePeakHistory.getMaxSince(timestampMs: since)
+      }
+      return jsonReply("GetCaptureSignalPeakSinceLast", result: .ok, value: jsonArray(pk))
+
+    case "GetPlaybackSignalRmsSinceLast":
+      guard processingParams != nil else {
+        return jsonReply("GetPlaybackSignalRmsSinceLast", result: .processingNotRunningError)
+      }
+      let rms = stateLock.withLock { state -> [Double] in
+        let id = ObjectIdentifier(connection)
+        var sub = state.subscriptions[id] ?? ConnectionSubscription()
+        let since = sub.lastPbRmsTime
+        sub.lastPbRmsTime = UInt64(Date().timeIntervalSince1970 * 1000)
+        state.subscriptions[id] = sub
+        return state.playbackRmsHistory.getRmsSince(timestampMs: since)
+      }
+      return jsonReply("GetPlaybackSignalRmsSinceLast", result: .ok, value: jsonArray(rms))
+
+    case "GetPlaybackSignalPeakSinceLast":
+      guard processingParams != nil else {
+        return jsonReply("GetPlaybackSignalPeakSinceLast", result: .processingNotRunningError)
+      }
+      let pk = stateLock.withLock { state -> [Double] in
+        let id = ObjectIdentifier(connection)
+        var sub = state.subscriptions[id] ?? ConnectionSubscription()
+        let since = sub.lastPbPeakTime
+        sub.lastPbPeakTime = UInt64(Date().timeIntervalSince1970 * 1000)
+        state.subscriptions[id] = sub
+        return state.playbackPeakHistory.getMaxSince(timestampMs: since)
+      }
+      return jsonReply("GetPlaybackSignalPeakSinceLast", result: .ok, value: jsonArray(pk))
+
+    case "GetSignalLevels":
+      guard let params = processingParams else {
+        return jsonReply("GetSignalLevels", result: .processingNotRunningError)
+      }
+      let pRms = jsonArray(params.playbackSignalRms)
+      let pPk = jsonArray(params.playbackSignalPeak)
+      let cRms = jsonArray(params.captureSignalRms)
+      let cPk = jsonArray(params.captureSignalPeak)
+      let val =
+        "{\"playback_rms\":\(pRms),\"playback_peak\":\(pPk),\"capture_rms\":\(cRms),\"capture_peak\":\(cPk)}"
+      return jsonReply("GetSignalLevels", result: .ok, value: val)
+
+    case "GetSignalLevelsSinceLast":
+      guard processingParams != nil else {
+        return jsonReply("GetSignalLevelsSinceLast", result: .processingNotRunningError)
+      }
+      let (cRms, cPk, pRms, pPk) = stateLock.withLock {
+        state -> ([Double], [Double], [Double], [Double]) in
+        let id = ObjectIdentifier(connection)
+        var sub = state.subscriptions[id] ?? ConnectionSubscription()
+        let nowMs = UInt64(Date().timeIntervalSince1970 * 1000)
+        let crSince = sub.lastCapRmsTime
+        let cpSince = sub.lastCapPeakTime
+        let prSince = sub.lastPbRmsTime
+        let ppSince = sub.lastPbPeakTime
+
+        sub.lastCapRmsTime = nowMs
+        sub.lastCapPeakTime = nowMs
+        sub.lastPbRmsTime = nowMs
+        sub.lastPbPeakTime = nowMs
+        state.subscriptions[id] = sub
+
+        return (
+          state.captureRmsHistory.getRmsSince(timestampMs: crSince),
+          state.capturePeakHistory.getMaxSince(timestampMs: cpSince),
+          state.playbackRmsHistory.getRmsSince(timestampMs: prSince),
+          state.playbackPeakHistory.getMaxSince(timestampMs: ppSince)
+        )
+      }
+      let val =
+        "{\"playback_rms\":\(jsonArray(pRms)),\"playback_peak\":\(jsonArray(pPk)),\"capture_rms\":\(jsonArray(cRms)),\"capture_peak\":\(jsonArray(cPk))}"
+      return jsonReply("GetSignalLevelsSinceLast", result: .ok, value: val)
+
+    case "GetSignalPeaksSinceStart":
+      let (cPeaks, pPeaks) = stateLock.withLock { ($0.captureGlobalPeaks, $0.playbackGlobalPeaks) }
+      let val = "{\"capture\":\(jsonArray(cPeaks)),\"playback\":\(jsonArray(pPeaks))}"
+      return jsonReply("GetSignalPeaksSinceStart", result: .ok, value: val)
+
+    case "ResetSignalPeaksSinceStart":
+      stateLock.withLock { state in
+        for k in 0..<state.captureGlobalPeaks.count { state.captureGlobalPeaks[k] = -1000.0 }
+        for k in 0..<state.playbackGlobalPeaks.count { state.playbackGlobalPeaks[k] = -1000.0 }
+      }
+      return jsonReply("ResetSignalPeaksSinceStart", result: .ok)
+
+    case "GetChannelLabels":
+      let active = stateLock.withLock { $0.activeConfig }
+      let pLabels = active?.devices.playback.channelLabels ?? []
+      let cLabels = active?.devices.capture.channelLabels ?? []
+      let pStr =
+        pLabels.isEmpty ? "null" : "[" + pLabels.map { "\"\($0)\"" }.joined(separator: ",") + "]"
+      let cStr =
+        cLabels.isEmpty ? "null" : "[" + cLabels.map { "\"\($0)\"" }.joined(separator: ",") + "]"
+      return jsonReply(
+        "GetChannelLabels", result: .ok, value: "{\"playback\":\(pStr),\"capture\":\(cStr)}")
+
+    case "GetSignalRange":
+      guard let params = processingParams else {
+        return jsonReply("GetSignalRange", result: .processingNotRunningError)
+      }
+      let pbPeak = params.playbackSignalPeak
+      let maxPeak = pbPeak.max() ?? -1000.0
+      let range = 2.0 * dbToAmplitude(maxPeak)
+      return jsonReply("GetSignalRange", result: .ok, value: "\(range)")
+
+    case "GetUpdateInterval":
+      let interval = stateLock.withLock { $0.updateInterval }
+      return jsonReply("GetUpdateInterval", result: .ok, value: "\(interval)")
+
     default:
       // Try JSON object commands
-      return await handleJSONCommand(jsonText: trimmed)
+      return await handleJSONCommand(connection: connection, jsonText: trimmed)
     }
   }
 
@@ -553,7 +974,7 @@ public final class WebSocketServer: Sendable {
     }
   }
 
-  private func handleJSONCommand(jsonText: String) async -> String {
+  private func handleJSONCommand(connection: NWConnection, jsonText: String) async -> String {
     guard let data = jsonText.data(using: .utf8),
       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     else {
@@ -878,6 +1299,111 @@ public final class WebSocketServer: Sendable {
       } catch {
         return jsonReply(
           "ValidateConfigJson", result: .configValidationError(error.localizedDescription))
+      }
+    }
+
+    if let subVuObj = json["SubscribeVuLevels"] as? [String: Any] {
+      let maxRate = subVuObj["max_rate"] as? Double ?? subVuObj["maxRate"] as? Double ?? 0.0
+      let attack = subVuObj["attack"] as? Double ?? 0.0
+      let release = subVuObj["release"] as? Double ?? 0.0
+      if attack < 0.0 || attack > 60000.0 || release < 0.0 || release > 60000.0 {
+        return jsonReply(
+          "SubscribeVuLevels",
+          result: .invalidValueError("attack and release must be between 0 and 60000 ms"))
+      }
+      stateLock.withLock { state in
+        let id = ObjectIdentifier(connection)
+        var sub = state.subscriptions[id] ?? ConnectionSubscription()
+        sub.vuSubscribed = true
+        sub.vuMaxRate = maxRate
+        sub.vuAttack = attack
+        sub.vuRelease = release
+        sub.lastVuPushTime = 0
+        state.subscriptions[id] = sub
+      }
+      return jsonReply("SubscribeVuLevels", result: .ok)
+    }
+
+    if let side = json["SubscribeSignalLevels"] as? String {
+      if side == "playback" || side == "capture" || side == "both" {
+        stateLock.withLock { state in
+          let id = ObjectIdentifier(connection)
+          var sub = state.subscriptions[id] ?? ConnectionSubscription()
+          sub.signalLevelsSubscribed = true
+          sub.signalLevelsSide = side
+          sub.lastSignalLevelsPushTime = 0
+          state.subscriptions[id] = sub
+        }
+        return jsonReply("SubscribeSignalLevels", result: .ok)
+      } else {
+        return jsonReply(
+          "SubscribeSignalLevels",
+          result: .invalidValueError("side must be playback, capture, or both"))
+      }
+    }
+
+    if let secs = json["GetCaptureSignalRmsSince"] as? Double {
+      guard processingParams != nil else {
+        return jsonReply("GetCaptureSignalRmsSince", result: .processingNotRunningError)
+      }
+      let since = UInt64(Date().timeIntervalSince1970 * 1000) - UInt64(secs * 1000.0)
+      let rms = stateLock.withLock { $0.captureRmsHistory.getRmsSince(timestampMs: since) }
+      return jsonReply("GetCaptureSignalRmsSince", result: .ok, value: jsonArray(rms))
+    }
+
+    if let secs = json["GetCaptureSignalPeakSince"] as? Double {
+      guard processingParams != nil else {
+        return jsonReply("GetCaptureSignalPeakSince", result: .processingNotRunningError)
+      }
+      let since = UInt64(Date().timeIntervalSince1970 * 1000) - UInt64(secs * 1000.0)
+      let pk = stateLock.withLock { $0.capturePeakHistory.getMaxSince(timestampMs: since) }
+      return jsonReply("GetCaptureSignalPeakSince", result: .ok, value: jsonArray(pk))
+    }
+
+    if let secs = json["GetPlaybackSignalRmsSince"] as? Double {
+      guard processingParams != nil else {
+        return jsonReply("GetPlaybackSignalRmsSince", result: .processingNotRunningError)
+      }
+      let since = UInt64(Date().timeIntervalSince1970 * 1000) - UInt64(secs * 1000.0)
+      let rms = stateLock.withLock { $0.playbackRmsHistory.getRmsSince(timestampMs: since) }
+      return jsonReply("GetPlaybackSignalRmsSince", result: .ok, value: jsonArray(rms))
+    }
+
+    if let secs = json["GetPlaybackSignalPeakSince"] as? Double {
+      guard processingParams != nil else {
+        return jsonReply("GetPlaybackSignalPeakSince", result: .processingNotRunningError)
+      }
+      let since = UInt64(Date().timeIntervalSince1970 * 1000) - UInt64(secs * 1000.0)
+      let pk = stateLock.withLock { $0.playbackPeakHistory.getMaxSince(timestampMs: since) }
+      return jsonReply("GetPlaybackSignalPeakSince", result: .ok, value: jsonArray(pk))
+    }
+
+    if let secs = json["GetSignalLevelsSince"] as? Double {
+      guard processingParams != nil else {
+        return jsonReply("GetSignalLevelsSince", result: .processingNotRunningError)
+      }
+      let since = UInt64(Date().timeIntervalSince1970 * 1000) - UInt64(secs * 1000.0)
+      let (cRms, cPk, pRms, pPk) = stateLock.withLock { state in
+        (
+          state.captureRmsHistory.getRmsSince(timestampMs: since),
+          state.capturePeakHistory.getMaxSince(timestampMs: since),
+          state.playbackRmsHistory.getRmsSince(timestampMs: since),
+          state.playbackPeakHistory.getMaxSince(timestampMs: since)
+        )
+      }
+      let val =
+        "{\"playback_rms\":\(jsonArray(pRms)),\"playback_peak\":\(jsonArray(pPk)),\"capture_rms\":\(jsonArray(cRms)),\"capture_peak\":\(jsonArray(cPk))}"
+      return jsonReply("GetSignalLevelsSince", result: .ok, value: val)
+    }
+
+    if let interval = json["SetUpdateInterval"] as? Int {
+      if interval >= 10 && interval <= 10000 {
+        stateLock.withLock { $0.updateInterval = UInt32(interval) }
+        return jsonReply("SetUpdateInterval", result: .ok)
+      } else {
+        return jsonReply(
+          "SetUpdateInterval",
+          result: .invalidValueError("update interval must be between 10 and 10000 ms"))
       }
     }
 

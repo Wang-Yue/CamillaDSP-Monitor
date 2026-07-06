@@ -179,16 +179,18 @@ public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
   /// rejecting more DSD shaping noise; higher values widen the audible
   /// passband (and let through more ultrasonic content). Default 20 kHz.
   public var dopCutoffHz: Double?
+  public var channelLabels: [String]?
 
   enum CodingKeys: String, CodingKey {
     case type, channels, device
     case bypassDoP = "bypass_dop"
     case dopCutoffHz = "dop_cutoff_hz"
+    case channelLabels = "channel_labels"
   }
 
   public init(
     type: AudioBackendType, channels: Int, device: String? = nil, format: String? = nil,
-    bypassDoP: Bool? = nil, dopCutoffHz: Double? = nil
+    bypassDoP: Bool? = nil, dopCutoffHz: Double? = nil, channelLabels: [String]? = nil
   ) {
     _ = format
     self.type = type
@@ -196,6 +198,7 @@ public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
     self.device = device
     self.bypassDoP = bypassDoP
     self.dopCutoffHz = dopCutoffHz
+    self.channelLabels = channelLabels
   }
 }
 
@@ -227,15 +230,17 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
   public var exclusive: Bool?
   public var outputDoP: Bool?
   public var dopEncoderFilter: SDMFilter?
+  public var channelLabels: [String]?
 
   enum CodingKeys: String, CodingKey {
     case type, channels, device, exclusive
     case outputDoP = "output_dop"
     case dopEncoderFilter = "dop_encoder_filter"
+    case channelLabels = "channel_labels"
   }
   public init(
     type: AudioBackendType, channels: Int, device: String? = nil,
-    exclusive: Bool? = nil
+    exclusive: Bool? = nil, channelLabels: [String]? = nil
   ) {
     self.type = type
     self.channels = channels
@@ -243,6 +248,7 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
     self.exclusive = exclusive
     self.outputDoP = nil
     self.dopEncoderFilter = nil
+    self.channelLabels = channelLabels
   }
 
 }

@@ -80,17 +80,17 @@ TEST(test_websocket_handle_command_direct) {
     websocket_server_set_engine(server, &mock_engine);
     
     char resp[4096];
-    websocket_server_handle_command(server, "\"GetVersion\"", resp, sizeof(resp));
+    websocket_server_handle_command(server, 0, "\"GetVersion\"", resp, sizeof(resp));
     ASSERT_TRUE(strstr(resp, "\"GetVersion\"") != NULL);
     ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
     ASSERT_TRUE(strstr(resp, "\"CamillaDSP-C-Embedded 2.0.0\"") != NULL);
     
-    websocket_server_handle_command(server, "\"GetState\"", resp, sizeof(resp));
+    websocket_server_handle_command(server, 0, "\"GetState\"", resp, sizeof(resp));
     ASSERT_TRUE(strstr(resp, "\"GetState\"") != NULL);
     ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
     ASSERT_TRUE(strstr(resp, "\"Inactive\"") != NULL);
     
-    websocket_server_handle_command(server, "\"GetConfigFilePath\"", resp, sizeof(resp));
+    websocket_server_handle_command(server, 0, "\"GetConfigFilePath\"", resp, sizeof(resp));
     ASSERT_TRUE(strstr(resp, "\"/tmp/config.json\"") != NULL);
     
     websocket_server_free(server);

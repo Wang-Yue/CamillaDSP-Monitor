@@ -2,6 +2,9 @@
 // Provides runtime control API compatible with the control protocol
 
 #include "websocket_server.h"
+#include "Audio/processing_parameters.h"
+#include "Pipeline/config_loader.h"
+#include <sys/time.h>
 #include <CommonCrypto/CommonDigest.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -13,6 +16,100 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdatomic.h>
+#include <math.h>
+
+static double db_to_amplitude(double db) {
+    if (db <= -1000.0) return 0.0;
+    return pow(10.0, db / 20.0);
+}
+
+static double amplitude_to_db(double amp) {
+    if (amp <= 0.0) return -1000.0;
+    double db = 20.0 * log10(amp);
+    return db < -1000.0 ? -1000.0 : db;
+}
+
+static void level_history_append(level_history_t* history, const double* levels, size_t channels, uint64_t now_ms) {
+    if (history->channels != channels) {
+        for (size_t i = 0; i < 300; i++) {
+            if (history->samples[i].levels) {
+                free(history->samples[i].levels);
+                history->samples[i].levels = NULL;
+            }
+        }
+        history->channels = channels;
+        history->head = 0;
+        history->size = 0;
+    }
+    if (channels == 0) return;
+    level_sample_t* sample = &history->samples[history->head];
+    if (sample->levels) {
+        free(sample->levels);
+    }
+    sample->levels = (double*)malloc(channels * sizeof(double));
+    if (sample->levels) {
+        memcpy(sample->levels, levels, channels * sizeof(double));
+        sample->timestamp_ms = now_ms;
+        history->head = (history->head + 1) % 300;
+        if (history->size < 300) {
+            history->size++;
+        }
+    }
+}
+
+static void level_history_get_max_since(const level_history_t* history, uint64_t since_ms, double* out_levels) {
+    size_t channels = history->channels;
+    for (size_t c = 0; c < channels; c++) {
+        out_levels[c] = -1000.0;
+    }
+    if (history->size == 0 || channels == 0) return;
+    size_t idx = (history->head + 300 - 1) % 300;
+    for (size_t i = 0; i < history->size; i++) {
+        const level_sample_t* sample = &history->samples[idx];
+        if (sample->timestamp_ms < since_ms) break;
+        for (size_t c = 0; c < channels; c++) {
+            if (sample->levels[c] > out_levels[c]) {
+                out_levels[c] = sample->levels[c];
+            }
+        }
+        idx = (idx + 300 - 1) % 300;
+    }
+}
+
+static void level_history_get_rms_since(const level_history_t* history, uint64_t since_ms, double* out_levels) {
+    size_t channels = history->channels;
+    for (size_t c = 0; c < channels; c++) {
+        out_levels[c] = -1000.0;
+    }
+    if (history->size == 0 || channels == 0) return;
+    double* sums = (double*)calloc(channels, sizeof(double));
+    size_t count = 0;
+    size_t idx = (history->head + 300 - 1) % 300;
+    for (size_t i = 0; i < history->size; i++) {
+        const level_sample_t* sample = &history->samples[idx];
+        if (sample->timestamp_ms < since_ms) break;
+        for (size_t c = 0; c < channels; c++) {
+            double amp = db_to_amplitude(sample->levels[c]);
+            sums[c] += amp * amp;
+        }
+        count++;
+        idx = (idx + 300 - 1) % 300;
+    }
+    if (count > 0) {
+        for (size_t c = 0; c < channels; c++) {
+            double mean_square = sums[c] / (double)count;
+            out_levels[c] = amplitude_to_db(sqrt(mean_square));
+        }
+    }
+    free(sums);
+}
+
+static double smoothing_alpha(double delta_ms, double time_constant_ms) {
+    if (time_constant_ms <= 0.0) return 1.0;
+    double delta_sec = delta_ms / 1000.0;
+    double time_constant_sec = time_constant_ms / 1000.0;
+    return 1.0 - exp(-delta_sec / time_constant_sec);
+}
 
 active_config_path_t* active_config_path_create(const char* initial_path) {
     active_config_path_t* path = (active_config_path_t*)calloc(1, sizeof(active_config_path_t));
@@ -55,6 +152,7 @@ websocket_server_t* websocket_server_create(uint16_t port, const char* host, act
     }
     server->active_path = active_path;
     server->server_fd = -1;
+    server->update_interval = 100;
     atomic_init(&server->running, false);
     return server;
 }
@@ -91,10 +189,460 @@ static void json_reply(const char* cmd, const char* res_str, const char* val_str
     }
 }
 
+static char* server_read_file_to_string(const char* path) {
+    FILE* fp = fopen(path, "rb");
+    if (!fp) return NULL;
+    fseek(fp, 0, SEEK_END);
+    long len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    if (len < 0) { fclose(fp); return NULL; }
+    char* buf = (char*)malloc((size_t)len + 1);
+    if (!buf) { fclose(fp); return NULL; }
+    size_t read_bytes = fread(buf, 1, (size_t)len, fp);
+    buf[read_bytes] = '\0';
+    fclose(fp);
+    return buf;
+}
+
+static char* extract_json_string_value_dyn(const char* json, const char* key) {
+    if (!json || !key) return NULL;
+    char key_quoted[128];
+    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
+    const char* pos = strstr(json, key_quoted);
+    if (!pos) return NULL;
+    pos += strlen(key_quoted);
+    while (*pos && *pos != ':') pos++;
+    if (!*pos) return NULL;
+    pos++;
+    while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
+    if (*pos != '"') return NULL;
+    pos++;
+    
+    size_t max_len = strlen(pos) + 1;
+    char* out_buf = (char*)malloc(max_len);
+    if (!out_buf) return NULL;
+    
+    size_t idx = 0;
+    while (*pos && *pos != '"') {
+        if (*pos == '\\' && *(pos + 1)) {
+            if (*(pos + 1) == 'n') {
+                out_buf[idx++] = '\n';
+            } else if (*(pos + 1) == 'r') {
+                out_buf[idx++] = '\r';
+            } else if (*(pos + 1) == 't') {
+                out_buf[idx++] = '\t';
+            } else {
+                out_buf[idx++] = *(pos + 1);
+            }
+            pos += 2;
+        } else {
+            out_buf[idx++] = *pos++;
+        }
+    }
+    out_buf[idx] = '\0';
+    return out_buf;
+}
+
+static bool extract_json_string_value(const char* json, const char* key, char* out_buf, size_t max_len) {
+    if (!json || !key || !out_buf || max_len == 0) return false;
+    char key_quoted[128];
+    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
+    const char* pos = strstr(json, key_quoted);
+    if (!pos) return false;
+    pos += strlen(key_quoted);
+    while (*pos && *pos != ':') pos++;
+    if (!*pos) return false;
+    pos++;
+    while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
+    if (*pos != '"') return false;
+    pos++;
+    size_t idx = 0;
+    while (*pos && *pos != '"' && idx < max_len - 1) {
+        if (*pos == '\\' && *(pos + 1)) pos++;
+        out_buf[idx++] = *pos++;
+    }
+    out_buf[idx] = '\0';
+    return true;
+}
+
+static bool extract_json_double_value(const char* json, const char* key, double* out_val) {
+    if (!json || !key || !out_val) return false;
+    char key_quoted[128];
+    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
+    const char* pos = strstr(json, key_quoted);
+    if (!pos) return false;
+    pos += strlen(key_quoted);
+    while (*pos && *pos != ':') pos++;
+    if (!*pos) return false;
+    pos++;
+    while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
+    if (!*pos) return false;
+    char* endptr = NULL;
+    double val = strtod(pos, &endptr);
+    if (endptr == pos) return false;
+    *out_val = val;
+    return true;
+}
+
+static bool extract_json_bool_value(const char* json, const char* key, bool* out_val) {
+    if (!json || !key || !out_val) return false;
+    char key_quoted[128];
+    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
+    const char* pos = strstr(json, key_quoted);
+    if (!pos) return false;
+    pos += strlen(key_quoted);
+    while (*pos && *pos != ':') pos++;
+    if (!*pos) return false;
+    pos++;
+    while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
+    if (strncmp(pos, "true", 4) == 0) {
+        *out_val = true;
+        return true;
+    } else if (strncmp(pos, "false", 5) == 0) {
+        *out_val = false;
+        return true;
+    }
+    return false;
+}
+
+static void format_double_array(const double* arr, size_t count, char* out, size_t max_len) {
+    if (count == 0) {
+        snprintf(out, max_len, "[]");
+        return;
+    }
+    size_t offset = 0;
+    offset += snprintf(out + offset, max_len - offset, "[");
+    for (size_t i = 0; i < count; i++) {
+        offset += snprintf(out + offset, max_len - offset, "%.17g%s", arr[i], (i + 1 < count) ? "," : "");
+    }
+    snprintf(out + offset, max_len - offset, "]");
+}
+
+static const char* find_json_key(const char* start, const char* end, const char* key) {
+    char key_quoted[128];
+    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
+    const char* pos = start;
+    while (pos < end) {
+        pos = strstr(pos, key_quoted);
+        if (!pos || pos >= end) return NULL;
+        const char* check = pos + strlen(key_quoted);
+        while (check < end && (*check == ' ' || *check == '\t' || *check == '\n' || *check == '\r')) check++;
+        if (check < end && *check == ':') {
+            return check + 1;
+        }
+        pos += strlen(key_quoted);
+    }
+    return NULL;
+}
+
+static const char* find_json_value_end(const char* start, const char* end) {
+    while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
+    if (start >= end) return end;
+    if (*start == '{' || *start == '[') {
+        char open = *start;
+        char close = (open == '{') ? '}' : ']';
+        int depth = 0;
+        bool in_quote = false;
+        bool escape = false;
+        for (const char* p = start; p < end; p++) {
+            if (in_quote) {
+                if (escape) escape = false;
+                else if (*p == '\\') escape = true;
+                else if (*p == '"') in_quote = false;
+            } else {
+                if (*p == '"') in_quote = true;
+                else if (*p == open) depth++;
+                else if (*p == close) {
+                    depth--;
+                    if (depth == 0) return p + 1;
+                }
+            }
+        }
+    } else if (*start == '"') {
+        bool escape = false;
+        for (const char* p = start + 1; p < end; p++) {
+            if (escape) escape = false;
+            else if (*p == '\\') escape = true;
+            else if (*p == '"') return p + 1;
+        }
+    } else {
+        const char* p = start;
+        while (p < end && *p != ',' && *p != '}' && *p != ']' && *p != '\n' && *p != '\r' && *p != ' ' && *p != '\t') {
+            p++;
+        }
+        return p;
+    }
+    return end;
+}
+
+static const char* find_json_array_element(const char* start, const char* end, int index) {
+    while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
+    if (start >= end || *start != '[') return NULL;
+    start++;
+    int curr_idx = 0;
+    while (start < end) {
+        while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
+        if (start >= end || *start == ']') return NULL;
+        const char* val_end = find_json_value_end(start, end);
+        if (curr_idx == index) {
+            return start;
+        }
+        start = val_end;
+        while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
+        if (start < end && *start == ',') {
+            start++;
+            curr_idx++;
+        } else if (start < end && *start == ']') {
+            return NULL;
+        }
+    }
+    return NULL;
+}
+
+static bool server_locate_pointer(const char* json, const char* pointer, const char** out_start, const char** out_end) {
+    if (!json || !pointer || !out_start || !out_end) return false;
+    const char* start = json;
+    const char* end = json + strlen(json);
+    
+    const char* ptr = pointer;
+    if (*ptr == '/') ptr++;
+    
+    while (*ptr) {
+        char segment[128];
+        size_t seg_len = 0;
+        while (*ptr && *ptr != '/' && seg_len < sizeof(segment) - 1) {
+            segment[seg_len++] = *ptr++;
+        }
+        segment[seg_len] = '\0';
+        if (*ptr == '/') ptr++;
+        
+        while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
+        if (start >= end) return false;
+        
+        if (*start == '{') {
+            const char* val_start = find_json_key(start, end, segment);
+            if (!val_start) return false;
+            const char* val_end = find_json_value_end(val_start, end);
+            start = val_start;
+            end = val_end;
+        } else if (*start == '[') {
+            char* endptr = NULL;
+            int idx = (int)strtol(segment, &endptr, 10);
+            if (endptr == segment || *endptr != '\0') return false;
+            const char* val_start = find_json_array_element(start, end, idx);
+            if (!val_start) return false;
+            const char* val_end = find_json_value_end(val_start, end);
+            start = val_start;
+            end = val_end;
+        } else {
+            return false;
+        }
+    }
+    
+    while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
+    const char* r_end = end;
+    while (r_end > start && (*(r_end - 1) == ' ' || *(r_end - 1) == '\t' || *(r_end - 1) == '\n' || *(r_end - 1) == '\r')) r_end--;
+    
+    *out_start = start;
+    *out_end = r_end;
+    return true;
+}
+
+static bool server_get_value_at_pointer(const char* json, const char* pointer, char* out_val, size_t max_len) {
+    const char* start = NULL;
+    const char* end = NULL;
+    if (!server_locate_pointer(json, pointer, &start, &end)) return false;
+    size_t result_len = (size_t)(end - start);
+    if (result_len >= max_len) result_len = max_len - 1;
+    memcpy(out_val, start, result_len);
+    out_val[result_len] = '\0';
+    return true;
+}
+
+static char* server_set_value_at_pointer_str(const char* json, const char* pointer, const char* new_val_str) {
+    const char* start = NULL;
+    const char* end = NULL;
+    if (!server_locate_pointer(json, pointer, &start, &end)) return NULL;
+    
+    size_t prefix_len = (size_t)(start - json);
+    size_t suffix_len = strlen(end);
+    size_t val_len = strlen(new_val_str);
+    
+    char* new_json = (char*)malloc(prefix_len + val_len + suffix_len + 1);
+    if (!new_json) return NULL;
+    
+    memcpy(new_json, json, prefix_len);
+    memcpy(new_json + prefix_len, new_val_str, val_len);
+    memcpy(new_json + prefix_len + val_len, end, suffix_len);
+    new_json[prefix_len + val_len + suffix_len] = '\0';
+    
+    return new_json;
+}
+
+static bool server_merge_patch_recursive(char** p_target_json, const char* patch_start, const char* patch_end, char* current_path, size_t path_max) {
+    const char* pos = patch_start;
+    while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
+    if (pos >= patch_end) return true;
+    if (*pos != '{') return false;
+    pos++;
+    
+    while (pos < patch_end) {
+        while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
+        if (pos >= patch_end || *pos == '}') break;
+        if (*pos != '"') return false;
+        pos++;
+        const char* key_start = pos;
+        while (pos < patch_end && *pos != '"') {
+            if (*pos == '\\' && *(pos + 1)) pos += 2;
+            else pos++;
+        }
+        if (pos >= patch_end) return false;
+        size_t key_len = (size_t)(pos - key_start);
+        char key[128];
+        if (key_len >= sizeof(key)) key_len = sizeof(key) - 1;
+        memcpy(key, key_start, key_len);
+        key[key_len] = '\0';
+        pos++;
+        
+        while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
+        if (pos >= patch_end || *pos != ':') return false;
+        pos++;
+        
+        while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
+        const char* val_start = pos;
+        const char* val_end = find_json_value_end(val_start, patch_end);
+        
+        size_t orig_path_len = strlen(current_path);
+        snprintf(current_path + orig_path_len, path_max - orig_path_len, "/%s", key);
+        
+        if (*val_start == '{') {
+            if (!server_merge_patch_recursive(p_target_json, val_start, val_end, current_path, path_max)) {
+                return false;
+            }
+        } else {
+            size_t v_len = (size_t)(val_end - val_start);
+            char* val_str = (char*)malloc(v_len + 1);
+            if (val_str) {
+                memcpy(val_str, val_start, v_len);
+                val_str[v_len] = '\0';
+                char* updated = server_set_value_at_pointer_str(*p_target_json, current_path, val_str);
+                if (updated) {
+                    free(*p_target_json);
+                    *p_target_json = updated;
+                }
+                free(val_str);
+            }
+        }
+        current_path[orig_path_len] = '\0';
+        pos = val_end;
+        while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
+        if (pos < patch_end && *pos == ',') pos++;
+    }
+    return true;
+}
+
+static void format_device_descriptor(const audio_device_descriptor_t* desc, char* out, size_t max_len) {
+    if (!desc) {
+        snprintf(out, max_len, "null");
+        return;
+    }
+    size_t offset = 0;
+    offset += snprintf(out + offset, max_len - offset, "{\"name\":\"%s\",\"capability_sets\":[", desc->name);
+    for (size_t cs_idx = 0; cs_idx < desc->capability_sets_count; cs_idx++) {
+        const device_capability_set_t* cs = &desc->capability_sets[cs_idx];
+        offset += snprintf(out + offset, max_len - offset, "{\"capabilities\":[");
+        for (size_t c_idx = 0; c_idx < cs->capabilities_count; c_idx++) {
+            const channel_capability_t* cap = &cs->capabilities[c_idx];
+            offset += snprintf(out + offset, max_len - offset, "{\"channels\":%d,\"samplerates\":[", cap->channels);
+            for (size_t s_idx = 0; s_idx < cap->samplerates_count; s_idx++) {
+                const samplerate_capability_t* sr = &cap->samplerates[s_idx];
+                offset += snprintf(out + offset, max_len - offset, "{\"samplerate\":%d,\"formats\":[", sr->samplerate);
+                for (size_t f_idx = 0; f_idx < sr->formats_count; f_idx++) {
+                    offset += snprintf(out + offset, max_len - offset, "\"%s\"%s", sr->formats[f_idx], (f_idx + 1 < sr->formats_count) ? "," : "");
+                }
+                offset += snprintf(out + offset, max_len - offset, "]}%s", (s_idx + 1 < cap->samplerates_count) ? "," : "");
+            }
+            offset += snprintf(out + offset, max_len - offset, "]}%s", (c_idx + 1 < cs->capabilities_count) ? "," : "");
+        }
+        offset += snprintf(out + offset, max_len - offset, "]}%s", (cs_idx + 1 < desc->capability_sets_count) ? "," : "");
+    }
+    snprintf(out + offset, max_len - offset, "]}");
+}
+
+static void format_spectrum(const spectrum_t* spec, char* out, size_t max_len) {
+    if (!spec || spec->count == 0) {
+        snprintf(out, max_len, "null");
+        return;
+    }
+    size_t offset = 0;
+    offset += snprintf(out + offset, max_len - offset, "{\"frequencies\":[");
+    for (size_t i = 0; i < spec->count; i++) {
+        offset += snprintf(out + offset, max_len - offset, "%.17g%s", spec->frequencies[i], (i + 1 < spec->count) ? "," : "");
+    }
+    offset += snprintf(out + offset, max_len - offset, "],\"magnitudes\":[");
+    for (size_t i = 0; i < spec->count; i++) {
+        offset += snprintf(out + offset, max_len - offset, "%.17g%s", spec->magnitudes[i], (i + 1 < spec->count) ? "," : "");
+    }
+    snprintf(out + offset, max_len - offset, "]}");
+}
+
+static bool server_handle_adjust_volume_fader(websocket_server_t* server, fader_t fader, const char* arg_start, char* out_response, size_t max_len, const char* cmd_name) {
+    processing_parameters_t* params = NULL;
+    if (!server || !server->engine || !server->engine->get_processing_parameters ||
+        !server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) || !params) {
+        json_reply(cmd_name, "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        return true;
+    }
+    
+    double delta = 0.0;
+    double min_vol = -150.0;
+    double max_vol = 50.0;
+    
+    while (*arg_start && (*arg_start == ' ' || *arg_start == '\t')) arg_start++;
+    if (*arg_start == '[') {
+        arg_start++;
+        char* endptr = NULL;
+        delta = strtod(arg_start, &endptr);
+        if (endptr != arg_start) {
+            arg_start = endptr;
+            while (*arg_start && (*arg_start == ' ' || *arg_start == ',' || *arg_start == '\t')) arg_start++;
+            min_vol = strtod(arg_start, &endptr);
+            if (endptr != arg_start) {
+                arg_start = endptr;
+                while (*arg_start && (*arg_start == ' ' || *arg_start == ',' || *arg_start == '\t')) arg_start++;
+                max_vol = strtod(arg_start, &endptr);
+            }
+        }
+    } else {
+        char* endptr = NULL;
+        delta = strtod(arg_start, &endptr);
+        if (endptr == arg_start) {
+            return false;
+        }
+    }
+    
+    double current = processing_parameters_get_target_volume_for_fader(params, fader);
+    double new_vol = current + delta;
+    if (new_vol < min_vol) new_vol = min_vol;
+    if (new_vol > max_vol) new_vol = max_vol;
+    
+    processing_parameters_set_target_volume_for_fader(params, new_vol, fader);
+    server->unsaved_state_changes = true;
+    
+    char val[64];
+    if (fader == FADER_MAIN) {
+        snprintf(val, sizeof(val), "%.17g", new_vol);
+    } else {
+        snprintf(val, sizeof(val), "[%d,%.17g]", (int)fader, new_vol);
+    }
+    json_reply(cmd_name, "\"Ok\"", val, out_response, max_len);
+    return true;
+}
+
 // MARK: - Command Handler
 
 /// Handle a control command text (either simple quoted string or JSON object) and populate out_response.
-void websocket_server_handle_command(websocket_server_t* server, const char* command_text, char* out_response, size_t max_len) {
+void websocket_server_handle_command(websocket_server_t* server, int client_idx, const char* command_text, char* out_response, size_t max_len) {
     if (!out_response || max_len == 0) return;
     out_response[0] = '\0';
     if (!command_text) return;
@@ -103,7 +651,6 @@ void websocket_server_handle_command(websocket_server_t* server, const char* com
     strncpy(trimmed, command_text, sizeof(trimmed) - 1);
     trimmed[sizeof(trimmed) - 1] = '\0';
     
-    // Remove leading/trailing quotes and whitespace for simple command matching
     char simple[4096];
     int s_idx = 0;
     for (size_t i = 0; i < strlen(trimmed); i++) {
@@ -113,42 +660,163 @@ void websocket_server_handle_command(websocket_server_t* server, const char* com
     }
     simple[s_idx] = '\0';
 
-    // Simple string commands (quoted, e.g. "GetVersion")
     if (strcmp(simple, "GetVersion") == 0) {
         json_reply("GetVersion", "\"Ok\"", "\"CamillaDSP-C-Embedded 2.0.0\"", out_response, max_len);
     } else if (strcmp(simple, "GetState") == 0) {
-        const char* st = "Inactive";
+        processing_state_t state = PROCESSING_STATE_INACTIVE;
         if (server && server->engine && server->engine->get_status) {
             state_update_t status;
             if (server->engine->get_status(server->engine->ctx, &status)) {
-                st = processing_state_to_string(status.state);
+                state = status.state;
             }
         }
-        char val[128];
-        snprintf(val, sizeof(val), "\"%s\"", st);
-        json_reply("GetState", "\"Ok\"", val, out_response, max_len);
+        json_reply("GetState", "\"Ok\"", state_to_string(state), out_response, max_len);
     } else if (strcmp(simple, "GetStopReason") == 0) {
-        json_reply("GetStopReason", "\"Ok\"", "\"None\"", out_response, max_len);
+        char reason_str[512] = "\"None\"";
+        if (server && server->engine && server->engine->get_status) {
+            state_update_t status;
+            if (server->engine->get_status(server->engine->ctx, &status)) {
+                stop_reason_to_string(&status.stop_reason, reason_str, sizeof(reason_str));
+            }
+        }
+        json_reply("GetStopReason", "\"Ok\"", reason_str, out_response, max_len);
     } else if (strcmp(simple, "GetVolume") == 0) {
-        json_reply("GetVolume", "\"Ok\"", "0.0", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            double vol = processing_parameters_get_target_volume_for_fader(params, FADER_MAIN);
+            char val[64];
+            snprintf(val, sizeof(val), "%.17g", vol);
+            json_reply("GetVolume", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetVolume", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "GetMute") == 0) {
-        json_reply("GetMute", "\"Ok\"", "false", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            bool muted = processing_parameters_is_muted_for_fader(params, FADER_MAIN);
+            json_reply("GetMute", "\"Ok\"", muted ? "true" : "false", out_response, max_len);
+        } else {
+            json_reply("GetMute", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "ToggleMute") == 0) {
-        if (server) server->unsaved_state_changes = true;
-        json_reply("ToggleMute", "\"Ok\"", "true", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            bool was_muted = processing_parameters_is_muted_for_fader(params, FADER_MAIN);
+            processing_parameters_set_muted_for_fader(params, !was_muted, FADER_MAIN);
+            if (server) server->unsaved_state_changes = true;
+            json_reply("ToggleMute", "\"Ok\"", !was_muted ? "true" : "false", out_response, max_len);
+        } else {
+            json_reply("ToggleMute", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "GetFaders") == 0) {
-        const char* faders_val = "[{\"volume\":0.0,\"mute\":false},{\"volume\":0.0,\"mute\":false},{\"volume\":0.0,\"mute\":false},{\"volume\":0.0,\"mute\":false},{\"volume\":0.0,\"mute\":false}]";
-        json_reply("GetFaders", "\"Ok\"", faders_val, out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            char faders_val[1024];
+            int offset = 0;
+            offset += snprintf(faders_val + offset, sizeof(faders_val) - offset, "[");
+            for (int i = 0; i < FADER_COUNT; i++) {
+                double vol = processing_parameters_get_target_volume_for_fader(params, (fader_t)i);
+                bool muted = processing_parameters_is_muted_for_fader(params, (fader_t)i);
+                offset += snprintf(faders_val + offset, sizeof(faders_val) - offset,
+                                   "{\"volume\":%.17g,\"mute\":%s}%s",
+                                   vol, muted ? "true" : "false", (i < FADER_COUNT - 1) ? "," : "");
+            }
+            snprintf(faders_val + offset, sizeof(faders_val) - offset, "]");
+            json_reply("GetFaders", "\"Ok\"", faders_val, out_response, max_len);
+        } else {
+            json_reply("GetFaders", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "GetCaptureSignalRms") == 0) {
-        json_reply("GetCaptureSignalRms", "\"Ok\"", "[0.0,0.0]", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            size_t count = params->capture_channels;
+            double* levels = (double*)calloc(count, sizeof(double));
+            if (levels) {
+                processing_parameters_get_capture_signal_rms(params, levels, count);
+                char val[1024];
+                format_double_array(levels, count, val, sizeof(val));
+                free(levels);
+                json_reply("GetCaptureSignalRms", "\"Ok\"", val, out_response, max_len);
+            } else {
+                json_reply("GetCaptureSignalRms", "\"Ok\"", "[]", out_response, max_len);
+            }
+        } else {
+            json_reply("GetCaptureSignalRms", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "GetCaptureSignalPeak") == 0) {
-        json_reply("GetCaptureSignalPeak", "\"Ok\"", "[0.0,0.0]", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            size_t count = params->capture_channels;
+            double* levels = (double*)calloc(count, sizeof(double));
+            if (levels) {
+                processing_parameters_get_capture_signal_peak(params, levels, count);
+                char val[1024];
+                format_double_array(levels, count, val, sizeof(val));
+                free(levels);
+                json_reply("GetCaptureSignalPeak", "\"Ok\"", val, out_response, max_len);
+            } else {
+                json_reply("GetCaptureSignalPeak", "\"Ok\"", "[]", out_response, max_len);
+            }
+        } else {
+            json_reply("GetCaptureSignalPeak", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "GetPlaybackSignalRms") == 0) {
-        json_reply("GetPlaybackSignalRms", "\"Ok\"", "[0.0,0.0]", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            size_t count = params->playback_channels;
+            double* levels = (double*)calloc(count, sizeof(double));
+            if (levels) {
+                processing_parameters_get_playback_signal_rms(params, levels, count);
+                char val[1024];
+                format_double_array(levels, count, val, sizeof(val));
+                free(levels);
+                json_reply("GetPlaybackSignalRms", "\"Ok\"", val, out_response, max_len);
+            } else {
+                json_reply("GetPlaybackSignalRms", "\"Ok\"", "[]", out_response, max_len);
+            }
+        } else {
+            json_reply("GetPlaybackSignalRms", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "GetPlaybackSignalPeak") == 0) {
-        json_reply("GetPlaybackSignalPeak", "\"Ok\"", "[0.0,0.0]", out_response, max_len);
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            size_t count = params->playback_channels;
+            double* levels = (double*)calloc(count, sizeof(double));
+            if (levels) {
+                processing_parameters_get_playback_signal_peak(params, levels, count);
+                char val[1024];
+                format_double_array(levels, count, val, sizeof(val));
+                free(levels);
+                json_reply("GetPlaybackSignalPeak", "\"Ok\"", val, out_response, max_len);
+            } else {
+                json_reply("GetPlaybackSignalPeak", "\"Ok\"", "[]", out_response, max_len);
+            }
+        } else {
+            json_reply("GetPlaybackSignalPeak", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "GetCaptureRate") == 0) {
-        json_reply("GetCaptureRate", "\"Ok\"", "48000", out_response, max_len);
+        state_update_t status;
+        memset(&status, 0, sizeof(status));
+        bool has_status = server && server->engine && server->engine->get_status &&
+                          server->engine->get_status(server->engine->ctx, &status);
+        if (has_status && status.state == PROCESSING_STATE_RUNNING) {
+            const dsp_config_t* config = (server && server->engine && server->engine->get_active_config) ?
+                                         server->engine->get_active_config(server->engine->ctx) : NULL;
+            int sr = config ? config->devices.samplerate : 0;
+            char val[32];
+            snprintf(val, sizeof(val), "%d", sr);
+            json_reply("GetCaptureRate", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetCaptureRate", "\"Ok\"", "0", out_response, max_len);
+        }
     } else if (strcmp(simple, "GetRateAdjust") == 0) {
         json_reply("GetRateAdjust", "\"Ok\"", "1.0", out_response, max_len);
     } else if (strcmp(simple, "GetBufferLevel") == 0) {
@@ -163,6 +831,413 @@ void websocket_server_handle_command(websocket_server_t* server, const char* com
         json_reply("GetResamplerLoad", "\"Ok\"", "0.0", out_response, max_len);
     } else if (strcmp(simple, "GetSupportedDeviceTypes") == 0) {
         json_reply("GetSupportedDeviceTypes", "\"Ok\"", "[[\"CoreAudio\"],[\"CoreAudio\"]]", out_response, max_len);
+    } else if (strcmp(simple, "GetUpdateInterval") == 0) {
+        char val[32];
+        snprintf(val, sizeof(val), "%d", server ? server->update_interval : 100);
+        json_reply("GetUpdateInterval", "\"Ok\"", val, out_response, max_len);
+    } else if (strstr(command_text, "\"SetUpdateInterval\"")) {
+        double val;
+        if (extract_json_double_value(command_text, "SetUpdateInterval", &val)) {
+            if (val >= 0.0) {
+                if (server) server->update_interval = (uint32_t)val;
+                json_reply("SetUpdateInterval", "\"Ok\"", NULL, out_response, max_len);
+            } else {
+                json_reply("SetUpdateInterval", "{\"InvalidValueError\":\"Value must be >= 0\"}", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("SetUpdateInterval", "{\"InvalidRequestError\":\"Could not parse SetUpdateInterval argument\"}", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "SubscribeState") == 0) {
+        if (server) {
+            server->client_sessions[client_idx].state_subscribed = true;
+        }
+        json_reply("SubscribeState", "\"Ok\"", NULL, out_response, max_len);
+    } else if (strstr(command_text, "\"SubscribeVuLevels\"")) {
+        double max_rate = 0;
+        double attack = 0;
+        double release = 0;
+        extract_json_double_value(command_text, "max_rate", &max_rate);
+        extract_json_double_value(command_text, "attack", &attack);
+        extract_json_double_value(command_text, "release", &release);
+        if (attack < 0.0 || attack > 60000.0 || release < 0.0 || release > 60000.0) {
+            json_reply("SubscribeVuLevels", "{\"InvalidValueError\":\"attack and release must be between 0 and 60000 ms\"}", NULL, out_response, max_len);
+        } else {
+            if (server) {
+                server->client_sessions[client_idx].vu_subscribed = true;
+                server->client_sessions[client_idx].vu_max_rate = max_rate;
+                server->client_sessions[client_idx].vu_attack = attack;
+                server->client_sessions[client_idx].vu_release = release;
+                server->client_sessions[client_idx].last_vu_push_time = 0;
+            }
+            json_reply("SubscribeVuLevels", "\"Ok\"", NULL, out_response, max_len);
+        }
+    } else if (strstr(command_text, "\"SubscribeSignalLevels\"")) {
+        char side[32] = "";
+        if (extract_json_string_value(command_text, "SubscribeSignalLevels", side, sizeof(side))) {
+            if (strcmp(side, "playback") == 0 || strcmp(side, "capture") == 0 || strcmp(side, "both") == 0) {
+                if (server) {
+                    server->client_sessions[client_idx].signal_levels_subscribed = true;
+                    strncpy(server->client_sessions[client_idx].signal_levels_side, side, sizeof(server->client_sessions[client_idx].signal_levels_side) - 1);
+                    server->client_sessions[client_idx].last_signal_levels_push_time = 0;
+                }
+                json_reply("SubscribeSignalLevels", "\"Ok\"", NULL, out_response, max_len);
+            } else {
+                json_reply("SubscribeSignalLevels", "{\"InvalidValueError\":\"side must be playback, capture, or both\"}", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("SubscribeSignalLevels", "{\"InvalidRequestError\":\"Could not parse side argument\"}", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "StopSubscription") == 0) {
+        if (server) {
+            bool active = server->client_sessions[client_idx].state_subscribed ||
+                          server->client_sessions[client_idx].vu_subscribed ||
+                          server->client_sessions[client_idx].signal_levels_subscribed;
+            if (active) {
+                server->client_sessions[client_idx].state_subscribed = false;
+                server->client_sessions[client_idx].vu_subscribed = false;
+                server->client_sessions[client_idx].signal_levels_subscribed = false;
+                json_reply("StopSubscription", "\"Ok\"", NULL, out_response, max_len);
+            } else {
+                json_reply("StopSubscription", "{\"InvalidRequestError\":\"No active subscription\"}", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("StopSubscription", "{\"InvalidRequestError\":\"No active subscription\"}", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "GetCaptureSignalRmsSinceLast") == 0) {
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            uint64_t since = server->client_sessions[client_idx].last_cap_rms_time;
+            server->client_sessions[client_idx].last_cap_rms_time = get_time_ms();
+            size_t ch = server->capture_rms_history.channels;
+            double* rms = (double*)calloc(ch, sizeof(double));
+            level_history_get_rms_since(&server->capture_rms_history, since, rms);
+            char* rms_str = (char*)malloc(ch * 30 + 10);
+            format_double_array(rms, ch, rms_str, ch * 30 + 10);
+            json_reply("GetCaptureSignalRmsSinceLast", "\"Ok\"", rms_str, out_response, max_len);
+            free(rms_str);
+            free(rms);
+        } else {
+            json_reply("GetCaptureSignalRmsSinceLast", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "GetCaptureSignalPeakSinceLast") == 0) {
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            uint64_t since = server->client_sessions[client_idx].last_cap_peak_time;
+            server->client_sessions[client_idx].last_cap_peak_time = get_time_ms();
+            size_t ch = server->capture_peak_history.channels;
+            double* pk = (double*)calloc(ch, sizeof(double));
+            level_history_get_max_since(&server->capture_peak_history, since, pk);
+            char* pk_str = (char*)malloc(ch * 30 + 10);
+            format_double_array(pk, ch, pk_str, ch * 30 + 10);
+            json_reply("GetCaptureSignalPeakSinceLast", "\"Ok\"", pk_str, out_response, max_len);
+            free(pk_str);
+            free(pk);
+        } else {
+            json_reply("GetCaptureSignalPeakSinceLast", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "GetPlaybackSignalRmsSinceLast") == 0) {
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            uint64_t since = server->client_sessions[client_idx].last_pb_rms_time;
+            server->client_sessions[client_idx].last_pb_rms_time = get_time_ms();
+            size_t ch = server->playback_rms_history.channels;
+            double* rms = (double*)calloc(ch, sizeof(double));
+            level_history_get_rms_since(&server->playback_rms_history, since, rms);
+            char* rms_str = (char*)malloc(ch * 30 + 10);
+            format_double_array(rms, ch, rms_str, ch * 30 + 10);
+            json_reply("GetPlaybackSignalRmsSinceLast", "\"Ok\"", rms_str, out_response, max_len);
+            free(rms_str);
+            free(rms);
+        } else {
+            json_reply("GetPlaybackSignalRmsSinceLast", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "GetPlaybackSignalPeakSinceLast") == 0) {
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            uint64_t since = server->client_sessions[client_idx].last_pb_peak_time;
+            server->client_sessions[client_idx].last_pb_peak_time = get_time_ms();
+            size_t ch = server->playback_peak_history.channels;
+            double* pk = (double*)calloc(ch, sizeof(double));
+            level_history_get_max_since(&server->playback_peak_history, since, pk);
+            char* pk_str = (char*)malloc(ch * 30 + 10);
+            format_double_array(pk, ch, pk_str, ch * 30 + 10);
+            json_reply("GetPlaybackSignalPeakSinceLast", "\"Ok\"", pk_str, out_response, max_len);
+            free(pk_str);
+            free(pk);
+        } else {
+            json_reply("GetPlaybackSignalPeakSinceLast", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
+    } else if (strstr(command_text, "\"GetCaptureSignalRmsSince\"")) {
+        double secs = 0;
+        if (extract_json_double_value(command_text, "GetCaptureSignalRmsSince", &secs)) {
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                uint64_t now = get_time_ms();
+                uint64_t since = now - (uint64_t)(secs * 1000.0);
+                size_t ch = server->capture_rms_history.channels;
+                double* rms = (double*)calloc(ch, sizeof(double));
+                level_history_get_rms_since(&server->capture_rms_history, since, rms);
+                char* rms_str = (char*)malloc(ch * 30 + 10);
+                format_double_array(rms, ch, rms_str, ch * 30 + 10);
+                json_reply("GetCaptureSignalRmsSince", "\"Ok\"", rms_str, out_response, max_len);
+                free(rms_str);
+                free(rms);
+            } else {
+                json_reply("GetCaptureSignalRmsSince", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("GetCaptureSignalRmsSince", "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, out_response, max_len);
+        }
+    } else if (strstr(command_text, "\"GetCaptureSignalPeakSince\"")) {
+        double secs = 0;
+        if (extract_json_double_value(command_text, "GetCaptureSignalPeakSince", &secs)) {
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                uint64_t now = get_time_ms();
+                uint64_t since = now - (uint64_t)(secs * 1000.0);
+                size_t ch = server->capture_peak_history.channels;
+                double* pk = (double*)calloc(ch, sizeof(double));
+                level_history_get_max_since(&server->capture_peak_history, since, pk);
+                char* pk_str = (char*)malloc(ch * 30 + 10);
+                format_double_array(pk, ch, pk_str, ch * 30 + 10);
+                json_reply("GetCaptureSignalPeakSince", "\"Ok\"", pk_str, out_response, max_len);
+                free(pk_str);
+                free(pk);
+            } else {
+                json_reply("GetCaptureSignalPeakSince", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("GetCaptureSignalPeakSince", "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, out_response, max_len);
+        }
+    } else if (strstr(command_text, "\"GetPlaybackSignalRmsSince\"")) {
+        double secs = 0;
+        if (extract_json_double_value(command_text, "GetPlaybackSignalRmsSince", &secs)) {
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                uint64_t now = get_time_ms();
+                uint64_t since = now - (uint64_t)(secs * 1000.0);
+                size_t ch = server->playback_rms_history.channels;
+                double* rms = (double*)calloc(ch, sizeof(double));
+                level_history_get_rms_since(&server->playback_rms_history, since, rms);
+                char* rms_str = (char*)malloc(ch * 30 + 10);
+                format_double_array(rms, ch, rms_str, ch * 30 + 10);
+                json_reply("GetPlaybackSignalRmsSince", "\"Ok\"", rms_str, out_response, max_len);
+                free(rms_str);
+                free(rms);
+            } else {
+                json_reply("GetPlaybackSignalRmsSince", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("GetPlaybackSignalRmsSince", "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, out_response, max_len);
+        }
+    } else if (strstr(command_text, "\"GetPlaybackSignalPeakSince\"")) {
+        double secs = 0;
+        if (extract_json_double_value(command_text, "GetPlaybackSignalPeakSince", &secs)) {
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                uint64_t now = get_time_ms();
+                uint64_t since = now - (uint64_t)(secs * 1000.0);
+                size_t ch = server->playback_peak_history.channels;
+                double* pk = (double*)calloc(ch, sizeof(double));
+                level_history_get_max_since(&server->playback_peak_history, since, pk);
+                char* pk_str = (char*)malloc(ch * 30 + 10);
+                format_double_array(pk, ch, pk_str, ch * 30 + 10);
+                json_reply("GetPlaybackSignalPeakSince", "\"Ok\"", pk_str, out_response, max_len);
+                free(pk_str);
+                free(pk);
+            } else {
+                json_reply("GetPlaybackSignalPeakSince", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("GetPlaybackSignalPeakSince", "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "GetSignalLevels") == 0) {
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            size_t p_ch = params->playback_channels;
+            size_t c_ch = params->capture_channels;
+            double* p_rms = (double*)calloc(p_ch, sizeof(double));
+            double* p_pk = (double*)calloc(p_ch, sizeof(double));
+            double* c_rms = (double*)calloc(c_ch, sizeof(double));
+            double* c_pk = (double*)calloc(c_ch, sizeof(double));
+            if (p_rms && p_pk && c_rms && c_pk) {
+                processing_parameters_get_playback_signal_rms(params, p_rms, p_ch);
+                processing_parameters_get_playback_signal_peak(params, p_pk, p_ch);
+                processing_parameters_get_capture_signal_rms(params, c_rms, c_ch);
+                processing_parameters_get_capture_signal_peak(params, c_pk, c_ch);
+                char* p_rms_str = (char*)malloc(p_ch * 30 + 10);
+                char* p_pk_str = (char*)malloc(p_ch * 30 + 10);
+                char* c_rms_str = (char*)malloc(c_ch * 30 + 10);
+                char* c_pk_str = (char*)malloc(c_ch * 30 + 10);
+                if (p_rms_str && p_pk_str && c_rms_str && c_pk_str) {
+                    format_double_array(p_rms, p_ch, p_rms_str, p_ch * 30 + 10);
+                    format_double_array(p_pk, p_ch, p_pk_str, p_ch * 30 + 10);
+                    format_double_array(c_rms, c_ch, c_rms_str, c_ch * 30 + 10);
+                    format_double_array(c_pk, c_ch, c_pk_str, c_ch * 30 + 10);
+                    char* val = (char*)malloc((p_ch + c_ch) * 120 + 200);
+                    if (val) {
+                        sprintf(val, "{\"playback_rms\":%s,\"playback_peak\":%s,\"capture_rms\":%s,\"capture_peak\":%s}",
+                                p_rms_str, p_pk_str, c_rms_str, c_pk_str);
+                        json_reply("GetSignalLevels", "\"Ok\"", val, out_response, max_len);
+                        free(val);
+                    }
+                }
+                if (p_rms_str) free(p_rms_str);
+                if (p_pk_str) free(p_pk_str);
+                if (c_rms_str) free(c_rms_str);
+                if (c_pk_str) free(c_pk_str);
+            }
+            if (p_rms) free(p_rms);
+            if (p_pk) free(p_pk);
+            if (c_rms) free(c_rms);
+            if (c_pk) free(c_pk);
+        } else {
+            json_reply("GetSignalLevels", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "GetSignalLevelsSinceLast") == 0) {
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            uint64_t cap_rms_since = server->client_sessions[client_idx].last_cap_rms_time;
+            uint64_t cap_pk_since = server->client_sessions[client_idx].last_cap_peak_time;
+            uint64_t pb_rms_since = server->client_sessions[client_idx].last_pb_rms_time;
+            uint64_t pb_pk_since = server->client_sessions[client_idx].last_pb_peak_time;
+            uint64_t now = get_time_ms();
+            server->client_sessions[client_idx].last_cap_rms_time = now;
+            server->client_sessions[client_idx].last_cap_peak_time = now;
+            server->client_sessions[client_idx].last_pb_rms_time = now;
+            server->client_sessions[client_idx].last_pb_peak_time = now;
+            size_t c_ch = server->capture_rms_history.channels;
+            size_t p_ch = server->playback_rms_history.channels;
+            double* c_rms = (double*)calloc(c_ch, sizeof(double));
+            double* c_pk = (double*)calloc(c_ch, sizeof(double));
+            double* p_rms = (double*)calloc(p_ch, sizeof(double));
+            double* p_pk = (double*)calloc(p_ch, sizeof(double));
+            level_history_get_rms_since(&server->capture_rms_history, cap_rms_since, c_rms);
+            level_history_get_max_since(&server->capture_peak_history, cap_pk_since, c_pk);
+            level_history_get_rms_since(&server->playback_rms_history, pb_rms_since, p_rms);
+            level_history_get_max_since(&server->playback_peak_history, pb_pk_since, p_pk);
+            char* c_rms_str = (char*)malloc(c_ch * 30 + 10);
+            char* c_pk_str = (char*)malloc(c_ch * 30 + 10);
+            char* p_rms_str = (char*)malloc(p_ch * 30 + 10);
+            char* p_pk_str = (char*)malloc(p_ch * 30 + 10);
+            format_double_array(c_rms, c_ch, c_rms_str, c_ch * 30 + 10);
+            format_double_array(c_pk, c_ch, c_pk_str, c_ch * 30 + 10);
+            format_double_array(p_rms, p_ch, p_rms_str, p_ch * 30 + 10);
+            format_double_array(p_pk, p_ch, p_pk_str, p_ch * 30 + 10);
+            char* val = (char*)malloc((c_ch + p_ch) * 120 + 200);
+            sprintf(val, "{\"playback_rms\":%s,\"playback_peak\":%s,\"capture_rms\":%s,\"capture_peak\":%s}",
+                    p_rms_str, p_pk_str, c_rms_str, c_pk_str);
+            json_reply("GetSignalLevelsSinceLast", "\"Ok\"", val, out_response, max_len);
+            free(val);
+            free(c_rms_str); free(c_pk_str); free(p_rms_str); free(p_pk_str);
+            free(c_rms); free(c_pk); free(p_rms); free(p_pk);
+        } else {
+            json_reply("GetSignalLevelsSinceLast", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
+    } else if (strstr(command_text, "\"GetSignalLevelsSince\"")) {
+        double secs = 0;
+        if (extract_json_double_value(command_text, "GetSignalLevelsSince", &secs)) {
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                uint64_t now = get_time_ms();
+                uint64_t since = now - (uint64_t)(secs * 1000.0);
+                size_t c_ch = server->capture_rms_history.channels;
+                size_t p_ch = server->playback_rms_history.channels;
+                double* c_rms = (double*)calloc(c_ch, sizeof(double));
+                double* c_pk = (double*)calloc(c_ch, sizeof(double));
+                double* p_rms = (double*)calloc(p_ch, sizeof(double));
+                double* p_pk = (double*)calloc(p_ch, sizeof(double));
+                level_history_get_rms_since(&server->capture_rms_history, since, c_rms);
+                level_history_get_max_since(&server->capture_peak_history, since, c_pk);
+                level_history_get_rms_since(&server->playback_rms_history, since, p_rms);
+                level_history_get_max_since(&server->playback_peak_history, since, p_pk);
+                char* c_rms_str = (char*)malloc(c_ch * 30 + 10);
+                char* c_pk_str = (char*)malloc(c_ch * 30 + 10);
+                char* p_rms_str = (char*)malloc(p_ch * 30 + 10);
+                char* p_pk_str = (char*)malloc(p_ch * 30 + 10);
+                format_double_array(c_rms, c_ch, c_rms_str, c_ch * 30 + 10);
+                format_double_array(c_pk, c_ch, c_pk_str, c_ch * 30 + 10);
+                format_double_array(p_rms, p_ch, p_rms_str, p_ch * 30 + 10);
+                format_double_array(p_pk, p_ch, p_pk_str, p_ch * 30 + 10);
+                char* val = (char*)malloc((c_ch + p_ch) * 120 + 200);
+                sprintf(val, "{\"playback_rms\":%s,\"playback_peak\":%s,\"capture_rms\":%s,\"capture_peak\":%s}",
+                        p_rms_str, p_pk_str, c_rms_str, c_pk_str);
+                json_reply("GetSignalLevelsSince", "\"Ok\"", val, out_response, max_len);
+                free(val);
+                free(c_rms_str); free(c_pk_str); free(p_rms_str); free(p_pk_str);
+                free(c_rms); free(c_pk); free(p_rms); free(p_pk);
+            } else {
+                json_reply("GetSignalLevelsSince", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("GetSignalLevelsSince", "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "GetSignalPeaksSinceStart") == 0) {
+        char val[2048];
+        int offset = 0;
+        offset += snprintf(val + offset, sizeof(val) - offset, "{\"capture\":[");
+        for (size_t i = 0; i < server->capture_global_peaks_count; i++) {
+            offset += snprintf(val + offset, sizeof(val) - offset, "%.17g%s", server->capture_global_peaks[i], (i + 1 < server->capture_global_peaks_count) ? "," : "");
+        }
+        offset += snprintf(val + offset, sizeof(val) - offset, "],\"playback\":[");
+        for (size_t i = 0; i < server->playback_global_peaks_count; i++) {
+            offset += snprintf(val + offset, sizeof(val) - offset, "%.17g%s", server->playback_global_peaks[i], (i + 1 < server->playback_global_peaks_count) ? "," : "");
+        }
+        snprintf(val + offset, sizeof(val) - offset, "]}");
+        json_reply("GetSignalPeaksSinceStart", "\"Ok\"", val, out_response, max_len);
+    } else if (strcmp(simple, "ResetSignalPeaksSinceStart") == 0) {
+        for (size_t i = 0; i < server->capture_global_peaks_count; i++) {
+            server->capture_global_peaks[i] = -1000.0;
+        }
+        for (size_t i = 0; i < server->playback_global_peaks_count; i++) {
+            server->playback_global_peaks[i] = -1000.0;
+        }
+        json_reply("ResetSignalPeaksSinceStart", "\"Ok\"", NULL, out_response, max_len);
+    } else if (strcmp(simple, "GetChannelLabels") == 0) {
+        char* json = NULL;
+        if (server && server->active_config_json) {
+            json = strdup(server->active_config_json);
+        } else if (server && server->active_path && server->active_path->has_value) {
+            json = server_read_file_to_string(server->active_path->path);
+        }
+        char play_labels[2048] = "null";
+        char cap_labels[2048] = "null";
+        if (json) {
+            server_get_value_at_pointer(json, "/devices/playback/channel_labels", play_labels, sizeof(play_labels));
+            server_get_value_at_pointer(json, "/devices/capture/channel_labels", cap_labels, sizeof(cap_labels));
+        }
+        char val[4096];
+        snprintf(val, sizeof(val), "{\"playback\":%s,\"capture\":%s}", play_labels, cap_labels);
+        json_reply("GetChannelLabels", "\"Ok\"", val, out_response, max_len);
+        if (json) free(json);
+    } else if (strcmp(simple, "GetSignalRange") == 0) {
+        processing_parameters_t* params = NULL;
+        if (server && server->engine && server->engine->get_processing_parameters &&
+            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+            size_t count = params->playback_channels;
+            double max_peak = -1000.0;
+            for (size_t i = 0; i < count; i++) {
+                double pk = atomic_double_get(&params->playback_signal_peak[i]);
+                if (pk > max_peak) max_peak = pk;
+            }
+            double range = 2.0 * db_to_amplitude(max_peak);
+            char val[64];
+            snprintf(val, sizeof(val), "%.17g", range);
+            json_reply("GetSignalRange", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetSignalRange", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "GetConfigFilePath") == 0) {
         const char* path = server && server->active_path ? active_config_path_get(server->active_path) : NULL;
         char val[1100];
@@ -185,21 +1260,80 @@ void websocket_server_handle_command(websocket_server_t* server, const char* com
         bool updated = server ? !server->unsaved_state_changes : true;
         json_reply("GetStateFileUpdated", "\"Ok\"", updated ? "true" : "false", out_response, max_len);
     } else if (strcmp(simple, "GetConfig") == 0 || strcmp(simple, "GetConfigJson") == 0) {
-        json_reply(simple, "\"Ok\"", "{}", out_response, max_len);
+        char* json = NULL;
+        if (server && server->active_config_json) {
+            json = strdup(server->active_config_json);
+        } else if (server && server->active_path && server->active_path->has_value) {
+            json = server_read_file_to_string(server->active_path->path);
+            if (json) {
+                server->active_config_json = strdup(json);
+            }
+        }
+        if (json) {
+            json_reply(simple, "\"Ok\"", json, out_response, max_len);
+            free(json);
+        } else {
+            json_reply(simple, "{\"InvalidRequestError\":\"No active config\"}", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "GetConfigTitle") == 0) {
-        const char* t = server ? server->active_config_title : NULL;
-        char val[512];
-        if (t) snprintf(val, sizeof(val), "\"%s\"", t);
-        else snprintf(val, sizeof(val), "null");
-        json_reply("GetConfigTitle", "\"Ok\"", val, out_response, max_len);
+        char* json = NULL;
+        if (server && server->active_config_json) {
+            json = strdup(server->active_config_json);
+        } else if (server && server->active_path && server->active_path->has_value) {
+            json = server_read_file_to_string(server->active_path->path);
+        }
+        char title[256];
+        if (json && extract_json_string_value(json, "title", title, sizeof(title))) {
+            char val[300];
+            snprintf(val, sizeof(val), "\"%s\"", title);
+            json_reply("GetConfigTitle", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetConfigTitle", "\"Ok\"", "null", out_response, max_len);
+        }
+        if (json) free(json);
     } else if (strcmp(simple, "GetConfigDescription") == 0) {
-        const char* d = server ? server->active_config_description : NULL;
-        char val[512];
-        if (d) snprintf(val, sizeof(val), "\"%s\"", d);
-        else snprintf(val, sizeof(val), "null");
-        json_reply("GetConfigDescription", "\"Ok\"", val, out_response, max_len);
+        char* json = NULL;
+        if (server && server->active_config_json) {
+            json = strdup(server->active_config_json);
+        } else if (server && server->active_path && server->active_path->has_value) {
+            json = server_read_file_to_string(server->active_path->path);
+        }
+        char desc[512];
+        if (json && extract_json_string_value(json, "description", desc, sizeof(desc))) {
+            char val[600];
+            snprintf(val, sizeof(val), "\"%s\"", desc);
+            json_reply("GetConfigDescription", "\"Ok\"", val, out_response, max_len);
+        } else {
+            json_reply("GetConfigDescription", "\"Ok\"", "null", out_response, max_len);
+        }
+        if (json) free(json);
     } else if (strcmp(simple, "Reload") == 0) {
-        json_reply("Reload", "\"Ok\"", NULL, out_response, max_len);
+        const char* path = (server && server->active_path && server->active_path->has_value) ?
+                           server->active_path->path : NULL;
+        if (path) {
+            char* json = server_read_file_to_string(path);
+            if (json) {
+                char err_msg[512] = {0};
+                bool ok = server && server->engine && server->engine->set_config_json &&
+                          server->engine->set_config_json(server->engine->ctx, json, err_msg, sizeof(err_msg));
+                if (ok) {
+                    if (server->previous_config_json) free(server->previous_config_json);
+                    server->previous_config_json = server->active_config_json;
+                    server->active_config_json = strdup(json);
+                    if (server) server->unsaved_state_changes = false;
+                    json_reply("Reload", "\"Ok\"", NULL, out_response, max_len);
+                } else {
+                    char val[600];
+                    snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", err_msg);
+                    json_reply("Reload", val, NULL, out_response, max_len);
+                }
+                free(json);
+            } else {
+                json_reply("Reload", "{\"ConfigReadError\":\"Could not read config file\"}", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("Reload", "{\"InvalidRequestError\":\"No config file path set\"}", NULL, out_response, max_len);
+        }
     } else if (strcmp(simple, "Stop") == 0) {
         if (server && server->engine && server->engine->stop) {
             server->engine->stop(server->engine->ctx);
@@ -210,72 +1344,725 @@ void websocket_server_handle_command(websocket_server_t* server, const char* com
             server->engine->stop(server->engine->ctx);
         }
         json_reply("Exit", "\"Ok\"", NULL, out_response, max_len);
-    } else if (strcmp(simple, "SubscribeState") == 0) {
-        json_reply("SubscribeState", "\"Ok\"", NULL, out_response, max_len);
-    } else if (strcmp(simple, "SubscribeVuLevels") == 0) {
-        json_reply("SubscribeVuLevels", "\"Ok\"", NULL, out_response, max_len);
-    } else if (strcmp(simple, "StopSubscription") == 0) {
-        json_reply("StopSubscription", "\"Ok\"", NULL, out_response, max_len);
     } else if (strstr(command_text, "\"SetVolume\"")) {
-        // Try JSON object commands
-        if (server) server->unsaved_state_changes = true;
-        json_reply("SetVolume", "\"Ok\"", NULL, out_response, max_len);
+        double vol;
+        if (extract_json_double_value(command_text, "SetVolume", &vol)) {
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                double clamped = vol < -150.0 ? -150.0 : (vol > 50.0 ? 50.0 : vol);
+                processing_parameters_set_target_volume_for_fader(params, clamped, FADER_MAIN);
+                if (server) server->unsaved_state_changes = true;
+                json_reply("SetVolume", "\"Ok\"", NULL, out_response, max_len);
+            } else {
+                json_reply("SetVolume", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("SetVolume", "{\"InvalidRequestError\":\"Could not parse volume value\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"SetMute\"")) {
-        if (server) server->unsaved_state_changes = true;
-        json_reply("SetMute", "\"Ok\"", NULL, out_response, max_len);
+        bool mute;
+        if (extract_json_bool_value(command_text, "SetMute", &mute)) {
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                processing_parameters_set_muted_for_fader(params, mute, FADER_MAIN);
+                if (server) server->unsaved_state_changes = true;
+                json_reply("SetMute", "\"Ok\"", NULL, out_response, max_len);
+            } else {
+                json_reply("SetMute", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("SetMute", "{\"InvalidRequestError\":\"Could not parse mute value\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"SetConfigFilePath\"")) {
-        json_reply("SetConfigFilePath", "\"Ok\"", NULL, out_response, max_len);
+        char* path = extract_json_string_value_dyn(command_text, "SetConfigFilePath");
+        if (path) {
+            if (server && server->active_path) {
+                active_config_path_set(server->active_path, path);
+                if (server->active_config_json) {
+                    free(server->active_config_json);
+                    server->active_config_json = NULL;
+                }
+            }
+            free(path);
+            json_reply("SetConfigFilePath", "\"Ok\"", NULL, out_response, max_len);
+        } else {
+            json_reply("SetConfigFilePath", "{\"InvalidRequestError\":\"Could not parse Config File Path\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"SetConfigJson\"")) {
-        if (server) server->unsaved_state_changes = false;
-        json_reply("SetConfigJson", "\"Ok\"", NULL, out_response, max_len);
+        char* new_json = extract_json_string_value_dyn(command_text, "SetConfigJson");
+        if (new_json) {
+            char err_msg[512] = {0};
+            bool ok = server && server->engine && server->engine->set_config_json &&
+                      server->engine->set_config_json(server->engine->ctx, new_json, err_msg, sizeof(err_msg));
+            if (ok) {
+                if (server->previous_config_json) free(server->previous_config_json);
+                server->previous_config_json = server->active_config_json;
+                server->active_config_json = strdup(new_json);
+                if (server) server->unsaved_state_changes = false;
+                json_reply("SetConfigJson", "\"Ok\"", NULL, out_response, max_len);
+            } else {
+                char val[600];
+                snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", err_msg);
+                json_reply("SetConfigJson", val, NULL, out_response, max_len);
+            }
+            free(new_json);
+        } else {
+            json_reply("SetConfigJson", "{\"InvalidRequestError\":\"Could not parse Config JSON\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"GetConfigValue\"")) {
-        json_reply("GetConfigValue", "\"Ok\"", "null", out_response, max_len);
+        char* pointer = extract_json_string_value_dyn(command_text, "GetConfigValue");
+        if (pointer) {
+            char* json = NULL;
+            if (server && server->active_config_json) {
+                json = strdup(server->active_config_json);
+            } else if (server && server->active_path && server->active_path->has_value) {
+                json = server_read_file_to_string(server->active_path->path);
+            }
+            
+            char val[2048];
+            if (json && server_get_value_at_pointer(json, pointer, val, sizeof(val))) {
+                json_reply("GetConfigValue", "\"Ok\"", val, out_response, max_len);
+            } else {
+                char err[256];
+                snprintf(err, sizeof(err), "{\"InvalidRequestError\":\"Path not found: %s\"}", pointer);
+                json_reply("GetConfigValue", err, NULL, out_response, max_len);
+            }
+            if (json) free(json);
+            free(pointer);
+        } else {
+            json_reply("GetConfigValue", "{\"InvalidRequestError\":\"Could not parse pointer\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"SetConfigValue\"")) {
-        json_reply("SetConfigValue", "\"Ok\"", NULL, out_response, max_len);
+        const char* pos = strstr(command_text, "\"SetConfigValue\"");
+        if (pos) {
+            pos += 16;
+            while (*pos && *pos != '{') pos++;
+            if (*pos == '{') {
+                const char* obj_start = pos;
+                const char* obj_end = find_json_value_end(obj_start, command_text + strlen(command_text));
+                char* pointer = extract_json_string_value_dyn(obj_start, "pointer");
+                const char* val_start = NULL;
+                const char* val_end = NULL;
+                
+                if (pointer) {
+                    val_start = find_json_key(obj_start, obj_end, "value");
+                    if (val_start) {
+                        val_end = find_json_value_end(val_start, obj_end);
+                    }
+                } else {
+                    const char* key_start = obj_start + 1;
+                    while (key_start < obj_end && (*key_start == ' ' || *key_start == '\t' || *key_start == '\n' || *key_start == '\r')) key_start++;
+                    if (*key_start == '"') {
+                        key_start++;
+                        const char* p = key_start;
+                        while (p < obj_end && *p != '"') p++;
+                        if (*p == '"') {
+                            size_t ptr_len = (size_t)(p - key_start);
+                            pointer = (char*)malloc(ptr_len + 1);
+                            if (pointer) {
+                                memcpy(pointer, key_start, ptr_len);
+                                pointer[ptr_len] = '\0';
+                                val_start = find_json_key(obj_start, obj_end, pointer);
+                                if (val_start) {
+                                    val_end = find_json_value_end(val_start, obj_end);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (pointer && val_start && val_end) {
+                    size_t v_len = (size_t)(val_end - val_start);
+                    char* new_val_str = (char*)malloc(v_len + 1);
+                    if (new_val_str) {
+                        memcpy(new_val_str, val_start, v_len);
+                        new_val_str[v_len] = '\0';
+                        char* trimmed_val = new_val_str;
+                        while (*trimmed_val == ' ' || *trimmed_val == '\t' || *trimmed_val == '\n' || *trimmed_val == '\r') trimmed_val++;
+                        size_t tv_len = strlen(trimmed_val);
+                        while (tv_len > 0 && (trimmed_val[tv_len - 1] == ' ' || trimmed_val[tv_len - 1] == '\t' || trimmed_val[tv_len - 1] == '\n' || trimmed_val[tv_len - 1] == '\r')) {
+                            trimmed_val[tv_len - 1] = '\0';
+                            tv_len--;
+                        }
+                        
+                        char* active_json = NULL;
+                        if (server && server->active_config_json) {
+                            active_json = strdup(server->active_config_json);
+                        } else if (server && server->active_path && server->active_path->has_value) {
+                            active_json = server_read_file_to_string(server->active_path->path);
+                        }
+                        
+                        if (active_json) {
+                            char* updated_json = server_set_value_at_pointer_str(active_json, pointer, trimmed_val);
+                            if (updated_json) {
+                                char err_msg[512] = {0};
+                                bool ok = server && server->engine && server->engine->set_config_json &&
+                                          server->engine->set_config_json(server->engine->ctx, updated_json, err_msg, sizeof(err_msg));
+                                if (ok) {
+                                    if (server->previous_config_json) free(server->previous_config_json);
+                                    server->previous_config_json = server->active_config_json;
+                                    server->active_config_json = strdup(updated_json);
+                                    if (server) server->unsaved_state_changes = true;
+                                    json_reply("SetConfigValue", "\"Ok\"", NULL, out_response, max_len);
+                                } else {
+                                    char val[600];
+                                    snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", err_msg);
+                                    json_reply("SetConfigValue", val, NULL, out_response, max_len);
+                                }
+                                free(updated_json);
+                            } else {
+                                char err[256];
+                                snprintf(err, sizeof(err), "{\"InvalidRequestError\":\"Path not found: %s\"}", pointer);
+                                json_reply("SetConfigValue", err, NULL, out_response, max_len);
+                            }
+                            free(active_json);
+                        } else {
+                            json_reply("SetConfigValue", "{\"InvalidRequestError\":\"No active config to modify\"}", NULL, out_response, max_len);
+                        }
+                        free(new_val_str);
+                    }
+                }
+                if (pointer) free(pointer);
+                goto set_config_value_done;
+            }
+        }
+        json_reply("SetConfigValue", "{\"InvalidRequestError\":\"Could not parse SetConfigValue command\"}", NULL, out_response, max_len);
+    set_config_value_done:;
     } else if (strstr(command_text, "\"PatchConfig\"")) {
-        json_reply("PatchConfig", "\"Ok\"", NULL, out_response, max_len);
+        const char* pos = strstr(command_text, "\"PatchConfig\"");
+        if (pos) {
+            pos += 13;
+            while (*pos && *pos != ':') pos++;
+            if (*pos == ':') {
+                pos++;
+                while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
+                const char* patch_start = pos;
+                const char* patch_end = find_json_value_end(patch_start, command_text + strlen(command_text));
+                if (patch_start && patch_end && *patch_start == '{') {
+                    char* active_json = NULL;
+                    if (server && server->active_config_json) {
+                        active_json = strdup(server->active_config_json);
+                    } else if (server && server->active_path && server->active_path->has_value) {
+                        active_json = server_read_file_to_string(server->active_path->path);
+                    }
+                    
+                    if (active_json) {
+                        char path_buf[512] = {0};
+                        char* target_json = strdup(active_json);
+                        if (server_merge_patch_recursive(&target_json, patch_start, patch_end, path_buf, sizeof(path_buf))) {
+                            char err_msg[512] = {0};
+                            bool ok = server && server->engine && server->engine->set_config_json &&
+                                      server->engine->set_config_json(server->engine->ctx, target_json, err_msg, sizeof(err_msg));
+                            if (ok) {
+                                if (server->previous_config_json) free(server->previous_config_json);
+                                server->previous_config_json = server->active_config_json;
+                                server->active_config_json = strdup(target_json);
+                                if (server) server->unsaved_state_changes = true;
+                                json_reply("PatchConfig", "\"Ok\"", NULL, out_response, max_len);
+                            } else {
+                                char val[600];
+                                snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", err_msg);
+                                json_reply("PatchConfig", val, NULL, out_response, max_len);
+                            }
+                        } else {
+                            json_reply("PatchConfig", "{\"InvalidRequestError\":\"Failed to merge patch JSON\"}", NULL, out_response, max_len);
+                        }
+                        free(target_json);
+                        free(active_json);
+                    } else {
+                        json_reply("PatchConfig", "{\"InvalidRequestError\":\"No active config to patch\"}", NULL, out_response, max_len);
+                    }
+                    goto patch_config_done;
+                }
+            }
+        }
+        json_reply("PatchConfig", "{\"InvalidRequestError\":\"Could not parse PatchConfig command\"}", NULL, out_response, max_len);
+    patch_config_done:;
     } else if (strstr(command_text, "\"GetFaderVolume\"")) {
-        json_reply("GetFaderVolume", "\"Ok\"", "[0,0.0]", out_response, max_len);
+        double idx_val;
+        if (extract_json_double_value(command_text, "GetFaderVolume", &idx_val)) {
+            int idx = (int)idx_val;
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                if (idx >= 0 && idx < FADER_COUNT) {
+                    double vol = processing_parameters_get_target_volume_for_fader(params, (fader_t)idx);
+                    char val[64];
+                    snprintf(val, sizeof(val), "[%d,%.17g]", idx, vol);
+                    json_reply("GetFaderVolume", "\"Ok\"", val, out_response, max_len);
+                } else {
+                    json_reply("GetFaderVolume", "\"InvalidFaderError\"", NULL, out_response, max_len);
+                }
+            } else {
+                json_reply("GetFaderVolume", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("GetFaderVolume", "{\"InvalidRequestError\":\"Could not parse fader index\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"SetFaderVolume\"")) {
-        if (server) server->unsaved_state_changes = true;
-        json_reply("SetFaderVolume", "\"Ok\"", NULL, out_response, max_len);
+        const char* pos = strstr(command_text, "\"SetFaderVolume\"");
+        if (pos) {
+            pos += 16;
+            while (*pos && *pos != '[') pos++;
+            if (*pos == '[') {
+                pos++;
+                char* endptr = NULL;
+                int idx = (int)strtol(pos, &endptr, 10);
+                if (endptr != pos) {
+                    pos = endptr;
+                    while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
+                    double vol = strtod(pos, &endptr);
+                    if (endptr != pos) {
+                        processing_parameters_t* params = NULL;
+                        if (server && server->engine && server->engine->get_processing_parameters &&
+                            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                            if (idx >= 0 && idx < FADER_COUNT) {
+                                double clamped = vol < -150.0 ? -150.0 : (vol > 50.0 ? 50.0 : vol);
+                                processing_parameters_set_target_volume_for_fader(params, clamped, (fader_t)idx);
+                                if (server) server->unsaved_state_changes = true;
+                                json_reply("SetFaderVolume", "\"Ok\"", NULL, out_response, max_len);
+                            } else {
+                                json_reply("SetFaderVolume", "\"InvalidFaderError\"", NULL, out_response, max_len);
+                            }
+                        } else {
+                            json_reply("SetFaderVolume", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+                        }
+                        goto fader_vol_done;
+                    }
+                }
+            }
+        }
+        json_reply("SetFaderVolume", "{\"InvalidRequestError\":\"Could not parse SetFaderVolume array\"}", NULL, out_response, max_len);
+    fader_vol_done:;
     } else if (strstr(command_text, "\"GetFaderMute\"")) {
-        json_reply("GetFaderMute", "\"Ok\"", "[0,false]", out_response, max_len);
+        double idx_val;
+        if (extract_json_double_value(command_text, "GetFaderMute", &idx_val)) {
+            int idx = (int)idx_val;
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                if (idx >= 0 && idx < FADER_COUNT) {
+                    bool muted = processing_parameters_is_muted_for_fader(params, (fader_t)idx);
+                    char val[64];
+                    snprintf(val, sizeof(val), "[%d,%s]", idx, muted ? "true" : "false");
+                    json_reply("GetFaderMute", "\"Ok\"", val, out_response, max_len);
+                } else {
+                    json_reply("GetFaderMute", "\"InvalidFaderError\"", NULL, out_response, max_len);
+                }
+            } else {
+                json_reply("GetFaderMute", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("GetFaderMute", "{\"InvalidRequestError\":\"Could not parse fader index\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"SetFaderMute\"")) {
-        if (server) server->unsaved_state_changes = true;
-        json_reply("SetFaderMute", "\"Ok\"", NULL, out_response, max_len);
+        const char* pos = strstr(command_text, "\"SetFaderMute\"");
+        if (pos) {
+            pos += 14;
+            while (*pos && *pos != '[') pos++;
+            if (*pos == '[') {
+                pos++;
+                char* endptr = NULL;
+                int idx = (int)strtol(pos, &endptr, 10);
+                if (endptr != pos) {
+                    pos = endptr;
+                    while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
+                    bool mute = false;
+                    bool found_mute = false;
+                    if (strncmp(pos, "true", 4) == 0) {
+                        mute = true;
+                        found_mute = true;
+                    } else if (strncmp(pos, "false", 5) == 0) {
+                        mute = false;
+                        found_mute = true;
+                    }
+                    if (found_mute) {
+                        processing_parameters_t* params = NULL;
+                        if (server && server->engine && server->engine->get_processing_parameters &&
+                            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                            if (idx >= 0 && idx < FADER_COUNT) {
+                                processing_parameters_set_muted_for_fader(params, mute, (fader_t)idx);
+                                if (server) server->unsaved_state_changes = true;
+                                json_reply("SetFaderMute", "\"Ok\"", NULL, out_response, max_len);
+                            } else {
+                                json_reply("SetFaderMute", "\"InvalidFaderError\"", NULL, out_response, max_len);
+                            }
+                        } else {
+                            json_reply("SetFaderMute", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+                        }
+                        goto fader_mute_done;
+                    }
+                }
+            }
+        }
+        json_reply("SetFaderMute", "{\"InvalidRequestError\":\"Could not parse SetFaderMute array\"}", NULL, out_response, max_len);
+    fader_mute_done:;
     } else if (strstr(command_text, "\"ToggleFaderMute\"")) {
-        if (server) server->unsaved_state_changes = true;
-        json_reply("ToggleFaderMute", "\"Ok\"", "[0,true]", out_response, max_len);
+        double idx_val;
+        if (extract_json_double_value(command_text, "ToggleFaderMute", &idx_val)) {
+            int idx = (int)idx_val;
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                if (idx >= 0 && idx < FADER_COUNT) {
+                    bool was_muted = processing_parameters_is_muted_for_fader(params, (fader_t)idx);
+                    processing_parameters_set_muted_for_fader(params, !was_muted, (fader_t)idx);
+                    if (server) server->unsaved_state_changes = true;
+                    char val[64];
+                    snprintf(val, sizeof(val), "[%d,%s]", idx, !was_muted ? "true" : "false");
+                    json_reply("ToggleFaderMute", "\"Ok\"", val, out_response, max_len);
+                } else {
+                    json_reply("ToggleFaderMute", "\"InvalidFaderError\"", NULL, out_response, max_len);
+                }
+            } else {
+                json_reply("ToggleFaderMute", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("ToggleFaderMute", "{\"InvalidRequestError\":\"Could not parse fader index\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"GetAvailableCaptureDevices\"")) {
-        json_reply("GetAvailableCaptureDevices", "\"Ok\"", "[]", out_response, max_len);
+        char* backend = extract_json_string_value_dyn(command_text, "GetAvailableCaptureDevices");
+        if (backend) {
+            audio_device_t* devs = NULL;
+            size_t count = 0;
+            bool ok = server && server->engine && server->engine->get_available_devices &&
+                      server->engine->get_available_devices(server->engine->ctx, backend, true, &devs, &count);
+            if (ok && devs) {
+                char val[4096];
+                int offset = 0;
+                offset += snprintf(val + offset, sizeof(val) - offset, "[");
+                for (size_t i = 0; i < count; i++) {
+                    offset += snprintf(val + offset, sizeof(val) - offset, "\"%s\"%s", devs[i].name, (i + 1 < count) ? "," : "");
+                }
+                snprintf(val + offset, sizeof(val) - offset, "]");
+                json_reply("GetAvailableCaptureDevices", "\"Ok\"", val, out_response, max_len);
+            } else {
+                json_reply("GetAvailableCaptureDevices", "\"Ok\"", "[]", out_response, max_len);
+            }
+            free(backend);
+        } else {
+            json_reply("GetAvailableCaptureDevices", "{\"InvalidRequestError\":\"Could not parse backend\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"GetAvailablePlaybackDevices\"")) {
-        json_reply("GetAvailablePlaybackDevices", "\"Ok\"", "[]", out_response, max_len);
+        char* backend = extract_json_string_value_dyn(command_text, "GetAvailablePlaybackDevices");
+        if (backend) {
+            audio_device_t* devs = NULL;
+            size_t count = 0;
+            bool ok = server && server->engine && server->engine->get_available_devices &&
+                      server->engine->get_available_devices(server->engine->ctx, backend, false, &devs, &count);
+            if (ok && devs) {
+                char val[4096];
+                int offset = 0;
+                offset += snprintf(val + offset, sizeof(val) - offset, "[");
+                for (size_t i = 0; i < count; i++) {
+                    offset += snprintf(val + offset, sizeof(val) - offset, "\"%s\"%s", devs[i].name, (i + 1 < count) ? "," : "");
+                }
+                snprintf(val + offset, sizeof(val) - offset, "]");
+                json_reply("GetAvailablePlaybackDevices", "\"Ok\"", val, out_response, max_len);
+            } else {
+                json_reply("GetAvailablePlaybackDevices", "\"Ok\"", "[]", out_response, max_len);
+            }
+            free(backend);
+        } else {
+            json_reply("GetAvailablePlaybackDevices", "{\"InvalidRequestError\":\"Could not parse backend\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"AdjustVolume\"")) {
-        if (server) server->unsaved_state_changes = true;
-        json_reply("AdjustVolume", "\"Ok\"", "0.0", out_response, max_len);
+        const char* pos = strstr(command_text, "\"AdjustVolume\"");
+        if (pos) {
+            pos += 14;
+            while (*pos && *pos != ':') pos++;
+            if (*pos == ':') {
+                pos++;
+                if (server_handle_adjust_volume_fader(server, FADER_MAIN, pos, out_response, max_len, "AdjustVolume")) {
+                    goto adjust_volume_done;
+                }
+            }
+        }
+        json_reply("AdjustVolume", "{\"InvalidRequestError\":\"Could not parse AdjustVolume argument\"}", NULL, out_response, max_len);
+    adjust_volume_done:;
     } else if (strstr(command_text, "\"AdjustFaderVolume\"")) {
-        if (server) server->unsaved_state_changes = true;
-        json_reply("AdjustFaderVolume", "\"Ok\"", "0.0", out_response, max_len);
+        const char* pos = strstr(command_text, "\"AdjustFaderVolume\"");
+        if (pos) {
+            pos += 19;
+            while (*pos && *pos != '[') pos++;
+            if (*pos == '[') {
+                pos++;
+                char* endptr = NULL;
+                int idx = (int)strtol(pos, &endptr, 10);
+                if (endptr != pos) {
+                    pos = endptr;
+                    while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
+                    if (idx >= 0 && idx < FADER_COUNT) {
+                        if (server_handle_adjust_volume_fader(server, (fader_t)idx, pos, out_response, max_len, "AdjustFaderVolume")) {
+                            goto adjust_fader_volume_done;
+                        }
+                    } else {
+                        json_reply("AdjustFaderVolume", "\"InvalidFaderError\"", NULL, out_response, max_len);
+                        goto adjust_fader_volume_done;
+                    }
+                }
+            }
+        }
+        json_reply("AdjustFaderVolume", "{\"InvalidRequestError\":\"Could not parse AdjustFaderVolume array\"}", NULL, out_response, max_len);
+    adjust_fader_volume_done:;
     } else if (strstr(command_text, "\"GetCaptureDeviceCapabilities\"")) {
-        json_reply("GetCaptureDeviceCapabilities", "\"Ok\"", "{}", out_response, max_len);
+        const char* pos = strstr(command_text, "\"GetCaptureDeviceCapabilities\"");
+        if (pos) {
+            pos += 30;
+            while (*pos && *pos != '[') pos++;
+            if (*pos == '[') {
+                pos++;
+                while (*pos && (*pos == ' ' || *pos == '\t')) pos++;
+                if (*pos == '"') {
+                    pos++;
+                    char backend[128];
+                    size_t b_idx = 0;
+                    while (*pos && *pos != '"' && b_idx < sizeof(backend) - 1) {
+                        backend[b_idx++] = *pos++;
+                    }
+                    backend[b_idx] = '\0';
+                    if (*pos == '"') {
+                        pos++;
+                        while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
+                        if (*pos == '"') {
+                            pos++;
+                            char device[256];
+                            size_t d_idx = 0;
+                            while (*pos && *pos != '"' && d_idx < sizeof(device) - 1) {
+                                device[d_idx++] = *pos++;
+                            }
+                            device[d_idx] = '\0';
+                            if (*pos == '"') {
+                                audio_device_descriptor_t* desc = NULL;
+                                bool ok = server && server->engine && server->engine->get_device_capabilities &&
+                                          server->engine->get_device_capabilities(server->engine->ctx, backend, device, true, &desc);
+                                if (ok && desc) {
+                                    char val[8192];
+                                    format_device_descriptor(desc, val, sizeof(val));
+                                    json_reply("GetCaptureDeviceCapabilities", "\"Ok\"", val, out_response, max_len);
+                                    // free capabilities descriptor
+                                    if (server && server->engine && server->engine->ctx) {
+                                        // Wait, dsp_engine_free_device_capabilities can be called. Since we compile and link with libdsp.a,
+                                        // we can just call it directly! It is declared in dsp_engine.h.
+                                        // In websocket_server.c we included websocket_server.h, but we can call it.
+                                        // Let's call dsp_engine_free_device_capabilities(desc).
+                                        extern void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc);
+                                        dsp_engine_free_device_capabilities(desc);
+                                    }
+                                } else {
+                                    char err[300];
+                                    snprintf(err, sizeof(err), "{\"DeviceNotFoundError\":\"%s\"}", device);
+                                    json_reply("GetCaptureDeviceCapabilities", err, NULL, out_response, max_len);
+                                }
+                                goto capture_caps_done;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        json_reply("GetCaptureDeviceCapabilities", "{\"InvalidRequestError\":\"Could not parse arguments\"}", NULL, out_response, max_len);
+    capture_caps_done:;
     } else if (strstr(command_text, "\"GetPlaybackDeviceCapabilities\"")) {
-        json_reply("GetPlaybackDeviceCapabilities", "\"Ok\"", "{}", out_response, max_len);
+        const char* pos = strstr(command_text, "\"GetPlaybackDeviceCapabilities\"");
+        if (pos) {
+            pos += 31;
+            while (*pos && *pos != '[') pos++;
+            if (*pos == '[') {
+                pos++;
+                while (*pos && (*pos == ' ' || *pos == '\t')) pos++;
+                if (*pos == '"') {
+                    pos++;
+                    char backend[128];
+                    size_t b_idx = 0;
+                    while (*pos && *pos != '"' && b_idx < sizeof(backend) - 1) {
+                        backend[b_idx++] = *pos++;
+                    }
+                    backend[b_idx] = '\0';
+                    if (*pos == '"') {
+                        pos++;
+                        while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
+                        if (*pos == '"') {
+                            pos++;
+                            char device[256];
+                            size_t d_idx = 0;
+                            while (*pos && *pos != '"' && d_idx < sizeof(device) - 1) {
+                                device[d_idx++] = *pos++;
+                            }
+                            device[d_idx] = '\0';
+                            if (*pos == '"') {
+                                audio_device_descriptor_t* desc = NULL;
+                                bool ok = server && server->engine && server->engine->get_device_capabilities &&
+                                          server->engine->get_device_capabilities(server->engine->ctx, backend, device, false, &desc);
+                                if (ok && desc) {
+                                    char val[8192];
+                                    format_device_descriptor(desc, val, sizeof(val));
+                                    json_reply("GetPlaybackDeviceCapabilities", "\"Ok\"", val, out_response, max_len);
+                                    extern void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc);
+                                    dsp_engine_free_device_capabilities(desc);
+                                } else {
+                                    char err[300];
+                                    snprintf(err, sizeof(err), "{\"DeviceNotFoundError\":\"%s\"}", device);
+                                    json_reply("GetPlaybackDeviceCapabilities", err, NULL, out_response, max_len);
+                                }
+                                goto playback_caps_done;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        json_reply("GetPlaybackDeviceCapabilities", "{\"InvalidRequestError\":\"Could not parse arguments\"}", NULL, out_response, max_len);
+    playback_caps_done:;
     } else if (strstr(command_text, "\"GetSpectrum\"")) {
-        json_reply("GetSpectrum", "\"Ok\"", "{}", out_response, max_len);
+        const char* pos = strstr(command_text, "\"GetSpectrum\"");
+        if (pos) {
+            bool is_capture = true;
+            extract_json_bool_value(pos, "is_capture", &is_capture);
+            
+            double ch_val = 0;
+            uint32_t channel = 0;
+            if (extract_json_double_value(pos, "channel", &ch_val)) {
+                channel = (uint32_t)ch_val;
+            }
+            
+            double min_freq = 20.0;
+            extract_json_double_value(pos, "min_freq", &min_freq);
+            
+            double max_freq = 20000.0;
+            extract_json_double_value(pos, "max_freq", &max_freq);
+            
+            double n_bins_val = 1024;
+            uint32_t n_bins = 1024;
+            if (extract_json_double_value(pos, "n_bins", &n_bins_val)) {
+                n_bins = (uint32_t)n_bins_val;
+            }
+            
+            spectrum_t spec;
+            memset(&spec, 0, sizeof(spec));
+            bool ok = server && server->engine && server->engine->get_spectrum &&
+                      server->engine->get_spectrum(server->engine->ctx, is_capture, channel, min_freq, max_freq, n_bins, &spec);
+            if (ok) {
+                size_t spec_buf_size = spec.count * 50 + 200;
+                char* spec_buf = (char*)malloc(spec_buf_size);
+                if (spec_buf) {
+                    format_spectrum(&spec, spec_buf, spec_buf_size);
+                    json_reply("GetSpectrum", "\"Ok\"", spec_buf, out_response, max_len);
+                    free(spec_buf);
+                } else {
+                    json_reply("GetSpectrum", "{\"DeviceError\":\"Out of memory\"}", NULL, out_response, max_len);
+                }
+                if (spec.frequencies) free(spec.frequencies);
+                if (spec.magnitudes) free(spec.magnitudes);
+            } else {
+                json_reply("GetSpectrum", "{\"DeviceError\":\"Failed to compute spectrum\"}", NULL, out_response, max_len);
+            }
+            goto spectrum_done;
+        }
+        json_reply("GetSpectrum", "{\"InvalidRequestError\":\"Could not parse GetSpectrum arguments\"}", NULL, out_response, max_len);
+    spectrum_done:;
     } else if (strstr(command_text, "\"ReadConfigJson\"")) {
-        json_reply("ReadConfigJson", "\"Ok\"", "{}", out_response, max_len);
+        char* config_json = extract_json_string_value_dyn(command_text, "ReadConfigJson");
+        if (config_json) {
+            dsp_config_t* parsed = NULL;
+            config_error_t cerr;
+            memset(&cerr, 0, sizeof(cerr));
+            if (config_loader_parse(config_json, &parsed, &cerr) == 0 && parsed) {
+                json_reply("ReadConfigJson", "\"Ok\"", config_json, out_response, max_len);
+                dsp_config_free(parsed);
+            } else {
+                char val[600];
+                snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", cerr.message);
+                json_reply("ReadConfigJson", val, NULL, out_response, max_len);
+            }
+            free(config_json);
+        } else {
+            json_reply("ReadConfigJson", "{\"InvalidRequestError\":\"Could not parse input config JSON\"}", NULL, out_response, max_len);
+        }
     } else if (strstr(command_text, "\"ValidateConfigJson\"")) {
-        json_reply("ValidateConfigJson", "\"Ok\"", NULL, out_response, max_len);
+        char* config_json = extract_json_string_value_dyn(command_text, "ValidateConfigJson");
+        if (config_json) {
+            dsp_config_t* parsed = NULL;
+            config_error_t cerr;
+            memset(&cerr, 0, sizeof(cerr));
+            if (config_loader_parse(config_json, &parsed, &cerr) == 0 && parsed) {
+                json_reply("ValidateConfigJson", "\"Ok\"", NULL, out_response, max_len);
+                dsp_config_free(parsed);
+            } else {
+                char val[600];
+                snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", cerr.message);
+                json_reply("ValidateConfigJson", val, NULL, out_response, max_len);
+            }
+            free(config_json);
+        } else {
+            json_reply("ValidateConfigJson", "{\"InvalidRequestError\":\"Could not parse input config JSON\"}", NULL, out_response, max_len);
+        }
     } else {
         snprintf(out_response, max_len, "{\"Invalid\":{\"error\":\"Unsupported command\"}}");
     }
 }
 
+static void send_websocket_frame(int fd, const char* response) {
+    size_t resp_len = strlen(response);
+    char frame[16384];
+    frame[0] = (char)0x81;
+    int header_len = 2;
+    if (resp_len < 126) {
+        frame[1] = (char)resp_len;
+    } else if (resp_len <= 65535) {
+        frame[1] = (char)126;
+        frame[2] = (char)((resp_len >> 8) & 0xFF);
+        frame[3] = (char)(resp_len & 0xFF);
+        header_len = 4;
+    } else {
+        frame[1] = (char)127;
+        for (int i = 0; i < 8; i++) {
+            frame[2 + i] = (char)((resp_len >> ((7 - i) * 8)) & 0xFF);
+        }
+        header_len = 10;
+    }
+    if (header_len + resp_len <= sizeof(frame)) {
+        memcpy(&frame[header_len], response, resp_len);
+        send(fd, frame, header_len + resp_len, 0);
+    } else {
+        char* dyn_frame = (char*)malloc(header_len + resp_len);
+        if (dyn_frame) {
+            dyn_frame[0] = (char)0x81;
+            dyn_frame[1] = frame[1];
+            memcpy(&dyn_frame[2], &frame[2], header_len - 2);
+            memcpy(&dyn_frame[header_len], response, resp_len);
+            send(fd, dyn_frame, header_len + resp_len, 0);
+            free(dyn_frame);
+        }
+    }
+}
+
+static void get_simple_command(const char* in, char* out, size_t max_len) {
+    size_t out_idx = 0;
+    for (size_t i = 0; in[i] && out_idx < max_len - 1; i++) {
+        if (in[i] != '"' && in[i] != ' ' && in[i] != '\r' && in[i] != '\n') {
+            out[out_idx++] = in[i];
+        }
+    }
+    out[out_idx] = '\0';
+}
+
+static uint64_t get_time_ms(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
+}
+
 static void* server_thread_func(void* arg) {
     websocket_server_t* server = (websocket_server_t*)arg;
     int client_fds[32];
+    char last_state[32][64];
     int num_clients = 0;
+    
+    uint64_t last_broadcast_time_ms = 0;
+    
     while (atomic_load_explicit(&server->running, memory_order_acquire)) {
         struct pollfd fds[33];
         fds[0].fd = server->server_fd;
@@ -285,11 +2072,233 @@ static void* server_thread_func(void* arg) {
             fds[i+1].events = POLLIN;
         }
         int ret = poll(fds, num_clients + 1, 50);
+        
+        // Periodic broadcast tick
+        uint64_t now = get_time_ms();
+        if (now - last_broadcast_time_ms >= server->update_interval) {
+            last_broadcast_time_ms = now;
+            
+            state_update_t status;
+            memset(&status, 0, sizeof(status));
+            bool has_status = server->engine && server->engine->get_status &&
+                              server->engine->get_status(server->engine->ctx, &status);
+            
+            const char* state_str = "Inactive";
+            if (has_status) {
+                state_str = processing_state_to_string(status.state);
+            }
+            
+            double* current_cap_peak = NULL;
+            double* current_cap_rms = NULL;
+            double* current_pb_peak = NULL;
+            double* current_pb_rms = NULL;
+            size_t cap_channels = 0;
+            size_t pb_channels = 0;
+            
+            processing_parameters_t* params = NULL;
+            if (server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                cap_channels = params->capture_channels;
+                pb_channels = params->playback_channels;
+                
+                if (cap_channels > 0) {
+                    current_cap_peak = (double*)malloc(cap_channels * sizeof(double));
+                    current_cap_rms = (double*)malloc(cap_channels * sizeof(double));
+                    processing_parameters_get_capture_signal_peak(params, current_cap_peak, cap_channels);
+                    processing_parameters_get_capture_signal_rms(params, current_cap_rms, cap_channels);
+                    
+                    level_history_append(&server->capture_peak_history, current_cap_peak, cap_channels, now);
+                    level_history_append(&server->capture_rms_history, current_cap_rms, cap_channels, now);
+                    
+                    if (server->capture_global_peaks_count != cap_channels) {
+                        server->capture_global_peaks = (double*)realloc(server->capture_global_peaks, cap_channels * sizeof(double));
+                        for (size_t k = server->capture_global_peaks_count; k < cap_channels; k++) {
+                            if (server->capture_global_peaks) server->capture_global_peaks[k] = -1000.0;
+                        }
+                        server->capture_global_peaks_count = cap_channels;
+                    }
+                    for (size_t k = 0; k < cap_channels; k++) {
+                        if (server->capture_global_peaks && current_cap_peak[k] > server->capture_global_peaks[k]) {
+                            server->capture_global_peaks[k] = current_cap_peak[k];
+                        }
+                    }
+                }
+                
+                if (pb_channels > 0) {
+                    current_pb_peak = (double*)malloc(pb_channels * sizeof(double));
+                    current_pb_rms = (double*)malloc(pb_channels * sizeof(double));
+                    processing_parameters_get_playback_signal_peak(params, current_pb_peak, pb_channels);
+                    processing_parameters_get_playback_signal_rms(params, current_pb_rms, pb_channels);
+                    
+                    level_history_append(&server->playback_peak_history, current_pb_peak, pb_channels, now);
+                    level_history_append(&server->playback_rms_history, current_pb_rms, pb_channels, now);
+                    
+                    if (server->playback_global_peaks_count != pb_channels) {
+                        server->playback_global_peaks = (double*)realloc(server->playback_global_peaks, pb_channels * sizeof(double));
+                        for (size_t k = server->playback_global_peaks_count; k < pb_channels; k++) {
+                            if (server->playback_global_peaks) server->playback_global_peaks[k] = -1000.0;
+                        }
+                        server->playback_global_peaks_count = pb_channels;
+                    }
+                    for (size_t k = 0; k < pb_channels; k++) {
+                        if (server->playback_global_peaks && current_pb_peak[k] > server->playback_global_peaks[k]) {
+                            server->playback_global_peaks[k] = current_pb_peak[k];
+                        }
+                    }
+                }
+            }
+            
+            for (int i = 0; i < num_clients; i++) {
+                client_session_t* session = &server->client_sessions[i];
+                
+                if (session->state_subscribed && strcmp(last_state[i], state_str) != 0) {
+                    strncpy(last_state[i], state_str, sizeof(last_state[i]) - 1);
+                    char msg[1024];
+                    char payload[512];
+                    format_state_event_payload(status.state, &status.stop_reason, payload, sizeof(payload));
+                    snprintf(msg, sizeof(msg), "{\"StateEvent\":{\"result\":\"Ok\",\"value\":%s}}", payload);
+                    send_websocket_frame(client_fds[i], msg);
+                }
+                
+                if (session->vu_subscribed && pb_channels > 0) {
+                    double interval = session->vu_max_rate > 0.0 ? 1000.0 / session->vu_max_rate : 0.0;
+                    if (now - session->last_vu_push_time >= interval) {
+                        double dt = session->last_vu_push_time == 0 ? 100.0 : (double)(now - session->last_vu_push_time);
+                        double attack = smoothing_alpha(dt, session->vu_attack);
+                        double release = smoothing_alpha(dt, session->vu_release);
+                        
+                        if (session->vu_pb_channels != pb_channels) {
+                            session->vu_pb_rms = (double*)realloc(session->vu_pb_rms, pb_channels * sizeof(double));
+                            session->vu_pb_peak = (double*)realloc(session->vu_pb_peak, pb_channels * sizeof(double));
+                            for (size_t k = 0; k < pb_channels; k++) {
+                                if (session->vu_pb_rms) session->vu_pb_rms[k] = current_pb_rms[k];
+                                if (session->vu_pb_peak) session->vu_pb_peak[k] = current_pb_peak[k];
+                            }
+                            session->vu_pb_channels = pb_channels;
+                        } else {
+                            for (size_t k = 0; k < pb_channels; k++) {
+                                double prev_amp = db_to_amplitude(session->vu_pb_rms[k]);
+                                double curr_amp = db_to_amplitude(current_pb_rms[k]);
+                                double diff = curr_amp - prev_amp;
+                                if (diff > 0.0) prev_amp += attack * diff;
+                                else prev_amp += release * diff;
+                                session->vu_pb_rms[k] = amplitude_to_db(prev_amp);
+                            }
+                            for (size_t k = 0; k < pb_channels; k++) {
+                                double prev_amp = db_to_amplitude(session->vu_pb_peak[k]);
+                                double curr_amp = db_to_amplitude(current_pb_peak[k]);
+                                double diff = curr_amp - prev_amp;
+                                if (diff > 0.0) prev_amp += 1.0 * diff;
+                                else prev_amp += release * diff;
+                                session->vu_pb_peak[k] = amplitude_to_db(prev_amp);
+                            }
+                        }
+                        
+                        if (cap_channels > 0) {
+                            if (session->vu_cap_channels != cap_channels) {
+                                session->vu_cap_rms = (double*)realloc(session->vu_cap_rms, cap_channels * sizeof(double));
+                                session->vu_cap_peak = (double*)realloc(session->vu_cap_peak, cap_channels * sizeof(double));
+                                for (size_t k = 0; k < cap_channels; k++) {
+                                    if (session->vu_cap_rms) session->vu_cap_rms[k] = current_cap_rms[k];
+                                    if (session->vu_cap_peak) session->vu_cap_peak[k] = current_cap_peak[k];
+                                }
+                                session->vu_cap_channels = cap_channels;
+                            } else {
+                                for (size_t k = 0; k < cap_channels; k++) {
+                                    double prev_amp = db_to_amplitude(session->vu_cap_rms[k]);
+                                    double curr_amp = db_to_amplitude(current_cap_rms[k]);
+                                    double diff = curr_amp - prev_amp;
+                                    if (diff > 0.0) prev_amp += attack * diff;
+                                    else prev_amp += release * diff;
+                                    session->vu_cap_rms[k] = amplitude_to_db(prev_amp);
+                                }
+                                for (size_t k = 0; k < cap_channels; k++) {
+                                    double prev_amp = db_to_amplitude(session->vu_cap_peak[k]);
+                                    double curr_amp = db_to_amplitude(current_cap_peak[k]);
+                                    double diff = curr_amp - prev_amp;
+                                    if (diff > 0.0) prev_amp += 1.0 * diff;
+                                    else prev_amp += release * diff;
+                                    session->vu_cap_peak[k] = amplitude_to_db(prev_amp);
+                                }
+                            }
+                        }
+                        
+                        char* p_rms_str = (char*)malloc(pb_channels * 30 + 10);
+                        char* p_pk_str = (char*)malloc(pb_channels * 30 + 10);
+                        char* c_rms_str = (char*)malloc(cap_channels * 30 + 10);
+                        char* c_pk_str = (char*)malloc(cap_channels * 30 + 10);
+                        
+                        format_double_array(session->vu_pb_rms, pb_channels, p_rms_str, pb_channels * 30 + 10);
+                        format_double_array(session->vu_pb_peak, pb_channels, p_pk_str, pb_channels * 30 + 10);
+                        format_double_array(session->vu_cap_rms, cap_channels, c_rms_str, cap_channels * 30 + 10);
+                        format_double_array(session->vu_cap_peak, cap_channels, c_pk_str, cap_channels * 30 + 10);
+                        
+                        char* msg = (char*)malloc((pb_channels + cap_channels) * 120 + 200);
+                        sprintf(msg, "{\"VuLevelsEvent\":{\"result\":\"Ok\",\"value\":{\"playback_rms\":%s,\"playback_peak\":%s,\"capture_rms\":%s,\"capture_peak\":%s}}}",
+                                p_rms_str, p_pk_str, c_rms_str, c_pk_str);
+                        send_websocket_frame(client_fds[i], msg);
+                        
+                        free(msg);
+                        free(p_rms_str); free(p_pk_str); free(c_rms_str); free(c_pk_str);
+                        session->last_vu_push_time = now;
+                    }
+                }
+                
+                if (session->signal_levels_subscribed) {
+                    bool send_pb = strcmp(session->signal_levels_side, "playback") == 0 || strcmp(session->signal_levels_side, "both") == 0;
+                    bool send_cap = strcmp(session->signal_levels_side, "capture") == 0 || strcmp(session->signal_levels_side, "both") == 0;
+                    
+                    if (send_pb && pb_channels > 0) {
+                        char* rms_str = (char*)malloc(pb_channels * 30 + 10);
+                        char* pk_str = (char*)malloc(pb_channels * 30 + 10);
+                        format_double_array(current_pb_rms, pb_channels, rms_str, pb_channels * 30 + 10);
+                        format_double_array(current_pb_peak, pb_channels, pk_str, pb_channels * 30 + 10);
+                        
+                        char* msg = (char*)malloc(pb_channels * 100 + 200);
+                        sprintf(msg, "{\"SignalLevelsEvent\":{\"result\":\"Ok\",\"value\":{\"side\":\"playback\",\"rms\":%s,\"peak\":%s}}}", rms_str, pk_str);
+                        send_websocket_frame(client_fds[i], msg);
+                        
+                        free(msg);
+                        free(rms_str); free(pk_str);
+                    }
+                    if (send_cap && cap_channels > 0) {
+                        char* rms_str = (char*)malloc(cap_channels * 30 + 10);
+                        char* pk_str = (char*)malloc(cap_channels * 30 + 10);
+                        format_double_array(current_cap_rms, cap_channels, rms_str, cap_channels * 30 + 10);
+                        format_double_array(current_cap_peak, cap_channels, pk_str, cap_channels * 30 + 10);
+                        
+                        char* msg = (char*)malloc(cap_channels * 100 + 200);
+                        sprintf(msg, "{\"SignalLevelsEvent\":{\"result\":\"Ok\",\"value\":{\"side\":\"capture\",\"rms\":%s,\"peak\":%s}}}", rms_str, pk_str);
+                        send_websocket_frame(client_fds[i], msg);
+                        
+                        free(msg);
+                        free(rms_str); free(pk_str);
+                    }
+                }
+            }
+            
+            if (current_cap_peak) free(current_cap_peak);
+            if (current_cap_rms) free(current_cap_rms);
+            if (current_pb_peak) free(current_pb_peak);
+            if (current_pb_rms) free(current_pb_rms);
+        }
+        
         if (ret > 0) {
             if (fds[0].revents & POLLIN) {
                 int cfd = accept(server->server_fd, NULL, NULL);
                 if (cfd >= 0 && num_clients < 32) {
-                    client_fds[num_clients++] = cfd;
+                    client_fds[num_clients] = cfd;
+                    last_state[num_clients][0] = '\0';
+                    
+                    client_session_t* session = &server->client_sessions[num_clients];
+                    memset(session, 0, sizeof(client_session_t));
+                    uint64_t now_ms = get_time_ms();
+                    session->last_cap_peak_time = now_ms;
+                    session->last_cap_rms_time = now_ms;
+                    session->last_pb_peak_time = now_ms;
+                    session->last_pb_rms_time = now_ms;
+                    
+                    num_clients++;
                 } else if (cfd >= 0) {
                     close(cfd);
                 }
@@ -300,14 +2309,21 @@ static void* server_thread_func(void* arg) {
                     ssize_t n = recv(client_fds[i], buf, sizeof(buf) - 1, 0);
                     if (n <= 0) {
                         close(client_fds[i]);
+                        
+                        if (server->client_sessions[i].vu_pb_rms) free(server->client_sessions[i].vu_pb_rms);
+                        if (server->client_sessions[i].vu_pb_peak) free(server->client_sessions[i].vu_pb_peak);
+                        if (server->client_sessions[i].vu_cap_rms) free(server->client_sessions[i].vu_cap_rms);
+                        if (server->client_sessions[i].vu_cap_peak) free(server->client_sessions[i].vu_cap_peak);
+                        
                         for (int j = i; j < num_clients - 1; j++) {
                             client_fds[j] = client_fds[j+1];
+                            strcpy(last_state[j], last_state[j+1]);
+                            server->client_sessions[j] = server->client_sessions[j+1];
                         }
                         num_clients--;
                         i--;
                     } else {
                         buf[n] = '\0';
-                        // Check if WebSocket HTTP Upgrade (RFC 6455 Section 4.2 handshake: verify Sec-WebSocket-Key and reply with Sec-WebSocket-Accept GUID hash)
                         if (strncmp(buf, "GET ", 4) == 0 && strstr(buf, "Upgrade: ")) {
                             char* key_ptr = strstr(buf, "Sec-WebSocket-Key: ");
                             if (key_ptr) {
@@ -342,12 +2358,17 @@ static void* server_thread_func(void* arg) {
                             continue;
                         }
                         
-                        // Check if WebSocket text frame (RFC 6455 Section 5.2: handle opcode 0x81/0x88, unmask client payload with 4-byte masking key, and format response frame)
-                        if ((unsigned char)buf[0] == 0x81 || (unsigned char)buf[0] == 0x88) {
-                            if ((unsigned char)buf[0] == 0x88) {
+                        if ((unsigned char)buf[0] == 0x81 || ((unsigned char)buf[0] & 0x7F) == 0x08) {
+                            if (((unsigned char)buf[0] & 0x7F) == 0x08) {
                                 close(client_fds[i]);
+                                if (server->client_sessions[i].vu_pb_rms) free(server->client_sessions[i].vu_pb_rms);
+                                if (server->client_sessions[i].vu_pb_peak) free(server->client_sessions[i].vu_pb_peak);
+                                if (server->client_sessions[i].vu_cap_rms) free(server->client_sessions[i].vu_cap_rms);
+                                if (server->client_sessions[i].vu_cap_peak) free(server->client_sessions[i].vu_cap_peak);
                                 for (int j = i; j < num_clients - 1; j++) {
                                     client_fds[j] = client_fds[j+1];
+                                    strcpy(last_state[j], last_state[j+1]);
+                                    server->client_sessions[j] = server->client_sessions[j+1];
                                 }
                                 num_clients--;
                                 i--;
@@ -369,33 +2390,18 @@ static void* server_thread_func(void* arg) {
                             }
                             payload[payload_len] = '\0';
                             
-                            char response[4096];
+                            char response[16384];
                             response[0] = '\0';
-                            websocket_server_handle_command(server, payload, response, sizeof(response));
+                            websocket_server_handle_command(server, i, payload, response, sizeof(response));
                             if (response[0] != '\0') {
-                                size_t resp_len = strlen(response);
-                                char frame[4100];
-                                frame[0] = (char)0x81;
-                                int header_len = 2;
-                                if (resp_len < 126) {
-                                    frame[1] = (char)resp_len;
-                                } else if (resp_len <= 65535) {
-                                    frame[1] = (char)126;
-                                    frame[2] = (char)((resp_len >> 8) & 0xFF);
-                                    frame[3] = (char)(resp_len & 0xFF);
-                                    header_len = 4;
-                                }
-                                memcpy(&frame[header_len], response, resp_len);
-                                send(client_fds[i], frame, header_len + resp_len, 0);
+                                send_websocket_frame(client_fds[i], response);
                             }
                             continue;
                         }
-
-                        // Continue receiving
-                        // Raw text / JSON over socket
-                        char response[4096];
+                        
+                        char response[16384];
                         response[0] = '\0';
-                        websocket_server_handle_command(server, buf, response, sizeof(response));
+                        websocket_server_handle_command(server, i, buf, response, sizeof(response));
                         if (response[0] != '\0') {
                             send(client_fds[i], response, strlen(response), 0);
                         }
@@ -465,7 +2471,29 @@ void websocket_server_free(websocket_server_t* server) {
     if (!server) return;
     websocket_server_stop(server);
     if (server->previous_config_json) free(server->previous_config_json);
+    if (server->active_config_json) free(server->active_config_json);
     if (server->active_config_title) free(server->active_config_title);
     if (server->active_config_description) free(server->active_config_description);
+    
+    // Free level history arrays
+    for (size_t i = 0; i < 300; i++) {
+        if (server->capture_peak_history.samples[i].levels) free(server->capture_peak_history.samples[i].levels);
+        if (server->capture_rms_history.samples[i].levels) free(server->capture_rms_history.samples[i].levels);
+        if (server->playback_peak_history.samples[i].levels) free(server->playback_peak_history.samples[i].levels);
+        if (server->playback_rms_history.samples[i].levels) free(server->playback_rms_history.samples[i].levels);
+    }
+    
+    // Free global peak arrays
+    if (server->capture_global_peaks) free(server->capture_global_peaks);
+    if (server->playback_global_peaks) free(server->playback_global_peaks);
+    
+    // Free client sessions
+    for (size_t i = 0; i < 32; i++) {
+        if (server->client_sessions[i].vu_pb_rms) free(server->client_sessions[i].vu_pb_rms);
+        if (server->client_sessions[i].vu_pb_peak) free(server->client_sessions[i].vu_pb_peak);
+        if (server->client_sessions[i].vu_cap_rms) free(server->client_sessions[i].vu_cap_rms);
+        if (server->client_sessions[i].vu_cap_peak) free(server->client_sessions[i].vu_cap_peak);
+    }
+    
     free(server);
 }
