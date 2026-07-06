@@ -36,20 +36,17 @@ lib: $(LIB_TARGET)
 # Compile library source files into object files (once per file)
 $(OBJ_DIR)/%.o: $(ROOT_DIR)/%.c
 	@mkdir -p $(dir $@)
-	@echo "CC $<"
-	@$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # Archive object files into static library
 $(LIB_TARGET): $(OBJS)
-	@echo "AR $@"
 	@rm -f $@
-	@$(AR) rcs $@ $(OBJS)
+	$(AR) rcs $@ $(OBJS)
 
 # Build test binaries by linking against libdsp.a
 $(ROOT_DIR)/Tests/CLibTests/bin/test_%: $(ROOT_DIR)/Tests/CLibTests/test_%.c $(LIB_TARGET)
 	@mkdir -p $(dir $@)
-	@echo "LINK $@"
-	@$(CC) $(CFLAGS) $< $(LIB_TARGET) $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) $< $(LIB_TARGET) $(LDFLAGS) -o $@
 
 BENCH_NAMES := test_filter_benchmark test_dop_benchmark test_resampler_matrix
 BENCH_BINS := $(patsubst %, $(ROOT_DIR)/Tests/CLibTests/bin/%, $(BENCH_NAMES))
@@ -75,8 +72,7 @@ cli: $(CLI_BIN)
 
 $(CLI_BIN): $(CLI_SRC) $(LIB_TARGET)
 	@mkdir -p $(dir $@)
-	@echo "LINK $@"
-	@$(CC) $(CFLAGS) $< $(LIB_TARGET) $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) $< $(LIB_TARGET) $(LDFLAGS) -o $@
 
 # Windows cross-compilation settings
 WIN_CC := x86_64-w64-mingw32-gcc
@@ -87,14 +83,12 @@ WIN_LIB_TARGET := $(ROOT_DIR)/Sources/CDSP/libdsp_win.a
 
 $(WIN_OBJ_DIR)/%.o: $(ROOT_DIR)/%.c
 	@mkdir -p $(dir $@)
-	@echo "WIN_CC $<"
-	@$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging -c $< -o $@
+	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging -c $< -o $@
 
 .PHONY: windows-lib
 windows-lib: $(WIN_OBJS)
-	@echo "WIN_AR $(WIN_LIB_TARGET)"
 	@rm -f $(WIN_LIB_TARGET)
-	@$(WIN_AR) rcs $(WIN_LIB_TARGET) $(WIN_OBJS)
+	$(WIN_AR) rcs $(WIN_LIB_TARGET) $(WIN_OBJS)
 
 clean:
 	rm -rf $(OBJ_DIR) $(WIN_OBJ_DIR) $(LIB_TARGET) $(WIN_LIB_TARGET) $(ROOT_DIR)/Tests/CLibTests/bin $(ROOT_DIR)/Sources/CDSP/bin

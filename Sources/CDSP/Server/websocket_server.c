@@ -2112,7 +2112,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           "{\"InvalidRequestError\":\"Could not parse PatchConfig command\"}",
           NULL, out_response, max_len);
     }
-  patch_config_done:;
   } else if (strstr(command_text, "\"GetFaderVolume\"")) {
     double idx_val;
     if (extract_json_double_value(command_text, "GetFaderVolume", &idx_val)) {
@@ -2256,7 +2255,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           "{\"InvalidRequestError\":\"Could not parse SetFaderMute array\"}",
           NULL, out_response, max_len);
     }
-  fader_mute_done:;
   } else if (strstr(command_text, "\"ToggleFaderMute\"")) {
     double idx_val;
     if (extract_json_double_value(command_text, "ToggleFaderMute", &idx_val)) {
