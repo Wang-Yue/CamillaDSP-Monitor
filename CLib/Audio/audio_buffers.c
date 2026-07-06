@@ -14,7 +14,7 @@ audio_buffers_t* audio_buffers_create(size_t channels, size_t capacity) {
     buf->capacity = capacity;
     
     size_t total = channels * capacity;
-    buf->storage = (prc_fmt_t*)calloc(total, sizeof(prc_fmt_t));
+    buf->storage = (double*)calloc(total, sizeof(double));
     buf->channel_buffers = (mutable_waveform_t*)malloc(channels * sizeof(mutable_waveform_t));
     
     for (size_t ch = 0; ch < channels; ch++) {
@@ -24,7 +24,7 @@ audio_buffers_t* audio_buffers_create(size_t channels, size_t capacity) {
 }
 
 /// Allocate a fresh buffer pool and copy existing waveform data into it.
-audio_buffers_t* audio_buffers_copy_from(const prc_fmt_t* const* waveforms, const size_t* channel_lengths, size_t channels) {
+audio_buffers_t* audio_buffers_copy_from(const double* const* waveforms, const size_t* channel_lengths, size_t channels) {
     if (channels == 0) return NULL;
     size_t max_cap = 0;
     for (size_t ch = 0; ch < channels; ch++) {
@@ -38,7 +38,7 @@ audio_buffers_t* audio_buffers_copy_from(const prc_fmt_t* const* waveforms, cons
     for (size_t ch = 0; ch < channels; ch++) {
         size_t len = channel_lengths[ch];
         if (len > 0 && waveforms[ch]) {
-            memcpy(buf->channel_buffers[ch], waveforms[ch], len * sizeof(prc_fmt_t));
+            memcpy(buf->channel_buffers[ch], waveforms[ch], len * sizeof(double));
         }
     }
     return buf;

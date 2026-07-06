@@ -46,9 +46,9 @@ TEST(writes_are_isolated_per_channel) {
 }
 
 TEST(copying_init_matches_source) {
-    prc_fmt_t w0[] = {1.0, 2.0, 3.0, 4.0};
-    prc_fmt_t w1[] = {-1.0, -2.0, -3.0, -4.0};
-    const prc_fmt_t* waveforms[] = {w0, w1};
+    double w0[] = {1.0, 2.0, 3.0, 4.0};
+    double w1[] = {-1.0, -2.0, -3.0, -4.0};
+    const double* waveforms[] = {w0, w1};
     size_t lengths[] = {4, 4};
     
     audio_buffers_t* buffers = audio_buffers_copy_from(waveforms, lengths, 2);
@@ -66,9 +66,9 @@ TEST(copying_init_matches_source) {
 }
 
 TEST(copying_init_zero_pads_shorter_channels) {
-    prc_fmt_t w0[] = {1.0, 2.0, 3.0, 4.0};
-    prc_fmt_t w1[] = {9.0, 8.0};
-    const prc_fmt_t* waveforms[] = {w0, w1};
+    double w0[] = {1.0, 2.0, 3.0, 4.0};
+    double w1[] = {9.0, 8.0};
+    const double* waveforms[] = {w0, w1};
     size_t lengths[] = {4, 2};
     
     audio_buffers_t* buffers = audio_buffers_copy_from(waveforms, lengths, 2);

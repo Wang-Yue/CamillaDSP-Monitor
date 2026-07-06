@@ -4,19 +4,19 @@
 #include <math.h>
 
 // MARK: - NoiseShaper
-noise_shaper_t* noise_shaper_create(const prc_fmt_t* filter_coeffs, size_t count) {
+noise_shaper_t* noise_shaper_create(const double* filter_coeffs, size_t count) {
     if (!filter_coeffs || count == 0) return NULL;
     noise_shaper_t* shaper = (noise_shaper_t*)malloc(sizeof(noise_shaper_t));
     if (!shaper) return NULL;
-    shaper->filter = (prc_fmt_t*)malloc(count * sizeof(prc_fmt_t));
-    shaper->buffer = (prc_fmt_t*)calloc(count, sizeof(prc_fmt_t));
-    memcpy(shaper->filter, filter_coeffs, count * sizeof(prc_fmt_t));
+    shaper->filter = (double*)malloc(count * sizeof(double));
+    shaper->buffer = (double*)calloc(count, sizeof(double));
+    memcpy(shaper->filter, filter_coeffs, count * sizeof(double));
     shaper->filter_count = count;
     shaper->write_index = 0;
     return shaper;
 }
 
-prc_fmt_t noise_shaper_process(noise_shaper_t* shaper, prc_fmt_t scaled, prc_fmt_t dither) {
+double noise_shaper_process(noise_shaper_t* shaper, double scaled, double dither) {
     if (!shaper) return round(scaled + dither);
     double filt_buf = 0.0;
     size_t count = shaper->filter_count;
@@ -45,11 +45,11 @@ void noise_shaper_free(noise_shaper_t* shaper) {
 noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
     switch (type) {
     case DITHER_TYPE_FWEIGHTED_441: {
-        const prc_fmt_t c[] = {2.412, -3.370, 3.937, -4.174, 3.353, -2.205, 1.281, -0.569, 0.0847};
+        const double c[] = {2.412, -3.370, 3.937, -4.174, 3.353, -2.205, 1.281, -0.569, 0.0847};
         return noise_shaper_create(c, 9);
     }
     case DITHER_TYPE_FWEIGHTED_LONG_441: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             2.391510, -3.284444, 3.679506, -3.635044, 2.524185, -1.146701, 0.115354, 0.513745,
             -0.749277, 0.512386, -0.749277, 0.512386, -0.188997, -0.043705, 0.149843, -0.151186,
             0.076302, -0.012070, -0.021127, 0.025232, -0.016121, 0.004453, 0.000876, -0.001799,
@@ -58,27 +58,27 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 26);
     }
     case DITHER_TYPE_FWEIGHTED_SHORT_441: {
-        const prc_fmt_t c[] = {1.623, -0.982, 0.109};
+        const double c[] = {1.623, -0.982, 0.109};
         return noise_shaper_create(c, 3);
     }
     case DITHER_TYPE_GESEMANN_441: {
-        const prc_fmt_t c[] = {2.2061, -0.4706, -0.2534, -0.6214, 1.0587, 0.0676, -0.6054, -0.2738};
+        const double c[] = {2.2061, -0.4706, -0.2534, -0.6214, 1.0587, 0.0676, -0.6054, -0.2738};
         return noise_shaper_create(c, 8);
     }
     case DITHER_TYPE_GESEMANN_48: {
-        const prc_fmt_t c[] = {2.2374, -0.7339, -0.1251, -0.6033, 0.903, 0.0116, -0.5853, -0.2571};
+        const double c[] = {2.2374, -0.7339, -0.1251, -0.6033, 0.903, 0.0116, -0.5853, -0.2571};
         return noise_shaper_create(c, 8);
     }
     case DITHER_TYPE_LIPSHITZ_441: {
-        const prc_fmt_t c[] = {2.033, -2.165, 1.959, -1.590, 0.6149};
+        const double c[] = {2.033, -2.165, 1.959, -1.590, 0.6149};
         return noise_shaper_create(c, 5);
     }
     case DITHER_TYPE_LIPSHITZ_LONG_441: {
-        const prc_fmt_t c[] = {2.847, -4.685, 6.214, -7.184, 6.639, -5.032, 3.263, -1.632, 0.4191};
+        const double c[] = {2.847, -4.685, 6.214, -7.184, 6.639, -5.032, 3.263, -1.632, 0.4191};
         return noise_shaper_create(c, 9);
     }
     case DITHER_TYPE_SHIBATA_441: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             1.3568638563156128, -1.225293517112732, 0.623555064201355,
             -0.22562094032764435, -0.23557975888252258, 0.1353636234998703,
             -0.09153814613819122, -0.056445639580488205, 3.9614424167666584e-5,
@@ -91,7 +91,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 24);
     }
     case DITHER_TYPE_SHIBATA_HIGH_441: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             2.826326608657837, -5.35343599319458, 7.804205894470215,
             -9.67936897277832, 10.157135009765625, -9.439995765686035,
             7.614612579345703, -5.424517631530762, 3.247828245162964,
@@ -103,7 +103,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 20);
     }
     case DITHER_TYPE_SHIBATA_LOW_441: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             0.5954378247261047, -0.002507873112335801, -0.18518058955669403,
             -0.0010374293196946383, -0.10366342961788177, -0.053248628973960876,
             -8.403004903811961e-5, -3.856993302520095e-8, -0.02641301043331623,
@@ -112,7 +112,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 12);
     }
     case DITHER_TYPE_SHIBATA_48: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             1.4919577836990356, -1.3089178800582886, 0.5405163168907166,
             -0.00036113749956712127, -0.36303195357322693, 0.10911127924919128,
             0.007310638204216957, -0.115459144115448, 0.003772285534068942,
@@ -123,7 +123,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 16);
     }
     case DITHER_TYPE_SHIBATA_HIGH_48: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             3.2601516246795654, -6.55756950378418, 9.748664855957031,
             -11.713088989257813, 11.50462818145752, -9.485962867736816,
             6.40427303314209, -3.4772820472717285, 1.3327382802963257,
@@ -138,7 +138,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 28);
     }
     case DITHER_TYPE_SHIBATA_LOW_48: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             0.6481543779373169, -0.0001329232909483835, -0.1528443992137909,
             -0.024795081466436386, -0.02887929417192936, -0.09774130582809448,
             3.7233345210552216e-5, 3.0361816243384965e-6, -2.6851517759496346e-5,
@@ -148,7 +148,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 13);
     }
     case DITHER_TYPE_SHIBATA_882: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             2.0752036571502686, -1.4316110610961914, -4.1018622141564265e-5,
             0.3074778616428375, 0.015034947544336319, -0.002069007372483611,
             -0.09544544667005539, -0.017573365941643715, 0.001514684408903122,
@@ -160,7 +160,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 20);
     }
     case DITHER_TYPE_SHIBATA_LOW_882: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             0.8127508163452148, 1.3415416333373287e-7, -1.4003169781062752e-5,
             -0.02736665867269039, -0.06308479607105255, -0.00041124963900074363,
             -0.0014667811337858438, -0.0034636424388736486, -0.014447951689362526,
@@ -169,7 +169,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 10);
     }
     case DITHER_TYPE_SHIBATA_96: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             2.104111433029175, -1.4101417064666748, -0.003514738753437996,
             0.18617971241474152, 0.11117676645517349, -0.0013629450695589185,
             -0.05544671788811684, -0.05685991421341896, -0.0039573232643306255,
@@ -179,7 +179,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 14);
     }
     case DITHER_TYPE_SHIBATA_LOW_96: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             0.8336278200149536, 4.7663510827078426e-7, -5.592720481217839e-5,
             -0.0009176760795526206, -0.0850192978978157, -0.0003086409706156701,
             -2.747484904830344e-5, -3.4470554965082556e-5, -0.006816617213189602,
@@ -188,7 +188,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 11);
     }
     case DITHER_TYPE_SHIBATA_192: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             2.1174826622009277, -0.7930012941360474, -0.5887165069580078,
             -0.004517062101513147, -2.240059620817192e-5, 0.3498106598854065,
             0.0014674699632450938, -0.03528605028986931, -0.030574915930628777,
@@ -198,7 +198,7 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
         return noise_shaper_create(c, 14);
     }
     case DITHER_TYPE_SHIBATA_LOW_192: {
-        const prc_fmt_t c[] = {
+        const double c[] = {
             0.9298678636550903, 2.375700432821759e-6, 1.3239204008641536e-6,
             4.53364457086991e-8, -1.0855699201783864e-6, -7.519394671362534e-7,
             -0.01057471428066492, -0.01539737917482853, -0.007173464633524418,

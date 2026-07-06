@@ -35,7 +35,7 @@ TEST(ImpulseResponse) {
     biquad_filter_t* filter = biquad_filter_create("biquad", &coeffs);
     ASSERT_TRUE(filter != NULL);
     
-    prc_fmt_t wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     double expected[] = {0.215, 0.461, 0.281, 0.039, 0.004, 0.0, 0.0, 0.0};
     
     biquad_filter_process(filter, wave, 8);

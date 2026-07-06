@@ -49,22 +49,22 @@ void processing_parameters_free(processing_parameters_t* params) {
     free(params);
 }
 
-prc_fmt_t processing_parameters_get_target_volume_for_fader(const processing_parameters_t* params, fader_t fader) {
+double processing_parameters_get_target_volume_for_fader(const processing_parameters_t* params, fader_t fader) {
     if (!params || fader < 0 || fader >= FADER_COUNT) return 0.0;
     return atomic_double_get(&params->target_volumes[fader]);
 }
 
-void processing_parameters_set_target_volume_for_fader(processing_parameters_t* params, prc_fmt_t value, fader_t fader) {
+void processing_parameters_set_target_volume_for_fader(processing_parameters_t* params, double value, fader_t fader) {
     if (!params || fader < 0 || fader >= FADER_COUNT) return;
     atomic_double_set(&params->target_volumes[fader], value);
 }
 
-prc_fmt_t processing_parameters_get_current_volume_for_fader(const processing_parameters_t* params, fader_t fader) {
+double processing_parameters_get_current_volume_for_fader(const processing_parameters_t* params, fader_t fader) {
     if (!params || fader < 0 || fader >= FADER_COUNT) return 0.0;
     return atomic_double_get(&params->current_volumes[fader]);
 }
 
-void processing_parameters_set_current_volume_for_fader(processing_parameters_t* params, prc_fmt_t value, fader_t fader) {
+void processing_parameters_set_current_volume_for_fader(processing_parameters_t* params, double value, fader_t fader) {
     if (!params || fader < 0 || fader >= FADER_COUNT) return;
     atomic_double_set(&params->current_volumes[fader], value);
 }
@@ -79,7 +79,7 @@ void processing_parameters_set_muted_for_fader(processing_parameters_t* params, 
     atomic_store_explicit(&params->muted[fader], value, memory_order_release);
 }
 
-void processing_parameters_get_capture_signal_peak(const processing_parameters_t* params, prc_fmt_t* out_levels, size_t count) {
+void processing_parameters_get_capture_signal_peak(const processing_parameters_t* params, double* out_levels, size_t count) {
     if (!params || !out_levels || !params->capture_signal_peak) return;
     size_t limit = count < params->capture_channels ? count : params->capture_channels;
     for (size_t i = 0; i < limit; i++) {
@@ -87,7 +87,7 @@ void processing_parameters_get_capture_signal_peak(const processing_parameters_t
     }
 }
 
-void processing_parameters_set_capture_signal_peak(processing_parameters_t* params, const prc_fmt_t* levels, size_t count) {
+void processing_parameters_set_capture_signal_peak(processing_parameters_t* params, const double* levels, size_t count) {
     if (!params || !levels || !params->capture_signal_peak) return;
     size_t limit = count < params->capture_channels ? count : params->capture_channels;
     for (size_t i = 0; i < limit; i++) {
@@ -95,7 +95,7 @@ void processing_parameters_set_capture_signal_peak(processing_parameters_t* para
     }
 }
 
-void processing_parameters_get_capture_signal_rms(const processing_parameters_t* params, prc_fmt_t* out_levels, size_t count) {
+void processing_parameters_get_capture_signal_rms(const processing_parameters_t* params, double* out_levels, size_t count) {
     if (!params || !out_levels || !params->capture_signal_rms) return;
     size_t limit = count < params->capture_channels ? count : params->capture_channels;
     for (size_t i = 0; i < limit; i++) {
@@ -103,7 +103,7 @@ void processing_parameters_get_capture_signal_rms(const processing_parameters_t*
     }
 }
 
-void processing_parameters_set_capture_signal_rms(processing_parameters_t* params, const prc_fmt_t* levels, size_t count) {
+void processing_parameters_set_capture_signal_rms(processing_parameters_t* params, const double* levels, size_t count) {
     if (!params || !levels || !params->capture_signal_rms) return;
     size_t limit = count < params->capture_channels ? count : params->capture_channels;
     for (size_t i = 0; i < limit; i++) {
@@ -111,7 +111,7 @@ void processing_parameters_set_capture_signal_rms(processing_parameters_t* param
     }
 }
 
-void processing_parameters_get_playback_signal_peak(const processing_parameters_t* params, prc_fmt_t* out_levels, size_t count) {
+void processing_parameters_get_playback_signal_peak(const processing_parameters_t* params, double* out_levels, size_t count) {
     if (!params || !out_levels || !params->playback_signal_peak) return;
     size_t limit = count < params->playback_channels ? count : params->playback_channels;
     for (size_t i = 0; i < limit; i++) {
@@ -119,7 +119,7 @@ void processing_parameters_get_playback_signal_peak(const processing_parameters_
     }
 }
 
-void processing_parameters_set_playback_signal_peak(processing_parameters_t* params, const prc_fmt_t* levels, size_t count) {
+void processing_parameters_set_playback_signal_peak(processing_parameters_t* params, const double* levels, size_t count) {
     if (!params || !levels || !params->playback_signal_peak) return;
     size_t limit = count < params->playback_channels ? count : params->playback_channels;
     for (size_t i = 0; i < limit; i++) {
@@ -127,7 +127,7 @@ void processing_parameters_set_playback_signal_peak(processing_parameters_t* par
     }
 }
 
-void processing_parameters_get_playback_signal_rms(const processing_parameters_t* params, prc_fmt_t* out_levels, size_t count) {
+void processing_parameters_get_playback_signal_rms(const processing_parameters_t* params, double* out_levels, size_t count) {
     if (!params || !out_levels || !params->playback_signal_rms) return;
     size_t limit = count < params->playback_channels ? count : params->playback_channels;
     for (size_t i = 0; i < limit; i++) {
@@ -135,7 +135,7 @@ void processing_parameters_get_playback_signal_rms(const processing_parameters_t
     }
 }
 
-void processing_parameters_set_playback_signal_rms(processing_parameters_t* params, const prc_fmt_t* levels, size_t count) {
+void processing_parameters_set_playback_signal_rms(processing_parameters_t* params, const double* levels, size_t count) {
     if (!params || !levels || !params->playback_signal_rms) return;
     size_t limit = count < params->playback_channels ? count : params->playback_channels;
     for (size_t i = 0; i < limit; i++) {
@@ -143,38 +143,38 @@ void processing_parameters_set_playback_signal_rms(processing_parameters_t* para
     }
 }
 
-/// Lock-free fixed-size `prc_fmt_t` level storage update helper.
+/// Lock-free fixed-size `double` level storage update helper.
 /// Maintains a simple interface without allocation on the audio thread.
-static prc_fmt_t update_levels_internal(const audio_chunk_t* chunk, atomic_double_t* peak_storage, atomic_double_t* rms_storage, size_t storage_count) {
+static double update_levels_internal(const audio_chunk_t* chunk, atomic_double_t* peak_storage, atomic_double_t* rms_storage, size_t storage_count) {
     if (!chunk || !peak_storage || !rms_storage) return -1000.0;
     size_t chunk_channels = audio_chunk_get_channels(chunk);
     size_t channel_count = chunk_channels < storage_count ? chunk_channels : storage_count;
     if (channel_count == 0) return -1000.0;
     size_t frame_count = chunk->valid_frames;
-    prc_fmt_t max_peak = -1000.0;
+    double max_peak = -1000.0;
 
     for (size_t i = 0; i < channel_count; i++) {
         waveform_t buffer = audio_chunk_get_channel(chunk, i);
         if (!buffer) continue;
 
-        prc_fmt_t peak_db = prc_fmt_to_db(dsp_ops_peak_absolute(buffer, frame_count));
+        double peak_db = doubleo_db(dsp_ops_peak_absolute(buffer, frame_count));
         atomic_double_set(&peak_storage[i], peak_db);
         if (peak_db > max_peak) {
             max_peak = peak_db;
         }
 
-        prc_fmt_t rms_db = prc_fmt_to_db(dsp_ops_rms(buffer, frame_count));
+        double rms_db = doubleo_db(dsp_ops_rms(buffer, frame_count));
         atomic_double_set(&rms_storage[i], rms_db);
     }
     return max_peak;
 }
 
-prc_fmt_t processing_parameters_update_capture_levels(processing_parameters_t* params, const audio_chunk_t* chunk) {
+double processing_parameters_update_capture_levels(processing_parameters_t* params, const audio_chunk_t* chunk) {
     if (!params) return -1000.0;
     return update_levels_internal(chunk, params->capture_signal_peak, params->capture_signal_rms, params->capture_channels);
 }
 
-prc_fmt_t processing_parameters_update_playback_levels(processing_parameters_t* params, const audio_chunk_t* chunk) {
+double processing_parameters_update_playback_levels(processing_parameters_t* params, const audio_chunk_t* chunk) {
     if (!params) return -1000.0;
     return update_levels_internal(chunk, params->playback_signal_peak, params->playback_signal_rms, params->playback_channels);
 }

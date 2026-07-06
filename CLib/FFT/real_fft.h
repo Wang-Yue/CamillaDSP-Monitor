@@ -38,7 +38,7 @@
 //   - https://www.dsprelated.com/showarticle/4.php (Real FFT from complex FFT)
 //   - https://en.wikipedia.org/wiki/Fast_Fourier_transform#Real-input_FFTs
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include <stddef.h>
 #include <stdbool.h>
 

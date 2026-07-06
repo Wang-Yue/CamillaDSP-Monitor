@@ -326,7 +326,7 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline, const audio_chunk_t* inp
         waveform_t src = audio_chunk_get_channel(input, ch);
         mutable_waveform_t dst = audio_chunk_get_channel(pipeline->capture_scratch, ch);
         if (src && dst && valid_frames > 0) {
-            memcpy(dst, src, valid_frames * sizeof(prc_fmt_t));
+            memcpy(dst, src, valid_frames * sizeof(double));
         }
     }
     pipeline->capture_scratch->valid_frames = valid_frames;
@@ -399,7 +399,7 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline, const audio_chunk_t* inp
         waveform_t src = audio_chunk_get_channel(current_chunk, ch);
         mutable_waveform_t dst = audio_chunk_get_channel(output, ch);
         if (src && dst && valid_frames > 0) {
-            memcpy(dst, src, valid_frames * sizeof(prc_fmt_t));
+            memcpy(dst, src, valid_frames * sizeof(double));
         }
     }
     return PIPELINE_OK;

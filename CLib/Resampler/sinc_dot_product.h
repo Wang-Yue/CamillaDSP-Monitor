@@ -11,7 +11,7 @@
 #define CLIB_RESAMPLER_SINC_DOT_PRODUCT_H
 
 #include <stddef.h>
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 
 #ifdef __cplusplus
 extern "C" {

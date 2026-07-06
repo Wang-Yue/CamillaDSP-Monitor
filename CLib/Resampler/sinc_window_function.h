@@ -5,7 +5,7 @@
 #define CLIB_RESAMPLER_SINC_WINDOW_FUNCTION_H
 
 #include <stddef.h>
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 
 #ifdef __cplusplus
 extern "C" {

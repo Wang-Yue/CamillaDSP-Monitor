@@ -4,7 +4,7 @@
 // RME ADI-2 DAC Loudness Curves
 // https://www.rme-audio.de/downloads/adi2dac_e.pdf
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Audio/processing_parameters.h"
 #include "Config/filter_config_types.h"
 #include "biquad.h"
@@ -21,9 +21,9 @@ typedef struct {
     loudness_parameters_t params;
     biquad_filter_t* low_shelf_filter;
     biquad_filter_t* high_shelf_filter;
-    prc_fmt_t last_volume;
+    double last_volume;
     bool is_processing_active;
-    prc_fmt_t midband_attenuation_db;
+    double midband_attenuation_db;
     processing_parameters_t* processing_parameters;
 } loudness_filter_t;
 

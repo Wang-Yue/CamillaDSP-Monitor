@@ -1,7 +1,7 @@
 #ifndef CLIB_FILTERS_DIFFEQ_H
 #define CLIB_FILTERS_DIFFEQ_H
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 #include <stddef.h>
 
@@ -13,10 +13,10 @@ extern "C" {
 // Normalize by a[0]
 typedef struct {
     char name[64];
-    prc_fmt_t* x;
-    prc_fmt_t* y;
-    prc_fmt_t* a;
-    prc_fmt_t* b;
+    double* x;
+    double* y;
+    double* a;
+    double* b;
     size_t a_count;
     size_t b_count;
     size_t idx_x;

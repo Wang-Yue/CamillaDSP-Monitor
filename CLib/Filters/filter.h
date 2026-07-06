@@ -1,7 +1,7 @@
 #ifndef CLIB_FILTERS_FILTER_H
 #define CLIB_FILTERS_FILTER_H
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Audio/processing_parameters.h"
 #include "Config/filter_config_types.h"
 #include "biquad.h"

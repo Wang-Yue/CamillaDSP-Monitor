@@ -3,11 +3,11 @@
 #include "../CLib/Filters/limiter.h"
 #include <math.h>
 
-static bool is_close(prc_fmt_t left, prc_fmt_t right, prc_fmt_t maxdiff) {
+static bool is_close(double left, double right, double maxdiff) {
     return fabs(left - right) < maxdiff;
 }
 
-static bool compare_waveforms(const prc_fmt_t* left, const prc_fmt_t* right, size_t count, prc_fmt_t maxdiff) {
+static bool compare_waveforms(const double* left, const double* right, size_t count, double maxdiff) {
     for (size_t i = 0; i < count; i++) {
         if (!is_close(left[i], right[i], maxdiff)) return false;
     }
@@ -24,10 +24,10 @@ TEST(test_lookahead_limiter_basic) {
     lookahead_limiter_filter_t* filter = lookahead_limiter_filter_create("lookahead_limiter", &params, 48000, 1024);
     ASSERT_TRUE(filter != NULL);
 
-    prc_fmt_t input[] = {
+    double input[] = {
         1.0, 1.0, 1.0, 1.0, 1.0, 2.0, -2.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0
     };
-    prc_fmt_t expected[] = {
+    double expected[] = {
         0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.875, 0.75, 0.625, 1.0, -1.0,
         pow(0.5, 1.0 / 2.0), 0.625, 1.0, pow(0.5, 1.0 / 2.0), pow(0.5, 1.0 / 4.0),
         pow(0.5, 1.0 / 8.0), pow(0.5, 1.0 / 16.0), pow(0.5, 1.0 / 32.0)
@@ -49,8 +49,8 @@ TEST(test_lookahead_limiter_same_as_limiter) {
     limiter_filter_t* filter_limiter = limiter_filter_create("limiter", &params_limiter);
     ASSERT_TRUE(filter_limiter != NULL);
 
-    prc_fmt_t lookahead_input[] = {0.5, 1.0, 2.0, -2.0, -1.0, -0.5, 1.5, -1.5, 0.0};
-    prc_fmt_t limiter_input[] = {0.5, 1.0, 2.0, -2.0, -1.0, -0.5, 1.5, -1.5, 0.0};
+    double lookahead_input[] = {0.5, 1.0, 2.0, -2.0, -1.0, -0.5, 1.5, -1.5, 0.0};
+    double limiter_input[] = {0.5, 1.0, 2.0, -2.0, -1.0, -0.5, 1.5, -1.5, 0.0};
 
     lookahead_limiter_filter_process(filter_lookahead, lookahead_input, 9);
     limiter_filter_process(filter_limiter, limiter_input, 9);
@@ -69,7 +69,7 @@ TEST(test_lookahead_limiter_zero_release) {
     };
     lookahead_limiter_filter_t* filter = lookahead_limiter_filter_create("lookahead", &params, 48000, 1024);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t input[] = {1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0};
+    double input[] = {1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0};
     lookahead_limiter_filter_process(filter, input, 11);
     for (size_t i = 0; i < 11; i++) {
         ASSERT_TRUE(fabs(input[i]) <= 1.0);
@@ -84,13 +84,13 @@ TEST(test_lookahead_limiter_state_persistence) {
     lookahead_limiter_filter_t* filter = lookahead_limiter_filter_create("lookahead", &params, 48000, 1024);
     ASSERT_TRUE(filter != NULL);
 
-    prc_fmt_t buf1[] = {1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-    prc_fmt_t expected1[] = {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.9, 0.8, 0.7, 0.6, 1.0};
+    double buf1[] = {1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    double expected1[] = {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.9, 0.8, 0.7, 0.6, 1.0};
     lookahead_limiter_filter_process(filter, buf1, 11);
     ASSERT_TRUE(compare_waveforms(buf1, expected1, 11, 1e-6));
 
-    prc_fmt_t buf2[] = {1.0, 1.0, 1.0, 1.0};
-    prc_fmt_t expected2[] = {
+    double buf2[] = {1.0, 1.0, 1.0, 1.0};
+    double expected2[] = {
         pow(0.5, 1.0 / 2.0), pow(0.5, 1.0 / 4.0), pow(0.5, 1.0 / 8.0), pow(0.5, 1.0 / 16.0)
     };
     lookahead_limiter_filter_process(filter, buf2, 4);
@@ -112,7 +112,7 @@ TEST(test_lookahead_limiter_chunksize_larger_than_samplerate) {
     };
     lookahead_limiter_filter_t* filter = lookahead_limiter_filter_create("lookahead", &params, 4, 8);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t input[] = {1.0, 1.0, 2.0, 1.0, 1.0, -2.0, 1.0, 1.0};
+    double input[] = {1.0, 1.0, 2.0, 1.0, 1.0, -2.0, 1.0, 1.0};
     lookahead_limiter_filter_process(filter, input, 8);
     lookahead_limiter_filter_free(filter);
 }

@@ -1,7 +1,7 @@
 #ifndef CLIB_FILTERS_LIMITER_H
 #define CLIB_FILTERS_LIMITER_H
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 #include <stddef.h>
 #include <stdbool.h>
@@ -12,7 +12,7 @@ extern "C" {
 
 typedef struct {
     char name[64];
-    prc_fmt_t clip_limit;
+    double clip_limit;
     bool soft_clip;
 } limiter_filter_t;
 

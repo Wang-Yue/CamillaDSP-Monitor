@@ -1,7 +1,7 @@
 #ifndef CLIB_FILTERS_VOLUME_H
 #define CLIB_FILTERS_VOLUME_H
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Audio/processing_parameters.h"
 #include "Config/filter_config_types.h"
 #include <stddef.h>
@@ -18,14 +18,14 @@ typedef struct {
     size_t chunk_size;
     // Ramp state (tracks fader ramping)
     int ramptime_in_chunks;
-    prc_fmt_t current_volume;
+    double current_volume;
     double target_volume;
-    prc_fmt_t target_linear_gain;
+    double target_linear_gain;
     bool mute;
-    prc_fmt_t ramp_start;
+    double ramp_start;
     int ramp_step;
     // Pre-allocated ramp gains for the current chunk to avoid heap allocation on the hot path
-    prc_fmt_t* current_ramp_gains;
+    double* current_ramp_gains;
     processing_parameters_t* processing_parameters;
 } volume_filter_t;
 

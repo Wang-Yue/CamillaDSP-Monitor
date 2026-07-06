@@ -37,7 +37,7 @@ compressor_processor_t* compressor_processor_create(const char* name, const comp
     }
 
     processor->scratch_capacity = chunk_size;
-    processor->scratch = (prc_fmt_t*)calloc(chunk_size, sizeof(prc_fmt_t));
+    processor->scratch = (double*)calloc(chunk_size, sizeof(double));
     if (!processor->scratch) {
         free(processor);
         return NULL;
@@ -72,7 +72,7 @@ compressor_processor_t* compressor_processor_create(const char* name, const comp
         return NULL;
     }
 
-    prc_fmt_t srate = (prc_fmt_t)sample_rate;
+    double srate = (double)sample_rate;
     processor->attack = exp(-1.0 / srate / params->attack);
     processor->release = exp(-1.0 / srate / params->release);
     processor->threshold = params->threshold;
@@ -154,7 +154,7 @@ void compressor_processor_process(compressor_processor_t* processor, audio_chunk
         }
         val += processor->makeup_gain;
         // Convert gain reduction in dB to linear gain multiplier
-        processor->scratch[i] = prc_fmt_from_db(val);
+        processor->scratch[i] = double_from_db(val);
     }
 
     // Step 4: Apply linear gain to all processed channels
@@ -195,7 +195,7 @@ void compressor_processor_update_parameters(compressor_processor_t* processor, c
         memcpy(processor->process_channels, params->process_channels, processor->process_channels_count * sizeof(int));
     }
 
-    prc_fmt_t srate = (prc_fmt_t)sample_rate;
+    double srate = (double)sample_rate;
     processor->attack = exp(-1.0 / srate / params->attack);
     processor->release = exp(-1.0 / srate / params->release);
     processor->threshold = params->threshold;

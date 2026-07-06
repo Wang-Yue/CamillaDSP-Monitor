@@ -53,16 +53,16 @@ convolution_filter_t* convolution_filter_create(const char* name, const conv_par
     }
     size_t spec_len = filter->fft->spectrum_length;
 
-    const prc_fmt_t* coeffs = NULL;
+    const double* coeffs = NULL;
     size_t coeffs_count = 0;
-    prc_fmt_t* dummy_coeffs = NULL;
+    double* dummy_coeffs = NULL;
 
     if (params->type == CONV_TYPE_VALUES) {
         coeffs = params->values;
         coeffs_count = params->values_count;
     } else if (params->type == CONV_TYPE_DUMMY) {
         size_t len = params->length > 0 ? params->length : 1;
-        dummy_coeffs = (prc_fmt_t*)calloc(len, sizeof(prc_fmt_t));
+        dummy_coeffs = (double*)calloc(len, sizeof(double));
         dummy_coeffs[0] = 1.0;
         coeffs = dummy_coeffs;
         coeffs_count = len;
@@ -77,24 +77,24 @@ convolution_filter_t* convolution_filter_create(const char* name, const conv_par
 
     size_t num_seg = (coeffs_count + chunk_size - 1) / chunk_size;
     filter->num_segments = num_seg;
-    filter->spec_re = (prc_fmt_t**)malloc(num_seg * sizeof(prc_fmt_t*));
-    filter->spec_im = (prc_fmt_t**)malloc(num_seg * sizeof(prc_fmt_t*));
-    filter->hist_re = (prc_fmt_t**)malloc(num_seg * sizeof(prc_fmt_t*));
-    filter->hist_im = (prc_fmt_t**)malloc(num_seg * sizeof(prc_fmt_t*));
+    filter->spec_re = (double**)malloc(num_seg * sizeof(double*));
+    filter->spec_im = (double**)malloc(num_seg * sizeof(double*));
+    filter->hist_re = (double**)malloc(num_seg * sizeof(double*));
+    filter->hist_im = (double**)malloc(num_seg * sizeof(double*));
 
-    prc_fmt_t* scratch = (prc_fmt_t*)calloc(fft_len, sizeof(prc_fmt_t));
+    double* scratch = (double*)calloc(fft_len, sizeof(double));
     double inv_scale = 1.0 / (double)fft_len;
 
     /// Pre-scale and FFT each IR segment into split-complex spectrum
     /// storage. Static so it's reusable from both `init` and
     /// `updateCoefficients`.
     for (size_t s = 0; s < num_seg; s++) {
-        filter->spec_re[s] = (prc_fmt_t*)calloc(spec_len, sizeof(prc_fmt_t));
-        filter->spec_im[s] = (prc_fmt_t*)calloc(spec_len, sizeof(prc_fmt_t));
-        filter->hist_re[s] = (prc_fmt_t*)calloc(spec_len, sizeof(prc_fmt_t));
-        filter->hist_im[s] = (prc_fmt_t*)calloc(spec_len, sizeof(prc_fmt_t));
+        filter->spec_re[s] = (double*)calloc(spec_len, sizeof(double));
+        filter->spec_im[s] = (double*)calloc(spec_len, sizeof(double));
+        filter->hist_re[s] = (double*)calloc(spec_len, sizeof(double));
+        filter->hist_im[s] = (double*)calloc(spec_len, sizeof(double));
 
-        memset(scratch, 0, fft_len * sizeof(prc_fmt_t));
+        memset(scratch, 0, fft_len * sizeof(double));
         size_t offset = s * chunk_size;
         size_t copy_len = (coeffs_count > offset) ? (coeffs_count - offset) : 0;
         if (copy_len > chunk_size) copy_len = chunk_size;
@@ -110,10 +110,10 @@ convolution_filter_t* convolution_filter_create(const char* name, const conv_par
     if (dummy_coeffs) free(dummy_coeffs);
 
     filter->write_idx = 0;
-    filter->overlap_buffer = (prc_fmt_t*)calloc(chunk_size, sizeof(prc_fmt_t));
-    filter->time_buf = (prc_fmt_t*)calloc(fft_len, sizeof(prc_fmt_t));
-    filter->spec_accum_re = (prc_fmt_t*)calloc(spec_len, sizeof(prc_fmt_t));
-    filter->spec_accum_im = (prc_fmt_t*)calloc(spec_len, sizeof(prc_fmt_t));
+    filter->overlap_buffer = (double*)calloc(chunk_size, sizeof(double));
+    filter->time_buf = (double*)calloc(fft_len, sizeof(double));
+    filter->spec_accum_re = (double*)calloc(spec_len, sizeof(double));
+    filter->spec_accum_im = (double*)calloc(spec_len, sizeof(double));
 
     return filter;
 }
@@ -127,16 +127,16 @@ static void process_chunk(convolution_filter_t* filter, mutable_waveform_t wavef
     // 1. Stage the new block in the first `chunkSize` samples of
     //    `inputBuf` (`time_buf`); zero the second half (the FFT zero-pad) and any
     //    short tail of the first half (when `count < chunkSize`).
-    memcpy(filter->time_buf, filter->overlap_buffer, cs * sizeof(prc_fmt_t));
-    memcpy(filter->time_buf + cs, waveform, cs * sizeof(prc_fmt_t));
-    memcpy(filter->overlap_buffer, waveform, cs * sizeof(prc_fmt_t));
+    memcpy(filter->time_buf, filter->overlap_buffer, cs * sizeof(double));
+    memcpy(filter->time_buf + cs, waveform, cs * sizeof(double));
+    memcpy(filter->overlap_buffer, waveform, cs * sizeof(double));
 
     // 2. Advance the history index and FFT the new block into that
     //    slot. The slot now holds the spectrum of `inputBuf` (`time_buf`).
     real_fft_forward(filter->fft, filter->time_buf, filter->hist_re[widx], filter->hist_im[widx]);
 
-    memset(filter->spec_accum_re, 0, spec_len * sizeof(prc_fmt_t));
-    memset(filter->spec_accum_im, 0, spec_len * sizeof(prc_fmt_t));
+    memset(filter->spec_accum_re, 0, spec_len * sizeof(double));
+    memset(filter->spec_accum_im, 0, spec_len * sizeof(double));
 
     // 3. Spectrum-domain multiply-accumulate across the segment
     //    history. seg=0 pairs the newest input with coeff[0]; seg=k
@@ -146,12 +146,12 @@ static void process_chunk(convolution_filter_t* filter, mutable_waveform_t wavef
     //    segments use zvma (D = A·B + C, called in-place with C == D).
     for (size_t s = 0; s < num_seg; s++) {
         size_t hidx = (widx + num_seg - s) % num_seg;
-        const prc_fmt_t* hre = filter->hist_re[hidx];
-        const prc_fmt_t* him = filter->hist_im[hidx];
-        const prc_fmt_t* sre = filter->spec_re[s];
-        const prc_fmt_t* sim = filter->spec_im[s];
-        prc_fmt_t* acc_re = filter->spec_accum_re;
-        prc_fmt_t* acc_im = filter->spec_accum_im;
+        const double* hre = filter->hist_re[hidx];
+        const double* him = filter->hist_im[hidx];
+        const double* sre = filter->spec_re[s];
+        const double* sim = filter->spec_im[s];
+        double* acc_re = filter->spec_accum_re;
+        double* acc_im = filter->spec_accum_im;
 
         for (size_t k = 0; k < spec_len; k++) {
             acc_re[k] += hre[k] * sre[k] - him[k] * sim[k];
@@ -167,7 +167,7 @@ static void process_chunk(convolution_filter_t* filter, mutable_waveform_t wavef
     
     // 5. Overlap-save output: out[i] = ifft[i] + overlap_prev[i] for
     //    i in 0..<N; overlap_next = ifft[N..2N].
-    memcpy(waveform, filter->time_buf + cs, cs * sizeof(prc_fmt_t));
+    memcpy(waveform, filter->time_buf + cs, cs * sizeof(double));
 
     filter->write_idx = (widx + 1) % num_seg;
 }

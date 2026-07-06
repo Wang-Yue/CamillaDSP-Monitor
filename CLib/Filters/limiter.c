@@ -17,7 +17,7 @@ limiter_filter_t* limiter_filter_create(const char* name, const limiter_paramete
         strcpy(filter->name, "limiter");
     }
     double limit_db = params ? params->clip_limit : 0.0;
-    filter->clip_limit = prc_fmt_from_db(limit_db);
+    filter->clip_limit = double_from_db(limit_db);
     filter->soft_clip = params ? params->soft_clip : false;
     return filter;
 }
@@ -51,7 +51,7 @@ void limiter_filter_update_parameters(limiter_filter_t* filter, const filter_con
     if (!filter || !config) return;
     if (config->type != FILTER_TYPE_LIMITER) return;
     const limiter_parameters_t* params = &config->parameters.limiter;
-    filter->clip_limit = prc_fmt_from_db(params->clip_limit);
+    filter->clip_limit = double_from_db(params->clip_limit);
     filter->soft_clip = params->soft_clip;
 }
 

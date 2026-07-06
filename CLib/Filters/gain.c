@@ -13,7 +13,7 @@ gain_filter_t* gain_filter_create(const char* name, const gain_parameters_t* par
     }
     filter->muted = params ? params->mute : false;
     double gain_val = (params && params->has_gain) ? params->gain : 0.0;
-    double computed_gain = (params && params->scale == GAIN_SCALE_LINEAR) ? gain_val : prc_fmt_from_db(gain_val);
+    double computed_gain = (params && params->scale == GAIN_SCALE_LINEAR) ? gain_val : double_from_db(gain_val);
     if (params && params->inverted) {
         computed_gain *= -1.0;
     }
@@ -30,7 +30,7 @@ void gain_filter_process(gain_filter_t* filter, mutable_waveform_t waveform, siz
     }
 }
 
-prc_fmt_t gain_filter_process_single(gain_filter_t* filter, prc_fmt_t sample) {
+double gain_filter_process_single(gain_filter_t* filter, double sample) {
     if (!filter || filter->muted) return 0.0;
     return sample * filter->linear_gain;
 }
@@ -42,7 +42,7 @@ void gain_filter_update_parameters(gain_filter_t* filter, const filter_config_t*
     const gain_parameters_t* params = &config->parameters.gain;
     filter->muted = params->mute;
     double gain_val = params->has_gain ? params->gain : 0.0;
-    double computed_gain = (params->scale == GAIN_SCALE_LINEAR) ? gain_val : prc_fmt_from_db(gain_val);
+    double computed_gain = (params->scale == GAIN_SCALE_LINEAR) ? gain_val : double_from_db(gain_val);
     if (params->inverted) {
         computed_gain *= -1.0;
     }

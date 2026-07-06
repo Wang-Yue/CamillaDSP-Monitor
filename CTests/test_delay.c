@@ -2,11 +2,11 @@
 #include "../CLib/Filters/delay.h"
 #include <math.h>
 
-static bool is_close(prc_fmt_t left, prc_fmt_t right, prc_fmt_t maxdiff) {
+static bool is_close(double left, double right, double maxdiff) {
     return fabs(left - right) < maxdiff;
 }
 
-static bool compare_waveforms(const prc_fmt_t* left, const prc_fmt_t* right, size_t count, prc_fmt_t maxdiff) {
+static bool compare_waveforms(const double* left, const double* right, size_t count, double maxdiff) {
     for (size_t i = 0; i < count; i++) {
         if (!is_close(left[i], right[i], maxdiff)) return false;
     }
@@ -14,8 +14,8 @@ static bool compare_waveforms(const prc_fmt_t* left, const prc_fmt_t* right, siz
 }
 
 TEST(delay_small) {
-    prc_fmt_t waveform[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    prc_fmt_t waveform_delayed[] = {0.0, 0.0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0};
+    double waveform[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double waveform_delayed[] = {0.0, 0.0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0};
     delay_parameters_t params = { .delay = 3.0, .unit = DELAY_UNIT_SAMPLES, .subsample = false };
     delay_filter_t* filter = delay_filter_create("delay", &params, 44100);
     ASSERT_TRUE(filter != NULL);
@@ -27,8 +27,8 @@ TEST(delay_small) {
 }
 
 TEST(delay_supersmall) {
-    prc_fmt_t waveform[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    prc_fmt_t waveform_delayed[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double waveform[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double waveform_delayed[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     delay_parameters_t params = { .delay = 0.1, .unit = DELAY_UNIT_SAMPLES, .subsample = false };
     delay_filter_t* filter = delay_filter_create("delay", &params, 44100);
     ASSERT_TRUE(filter != NULL);
@@ -40,9 +40,9 @@ TEST(delay_supersmall) {
 }
 
 TEST(delay_large) {
-    prc_fmt_t waveform1[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    prc_fmt_t waveform2[] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    prc_fmt_t waveform_delayed[] = {0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0};
+    double waveform1[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double waveform2[] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double waveform_delayed[] = {0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0};
     delay_parameters_t params = { .delay = 9.0, .unit = DELAY_UNIT_SAMPLES, .subsample = false };
     delay_filter_t* filter = delay_filter_create("delay", &params, 44100);
     ASSERT_TRUE(filter != NULL);
@@ -56,8 +56,8 @@ TEST(delay_large) {
 }
 
 TEST(delay_fraction) {
-    prc_fmt_t waveform[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    prc_fmt_t expected_waveform[] = {
+    double waveform[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double expected_waveform[] = {
         0.0,
         0.01051051051051051,
         -0.13446780113446782,

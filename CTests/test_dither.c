@@ -2,11 +2,11 @@
 #include "../CLib/Filters/dither.h"
 #include <math.h>
 
-static bool is_close(prc_fmt_t left, prc_fmt_t right, prc_fmt_t maxdiff) {
+static bool is_close(double left, double right, double maxdiff) {
     return fabs(left - right) < maxdiff;
 }
 
-static bool compare_waveforms(const prc_fmt_t* left, const prc_fmt_t* right, size_t count, prc_fmt_t maxdiff) {
+static bool compare_waveforms(const double* left, const double* right, size_t count, double maxdiff) {
     for (size_t i = 0; i < count; i++) {
         if (!is_close(left[i], right[i], maxdiff)) return false;
     }
@@ -14,8 +14,8 @@ static bool compare_waveforms(const prc_fmt_t* left, const prc_fmt_t* right, siz
 }
 
 TEST(test_quantize) {
-    prc_fmt_t waveform[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
-    prc_fmt_t waveform2[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
+    double waveform[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
+    double waveform2[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
     dither_parameters_t params = { .type = DITHER_TYPE_NONE, .bits = 8 };
     dither_filter_t* filter = dither_filter_create("dither", &params);
     ASSERT_TRUE(filter != NULL);
@@ -27,8 +27,8 @@ TEST(test_quantize) {
 }
 
 TEST(test_flat) {
-    prc_fmt_t waveform[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
-    prc_fmt_t waveform2[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
+    double waveform[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
+    double waveform2[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
     dither_parameters_t params = { .type = DITHER_TYPE_FLAT, .bits = 8, .amplitude = 2.0, .has_amplitude = true };
     dither_filter_t* filter = dither_filter_create("dither", &params);
     ASSERT_TRUE(filter != NULL);
@@ -40,8 +40,8 @@ TEST(test_flat) {
 }
 
 TEST(test_high_pass) {
-    prc_fmt_t waveform[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
-    prc_fmt_t waveform2[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
+    double waveform[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
+    double waveform2[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
     dither_parameters_t params = { .type = DITHER_TYPE_HIGHPASS, .bits = 8 };
     dither_filter_t* filter = dither_filter_create("dither", &params);
     ASSERT_TRUE(filter != NULL);
@@ -53,8 +53,8 @@ TEST(test_high_pass) {
 }
 
 TEST(test_lip) {
-    prc_fmt_t waveform[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
-    prc_fmt_t waveform2[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
+    double waveform[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
+    double waveform2[] = {-1.0, -0.5, -1.0 / 3.0, 0.0, 1.0 / 3.0, 0.5, 1.0};
     dither_parameters_t params = { .type = DITHER_TYPE_LIPSHITZ_441, .bits = 8 };
     dither_filter_t* filter = dither_filter_create("dither", &params);
     ASSERT_TRUE(filter != NULL);

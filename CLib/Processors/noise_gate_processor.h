@@ -30,7 +30,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "Audio/audio_chunk.h"
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Config/processor_config_types.h"
 
 #ifdef __cplusplus
@@ -46,13 +46,13 @@ typedef struct {
     size_t monitor_channels_count; ///< Number of monitored channels.
     int* process_channels;         ///< Array of channel indices to apply gating to.
     size_t process_channels_count; ///< Number of processed channels.
-    prc_fmt_t attack;              ///< Exponential smoothing coefficient for attack phase.
-    prc_fmt_t release;             ///< Exponential smoothing coefficient for release phase.
-    prc_fmt_t threshold;           ///< Gating threshold in dB.
-    prc_fmt_t factor;              ///< Linear attenuation gain applied when gate is closed.
-    prc_fmt_t* scratch;            ///< Pre-allocated scratch buffer for level detection.
+    double attack;              ///< Exponential smoothing coefficient for attack phase.
+    double release;             ///< Exponential smoothing coefficient for release phase.
+    double threshold;           ///< Gating threshold in dB.
+    double factor;              ///< Linear attenuation gain applied when gate is closed.
+    double* scratch;            ///< Pre-allocated scratch buffer for level detection.
     size_t scratch_capacity;       ///< Capacity of scratch buffer in frames.
-    prc_fmt_t prev_loudness;       ///< State variable tracking previous sample envelope loudness.
+    double prev_loudness;       ///< State variable tracking previous sample envelope loudness.
 } noise_gate_processor_t;
 
 /**

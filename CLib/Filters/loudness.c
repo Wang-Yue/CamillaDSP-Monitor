@@ -90,7 +90,7 @@ void loudness_filter_process(loudness_filter_t* filter, mutable_waveform_t wavef
 
     // Apply midband attenuation if enabled
     if (filter->params.attenuate_mid && fabs(filter->midband_attenuation_db) > 0.001) {
-        double factor = prc_fmt_from_db(filter->midband_attenuation_db);
+        double factor = double_from_db(filter->midband_attenuation_db);
         dsp_ops_scalar_multiply(waveform, factor, count);
     }
 }

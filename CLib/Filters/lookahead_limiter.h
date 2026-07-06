@@ -1,7 +1,7 @@
 #ifndef CLIB_FILTERS_LOOKAHEAD_LIMITER_H
 #define CLIB_FILTERS_LOOKAHEAD_LIMITER_H
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 #include "Config/config_error.h"
 #include <stddef.h>
@@ -13,17 +13,17 @@ extern "C" {
 
 typedef struct {
     char name[64];
-    prc_fmt_t limit;
+    double limit;
     int attack_samples;
-    prc_fmt_t release_coeff;
+    double release_coeff;
     // Inlined LookaheadBuffer
-    prc_fmt_t* lookahead_data;
+    double* lookahead_data;
     size_t lookahead_capacity;
     size_t lookahead_read_index;
     size_t lookahead_write_index;
-    prc_fmt_t release_gain;
+    double release_gain;
     // Pre-allocated output buffer to avoid heap allocation on the hot path
-    prc_fmt_t* output_buffer;
+    double* output_buffer;
     size_t output_buffer_capacity;
 } lookahead_limiter_filter_t;
 

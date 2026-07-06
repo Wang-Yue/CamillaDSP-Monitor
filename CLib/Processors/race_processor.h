@@ -44,7 +44,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "Audio/audio_chunk.h"
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Config/processor_config_types.h"
 #include "Filters/delay.h"
 #include "Filters/gain.h"
@@ -63,8 +63,8 @@ typedef struct {
     delay_filter_t* delay_a; ///< Contralateral delay line filter for channel A path.
     delay_filter_t* delay_b; ///< Contralateral delay line filter for channel B path.
     gain_filter_t* gain;     ///< Attenuation and phase-inversion gain filter.
-    prc_fmt_t feedback_a;    ///< Recursive feedback sample from channel A delay/gain path.
-    prc_fmt_t feedback_b;    ///< Recursive feedback sample from channel B delay/gain path.
+    double feedback_a;    ///< Recursive feedback sample from channel A delay/gain path.
+    double feedback_b;    ///< Recursive feedback sample from channel B delay/gain path.
 } race_processor_t;
 
 /**

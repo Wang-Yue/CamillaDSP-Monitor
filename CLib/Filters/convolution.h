@@ -1,7 +1,7 @@
 #ifndef CLIB_FILTERS_CONVOLUTION_H
 #define CLIB_FILTERS_CONVOLUTION_H
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 #include "FFT/real_fft.h"
 #include <stddef.h>
@@ -50,20 +50,20 @@ typedef struct {
     /// Pre-FFT'd IR segments and rolling input-spectrum history. Each is a
     /// flat `nsegments * bins` block of `PrcFmt`; the per-segment slice for
     /// segment `s` lives at `[s * bins ..< (s + 1) * bins]`.
-    prc_fmt_t** spec_re;
-    prc_fmt_t** spec_im;
-    prc_fmt_t** hist_re;
-    prc_fmt_t** hist_im;
+    double** spec_re;
+    double** spec_im;
+    double** hist_re;
+    double** hist_im;
     /// Index of the input-history slot most recently filled (mod `nsegments`).
     size_t write_idx;
     /// Overlap-save state, length `N` — the second half of the previous
     /// IFFT result, summed into the next block's first half.
-    prc_fmt_t* overlap_buffer;
+    double* overlap_buffer;
     // Time-domain scratch buffers, both `2N` long.
-    prc_fmt_t* time_buf;
+    double* time_buf;
     /// Per-call accumulator for `Σ_seg input_F[hist] · coeffs_F[seg]`.
-    prc_fmt_t* spec_accum_re;
-    prc_fmt_t* spec_accum_im;
+    double* spec_accum_re;
+    double* spec_accum_im;
 } convolution_filter_t;
 
 /// Build a convolution filter from raw IR samples.

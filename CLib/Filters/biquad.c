@@ -343,7 +343,7 @@ void biquad_filter_process(biquad_filter_t* filter, mutable_waveform_t waveform,
 #endif
 }
 
-prc_fmt_t biquad_filter_process_single(biquad_filter_t* filter, prc_fmt_t sample) {
+double biquad_filter_process_single(biquad_filter_t* filter, double sample) {
     if (!filter) return sample;
 #ifdef __APPLE__
     if (!filter->setup) return sample;

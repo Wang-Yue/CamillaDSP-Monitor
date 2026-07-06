@@ -33,7 +33,7 @@ noise_gate_processor_t* noise_gate_processor_create(const char* name, const nois
     }
 
     processor->scratch_capacity = chunk_size;
-    processor->scratch = (prc_fmt_t*)calloc(chunk_size, sizeof(prc_fmt_t));
+    processor->scratch = (double*)calloc(chunk_size, sizeof(double));
     if (!processor->scratch) {
         free(processor);
         return NULL;
@@ -68,11 +68,11 @@ noise_gate_processor_t* noise_gate_processor_create(const char* name, const nois
         return NULL;
     }
 
-    prc_fmt_t srate = (prc_fmt_t)sample_rate;
+    double srate = (double)sample_rate;
     processor->attack = exp(-1.0 / srate / params->attack);
     processor->release = exp(-1.0 / srate / params->release);
     processor->threshold = params->threshold;
-    processor->factor = prc_fmt_from_db(-params->attenuation);
+    processor->factor = double_from_db(-params->attenuation);
     processor->prev_loudness = 0.0;
 
     return processor;
@@ -172,9 +172,9 @@ void noise_gate_processor_update_parameters(noise_gate_processor_t* processor, c
         memcpy(processor->process_channels, params->process_channels, processor->process_channels_count * sizeof(int));
     }
 
-    prc_fmt_t srate = (prc_fmt_t)sample_rate;
+    double srate = (double)sample_rate;
     processor->attack = exp(-1.0 / srate / params->attack);
     processor->release = exp(-1.0 / srate / params->release);
     processor->threshold = params->threshold;
-    processor->factor = prc_fmt_from_db(-params->attenuation);
+    processor->factor = double_from_db(-params->attenuation);
 }

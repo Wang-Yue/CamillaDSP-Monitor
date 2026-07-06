@@ -113,7 +113,7 @@ TEST(PipelineWithFilter) {
 
     waveform_t out0 = audio_chunk_get_channel(output, 0);
     waveform_t out1 = audio_chunk_get_channel(output, 1);
-    ASSERT_NEAR(prc_fmt_from_db(-6.0), out0[0], 1e-5);
+    ASSERT_NEAR(double_from_db(-6.0), out0[0], 1e-5);
     ASSERT_NEAR(1.0, out1[0], 1e-5);
 
     free(filter_name);
@@ -312,8 +312,8 @@ TEST(PipelineVolumeChange) {
     ASSERT_EQ(PIPELINE_OK, err);
 
     waveform_t out0 = audio_chunk_get_channel(output, 0);
-    ASSERT_NEAR(prc_fmt_from_db(-10.0), out0[0], 1e-5);
-    ASSERT_NEAR(prc_fmt_from_db(-10.0), out0[1023], 1e-5);
+    ASSERT_NEAR(double_from_db(-10.0), out0[0], 1e-5);
+    ASSERT_NEAR(double_from_db(-10.0), out0[1023], 1e-5);
 
     audio_chunk_free(chunk);
     audio_chunk_free(output);

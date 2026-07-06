@@ -1,7 +1,7 @@
 #ifndef CLIB_PIPELINE_PIPELINE_H
 #define CLIB_PIPELINE_PIPELINE_H
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Audio/audio_buffers.h"
 #include "Audio/audio_chunk.h"
 #include "Audio/processing_parameters.h"

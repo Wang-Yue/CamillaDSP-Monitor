@@ -2,11 +2,11 @@
 #include "../CLib/Filters/diffeq.h"
 #include <math.h>
 
-static bool is_close(prc_fmt_t left, prc_fmt_t right, prc_fmt_t maxdiff) {
+static bool is_close(double left, double right, double maxdiff) {
     return fabs(left - right) < maxdiff;
 }
 
-static bool compare_waveforms(const prc_fmt_t* left, const prc_fmt_t* right, size_t count, prc_fmt_t maxdiff) {
+static bool compare_waveforms(const double* left, const double* right, size_t count, double maxdiff) {
     for (size_t i = 0; i < count; i++) {
         if (!is_close(left[i], right[i], maxdiff)) return false;
     }
@@ -23,8 +23,8 @@ TEST(check_result) {
     diffeq_filter_t* filter = diffeq_filter_create("diffeq", &params);
     ASSERT_TRUE(filter != NULL);
 
-    prc_fmt_t wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    prc_fmt_t expected[] = {0.215, 0.461, 0.281, 0.039, 0.004, 0.0, 0.0, 0.0};
+    double wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double expected[] = {0.215, 0.461, 0.281, 0.039, 0.004, 0.0, 0.0, 0.0};
 
     diffeq_filter_process(filter, wave, 8);
 

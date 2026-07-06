@@ -4,7 +4,7 @@
  *
  * Channel Routing Matrix Implementation Details:
  * - The mixer converts user-configured mapping rules into precomputed `prepared_source_list_t` structures per destination channel.
- * - Linear gain conversion: When gain scale is `GAIN_SCALE_DB`, dB values are converted to linear gain using `prc_fmt_from_db`.
+ * - Linear gain conversion: When gain scale is `GAIN_SCALE_DB`, dB values are converted to linear gain using `double_from_db`.
  * - Phase inversion: If `inverted` is set to true, the linear gain is negated (-lin_gain).
  * - Real-time processing (`audio_mixer_process`):
  *   1. Validates that input frames do not exceed `chunk_size` and destination buffer matches `channels_out`.
@@ -53,7 +53,7 @@ static void populate_mapping(audio_mixer_t* mixer, const mixer_config_t* config)
 
             // Calculate linear gain from dB or linear configuration
             double gain = src->has_gain ? src->gain : 0.0;
-            double lin_gain = (src->scale == GAIN_SCALE_LINEAR) ? gain : prc_fmt_from_db(gain);
+            double lin_gain = (src->scale == GAIN_SCALE_LINEAR) ? gain : double_from_db(gain);
             // Invert phase if requested
             if (src->inverted) {
                 lin_gain *= -1.0;

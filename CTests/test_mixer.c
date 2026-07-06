@@ -50,7 +50,7 @@ TEST(MixerConstruction2to4) {
     ASSERT_EQ(4, audio_chunk_get_channels(output));
     ASSERT_EQ(input->valid_frames, output->valid_frames);
 
-    double expected_linear = prc_fmt_from_db(0.0);
+    double expected_linear = double_from_db(0.0);
     for (size_t ch = 0; ch < 4; ch++) {
         assert_all_samples_ch(output, ch, expected_linear, 1e-9);
     }
@@ -121,7 +121,7 @@ TEST(MixerStereoToMono) {
     ASSERT_EQ(1, audio_chunk_get_channels(output));
     ASSERT_EQ(4, output->valid_frames);
 
-    double expected = prc_fmt_from_db(-6.0) * 2.0;
+    double expected = double_from_db(-6.0) * 2.0;
     assert_all_samples_ch(output, 0, expected, 1e-6);
 
     audio_chunk_free(input);
@@ -176,7 +176,7 @@ TEST(Mixer4to2Downmix) {
     audio_chunk_t* input = make_constant_chunk(8, 4, 1.0);
     audio_chunk_t* output = audio_mixer_process_chunk(mixer, input);
 
-    double expected = 1.0 + prc_fmt_from_db(-6.0);
+    double expected = 1.0 + double_from_db(-6.0);
     assert_all_samples_ch(output, 0, expected, 1e-6);
     assert_all_samples_ch(output, 1, expected, 1e-6);
 
@@ -280,11 +280,11 @@ TEST(MixerGainAccuracy) {
     audio_chunk_t* input = make_constant_chunk(4, 1, 1.0);
     audio_chunk_t* output = audio_mixer_process_chunk(mixer, input);
 
-    double gain_plus_6 = prc_fmt_from_db(6.0);
+    double gain_plus_6 = double_from_db(6.0);
     ASSERT_TRUE(fabs(gain_plus_6 - 2.0) <= 0.01);
     assert_all_samples_ch(output, 0, gain_plus_6, 1e-9);
 
-    double gain_minus_6 = prc_fmt_from_db(-6.0);
+    double gain_minus_6 = double_from_db(-6.0);
     ASSERT_TRUE(fabs(gain_minus_6 - 0.5) <= 1e-2);
     assert_all_samples_ch(output, 1, gain_minus_6, 1e-9);
 

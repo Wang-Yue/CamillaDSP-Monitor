@@ -9,8 +9,8 @@ TEST(MovingAverage) {
     convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
     ASSERT_TRUE(filter != NULL);
 
-    prc_fmt_t wave[] = {1.0, 1.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0};
-    prc_fmt_t expected[] = {0.5, 1.0, 1.0, 0.5, 0.0, -0.5, -0.5, 0.0};
+    double wave[] = {1.0, 1.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0};
+    double expected[] = {0.5, 1.0, 1.0, 0.5, 0.0, -0.5, -0.5, 0.0};
 
     convolution_filter_process(filter, wave, 8);
     for (size_t i = 0; i < 8; i++) {
@@ -26,11 +26,11 @@ TEST(SegmentedConvolution) {
     convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
     ASSERT_TRUE(filter != NULL);
 
-    prc_fmt_t impulse[8] = {1.0, 0, 0, 0, 0, 0, 0, 0};
+    double impulse[8] = {1.0, 0, 0, 0, 0, 0, 0, 0};
     convolution_filter_process(filter, impulse, 8);
     for (int i = 0; i < 8; i++) ASSERT_NEAR((double)i, impulse[i], 1e-5);
 
-    prc_fmt_t zeros[8] = {0};
+    double zeros[8] = {0};
     convolution_filter_process(filter, zeros, 8);
     for (int i = 0; i < 8; i++) ASSERT_NEAR((double)(i + 8), zeros[i], 1e-5);
 
@@ -55,7 +55,7 @@ TEST(IdentityConvolution) {
     convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
     ASSERT_TRUE(filter != NULL);
 
-    prc_fmt_t wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     convolution_filter_process(filter, wave, 8);
     ASSERT_NEAR(1.0, wave[0], 1e-7);
     for (int i = 1; i < 8; i++) ASSERT_NEAR(0.0, wave[i], 1e-7);
@@ -68,7 +68,7 @@ TEST(DelayConvolution) {
     convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
     ASSERT_TRUE(filter != NULL);
 
-    prc_fmt_t wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    double wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     convolution_filter_process(filter, wave, 8);
     ASSERT_NEAR(0.0, wave[0], 1e-7);
     ASSERT_NEAR(0.0, wave[1], 1e-7);
@@ -89,7 +89,7 @@ TEST(ConvolutionWithSineWave) {
     double theta = 2.0 * M_PI * freq / sample_rate;
     double expected_gain = 0.5 * (1.0 + cos(theta));
 
-    prc_fmt_t wave[64];
+    double wave[64];
     for (int chunk = 0; chunk < 8; chunk++) {
         int offset = chunk * 64;
         for (int i = 0; i < 64; i++) {
@@ -117,8 +117,8 @@ TEST(DummyIsIdentity) {
     convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
     ASSERT_TRUE(filter != NULL);
 
-    prc_fmt_t wave[] = {0.3, -0.2, 0.7, -0.1, 0.0, 0.5, -0.4, 0.9};
-    prc_fmt_t original[] = {0.3, -0.2, 0.7, -0.1, 0.0, 0.5, -0.4, 0.9};
+    double wave[] = {0.3, -0.2, 0.7, -0.1, 0.0, 0.5, -0.4, 0.9};
+    double original[] = {0.3, -0.2, 0.7, -0.1, 0.0, 0.5, -0.4, 0.9};
     convolution_filter_process(filter, wave, 8);
 
     for (int i = 0; i < 8; i++) {

@@ -10,7 +10,7 @@
 // for sizes like 1024/2048/4096.
 
 #include "real_fft.h"
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include <stddef.h>
 #include <stdbool.h>
 

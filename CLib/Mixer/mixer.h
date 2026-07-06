@@ -24,7 +24,7 @@
  *   initialization (`audio_mixer_create`) or parameter updates (`audio_mixer_update_parameters`).
  */
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Audio/audio_chunk.h"
 #include "Config/mixer_config_types.h"
 #include <stddef.h>
@@ -52,7 +52,7 @@ typedef enum {
  */
 typedef struct {
     size_t in_channel; ///< Input channel index.
-    prc_fmt_t gain;    ///< Linear gain multiplier (negative if inverted).
+    double gain;    ///< Linear gain multiplier (negative if inverted).
 } prepared_source_t;
 
 /**

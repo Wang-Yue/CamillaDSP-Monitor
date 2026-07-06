@@ -5,7 +5,7 @@
 #include "Config/configuration.h"
 #include "Config/log_level.h"
 #include "Config/engine_config_types.h"
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

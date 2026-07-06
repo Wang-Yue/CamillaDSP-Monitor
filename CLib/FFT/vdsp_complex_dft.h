@@ -7,7 +7,7 @@
 // is typically faster than `MixedRadixFFT` in this regime.
 
 #include "arbitrary_complex_fft.h"
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include <stddef.h>
 #include <stdbool.h>
 

@@ -10,7 +10,7 @@ static void fill_ramp(volume_filter_t* filter) {
     double stepsize = ramprange / (double)filter->chunk_size;
     for (size_t val = 0; val < filter->chunk_size; val++) {
         double db_val = filter->ramp_start + ramprange * ((double)filter->ramp_step - 1.0) + (double)val * stepsize;
-        filter->current_ramp_gains[val] = prc_fmt_from_db(db_val);
+        filter->current_ramp_gains[val] = double_from_db(db_val);
     }
 }
 
@@ -31,7 +31,7 @@ volume_filter_t* volume_filter_create(const char* name, const volume_parameters_
 
     filter->ramptime_in_chunks = (int)round(ramp_time_ms / (1000.0 * (double)chunk_size / (double)sample_rate));
     // Pre-allocate array
-    filter->current_ramp_gains = (prc_fmt_t*)calloc(chunk_size > 0 ? chunk_size : 1, sizeof(prc_fmt_t));
+    filter->current_ramp_gains = (double*)calloc(chunk_size > 0 ? chunk_size : 1, sizeof(double));
     if (!filter->current_ramp_gains) {
         free(filter);
         return NULL;
@@ -45,7 +45,7 @@ volume_filter_t* volume_filter_create(const char* name, const volume_parameters_
     filter->target_volume = initial_vol_clamped;
     filter->mute = initial_mute;
     filter->current_volume = initial_mute ? -100.0 : initial_vol_clamped;
-    filter->target_linear_gain = initial_mute ? 0.0 : prc_fmt_from_db(initial_vol_clamped);
+    filter->target_linear_gain = initial_mute ? 0.0 : double_from_db(initial_vol_clamped);
     filter->ramp_start = filter->current_volume;
     filter->ramp_step = 0;
 
@@ -69,7 +69,7 @@ void volume_filter_prepare_chunk(volume_filter_t* filter) {
             filter->ramp_step = 0;
         }
         filter->target_volume = target_vol;
-        filter->target_linear_gain = shared_mute ? 0.0 : prc_fmt_from_db(target_vol);
+        filter->target_linear_gain = shared_mute ? 0.0 : double_from_db(target_vol);
         filter->mute = shared_mute;
     }
 
@@ -93,7 +93,7 @@ void volume_filter_process(volume_filter_t* filter, mutable_waveform_t waveform,
         size_t limit = count < filter->chunk_size ? count : filter->chunk_size;
         dsp_ops_multiply(filter->current_ramp_gains, waveform, limit);
         if (limit < count) {
-            double final_gain = filter->mute ? 0.0 : prc_fmt_from_db(filter->target_volume);
+            double final_gain = filter->mute ? 0.0 : double_from_db(filter->target_volume);
             dsp_ops_scalar_multiply(waveform + limit, final_gain, count - limit);
         }
     }

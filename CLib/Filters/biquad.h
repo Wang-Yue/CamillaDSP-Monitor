@@ -1,7 +1,7 @@
 #ifndef CLIB_FILTERS_BIQUAD_H
 #define CLIB_FILTERS_BIQUAD_H
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 #include "Config/config_error.h"
 #include <stddef.h>
@@ -57,7 +57,7 @@ typedef struct {
 
 biquad_filter_t* biquad_filter_create(const char* name, const biquad_coefficients_t* coeffs);
 void biquad_filter_process(biquad_filter_t* filter, mutable_waveform_t waveform, size_t count);
-prc_fmt_t biquad_filter_process_single(biquad_filter_t* filter, prc_fmt_t sample);
+double biquad_filter_process_single(biquad_filter_t* filter, double sample);
 void biquad_filter_update_parameters(biquad_filter_t* filter, const filter_config_t* config, int sample_rate);
 void biquad_filter_free(biquad_filter_t* filter);
 

@@ -8,7 +8,7 @@
 #ifndef CLIB_AUDIO_PROCESSING_PARAMETERS_H
 #define CLIB_AUDIO_PROCESSING_PARAMETERS_H
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Audio/lock_free_ring_buffer.h"
 #include "Audio/audio_chunk.h"
 #include <stddef.h>
@@ -58,23 +58,23 @@ typedef struct {
 processing_parameters_t* processing_parameters_create(size_t capture_channels, size_t playback_channels);
 void processing_parameters_free(processing_parameters_t* params);
 
-prc_fmt_t processing_parameters_get_target_volume_for_fader(const processing_parameters_t* params, fader_t fader);
-void processing_parameters_set_target_volume_for_fader(processing_parameters_t* params, prc_fmt_t value, fader_t fader);
-prc_fmt_t processing_parameters_get_current_volume_for_fader(const processing_parameters_t* params, fader_t fader);
-void processing_parameters_set_current_volume_for_fader(processing_parameters_t* params, prc_fmt_t value, fader_t fader);
+double processing_parameters_get_target_volume_for_fader(const processing_parameters_t* params, fader_t fader);
+void processing_parameters_set_target_volume_for_fader(processing_parameters_t* params, double value, fader_t fader);
+double processing_parameters_get_current_volume_for_fader(const processing_parameters_t* params, fader_t fader);
+void processing_parameters_set_current_volume_for_fader(processing_parameters_t* params, double value, fader_t fader);
 bool processing_parameters_is_muted_for_fader(const processing_parameters_t* params, fader_t fader);
 void processing_parameters_set_muted_for_fader(processing_parameters_t* params, bool value, fader_t fader);
 
-static inline prc_fmt_t processing_parameters_get_target_volume(const processing_parameters_t* params) {
+static inline double processing_parameters_get_target_volume(const processing_parameters_t* params) {
     return processing_parameters_get_target_volume_for_fader(params, FADER_MAIN);
 }
-static inline void processing_parameters_set_target_volume(processing_parameters_t* params, prc_fmt_t value) {
+static inline void processing_parameters_set_target_volume(processing_parameters_t* params, double value) {
     processing_parameters_set_target_volume_for_fader(params, value, FADER_MAIN);
 }
-static inline prc_fmt_t processing_parameters_get_current_volume(const processing_parameters_t* params) {
+static inline double processing_parameters_get_current_volume(const processing_parameters_t* params) {
     return processing_parameters_get_current_volume_for_fader(params, FADER_MAIN);
 }
-static inline void processing_parameters_set_current_volume(processing_parameters_t* params, prc_fmt_t value) {
+static inline void processing_parameters_set_current_volume(processing_parameters_t* params, double value) {
     processing_parameters_set_current_volume_for_fader(params, value, FADER_MAIN);
 }
 static inline bool processing_parameters_is_muted(const processing_parameters_t* params) {
@@ -84,24 +84,24 @@ static inline void processing_parameters_set_muted(processing_parameters_t* para
     processing_parameters_set_muted_for_fader(params, value, FADER_MAIN);
 }
 
-void processing_parameters_get_capture_signal_peak(const processing_parameters_t* params, prc_fmt_t* out_levels, size_t count);
-void processing_parameters_set_capture_signal_peak(processing_parameters_t* params, const prc_fmt_t* levels, size_t count);
-void processing_parameters_get_capture_signal_rms(const processing_parameters_t* params, prc_fmt_t* out_levels, size_t count);
-void processing_parameters_set_capture_signal_rms(processing_parameters_t* params, const prc_fmt_t* levels, size_t count);
+void processing_parameters_get_capture_signal_peak(const processing_parameters_t* params, double* out_levels, size_t count);
+void processing_parameters_set_capture_signal_peak(processing_parameters_t* params, const double* levels, size_t count);
+void processing_parameters_get_capture_signal_rms(const processing_parameters_t* params, double* out_levels, size_t count);
+void processing_parameters_set_capture_signal_rms(processing_parameters_t* params, const double* levels, size_t count);
 
-void processing_parameters_get_playback_signal_peak(const processing_parameters_t* params, prc_fmt_t* out_levels, size_t count);
-void processing_parameters_set_playback_signal_peak(processing_parameters_t* params, const prc_fmt_t* levels, size_t count);
-void processing_parameters_get_playback_signal_rms(const processing_parameters_t* params, prc_fmt_t* out_levels, size_t count);
-void processing_parameters_set_playback_signal_rms(processing_parameters_t* params, const prc_fmt_t* levels, size_t count);
+void processing_parameters_get_playback_signal_peak(const processing_parameters_t* params, double* out_levels, size_t count);
+void processing_parameters_set_playback_signal_peak(processing_parameters_t* params, const double* levels, size_t count);
+void processing_parameters_get_playback_signal_rms(const processing_parameters_t* params, double* out_levels, size_t count);
+void processing_parameters_set_playback_signal_rms(processing_parameters_t* params, const double* levels, size_t count);
 
 // MARK: - Chunk-based updates (no-allocation, audio-thread safe)
 
 /// Asynchronously update the capture-side peak and RMS levels on the audio thread.
 /// Does not allocate.
-prc_fmt_t processing_parameters_update_capture_levels(processing_parameters_t* params, const audio_chunk_t* chunk);
+double processing_parameters_update_capture_levels(processing_parameters_t* params, const audio_chunk_t* chunk);
 /// Asynchronously update the playback-side peak and RMS levels on the audio thread.
 /// Does not allocate.
-prc_fmt_t processing_parameters_update_playback_levels(processing_parameters_t* params, const audio_chunk_t* chunk);
+double processing_parameters_update_playback_levels(processing_parameters_t* params, const audio_chunk_t* chunk);
 
 #ifdef __cplusplus
 }

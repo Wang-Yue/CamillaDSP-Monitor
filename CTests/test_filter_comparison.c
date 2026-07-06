@@ -20,7 +20,7 @@
 #include "../CLib/Processors/noise_gate_processor.h"
 #include "../CLib/Processors/race_processor.h"
 #include "../CLib/Audio/audio_chunk.h"
-#include "../CLib/Audio/prc_fmt.h"
+#include "../CLib/Audio/double_helpers.h"
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -428,7 +428,7 @@ static void compare_loudness(double volume_db, double reference_db, double high_
 
     loudness_filter_t* filter = loudness_filter_create("test_loud", &lp, SAMPLE_RATE, params);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t primer[8] = {0};
+    double primer[8] = {0};
     loudness_filter_process(filter, primer, 8);
 
     double* swift_out = (double*)malloc(NBR_FRAMES * sizeof(double));

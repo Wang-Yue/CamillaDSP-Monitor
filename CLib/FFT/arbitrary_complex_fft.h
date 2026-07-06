@@ -6,7 +6,7 @@
 // inner transform; `RealFFT.init` does the priority-based
 // selection between the available conformers.
 
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus

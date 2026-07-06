@@ -18,9 +18,9 @@ static double compute_delay_samples(double delay, delay_unit_t unit, int sample_
     }
 }
 
-static void configure(const lookahead_limiter_parameters_t* params, int sample_rate, prc_fmt_t* out_limit, int* out_attack_samples, prc_fmt_t* out_release_coeff) {
+static void configure(const lookahead_limiter_parameters_t* params, int sample_rate, double* out_limit, int* out_attack_samples, double* out_release_coeff) {
     double limit_db = params ? params->limit : 0.0;
-    *out_limit = prc_fmt_from_db(limit_db);
+    *out_limit = double_from_db(limit_db);
     delay_unit_t unit = params ? params->unit : DELAY_UNIT_MS;
     double attack = params ? params->attack : 0.0;
     double release = params ? params->release : 0.0;
@@ -33,13 +33,13 @@ static void configure(const lookahead_limiter_parameters_t* params, int sample_r
     }
 }
 
-static inline void push_overwrite(lookahead_limiter_filter_t* filter, prc_fmt_t sample) {
+static inline void push_overwrite(lookahead_limiter_filter_t* filter, double sample) {
     filter->lookahead_data[filter->lookahead_write_index] = sample;
     filter->lookahead_write_index = (filter->lookahead_write_index + 1) % filter->lookahead_capacity;
     filter->lookahead_read_index = (filter->lookahead_read_index + 1) % filter->lookahead_capacity;
 }
 
-static inline prc_fmt_t get_occupied(lookahead_limiter_filter_t* filter, size_t idx) {
+static inline double get_occupied(lookahead_limiter_filter_t* filter, size_t idx) {
     size_t real_idx = (filter->lookahead_read_index + idx) % filter->lookahead_capacity;
     return filter->lookahead_data[real_idx];
 }
@@ -54,9 +54,9 @@ lookahead_limiter_filter_t* lookahead_limiter_filter_create(const char* name, co
         strcpy(filter->name, "lookahead_limiter");
     }
 
-    prc_fmt_t limit;
+    double limit;
     int attack_samples;
-    prc_fmt_t release_coeff;
+    double release_coeff;
     configure(params, sample_rate, &limit, &attack_samples, &release_coeff);
 
     filter->limit = limit;
@@ -68,14 +68,14 @@ lookahead_limiter_filter_t* lookahead_limiter_filter_create(const char* name, co
     size_t lookahead_len = (size_t)sample_rate > chunk_size ? (size_t)sample_rate : chunk_size;
     if (lookahead_len < 1024) lookahead_len = 1024;
     filter->lookahead_capacity = lookahead_len;
-    filter->lookahead_data = (prc_fmt_t*)calloc(lookahead_len, sizeof(prc_fmt_t));
+    filter->lookahead_data = (double*)calloc(lookahead_len, sizeof(double));
     filter->lookahead_read_index = 0;
     filter->lookahead_write_index = 0;
 
     // Pre-allocated output buffer to avoid heap allocation on the hot path
     size_t out_cap = chunk_size > 8192 ? chunk_size : 8192;
     filter->output_buffer_capacity = out_cap;
-    filter->output_buffer = (prc_fmt_t*)calloc(out_cap, sizeof(prc_fmt_t));
+    filter->output_buffer = (double*)calloc(out_cap, sizeof(double));
 
     return filter;
 }
@@ -87,7 +87,7 @@ static void process_slice(lookahead_limiter_filter_t* filter, mutable_waveform_t
 
     // Backward pass
     for (int i = (int)(filter->attack_samples + len) - 1; i >= 0; i--) {
-        prc_fmt_t input_sample;
+        double input_sample;
         if (i < filter->attack_samples) {
             input_sample = get_occupied(filter, lookahead_start + i);
         } else {
@@ -124,7 +124,7 @@ static void process_slice(lookahead_limiter_filter_t* filter, mutable_waveform_t
 
     // Apply gain reduction
     for (size_t i = 0; i < len; i++) {
-        prc_fmt_t input_sample;
+        double input_sample;
         if (i < (size_t)filter->attack_samples) {
             input_sample = get_occupied(filter, lookahead_start + i);
         } else {
@@ -158,9 +158,9 @@ void lookahead_limiter_filter_update_parameters(lookahead_limiter_filter_t* filt
     if (config->type != FILTER_TYPE_LOOKAHEAD_LIMITER) return;
     const lookahead_limiter_parameters_t* params = &config->parameters.lookahead_limiter;
 
-    prc_fmt_t limit;
+    double limit;
     int attack_samples;
-    prc_fmt_t release_coeff;
+    double release_coeff;
     configure(params, sample_rate, &limit, &attack_samples, &release_coeff);
 
     filter->limit = limit;

@@ -94,7 +94,7 @@ bool dsp_engine_set_config(dsp_engine_t* engine, const char* json, audio_backend
     }
 
     for (int i = 0; i < FADER_COUNT; i++) {
-        prc_fmt_t vol = engine->desired_fader_volumes[i];
+        double vol = engine->desired_fader_volumes[i];
         bool mute = engine->desired_fader_mutes[i];
         processing_parameters_set_target_volume_for_fader(core->processing_params, vol, (fader_t)i);
         processing_parameters_set_current_volume_for_fader(core->processing_params, vol, (fader_t)i);
@@ -136,9 +136,9 @@ void dsp_engine_stop(dsp_engine_t* engine) {
 
 void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader, float db) {
     if (!engine || fader < 0 || fader >= FADER_COUNT) return;
-    engine->desired_fader_volumes[fader] = (prc_fmt_t)db;
+    engine->desired_fader_volumes[fader] = (double)db;
     if (engine->core && engine->core->processing_params) {
-        processing_parameters_set_target_volume_for_fader(engine->core->processing_params, (prc_fmt_t)db, fader);
+        processing_parameters_set_target_volume_for_fader(engine->core->processing_params, (double)db, fader);
     }
 }
 

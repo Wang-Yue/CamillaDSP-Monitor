@@ -33,7 +33,7 @@
 // `vDSP_zvmulD`, which on Apple Silicon issues packed NEON `fmla.2d` pairs.
 
 #include "arbitrary_complex_fft.h"
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include <stddef.h>
 #include <stdbool.h>
 

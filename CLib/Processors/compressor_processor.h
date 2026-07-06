@@ -37,7 +37,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "Audio/audio_chunk.h"
-#include "Audio/prc_fmt.h"
+#include "Audio/double_helpers.h"
 #include "Config/processor_config_types.h"
 #include "Filters/limiter.h"
 
@@ -54,15 +54,15 @@ typedef struct {
     size_t monitor_channels_count; ///< Number of monitored channels.
     int* process_channels;         ///< Array of channel indices to apply gain reduction to.
     size_t process_channels_count; ///< Number of processed channels.
-    prc_fmt_t attack;              ///< Exponential smoothing coefficient for attack phase.
-    prc_fmt_t release;             ///< Exponential smoothing coefficient for release phase.
-    prc_fmt_t threshold;           ///< Compression threshold in dB.
-    prc_fmt_t factor;              ///< Compression ratio factor (e.g., 4.0 for 4:1).
-    prc_fmt_t makeup_gain;         ///< Post-compression makeup gain in dB.
+    double attack;              ///< Exponential smoothing coefficient for attack phase.
+    double release;             ///< Exponential smoothing coefficient for release phase.
+    double threshold;           ///< Compression threshold in dB.
+    double factor;              ///< Compression ratio factor (e.g., 4.0 for 4:1).
+    double makeup_gain;         ///< Post-compression makeup gain in dB.
     limiter_filter_t* limiter;     ///< Optional peak/soft limiter applied after compression.
-    prc_fmt_t* scratch;            ///< Pre-allocated scratch buffer for envelope/gain calculation.
+    double* scratch;            ///< Pre-allocated scratch buffer for envelope/gain calculation.
     size_t scratch_capacity;       ///< Capacity of scratch buffer in frames (matches chunk_size).
-    prc_fmt_t prev_loudness;       ///< State variable storing envelope loudness from previous sample.
+    double prev_loudness;       ///< State variable storing envelope loudness from previous sample.
 } compressor_processor_t;
 
 /**

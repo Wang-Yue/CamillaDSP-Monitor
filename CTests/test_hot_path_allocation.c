@@ -220,21 +220,21 @@ TEST(AsyncSinc_Stereo) {
 
 typedef struct {
     void* filter;
-    void (*process)(void*, prc_fmt_t*, size_t);
-    prc_fmt_t* wave;
+    void (*process)(void*, double*, size_t);
+    double* wave;
     size_t frames;
 } filter_test_ctx_t;
 
-static void bq_process_wrap(void* f, prc_fmt_t* w, size_t n) { biquad_filter_process((biquad_filter_t*)f, w, n); }
-static void conv_process_wrap(void* f, prc_fmt_t* w, size_t n) { convolution_filter_process((convolution_filter_t*)f, w, n); }
-static void gain_process_wrap(void* f, prc_fmt_t* w, size_t n) { gain_filter_process((gain_filter_t*)f, w, n); }
-static void loud_process_wrap(void* f, prc_fmt_t* w, size_t n) { loudness_filter_process((loudness_filter_t*)f, w, n); }
-static void delay_process_wrap(void* f, prc_fmt_t* w, size_t n) { delay_filter_process((delay_filter_t*)f, w, n); }
-static void combo_process_wrap(void* f, prc_fmt_t* w, size_t n) { biquad_combo_filter_process((biquad_combo_filter_t*)f, w, n); }
-static void diffeq_process_wrap(void* f, prc_fmt_t* w, size_t n) { diffeq_filter_process((diffeq_filter_t*)f, w, n); }
-static void dither_process_wrap(void* f, prc_fmt_t* w, size_t n) { dither_filter_process((dither_filter_t*)f, w, n); }
-static void limit_process_wrap(void* f, prc_fmt_t* w, size_t n) { limiter_filter_process((limiter_filter_t*)f, w, n); }
-static void look_process_wrap(void* f, prc_fmt_t* w, size_t n) { lookahead_limiter_filter_process((lookahead_limiter_filter_t*)f, w, n); }
+static void bq_process_wrap(void* f, double* w, size_t n) { biquad_filter_process((biquad_filter_t*)f, w, n); }
+static void conv_process_wrap(void* f, double* w, size_t n) { convolution_filter_process((convolution_filter_t*)f, w, n); }
+static void gain_process_wrap(void* f, double* w, size_t n) { gain_filter_process((gain_filter_t*)f, w, n); }
+static void loud_process_wrap(void* f, double* w, size_t n) { loudness_filter_process((loudness_filter_t*)f, w, n); }
+static void delay_process_wrap(void* f, double* w, size_t n) { delay_filter_process((delay_filter_t*)f, w, n); }
+static void combo_process_wrap(void* f, double* w, size_t n) { biquad_combo_filter_process((biquad_combo_filter_t*)f, w, n); }
+static void diffeq_process_wrap(void* f, double* w, size_t n) { diffeq_filter_process((diffeq_filter_t*)f, w, n); }
+static void dither_process_wrap(void* f, double* w, size_t n) { dither_filter_process((dither_filter_t*)f, w, n); }
+static void limit_process_wrap(void* f, double* w, size_t n) { limiter_filter_process((limiter_filter_t*)f, w, n); }
+static void look_process_wrap(void* f, double* w, size_t n) { lookahead_limiter_filter_process((lookahead_limiter_filter_t*)f, w, n); }
 
 static void filter_iter(int i, void* ctx) {
     (void)i;
@@ -248,7 +248,7 @@ TEST(Biquad_AllocationFree) {
     (void)params;
     biquad_filter_t* filter = biquad_filter_create("bq", &coeffs);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, bq_process_wrap, wave, 1024 };
     assert_allocation_free("Biquad", 0, 30, filter_iter, &ctx);
@@ -266,7 +266,7 @@ TEST(Convolution_AllocationFree) {
     conv_parameters_t params = { .type = CONV_TYPE_VALUES, .values = ir, .values_count = ir_len };
     convolution_filter_t* filter = convolution_filter_create("conv", &params, chunk_size);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(chunk_size, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(chunk_size, sizeof(double));
     fill_sine(wave, chunk_size, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, conv_process_wrap, wave, chunk_size };
     assert_allocation_free("Convolution", 3, 30, filter_iter, &ctx);
@@ -279,7 +279,7 @@ TEST(Gain_AllocationFree) {
     gain_parameters_t params = { .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB };
     gain_filter_t* filter = gain_filter_create("gain", &params);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, gain_process_wrap, wave, 1024 };
     assert_allocation_free("Gain", 0, 30, filter_iter, &ctx);
@@ -303,7 +303,7 @@ TEST(Volume_AllocationFree) {
     volume_parameters_t params = { .ramp_time = 0.0, .has_ramp_time = true, .limit = 50.0, .has_limit = true, .fader = FADER_MAIN };
     volume_filter_t* filter = volume_filter_create("vol", &params, 44100, 1024, proc_params);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, NULL, wave, 1024 };
     assert_allocation_free("Volume", 0, 30, vol_iter, &ctx);
@@ -318,7 +318,7 @@ TEST(Loudness_AllocationFree) {
     loudness_parameters_t params = { .reference_level = -25.0, .has_reference_level = true, .high_boost = 10.0, .has_high_boost = true, .low_boost = 10.0, .has_low_boost = true, .attenuate_mid = false };
     loudness_filter_t* filter = loudness_filter_create("loud", &params, 44100, proc_params);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, loud_process_wrap, wave, 1024 };
     assert_allocation_free("Loudness", 0, 30, filter_iter, &ctx);
@@ -331,7 +331,7 @@ TEST(Delay_AllocationFree) {
     delay_parameters_t params = { .delay = 5.5, .unit = DELAY_UNIT_SAMPLES, .subsample = true };
     delay_filter_t* filter = delay_filter_create("del", &params, 44100);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, delay_process_wrap, wave, 1024 };
     assert_allocation_free("Delay", 0, 30, filter_iter, &ctx);
@@ -350,7 +350,7 @@ TEST(BiquadCombo_AllocationFree) {
     };
     biquad_combo_filter_t* filter = biquad_combo_filter_create("combo", &params, 44100);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, combo_process_wrap, wave, 1024 };
     assert_allocation_free("BiquadCombo", 0, 30, filter_iter, &ctx);
@@ -364,7 +364,7 @@ TEST(DiffEq_AllocationFree) {
     diff_eq_parameters_t params = { .a = a, .a_count = 3, .b = b, .b_count = 3 };
     diffeq_filter_t* filter = diffeq_filter_create("diffeq", &params);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, diffeq_process_wrap, wave, 1024 };
     assert_allocation_free("DiffEq", 0, 30, filter_iter, &ctx);
@@ -376,7 +376,7 @@ TEST(Dither_AllocationFree) {
     dither_parameters_t params = { .type = DITHER_TYPE_GESEMANN_441, .bits = 16 };
     dither_filter_t* filter = dither_filter_create("dither", &params);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, dither_process_wrap, wave, 1024 };
     assert_allocation_free("Dither", 0, 30, filter_iter, &ctx);
@@ -388,7 +388,7 @@ TEST(Limiter_AllocationFree) {
     limiter_parameters_t params = { .clip_limit = -1.5, .soft_clip = true };
     limiter_filter_t* filter = limiter_filter_create("limiter", &params);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, limit_process_wrap, wave, 1024 };
     assert_allocation_free("Limiter", 0, 30, filter_iter, &ctx);
@@ -400,7 +400,7 @@ TEST(LookaheadLimiter_AllocationFree) {
     lookahead_limiter_parameters_t params = { .limit = -1.0, .attack = 4.0, .release = 20.0, .unit = DELAY_UNIT_SAMPLES };
     lookahead_limiter_filter_t* filter = lookahead_limiter_filter_create("lookahead", &params, 44100, 1024);
     ASSERT_TRUE(filter != NULL);
-    prc_fmt_t* wave = (prc_fmt_t*)calloc(1024, sizeof(prc_fmt_t));
+    double* wave = (double*)calloc(1024, sizeof(double));
     fill_sine(wave, 1024, 1000.0, 44100.0);
     filter_test_ctx_t ctx = { filter, look_process_wrap, wave, 1024 };
     assert_allocation_free("LookaheadLimiter", 0, 30, filter_iter, &ctx);

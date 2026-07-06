@@ -82,7 +82,7 @@ delay_filter_t* delay_filter_create(const char* name, const delay_parameters_t* 
     build_delay(delay_samples, subsample, &integer_delay, &coeffs, &has_coeffs);
 
     if (integer_delay > 0) {
-        filter->queue = (prc_fmt_t*)calloc(integer_delay, sizeof(prc_fmt_t));
+        filter->queue = (double*)calloc(integer_delay, sizeof(double));
         filter->queue_count = integer_delay;
     } else {
         filter->queue = NULL;
@@ -102,9 +102,9 @@ void delay_filter_process(delay_filter_t* filter, mutable_waveform_t waveform, s
     if (filter->queue && filter->queue_count > 0) {
         size_t ri = filter->read_index;
         size_t qc = filter->queue_count;
-        prc_fmt_t* q = filter->queue;
+        double* q = filter->queue;
         for (size_t i = 0; i < count; i++) {
-            prc_fmt_t delayed = q[ri];
+            double delayed = q[ri];
             q[ri] = waveform[i];
             waveform[i] = delayed;
             ri++;
@@ -117,11 +117,11 @@ void delay_filter_process(delay_filter_t* filter, mutable_waveform_t waveform, s
     }
 }
 
-prc_fmt_t delay_filter_process_single(delay_filter_t* filter, prc_fmt_t sample) {
+double delay_filter_process_single(delay_filter_t* filter, double sample) {
     if (!filter) return sample;
-    prc_fmt_t out = sample;
+    double out = sample;
     if (filter->queue && filter->queue_count > 0) {
-        prc_fmt_t delayed = filter->queue[filter->read_index];
+        double delayed = filter->queue[filter->read_index];
         filter->queue[filter->read_index] = sample;
         out = delayed;
         filter->read_index++;
@@ -148,7 +148,7 @@ void delay_filter_update_parameters(delay_filter_t* filter, const filter_config_
         free(filter->queue);
     }
     if (integer_delay > 0) {
-        filter->queue = (prc_fmt_t*)calloc(integer_delay, sizeof(prc_fmt_t));
+        filter->queue = (double*)calloc(integer_delay, sizeof(double));
         filter->queue_count = integer_delay;
     } else {
         filter->queue = NULL;

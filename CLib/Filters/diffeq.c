@@ -18,18 +18,18 @@ diffeq_filter_t* diffeq_filter_create(const char* name, const diff_eq_parameters
     filter->a_count = a_cnt;
     filter->b_count = b_cnt;
 
-    filter->a = (prc_fmt_t*)malloc(a_cnt * sizeof(prc_fmt_t));
-    filter->b = (prc_fmt_t*)malloc(b_cnt * sizeof(prc_fmt_t));
-    filter->x = (prc_fmt_t*)calloc(b_cnt, sizeof(prc_fmt_t));
-    filter->y = (prc_fmt_t*)calloc(a_cnt, sizeof(prc_fmt_t));
+    filter->a = (double*)malloc(a_cnt * sizeof(double));
+    filter->b = (double*)malloc(b_cnt * sizeof(double));
+    filter->x = (double*)calloc(b_cnt, sizeof(double));
+    filter->y = (double*)calloc(a_cnt, sizeof(double));
 
     if (params && params->a && params->a_count > 0) {
-        memcpy(filter->a, params->a, a_cnt * sizeof(prc_fmt_t));
+        memcpy(filter->a, params->a, a_cnt * sizeof(double));
     } else {
         filter->a[0] = 1.0;
     }
     if (params && params->b && params->b_count > 0) {
-        memcpy(filter->b, params->b, b_cnt * sizeof(prc_fmt_t));
+        memcpy(filter->b, params->b, b_cnt * sizeof(double));
     } else {
         filter->b[0] = 1.0;
     }
@@ -50,10 +50,10 @@ void diffeq_filter_process(diffeq_filter_t* filter, mutable_waveform_t waveform,
     if (!filter || !waveform || count == 0) return;
     size_t nb = filter->b_count;
     size_t na = filter->a_count;
-    prc_fmt_t* x = filter->x;
-    prc_fmt_t* y = filter->y;
-    const prc_fmt_t* a = filter->a;
-    const prc_fmt_t* b = filter->b;
+    double* x = filter->x;
+    double* y = filter->y;
+    const double* a = filter->a;
+    const double* b = filter->b;
     size_t idx_x = filter->idx_x;
     size_t idx_y = filter->idx_y;
 
@@ -96,16 +96,16 @@ void diffeq_filter_update_parameters(diffeq_filter_t* filter, const filter_confi
     filter->a_count = a_cnt;
     filter->b_count = b_cnt;
 
-    filter->a = (prc_fmt_t*)malloc(a_cnt * sizeof(prc_fmt_t));
-    filter->b = (prc_fmt_t*)malloc(b_cnt * sizeof(prc_fmt_t));
+    filter->a = (double*)malloc(a_cnt * sizeof(double));
+    filter->b = (double*)malloc(b_cnt * sizeof(double));
 
     if (params->a && params->a_count > 0) {
-        memcpy(filter->a, params->a, a_cnt * sizeof(prc_fmt_t));
+        memcpy(filter->a, params->a, a_cnt * sizeof(double));
     } else {
         filter->a[0] = 1.0;
     }
     if (params->b && params->b_count > 0) {
-        memcpy(filter->b, params->b, b_cnt * sizeof(prc_fmt_t));
+        memcpy(filter->b, params->b, b_cnt * sizeof(double));
     } else {
         filter->b[0] = 1.0;
     }
@@ -119,12 +119,12 @@ void diffeq_filter_update_parameters(diffeq_filter_t* filter, const filter_confi
 
     if (old_b_count != b_cnt) {
         if (filter->x) free(filter->x);
-        filter->x = (prc_fmt_t*)calloc(b_cnt, sizeof(prc_fmt_t));
+        filter->x = (double*)calloc(b_cnt, sizeof(double));
         filter->idx_x = 0;
     }
     if (old_a_count != a_cnt) {
         if (filter->y) free(filter->y);
-        filter->y = (prc_fmt_t*)calloc(a_cnt, sizeof(prc_fmt_t));
+        filter->y = (double*)calloc(a_cnt, sizeof(double));
         filter->idx_y = 0;
     }
 }

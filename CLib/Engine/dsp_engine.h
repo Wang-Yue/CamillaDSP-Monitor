@@ -22,7 +22,7 @@ typedef struct {
     spectrum_analyzer_t* spectrum;
     audio_history_buffer_t* capture_buffer;
     audio_history_buffer_t* playback_buffer;
-    prc_fmt_t desired_fader_volumes[FADER_COUNT];
+    double desired_fader_volumes[FADER_COUNT];
     bool desired_fader_mutes[FADER_COUNT];
     processing_stop_reason_t last_stop_reason;
     bool has_last_stop_reason;
