@@ -4,7 +4,7 @@
 // expected by DSPMonitor and DSPCLI.
 
 import DSPConfig
-import CamillaDSPCLib
+import CDSP
 import Foundation
 
 // MARK: - The actor

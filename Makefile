@@ -33,7 +33,7 @@ endif
 
 export ENGINE
 
-C_SRCS := $(shell find CLib -type f \( -name "*.c" -o -name "*.h" \) 2>/dev/null)
+C_SRCS := $(shell find Sources/CDSP -type f \( -name "*.c" -o -name "*.h" \) 2>/dev/null)
 
 ifeq ($(ENGINE),rust)
 	# Rust FFI path
@@ -127,8 +127,8 @@ ifeq ($(ENGINE),swift)
 	$(SWIFT) build $(SWIFT_FLAGS) --product dsp-cli
 else
 	@echo "🍎 Building C dsp-cli CLI..."
-	@$(MAKE) -f CLib/Makefile cli
-	@echo "📍 Binary location: CLib/bin/dsp-cli"
+	@$(MAKE) -f Sources/CDSP/Makefile cli
+	@echo "📍 Binary location: Sources/CDSP/bin/dsp-cli"
 endif
 
 ## app: Build and package as a macOS Application (.app)
@@ -181,7 +181,7 @@ test-swift:
 ## test-c: Run C unit tests (except benchmark tests)
 test-c:
 	@echo "🧪 Running C test suite..."
-	@$(MAKE) -f CLib/Makefile test
+	@$(MAKE) -f Sources/CDSP/Makefile test
 
 ## test: Build the Rust harnesses and run the full test suite (Swift or C depending on ENGINE)
 test:
@@ -192,7 +192,7 @@ ifeq ($(ENGINE),swift)
 else
 	@$(MAKE) test-rust-build
 	@echo "🧪 Running C unit tests..."
-	@$(MAKE) -f CLib/Makefile test
+	@$(MAKE) -f Sources/CDSP/Makefile test
 endif
 
 ## bench: Run resampler/filter benchmarks (Swift or C depending on ENGINE)
@@ -208,7 +208,7 @@ ifeq ($(ENGINE),swift)
 else
 	@$(MAKE) test-rust-build
 	@echo "⏱️  Running C benchmark tests..."
-	@$(MAKE) -f CLib/Makefile bench
+	@$(MAKE) -f Sources/CDSP/Makefile bench
 endif
 
 ## clean: Remove all build artifacts
@@ -220,7 +220,7 @@ clean:
 	rm -rf lib
 	rm -rf Sources/CamillaDSPFFI/include
 	rm -f Sources/DSPLib/camilladsp_ffi.swift
-	@$(MAKE) -f CLib/Makefile clean 2>/dev/null || true
+	@$(MAKE) -f Sources/CDSP/Makefile clean 2>/dev/null || true
 	@if [ -d RustBridge ]; then \
 		echo "🧹 Cleaning Rust bridge..."; \
 		cd RustBridge && $(CARGO_CMD) clean && rm -rf generated; \

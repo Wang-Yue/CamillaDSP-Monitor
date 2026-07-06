@@ -115,12 +115,12 @@ RustBridge/Cargo.lock
 cdsp_*.raw
 
 # C Library and Test Build Artifacts
-CLib/libdsp.a
-CLib/*.a
-CLib/**/*.o
-CLib/bin/
+Sources/CDSP/libdsp.a
+Sources/CDSP/*.a
+Sources/CDSP/**/*.o
+Sources/CDSP/bin/
 dsp-cli
-CTests/bin/
-CTests/**/*.o
+Tests/CLibTests/bin/
+Tests/CLibTests/**/*.o
 *.dSYM/
 
