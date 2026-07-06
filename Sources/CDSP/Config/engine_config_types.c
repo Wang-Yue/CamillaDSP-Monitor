@@ -133,6 +133,7 @@ const char* audio_backend_type_to_string(audio_backend_type_t type) {
         case AUDIO_BACKEND_TYPE_FILE: return "File";
         case AUDIO_BACKEND_TYPE_STDIN_OUT: return "Stdin";
         case AUDIO_BACKEND_TYPE_GENERATOR: return "SignalGenerator";
+        case AUDIO_BACKEND_TYPE_ASIO: return "Asio";
         default: return "Unknown";
     }
 }
@@ -144,6 +145,7 @@ audio_backend_type_t audio_backend_type_from_string(const char* str) {
     if (strcasecmp(str, "Pulse") == 0 || strcasecmp(str, "PulseAudio") == 0) return AUDIO_BACKEND_TYPE_PULSE_AUDIO;
     if (strcasecmp(str, "Pipewire") == 0 || strcasecmp(str, "PipeWire") == 0) return AUDIO_BACKEND_TYPE_PIPEWIRE;
     if (strcasecmp(str, "Wasapi") == 0 || strcasecmp(str, "WASAPI") == 0) return AUDIO_BACKEND_TYPE_WASAPI;
+    if (strcasecmp(str, "Asio") == 0 || strcasecmp(str, "ASIO") == 0) return AUDIO_BACKEND_TYPE_ASIO;
     if (strcasecmp(str, "File") == 0 || strcasecmp(str, "RawFile") == 0 || strcasecmp(str, "WavFile") == 0) return AUDIO_BACKEND_TYPE_FILE;
     if (strcasecmp(str, "Stdin") == 0 || strcasecmp(str, "Stdout") == 0 || strcasecmp(str, "STDIN") == 0 || strcasecmp(str, "STDOUT") == 0) return AUDIO_BACKEND_TYPE_STDIN_OUT;
     if (strcasecmp(str, "SignalGenerator") == 0 || strcasecmp(str, "Generator") == 0) return AUDIO_BACKEND_TYPE_GENERATOR;
@@ -241,6 +243,29 @@ wasapi_sample_format_t wasapi_sample_format_from_string(const char* str) {
     if (strcmp(str, "S32") == 0) return WASAPI_SAMPLE_FORMAT_S32;
     if (strcmp(str, "F32") == 0) return WASAPI_SAMPLE_FORMAT_F32;
     return WASAPI_SAMPLE_FORMAT_INVALID;
+}
+
+const char* asio_sample_format_to_string(asio_sample_format_t fmt) {
+    switch (fmt) {
+        case ASIO_SAMPLE_FORMAT_S16_LE: return "S16_LE";
+        case ASIO_SAMPLE_FORMAT_S24_3_LE: return "S24_3_LE";
+        case ASIO_SAMPLE_FORMAT_S24_4_LE: return "S24_4_LE";
+        case ASIO_SAMPLE_FORMAT_S32_LE: return "S32_LE";
+        case ASIO_SAMPLE_FORMAT_F32_LE: return "F32_LE";
+        case ASIO_SAMPLE_FORMAT_F64_LE: return "F64_LE";
+        default: return "Invalid";
+    }
+}
+
+asio_sample_format_t asio_sample_format_from_string(const char* str) {
+    if (!str) return ASIO_SAMPLE_FORMAT_INVALID;
+    if (strcmp(str, "S16_LE") == 0) return ASIO_SAMPLE_FORMAT_S16_LE;
+    if (strcmp(str, "S24_3_LE") == 0) return ASIO_SAMPLE_FORMAT_S24_3_LE;
+    if (strcmp(str, "S24_4_LE") == 0) return ASIO_SAMPLE_FORMAT_S24_4_LE;
+    if (strcmp(str, "S32_LE") == 0) return ASIO_SAMPLE_FORMAT_S32_LE;
+    if (strcmp(str, "F32_LE") == 0) return ASIO_SAMPLE_FORMAT_F32_LE;
+    if (strcmp(str, "F64_LE") == 0) return ASIO_SAMPLE_FORMAT_F64_LE;
+    return ASIO_SAMPLE_FORMAT_INVALID;
 }
 #endif
 

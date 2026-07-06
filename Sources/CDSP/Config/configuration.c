@@ -405,6 +405,11 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
                 config->devices.capture.format = wasapi_sample_format_from_string(fmt_str);
                 config->devices.capture.has_format = true;
 #endif
+            } else if (config->devices.capture.type == AUDIO_BACKEND_TYPE_ASIO) {
+#if defined(_WIN32)
+                config->devices.capture.asio_format = asio_sample_format_from_string(fmt_str);
+                config->devices.capture.has_asio_format = true;
+#endif
             } else {
 #if defined(__linux__)
                 config->devices.capture.format = alsa_sample_format_from_string(fmt_str);
@@ -485,6 +490,11 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config, config_er
 #if defined(_WIN32)
                 config->devices.playback.format = wasapi_sample_format_from_string(fmt_str);
                 config->devices.playback.has_format = true;
+#endif
+            } else if (config->devices.playback.type == AUDIO_BACKEND_TYPE_ASIO) {
+#if defined(_WIN32)
+                config->devices.playback.asio_format = asio_sample_format_from_string(fmt_str);
+                config->devices.playback.has_asio_format = true;
 #endif
             } else {
 #if defined(__linux__)

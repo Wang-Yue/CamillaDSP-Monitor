@@ -139,6 +139,7 @@ typedef enum {
     AUDIO_BACKEND_TYPE_FILE = 5,
     AUDIO_BACKEND_TYPE_STDIN_OUT = 6,
     AUDIO_BACKEND_TYPE_GENERATOR = 7,
+    AUDIO_BACKEND_TYPE_ASIO = 8,
     AUDIO_BACKEND_TYPE_INVALID = -1
 } audio_backend_type_t;
 
@@ -188,6 +189,19 @@ typedef enum {
 
 const char* wasapi_sample_format_to_string(wasapi_sample_format_t fmt);
 wasapi_sample_format_t wasapi_sample_format_from_string(const char* str);
+
+typedef enum {
+    ASIO_SAMPLE_FORMAT_S16_LE = 0,
+    ASIO_SAMPLE_FORMAT_S24_3_LE,
+    ASIO_SAMPLE_FORMAT_S24_4_LE,
+    ASIO_SAMPLE_FORMAT_S32_LE,
+    ASIO_SAMPLE_FORMAT_F32_LE,
+    ASIO_SAMPLE_FORMAT_F64_LE,
+    ASIO_SAMPLE_FORMAT_INVALID = -1
+} asio_sample_format_t;
+
+const char* asio_sample_format_to_string(asio_sample_format_t fmt);
+asio_sample_format_t asio_sample_format_from_string(const char* str);
 #endif
 
 typedef enum {
@@ -231,6 +245,8 @@ typedef struct {
     coreaudio_sample_format_t format;
 #elif defined(_WIN32)
     wasapi_sample_format_t format;
+    asio_sample_format_t asio_format;
+    bool has_asio_format;
 #endif
     bool has_format;
     bool loopback;
@@ -278,6 +294,8 @@ typedef struct {
     coreaudio_sample_format_t format;
 #elif defined(_WIN32)
     wasapi_sample_format_t format;
+    asio_sample_format_t asio_format;
+    bool has_asio_format;
 #endif
     bool has_format;
     bool exclusive;

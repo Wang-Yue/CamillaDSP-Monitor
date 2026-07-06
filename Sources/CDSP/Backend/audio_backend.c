@@ -15,6 +15,7 @@
 #endif
 #if defined(_WIN32)
 #include "wasapi_backend.h"
+#include "asio_backend.h"
 #endif
 #include "generator_capture.h"
 #include "file_backend.h"
@@ -40,6 +41,8 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
 #elif defined(_WIN32)
         case AUDIO_BACKEND_TYPE_WASAPI:
             return wasapi_capture_create(config, sample_rate, chunk_size, params, err);
+        case AUDIO_BACKEND_TYPE_ASIO:
+            return asio_capture_new(config, sample_rate, chunk_size, err);
 #endif
         case AUDIO_BACKEND_TYPE_GENERATOR:
             return generator_capture_create(config, sample_rate, chunk_size, params, err);
@@ -72,6 +75,8 @@ playback_backend_t* create_playback_backend(const playback_device_config_t* conf
 #elif defined(_WIN32)
         case AUDIO_BACKEND_TYPE_WASAPI:
             return wasapi_playback_create(config, sample_rate, chunk_size, params, err);
+        case AUDIO_BACKEND_TYPE_ASIO:
+            return asio_playback_new(config, sample_rate, chunk_size, err);
 #endif
         case AUDIO_BACKEND_TYPE_FILE:
         case AUDIO_BACKEND_TYPE_STDIN_OUT:
