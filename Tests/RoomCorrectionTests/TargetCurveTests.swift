@@ -7,7 +7,7 @@
 import Foundation
 import Testing
 
-@testable import RoomCorrection
+@testable import DSPMonitor
 @testable import SwiftDSP
 
 @Suite struct TargetCurveTests {

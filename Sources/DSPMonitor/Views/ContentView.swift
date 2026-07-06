@@ -1,5 +1,6 @@
 // ContentView - Main app layout with sidebar navigation and detail panel
 
+import DSPConfig
 import Observation
 import SwiftUI
 
@@ -9,6 +10,7 @@ struct ContentView: View {
   @State private var showAutoEqSearch = false
   @State private var showOratorySearch = false
   @State private var showImportConv = false
+  @State private var showRoomCorrection = false
 
   var body: some View {
     if appState.isMiniPlayerActive {
@@ -17,7 +19,8 @@ struct ContentView: View {
       NavigationSplitView {
         SidebarView(
           selection: $selection, showAutoEqSearch: $showAutoEqSearch,
-          showOratorySearch: $showOratorySearch, showImportConv: $showImportConv)
+          showOratorySearch: $showOratorySearch, showImportConv: $showImportConv,
+          showRoomCorrection: $showRoomCorrection)
       } detail: {
         DetailPanel(selection: selection)
       }
@@ -36,6 +39,14 @@ struct ContentView: View {
       .sheet(isPresented: $showImportConv) {
         ConvolutionImportView()
           .environment(appState.pipeline)
+      }
+      .sheet(isPresented: $showRoomCorrection) {
+        MeasurementView()
+          .environment(MeasurementSession())
+          .environment(appState.pipeline)
+          .frame(
+            minWidth: 960, idealWidth: 1100, maxWidth: .infinity, minHeight: 680, idealHeight: 780,
+            maxHeight: .infinity)
       }
     }
   }
@@ -116,6 +127,7 @@ struct SidebarView: View {
   @Binding var showAutoEqSearch: Bool
   @Binding var showOratorySearch: Bool
   @Binding var showImportConv: Bool
+  @Binding var showRoomCorrection: Bool
 
   var body: some View {
     @Bindable var appState = appState
@@ -220,6 +232,12 @@ struct SidebarView: View {
             showImportConv = true
           } label: {
             Label("Import IR File(s)…", systemImage: "square.and.arrow.down")
+          }
+
+          Button {
+            showRoomCorrection = true
+          } label: {
+            Label("Room Correction", systemImage: "mic")
           }
         }
         .foregroundStyle(.secondary)

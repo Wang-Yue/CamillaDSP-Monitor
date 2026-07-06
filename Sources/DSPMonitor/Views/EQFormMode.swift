@@ -1,5 +1,6 @@
 // EQFormMode - Simplified list view for editing EQ bands
 
+import DSPConfig
 import Observation
 import SwiftUI
 

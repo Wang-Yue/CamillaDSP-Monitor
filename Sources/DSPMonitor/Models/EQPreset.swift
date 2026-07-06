@@ -4,7 +4,7 @@ import DSPConfig
 import Foundation
 import Observation
 
-enum EQBandType: String, CaseIterable, Codable, Identifiable {
+enum EQBandType: String, CaseIterable, Codable, Identifiable, Sendable {
   case peaking = "Peaking"
   case lowshelf = "Lowshelf"
   case highshelf = "Highshelf"
@@ -25,13 +25,6 @@ enum EQBandType: String, CaseIterable, Codable, Identifiable {
   case linkwitzTransform = "LinkwitzTransform"
 
   var id: String { rawValue }
-
-  var isStandard: Bool {
-    switch self {
-    case .free, .generalNotch, .linkwitzTransform: return false
-    default: return true
-    }
-  }
 
   var hasGain: Bool {
     switch self {
@@ -54,9 +47,18 @@ enum EQBandType: String, CaseIterable, Codable, Identifiable {
     "HP": .highpass, "NO": .notch, "BP": .bandpass, "AP": .allpass,
     "LSC": .lowshelf, "HSC": .highshelf,
   ]
+
   var shortName: String { Self.shortNameMap.first(where: { $0.value == self })?.key ?? rawValue }
+
   static func fromShortName(_ s: String) -> EQBandType {
     shortNameMap[s.uppercased()] ?? .peaking
+  }
+
+  var isStandard: Bool {
+    switch self {
+    case .free, .generalNotch, .linkwitzTransform: return false
+    default: return true
+    }
   }
 }
 
@@ -253,6 +255,10 @@ final class EQBand: Identifiable, Codable, Equatable {
     return coeffs.gainDB(atFreqHz: f, sampleRate: sampleRate)
   }
 
+  func phaseResponse(atFreq f: Double, sampleRate: Int) -> Double {
+    guard isEnabled, let coeffs = coefficients(sampleRate: sampleRate) else { return 0 }
+    return coeffs.phaseRad(atFreqHz: f, sampleRate: sampleRate)
+  }
 }
 
 @Observable
@@ -266,13 +272,16 @@ final class EQPreset: Identifiable, Codable, Equatable {
   var name: String
   var preampGain: Double
   var bands: [EQBand]
+
   init(name: String, preampGain: Double = -6.0, bands: [EQBand] = []) {
     self.id = UUID()
     self.name = name
     self.preampGain = preampGain
     self.bands = bands
   }
+
   enum CodingKeys: String, CodingKey { case id, name, preampGain, bands }
+
   required init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     id = try c.decode(UUID.self, forKey: .id)
@@ -280,6 +289,7 @@ final class EQPreset: Identifiable, Codable, Equatable {
     preampGain = try c.decodeIfPresent(Double.self, forKey: .preampGain) ?? -6.0
     bands = try c.decode([EQBand].self, forKey: .bands)
   }
+
   func encode(to encoder: Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encode(id, forKey: .id)
@@ -287,13 +297,23 @@ final class EQPreset: Identifiable, Codable, Equatable {
     try c.encode(preampGain, forKey: .preampGain)
     try c.encode(bands, forKey: .bands)
   }
+
   func addBand(_ band: EQBand? = nil) { bands.append(band ?? EQBand()) }
-  func removeBand(at index: Int) { if bands.indices.contains(index) { bands.remove(at: index) } }
+  func removeBand(at index: Int) {
+    if bands.indices.contains(index) { bands.remove(at: index) }
+  }
+
   func combinedResponse(atFreq f: Double, sampleRate: Int) -> Double {
     preampGain
       + bands.filter(\.isEnabled).reduce(0.0) {
         $0 + $1.response(atFreq: f, sampleRate: sampleRate)
       }
+  }
+
+  func combinedPhase(atFreq f: Double, sampleRate: Int) -> Double {
+    bands.filter(\.isEnabled).reduce(0.0) {
+      $0 + $1.phaseResponse(atFreq: f, sampleRate: sampleRate)
+    }
   }
 
   // MARK: - AutoEq / EqualizerAPO CSV Format

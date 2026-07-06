@@ -1,5 +1,6 @@
 // EQCSVMode - AutoEq / EqualizerAPO compatible text editor for EQ presets
 
+import DSPConfig
 import Observation
 import SwiftUI
 

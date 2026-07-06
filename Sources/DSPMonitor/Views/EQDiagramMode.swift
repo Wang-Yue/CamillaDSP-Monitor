@@ -1,6 +1,7 @@
 // EQDiagramMode - Interactive frequency response diagram with draggable band handles
 
 import AppKit
+import DSPConfig
 import Observation
 import SwiftUI
 
@@ -46,11 +47,18 @@ extension View {
   }
 }
 
+struct EQReferenceOverlay: Sendable {
+  var measuredMagnitudeDB: [Double] = []
+  var frequencies: [Double] = []
+  var target: TargetCurve? = nil
+  var showCorrected: Bool = false
+}
+
 struct EQDiagramMode: View {
   @Bindable var preset: EQPreset
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
-  @Environment(DSPEngineController.self) var dsp
+  var overlay: EQReferenceOverlay? = nil
 
   var body: some View {
     VStack(spacing: 0) {
@@ -69,7 +77,8 @@ struct EQDiagramMode: View {
       EQFrequencyResponseView(
         preset: preset,
         selectedBandID: $selectedBandID,
-        sampleRate: sampleRate
+        sampleRate: sampleRate,
+        overlay: overlay
       )
       .frame(minHeight: 300)
       .padding()
@@ -85,9 +94,10 @@ struct EQDiagramMode: View {
 
 struct EQFrequencyResponseView: View {
   let preset: EQPreset
-  @Environment(DSPEngineController.self) var dsp
+  @Environment(DSPEngineController.self) var dsp: DSPEngineController?
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
+  var overlay: EQReferenceOverlay? = nil
   static let bandColors: [Color] = [
     .red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink, .mint, .teal, .indigo, .brown,
   ]
@@ -116,12 +126,28 @@ struct EQFrequencyResponseView: View {
   }
 
   var body: some View {
+    let normDB = overlayReferenceDB
     return GeometryReader { geo in
       let w = geo.size.width
       let h = geo.size.height
       ZStack {
         RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor))
         drawGrid(w: w, h: h)
+
+        if let target = overlay?.target {
+          targetPath(target, w: w, h: h)
+            .stroke(Color.secondary, style: StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
+        }
+        if let ovl = overlay, !ovl.measuredMagnitudeDB.isEmpty,
+          ovl.measuredMagnitudeDB.count == ovl.frequencies.count
+        {
+          measuredPath(ovl, normDB: normDB, w: w, h: h)
+            .stroke(Color.blue, lineWidth: 1.4)
+          if ovl.showCorrected {
+            correctedPath(ovl, normDB: normDB, w: w, h: h)
+              .stroke(Color.orange, lineWidth: 1.8)
+          }
+        }
 
         ForEach(preset.bands) { band in
           let color = colorFor(band)
@@ -142,6 +168,89 @@ struct EQFrequencyResponseView: View {
     }
   }
 
+  private var overlayReferenceDB: Double {
+    guard let ovl = overlay,
+      !ovl.measuredMagnitudeDB.isEmpty,
+      ovl.measuredMagnitudeDB.count == ovl.frequencies.count
+    else { return 0 }
+    var inBand: [Double] = []
+    inBand.reserveCapacity(ovl.measuredMagnitudeDB.count)
+    for i in 0..<ovl.frequencies.count {
+      let f = ovl.frequencies[i]
+      let m = ovl.measuredMagnitudeDB[i]
+      if f >= 200, f <= 5000, m.isFinite, m > -200 {
+        inBand.append(m)
+      }
+    }
+    if inBand.isEmpty { return 0 }
+    inBand.sort()
+    return inBand[inBand.count / 2]
+  }
+
+  private func clampForPlot(_ db: Double) -> Double {
+    let lo = minDB - 6
+    let hi = maxDB + 6
+    if db.isFinite { return max(lo, min(hi, db)) }
+    return 0
+  }
+
+  private func targetPath(_ target: TargetCurve, w: Double, h: Double) -> Path {
+    Path { path in
+      let n = 256
+      for i in 0...n {
+        let x = w * Double(i) / Double(n)
+        let f = xToFreq(x, width: w)
+        let db = clampForPlot(target.evaluate(atFreqHz: f))
+        let y = dbToY(db, height: h)
+        if i == 0 {
+          path.move(to: CGPoint(x: x, y: y))
+        } else {
+          path.addLine(to: CGPoint(x: x, y: y))
+        }
+      }
+    }
+  }
+
+  private func measuredPath(_ ovl: EQReferenceOverlay, normDB: Double, w: Double, h: Double) -> Path
+  {
+    Path { path in
+      var started = false
+      for i in 0..<ovl.frequencies.count {
+        let x = freqToX(ovl.frequencies[i], width: w)
+        let dB = clampForPlot(ovl.measuredMagnitudeDB[i] - normDB)
+        let y = dbToY(dB, height: h)
+        if !started {
+          path.move(to: CGPoint(x: x, y: y))
+          started = true
+        } else {
+          path.addLine(to: CGPoint(x: x, y: y))
+        }
+      }
+    }
+  }
+
+  private func correctedPath(_ ovl: EQReferenceOverlay, normDB: Double, w: Double, h: Double)
+    -> Path
+  {
+    Path { path in
+      var started = false
+      for i in 0..<ovl.frequencies.count {
+        let f = ovl.frequencies[i]
+        let dB = clampForPlot(
+          ovl.measuredMagnitudeDB[i] - normDB
+            + preset.combinedResponse(atFreq: f, sampleRate: sampleRate))
+        let x = freqToX(f, width: w)
+        let y = dbToY(dB, height: h)
+        if !started {
+          path.move(to: CGPoint(x: x, y: y))
+          started = true
+        } else {
+          path.addLine(to: CGPoint(x: x, y: y))
+        }
+      }
+    }
+  }
+
   private func adjustSelectedBandQ(delta: CGFloat) {
     guard let id = selectedBandID,
       let band = preset.bands.first(where: { $0.id == id }),
@@ -151,7 +260,7 @@ struct EQFrequencyResponseView: View {
     // Multiplicative scaling so it feels natural at all Q values
     let factor = delta > 0 ? 1.05 : 0.95
     band.q = max(0.1, min(20.0, band.q * factor))
-    dsp.applyConfig()
+    dsp?.applyConfig()
   }
 
   private func drawGrid(w: Double, h: Double) -> some View {
@@ -250,9 +359,9 @@ struct EQFrequencyResponseView: View {
               let newDB = yToDB(value.location.y, height: h)
               band.gain = max(-20, min(20, (newDB * 2).rounded() / 2))
             }
-            dsp.applyConfig()
+            dsp?.applyConfig()
           }.onEnded { _ in
-            dsp.applyConfig()
+            dsp?.applyConfig()
           }
         )
         .onTapGesture { selectedBandID = band.id }
@@ -263,7 +372,7 @@ struct EQFrequencyResponseView: View {
 struct EQBandListBar: View {
   let preset: EQPreset
   @Binding var selectedBandID: UUID?
-  @Environment(DSPEngineController.self) var dsp
+  @Environment(DSPEngineController.self) var dsp: DSPEngineController?
 
   var body: some View {
     HStack {
@@ -285,7 +394,7 @@ struct EQBandListBar: View {
       HStack(spacing: 12) {
         Button {
           preset.addBand()
-          dsp.applyConfig()
+          dsp?.applyConfig()
         } label: {
           Image(systemName: "plus.circle")
         }.buttonStyle(.plain)
@@ -302,7 +411,7 @@ struct EQBandChip: View {
   let isSelected: Bool
   let color: Color
   @Binding var selectedBandID: UUID?
-  @Environment(DSPEngineController.self) var dsp
+  @Environment(DSPEngineController.self) var dsp: DSPEngineController?
   var body: some View {
     HStack(spacing: 4) {
       Circle().fill(color).frame(width: 6, height: 6)
@@ -352,7 +461,7 @@ struct EQBandChip: View {
       .contextMenu {
         Button {
           band.isEnabled.toggle()
-          dsp.applyConfig()
+          dsp?.applyConfig()
         } label: {
           Label(
             band.isEnabled ? "Disable Band" : "Enable Band",
@@ -363,7 +472,7 @@ struct EQBandChip: View {
           ForEach(EQBandType.allCases) { type in
             Button(type.rawValue) {
               band.type = type
-              dsp.applyConfig()
+              dsp?.applyConfig()
             }
           }
         } label: {
@@ -374,7 +483,7 @@ struct EQBandChip: View {
           if let idx = preset.bands.firstIndex(where: { $0.id == band.id }) {
             preset.removeBand(at: idx)
             selectedBandID = nil
-            dsp.applyConfig()
+            dsp?.applyConfig()
           }
         } label: {
           Label("Delete", systemImage: "trash")

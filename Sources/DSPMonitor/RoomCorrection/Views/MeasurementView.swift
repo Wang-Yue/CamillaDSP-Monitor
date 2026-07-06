@@ -28,13 +28,14 @@ private enum MeasurementPane: String, CaseIterable, Identifiable {
 
 struct MeasurementView: View {
   @Environment(MeasurementSession.self) var session
-  // Decoupled from PipelineStore to remove dependency on the main app's model layer
+  @Environment(PipelineStore.self) var pipeline
+  @Environment(\.dismiss) var dismiss
   @State private var pane: MeasurementPane = .magnitude
   /// Selection state for the embedded `EQFrequencyResponseView`. Lives
   /// here (not on the session) because it's purely UI state.
   @State private var selectedBandID: UUID? = nil
   /// Whether the subwoofer assist popover is currently presented.
-  /// Kept as view state so the inline panel never competes with the
+  /// Kept as view state so the inline panel popover never competes with the
   /// plot for vertical space.
   @State private var subwooferAssistShown: Bool = false
   @State private var showSidebar: Bool = true
@@ -43,6 +44,16 @@ struct MeasurementView: View {
     @Bindable var bindable = session
     VStack(spacing: 0) {
       HStack(spacing: 12) {
+        Button {
+          dismiss()
+        } label: {
+          Image(systemName: "xmark.circle.fill")
+            .foregroundColor(.secondary)
+            .font(.title3)
+        }
+        .buttonStyle(.plain)
+        .help("Close")
+
         measurementMenuButton
 
         Spacer()
@@ -457,12 +468,11 @@ struct MeasurementView: View {
           }
 
           Button(action: {
-            let existing = loadConvPresets()
-            let preset = session.generateFIR(existingNames: Set(existing.map(\.name)))
+            let preset = session.generateFIR(existingNames: Set(pipeline.convPresets.map(\.name)))
             if let preset = preset {
-              var updated = existing
-              updated.append(preset)
-              saveConvPresets(updated)
+              pipeline.convPresets.append(preset)
+              pipeline.saveConvPresets()
+              pipeline.onChanged?()
             }
           }) {
             HStack {
@@ -772,36 +782,10 @@ struct MeasurementView: View {
           type: b.type, freq: b.freq, gain: b.gain, q: b.q,
           isEnabled: b.isEnabled)
       })
-    var presets = loadEQPresets()
-    presets.append(copy)
-    saveEQPresets(presets)
+    pipeline.eqPresets.append(copy)
+    pipeline.saveEQPresets()
+    pipeline.onChanged?()
     session.status = "Applied as EQ Preset “\(copy.name).” Open it from the sidebar to edit."
-  }
-
-  private func saveEQPresets(_ presets: [EQPreset]) {
-    if let data = try? JSONEncoder().encode(presets) {
-      UserDefaults.standard.set(data, forKey: "eqPresets")
-    }
-  }
-
-  private func loadEQPresets() -> [EQPreset] {
-    guard let data = UserDefaults.standard.data(forKey: "eqPresets"),
-      let presets = try? JSONDecoder().decode([EQPreset].self, from: data)
-    else { return [] }
-    return presets
-  }
-
-  private func saveConvPresets(_ presets: [ConvolutionPreset]) {
-    if let data = try? JSONEncoder().encode(presets) {
-      UserDefaults.standard.set(data, forKey: "convPresets")
-    }
-  }
-
-  private func loadConvPresets() -> [ConvolutionPreset] {
-    guard let data = UserDefaults.standard.data(forKey: "convPresets"),
-      let presets = try? JSONDecoder().decode([ConvolutionPreset].self, from: data)
-    else { return [] }
-    return presets
   }
 
   private func availableDeviceNames(isCapture: Bool) -> [String] {
