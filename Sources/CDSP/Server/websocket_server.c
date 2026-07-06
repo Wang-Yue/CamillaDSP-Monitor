@@ -4,6 +4,8 @@
 // WebSocket control server
 // Provides runtime control API compatible with the control protocol
 
+#define JSMN_STATIC
+#include "jsmn.h"
 #include "websocket_server.h"
 #ifndef _WIN32
 #include "Audio/processing_parameters.h"
@@ -332,105 +334,207 @@ static char* server_read_file_to_string(const char* path) {
     return buf;
 }
 
-static char* extract_json_string_value_dyn(const char* json, const char* key) {
-    if (!json || !key) return NULL;
-    char key_quoted[128];
-    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
-    const char* pos = strstr(json, key_quoted);
-    if (!pos) return NULL;
-    pos += strlen(key_quoted);
-    while (*pos && *pos != ':') pos++;
-    if (!*pos) return NULL;
-    pos++;
-    while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
-    if (*pos != '"') return NULL;
-    pos++;
-    
-    size_t max_len = strlen(pos) + 1;
-    char* out_buf = (char*)malloc(max_len);
-    if (!out_buf) return NULL;
-    
-    size_t idx = 0;
-    while (*pos && *pos != '"') {
-        if (*pos == '\\' && *(pos + 1)) {
-            if (*(pos + 1) == 'n') {
-                out_buf[idx++] = '\n';
-            } else if (*(pos + 1) == 'r') {
-                out_buf[idx++] = '\r';
-            } else if (*(pos + 1) == 't') {
-                out_buf[idx++] = '\t';
-            } else {
-                out_buf[idx++] = *(pos + 1);
-            }
-            pos += 2;
+static void get_tok_string(const char* js, const jsmntok_t* tok, char* dest, size_t dest_len) {
+    int len = tok->end - tok->start;
+    if (len >= (int)dest_len) len = (int)dest_len - 1;
+    memcpy(dest, js + tok->start, len);
+    dest[len] = '\0';
+}
+
+static void get_tok_string_unescape(const char* js, const jsmntok_t* tok, char* dest, size_t dest_len) {
+    int len = tok->end - tok->start;
+    int i = 0;
+    int j = 0;
+    while (i < len && j < (int)dest_len - 1) {
+        if (js[tok->start + i] == '\\' && i + 1 < len) {
+            char next = js[tok->start + i + 1];
+            if (next == 'n') dest[j++] = '\n';
+            else if (next == 'r') dest[j++] = '\r';
+            else if (next == 't') dest[j++] = '\t';
+            else dest[j++] = next;
+            i += 2;
         } else {
-            out_buf[idx++] = *pos++;
+            dest[j++] = js[tok->start + i];
+            i++;
         }
     }
-    out_buf[idx] = '\0';
-    return out_buf;
+    dest[j] = '\0';
+}
+
+static double get_tok_double(const char* js, const jsmntok_t* tok) {
+    if (!tok) return 0.0;
+    char buf[64];
+    get_tok_string(js, tok, buf, sizeof(buf));
+    return strtod(buf, NULL);
+}
+
+static int get_tok_int(const char* js, const jsmntok_t* tok) {
+    if (!tok) return 0;
+    char buf[64];
+    get_tok_string(js, tok, buf, sizeof(buf));
+    return (int)strtol(buf, NULL, 10);
+}
+
+static bool get_tok_bool(const char* js, const jsmntok_t* tok) {
+    if (!tok) return false;
+    int len = tok->end - tok->start;
+    if (len == 4 && strncmp(js + tok->start, "true", 4) == 0) return true;
+    return false;
+}
+
+static int skip_token(const jsmntok_t* tokens, int start_idx) {
+    int i = start_idx;
+    int remaining = 1;
+    while (remaining > 0) {
+        int children = tokens[i].size;
+        remaining += children - 1;
+        i++;
+    }
+    return i;
+}
+
+static int find_object_key(const char* js, const jsmntok_t* tokens, int count, int obj_idx, const char* key) {
+    if (obj_idx < 0 || obj_idx >= count || tokens[obj_idx].type != JSMN_OBJECT) return -1;
+    int size = tokens[obj_idx].size;
+    int i = obj_idx + 1;
+    for (int k = 0; k < size; k++) {
+        if (i >= count) return -1;
+        if (tokens[i].type == JSMN_STRING) {
+            int len = tokens[i].end - tokens[i].start;
+            if (len == (int)strlen(key) && strncmp(js + tokens[i].start, key, len) == 0) {
+                return i + 1;
+            }
+        }
+        i = skip_token(tokens, i);
+    }
+    return -1;
+}
+
+static int find_top_level_key(const char* js, const jsmntok_t* tokens, int count, const char* key) {
+    if (count <= 0 || tokens[0].type != JSMN_OBJECT) return -1;
+    int size = tokens[0].size;
+    int i = 1;
+    for (int k = 0; k < size; k++) {
+        if (i >= count) return -1;
+        if (tokens[i].type == JSMN_STRING) {
+            int len = tokens[i].end - tokens[i].start;
+            if (len == (int)strlen(key) && strncmp(js + tokens[i].start, key, len) == 0) {
+                return i + 1;
+            }
+        }
+        i = skip_token(tokens, i);
+    }
+    return -1;
+}
+
+static int get_array_element(const jsmntok_t* tokens, int count, int arr_idx, int element_idx) {
+    if (arr_idx < 0 || arr_idx >= count || tokens[arr_idx].type != JSMN_ARRAY) return -1;
+    int size = tokens[arr_idx].size;
+    if (element_idx < 0 || element_idx >= size) return -1;
+    int i = arr_idx + 1;
+    for (int k = 0; k < element_idx; k++) {
+        i = skip_token(tokens, i);
+    }
+    return i;
+}
+
+static char* extract_json_string_value_dyn(const char* json, const char* key) {
+    if (!json || !key) return NULL;
+    jsmn_parser p;
+    jsmn_init(&p);
+    int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
+    if (num_tokens <= 0) return NULL;
+    jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
+    if (!tokens) return NULL;
+    jsmn_init(&p);
+    int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
+    if (count <= 0) {
+        free(tokens);
+        return NULL;
+    }
+    char* result = NULL;
+    int val_idx = find_top_level_key(json, tokens, count, key);
+    if (val_idx != -1 && tokens[val_idx].type == JSMN_STRING) {
+        int len = tokens[val_idx].end - tokens[val_idx].start;
+        result = malloc(len + 1);
+        if (result) {
+            get_tok_string_unescape(json, &tokens[val_idx], result, len + 1);
+        }
+    }
+    free(tokens);
+    return result;
 }
 
 static bool extract_json_string_value(const char* json, const char* key, char* out_buf, size_t max_len) {
     if (!json || !key || !out_buf || max_len == 0) return false;
-    char key_quoted[128];
-    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
-    const char* pos = strstr(json, key_quoted);
-    if (!pos) return false;
-    pos += strlen(key_quoted);
-    while (*pos && *pos != ':') pos++;
-    if (!*pos) return false;
-    pos++;
-    while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
-    if (*pos != '"') return false;
-    pos++;
-    size_t idx = 0;
-    while (*pos && *pos != '"' && idx < max_len - 1) {
-        if (*pos == '\\' && *(pos + 1)) pos++;
-        out_buf[idx++] = *pos++;
+    jsmn_parser p;
+    jsmn_init(&p);
+    int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
+    if (num_tokens <= 0) return false;
+    jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
+    if (!tokens) return false;
+    jsmn_init(&p);
+    int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
+    if (count <= 0) {
+        free(tokens);
+        return false;
     }
-    out_buf[idx] = '\0';
-    return true;
+    bool success = false;
+    int val_idx = find_top_level_key(json, tokens, count, key);
+    if (val_idx != -1 && tokens[val_idx].type == JSMN_STRING) {
+        get_tok_string_unescape(json, &tokens[val_idx], out_buf, max_len);
+        success = true;
+    }
+    free(tokens);
+    return success;
 }
 
 static bool extract_json_double_value(const char* json, const char* key, double* out_val) {
     if (!json || !key || !out_val) return false;
-    char key_quoted[128];
-    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
-    const char* pos = strstr(json, key_quoted);
-    if (!pos) return false;
-    pos += strlen(key_quoted);
-    while (*pos && *pos != ':') pos++;
-    if (!*pos) return false;
-    pos++;
-    while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
-    if (!*pos) return false;
-    char* endptr = NULL;
-    double val = strtod(pos, &endptr);
-    if (endptr == pos) return false;
-    *out_val = val;
-    return true;
+    jsmn_parser p;
+    jsmn_init(&p);
+    int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
+    if (num_tokens <= 0) return false;
+    jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
+    if (!tokens) return false;
+    jsmn_init(&p);
+    int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
+    if (count <= 0) {
+        free(tokens);
+        return false;
+    }
+    bool success = false;
+    int val_idx = find_top_level_key(json, tokens, count, key);
+    if (val_idx != -1 && tokens[val_idx].type == JSMN_PRIMITIVE) {
+        *out_val = get_tok_double(json, &tokens[val_idx]);
+        success = true;
+    }
+    free(tokens);
+    return success;
 }
 
 static bool extract_json_bool_value(const char* json, const char* key, bool* out_val) {
     if (!json || !key || !out_val) return false;
-    char key_quoted[128];
-    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
-    const char* pos = strstr(json, key_quoted);
-    if (!pos) return false;
-    pos += strlen(key_quoted);
-    while (*pos && *pos != ':') pos++;
-    if (!*pos) return false;
-    pos++;
-    while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
-    if (strncmp(pos, "true", 4) == 0) {
-        *out_val = true;
-        return true;
-    } else if (strncmp(pos, "false", 5) == 0) {
-        *out_val = false;
-        return true;
+    jsmn_parser p;
+    jsmn_init(&p);
+    int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
+    if (num_tokens <= 0) return false;
+    jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
+    if (!tokens) return false;
+    jsmn_init(&p);
+    int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
+    if (count <= 0) {
+        free(tokens);
+        return false;
     }
-    return false;
+    bool success = false;
+    int val_idx = find_top_level_key(json, tokens, count, key);
+    if (val_idx != -1 && tokens[val_idx].type == JSMN_PRIMITIVE) {
+        *out_val = get_tok_bool(json, &tokens[val_idx]);
+        success = true;
+    }
+    free(tokens);
+    return success;
 }
 
 static void format_double_array(const double* arr, size_t count, char* out, size_t max_len) {
@@ -446,95 +550,27 @@ static void format_double_array(const double* arr, size_t count, char* out, size
     snprintf(out + offset, max_len - offset, "]");
 }
 
-static const char* find_json_key(const char* start, const char* end, const char* key) {
-    char key_quoted[128];
-    snprintf(key_quoted, sizeof(key_quoted), "\"%s\"", key);
-    const char* pos = start;
-    while (pos < end) {
-        pos = strstr(pos, key_quoted);
-        if (!pos || pos >= end) return NULL;
-        const char* check = pos + strlen(key_quoted);
-        while (check < end && (*check == ' ' || *check == '\t' || *check == '\n' || *check == '\r')) check++;
-        if (check < end && *check == ':') {
-            return check + 1;
-        }
-        pos += strlen(key_quoted);
-    }
-    return NULL;
-}
-
-static const char* find_json_value_end(const char* start, const char* end) {
-    while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
-    if (start >= end) return end;
-    if (*start == '{' || *start == '[') {
-        char open = *start;
-        char close = (open == '{') ? '}' : ']';
-        int depth = 0;
-        bool in_quote = false;
-        bool escape = false;
-        for (const char* p = start; p < end; p++) {
-            if (in_quote) {
-                if (escape) escape = false;
-                else if (*p == '\\') escape = true;
-                else if (*p == '"') in_quote = false;
-            } else {
-                if (*p == '"') in_quote = true;
-                else if (*p == open) depth++;
-                else if (*p == close) {
-                    depth--;
-                    if (depth == 0) return p + 1;
-                }
-            }
-        }
-    } else if (*start == '"') {
-        bool escape = false;
-        for (const char* p = start + 1; p < end; p++) {
-            if (escape) escape = false;
-            else if (*p == '\\') escape = true;
-            else if (*p == '"') return p + 1;
-        }
-    } else {
-        const char* p = start;
-        while (p < end && *p != ',' && *p != '}' && *p != ']' && *p != '\n' && *p != '\r' && *p != ' ' && *p != '\t') {
-            p++;
-        }
-        return p;
-    }
-    return end;
-}
-
-static const char* find_json_array_element(const char* start, const char* end, int index) {
-    while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
-    if (start >= end || *start != '[') return NULL;
-    start++;
-    int curr_idx = 0;
-    while (start < end) {
-        while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
-        if (start >= end || *start == ']') return NULL;
-        const char* val_end = find_json_value_end(start, end);
-        if (curr_idx == index) {
-            return start;
-        }
-        start = val_end;
-        while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
-        if (start < end && *start == ',') {
-            start++;
-            curr_idx++;
-        } else if (start < end && *start == ']') {
-            return NULL;
-        }
-    }
-    return NULL;
-}
-
 static bool server_locate_pointer(const char* json, const char* pointer, const char** out_start, const char** out_end) {
     if (!json || !pointer || !out_start || !out_end) return false;
-    const char* start = json;
-    const char* end = json + strlen(json);
     
+    jsmn_parser p;
+    jsmn_init(&p);
+    int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
+    if (num_tokens <= 0) return false;
+    jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
+    if (!tokens) return false;
+    jsmn_init(&p);
+    int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
+    if (count <= 0) {
+        free(tokens);
+        return false;
+    }
+    
+    int curr_idx = 0;
     const char* ptr = pointer;
     if (*ptr == '/') ptr++;
     
+    bool success = true;
     while (*ptr) {
         char segment[128];
         size_t seg_len = 0;
@@ -544,37 +580,40 @@ static bool server_locate_pointer(const char* json, const char* pointer, const c
         segment[seg_len] = '\0';
         if (*ptr == '/') ptr++;
         
-        while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
-        if (start >= end) return false;
-        
-        if (*start == '{') {
-            const char* val_start = find_json_key(start, end, segment);
-            if (!val_start) return false;
-            const char* val_end = find_json_value_end(val_start, end);
-            start = val_start;
-            end = val_end;
-        } else if (*start == '[') {
+        if (tokens[curr_idx].type == JSMN_OBJECT) {
+            int val_idx = find_object_key(json, tokens, count, curr_idx, segment);
+            if (val_idx == -1) {
+                success = false;
+                break;
+            }
+            curr_idx = val_idx;
+        } else if (tokens[curr_idx].type == JSMN_ARRAY) {
             char* endptr = NULL;
             int idx = (int)strtol(segment, &endptr, 10);
-            if (endptr == segment || *endptr != '\0') return false;
-            const char* val_start = find_json_array_element(start, end, idx);
-            if (!val_start) return false;
-            const char* val_end = find_json_value_end(val_start, end);
-            start = val_start;
-            end = val_end;
+            if (endptr == segment || *endptr != '\0') {
+                success = false;
+                break;
+            }
+            int el_idx = get_array_element(tokens, count, curr_idx, idx);
+            if (el_idx == -1) {
+                success = false;
+                break;
+            }
+            curr_idx = el_idx;
         } else {
-            return false;
+            success = false;
+            break;
         }
     }
     
-    while (start < end && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
-    const char* r_end = end;
-    while (r_end > start && (*(r_end - 1) == ' ' || *(r_end - 1) == '\t' || *(r_end - 1) == '\n' || *(r_end - 1) == '\r')) r_end--;
-    
-    *out_start = start;
-    *out_end = r_end;
-    return true;
+    if (success) {
+        *out_start = json + tokens[curr_idx].start;
+        *out_end = json + tokens[curr_idx].end;
+    }
+    free(tokens);
+    return success;
 }
+
 
 static bool server_get_value_at_pointer(const char* json, const char* pointer, char* out_val, size_t max_len) {
     const char* start = NULL;
@@ -607,52 +646,30 @@ static char* server_set_value_at_pointer_str(const char* json, const char* point
     return new_json;
 }
 
-static bool server_merge_patch_recursive(char** p_target_json, const char* patch_start, const char* patch_end, char* current_path, size_t path_max) {
-    const char* pos = patch_start;
-    while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
-    if (pos >= patch_end) return true;
-    if (*pos != '{') return false;
-    pos++;
-    
-    while (pos < patch_end) {
-        while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
-        if (pos >= patch_end || *pos == '}') break;
-        if (*pos != '"') return false;
-        pos++;
-        const char* key_start = pos;
-        while (pos < patch_end && *pos != '"') {
-            if (*pos == '\\' && *(pos + 1)) pos += 2;
-            else pos++;
-        }
-        if (pos >= patch_end) return false;
-        size_t key_len = (size_t)(pos - key_start);
+static bool server_merge_patch_tokens(char** p_target_json, const char* js, const jsmntok_t* tokens, int count, int obj_idx, char* current_path, size_t path_max) {
+    if (tokens[obj_idx].type != JSMN_OBJECT) return false;
+    int size = tokens[obj_idx].size;
+    int i = obj_idx + 1;
+    for (int k = 0; k < size; k++) {
         char key[128];
-        if (key_len >= sizeof(key)) key_len = sizeof(key) - 1;
-        memcpy(key, key_start, key_len);
-        key[key_len] = '\0';
-        pos++;
+        get_tok_string_unescape(js, &tokens[i], key, sizeof(key));
         
-        while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
-        if (pos >= patch_end || *pos != ':') return false;
-        pos++;
-        
-        while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
-        const char* val_start = pos;
-        const char* val_end = find_json_value_end(val_start, patch_end);
+        int val_idx = i + 1;
         
         size_t orig_path_len = strlen(current_path);
         snprintf(current_path + orig_path_len, path_max - orig_path_len, "/%s", key);
         
-        if (*val_start == '{') {
-            if (!server_merge_patch_recursive(p_target_json, val_start, val_end, current_path, path_max)) {
+        if (tokens[val_idx].type == JSMN_OBJECT) {
+            if (!server_merge_patch_tokens(p_target_json, js, tokens, count, val_idx, current_path, path_max)) {
                 return false;
             }
         } else {
-            size_t v_len = (size_t)(val_end - val_start);
-            char* val_str = (char*)malloc(v_len + 1);
+            int val_len = tokens[val_idx].end - tokens[val_idx].start;
+            char* val_str = (char*)malloc(val_len + 1);
             if (val_str) {
-                memcpy(val_str, val_start, v_len);
-                val_str[v_len] = '\0';
+                memcpy(val_str, js + tokens[val_idx].start, val_len);
+                val_str[val_len] = '\0';
+                
                 char* updated = server_set_value_at_pointer_str(*p_target_json, current_path, val_str);
                 if (updated) {
                     free(*p_target_json);
@@ -662,9 +679,8 @@ static bool server_merge_patch_recursive(char** p_target_json, const char* patch
             }
         }
         current_path[orig_path_len] = '\0';
-        pos = val_end;
-        while (pos < patch_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
-        if (pos < patch_end && *pos == ',') pos++;
+        
+        i = skip_token(tokens, i);
     }
     return true;
 }
@@ -775,18 +791,42 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     out_response[0] = '\0';
     if (!command_text) return;
 
-    char trimmed[4096];
-    strncpy(trimmed, command_text, sizeof(trimmed) - 1);
-    trimmed[sizeof(trimmed) - 1] = '\0';
+    jsmntok_t local_tokens[128];
+    jsmntok_t* tokens = local_tokens;
     
-    char simple[4096];
-    int s_idx = 0;
-    for (size_t i = 0; i < strlen(trimmed); i++) {
-        if (trimmed[i] != '\"' && trimmed[i] != ' ' && trimmed[i] != '\r' && trimmed[i] != '\n') {
-            simple[s_idx++] = trimmed[i];
+    jsmn_parser parser;
+    jsmn_init(&parser);
+    int num_tokens = jsmn_parse(&parser, command_text, strlen(command_text), NULL, 0);
+    if (num_tokens <= 0) {
+        json_reply("Invalid", "{\"error\":\"Invalid JSON\"}", NULL, out_response, max_len);
+        return;
+    }
+    
+    if (num_tokens > 128) {
+        tokens = malloc(num_tokens * sizeof(jsmntok_t));
+        if (!tokens) return;
+    }
+    
+    jsmn_init(&parser);
+    int count = jsmn_parse(&parser, command_text, strlen(command_text), tokens, num_tokens);
+    if (count <= 0) {
+        if (tokens != local_tokens) free(tokens);
+        json_reply("Invalid", "{\"error\":\"Invalid JSON\"}", NULL, out_response, max_len);
+        return;
+    }
+    
+    char cmd_name[128] = "";
+    int arg_idx = -1;
+    if (tokens[0].type == JSMN_STRING) {
+        get_tok_string_unescape(command_text, &tokens[0], cmd_name, sizeof(cmd_name));
+    } else if (tokens[0].type == JSMN_OBJECT) {
+        if (tokens[0].size > 0 && tokens[1].type == JSMN_STRING) {
+            get_tok_string_unescape(command_text, &tokens[1], cmd_name, sizeof(cmd_name));
+            arg_idx = 2;
         }
     }
-    simple[s_idx] = '\0';
+    
+    const char* simple = cmd_name;
 
     if (strcmp(simple, "GetVersion") == 0) {
         json_reply("GetVersion", "\"Ok\"", "\"CamillaDSP-C-Embedded 2.0.0\"", out_response, max_len);
@@ -1613,151 +1653,106 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         } else {
             json_reply("GetConfigValue", "{\"InvalidRequestError\":\"Could not parse pointer\"}", NULL, out_response, max_len);
         }
-    } else if (strstr(command_text, "\"SetConfigValue\"")) {
-        const char* pos = strstr(command_text, "\"SetConfigValue\"");
-        if (pos) {
-            pos += 16;
-            while (*pos && *pos != '{') pos++;
-            if (*pos == '{') {
-                const char* obj_start = pos;
-                const char* obj_end = find_json_value_end(obj_start, command_text + strlen(command_text));
-                char* pointer = extract_json_string_value_dyn(obj_start, "pointer");
-                const char* val_start = NULL;
-                const char* val_end = NULL;
+    } else if (strcmp(simple, "SetConfigValue") == 0) {
+        char pointer[256] = "";
+        int val_idx = -1;
+        if (arg_idx != -1 && tokens[arg_idx].type == JSMN_OBJECT) {
+            int p_key = find_object_key(command_text, tokens, count, arg_idx, "pointer");
+            if (p_key != -1) {
+                get_tok_string_unescape(command_text, &tokens[p_key], pointer, sizeof(pointer));
+                val_idx = find_object_key(command_text, tokens, count, arg_idx, "value");
+            } else {
+                if (tokens[arg_idx].size > 0) {
+                    get_tok_string_unescape(command_text, &tokens[arg_idx + 1], pointer, sizeof(pointer));
+                    val_idx = arg_idx + 2;
+                }
+            }
+        }
+        
+        if (pointer[0] != '\0' && val_idx != -1) {
+            int v_len = tokens[val_idx].end - tokens[val_idx].start;
+            char* trimmed_val = malloc(v_len + 1);
+            if (trimmed_val) {
+                memcpy(trimmed_val, command_text + tokens[val_idx].start, v_len);
+                trimmed_val[v_len] = '\0';
                 
-                if (pointer) {
-                    val_start = find_json_key(obj_start, obj_end, "value");
-                    if (val_start) {
-                        val_end = find_json_value_end(val_start, obj_end);
+                char* active_json = NULL;
+                if (server && server->active_config_json) {
+                    active_json = strdup(server->active_config_json);
+                } else if (server && server->active_path && server->active_path->has_value) {
+                    active_json = server_read_file_to_string(server->active_path->path);
+                }
+                
+                if (active_json) {
+                    char* updated_json = server_set_value_at_pointer_str(active_json, pointer, trimmed_val);
+                    if (updated_json) {
+                        char err_msg[512] = {0};
+                        bool ok = server && server->engine && server->engine->set_config_json &&
+                                  server->engine->set_config_json(server->engine->ctx, updated_json, err_msg, sizeof(err_msg));
+                        if (ok) {
+                            if (server->previous_config_json) free(server->previous_config_json);
+                            server->previous_config_json = server->active_config_json;
+                            server->active_config_json = strdup(updated_json);
+                            if (server) server->unsaved_state_changes = true;
+                            json_reply("SetConfigValue", "\"Ok\"", NULL, out_response, max_len);
+                        } else {
+                            char val[600];
+                            snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", err_msg);
+                            json_reply("SetConfigValue", val, NULL, out_response, max_len);
+                        }
+                        free(updated_json);
+                    } else {
+                        char err[256];
+                        snprintf(err, sizeof(err), "{\"InvalidRequestError\":\"Path not found: %s\"}", pointer);
+                        json_reply("SetConfigValue", err, NULL, out_response, max_len);
+                    }
+                    free(active_json);
+                } else {
+                    json_reply("SetConfigValue", "{\"InvalidRequestError\":\"No active config to modify\"}", NULL, out_response, max_len);
+                }
+                free(trimmed_val);
+            }
+        } else {
+            json_reply("SetConfigValue", "{\"InvalidRequestError\":\"Could not parse SetConfigValue command\"}", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "PatchConfig") == 0) {
+        if (arg_idx != -1 && tokens[arg_idx].type == JSMN_OBJECT) {
+            char* active_json = NULL;
+            if (server && server->active_config_json) {
+                active_json = strdup(server->active_config_json);
+            } else if (server && server->active_path && server->active_path->has_value) {
+                active_json = server_read_file_to_string(server->active_path->path);
+            }
+            
+            if (active_json) {
+                char path_buf[512] = {0};
+                char* target_json = strdup(active_json);
+                if (server_merge_patch_tokens(&target_json, command_text, tokens, count, arg_idx, path_buf, sizeof(path_buf))) {
+                    char err_msg[512] = {0};
+                    bool ok = server && server->engine && server->engine->set_config_json &&
+                              server->engine->set_config_json(server->engine->ctx, target_json, err_msg, sizeof(err_msg));
+                    if (ok) {
+                        if (server->previous_config_json) free(server->previous_config_json);
+                        server->previous_config_json = server->active_config_json;
+                        server->active_config_json = strdup(target_json);
+                        if (server) server->unsaved_state_changes = true;
+                        json_reply("PatchConfig", "\"Ok\"", NULL, out_response, max_len);
+                    } else {
+                        char val[600];
+                        snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", err_msg);
+                        json_reply("PatchConfig", val, NULL, out_response, max_len);
                     }
                 } else {
-                    const char* key_start = obj_start + 1;
-                    while (key_start < obj_end && (*key_start == ' ' || *key_start == '\t' || *key_start == '\n' || *key_start == '\r')) key_start++;
-                    if (*key_start == '"') {
-                        key_start++;
-                        const char* p = key_start;
-                        while (p < obj_end && *p != '"') p++;
-                        if (*p == '"') {
-                            size_t ptr_len = (size_t)(p - key_start);
-                            pointer = (char*)malloc(ptr_len + 1);
-                            if (pointer) {
-                                memcpy(pointer, key_start, ptr_len);
-                                pointer[ptr_len] = '\0';
-                                val_start = find_json_key(obj_start, obj_end, pointer);
-                                if (val_start) {
-                                    val_end = find_json_value_end(val_start, obj_end);
-                                }
-                            }
-                        }
-                    }
+                    json_reply("PatchConfig", "{\"InvalidRequestError\":\"Failed to merge patch JSON\"}", NULL, out_response, max_len);
                 }
-                
-                if (pointer && val_start && val_end) {
-                    size_t v_len = (size_t)(val_end - val_start);
-                    char* new_val_str = (char*)malloc(v_len + 1);
-                    if (new_val_str) {
-                        memcpy(new_val_str, val_start, v_len);
-                        new_val_str[v_len] = '\0';
-                        char* trimmed_val = new_val_str;
-                        while (*trimmed_val == ' ' || *trimmed_val == '\t' || *trimmed_val == '\n' || *trimmed_val == '\r') trimmed_val++;
-                        size_t tv_len = strlen(trimmed_val);
-                        while (tv_len > 0 && (trimmed_val[tv_len - 1] == ' ' || trimmed_val[tv_len - 1] == '\t' || trimmed_val[tv_len - 1] == '\n' || trimmed_val[tv_len - 1] == '\r')) {
-                            trimmed_val[tv_len - 1] = '\0';
-                            tv_len--;
-                        }
-                        
-                        char* active_json = NULL;
-                        if (server && server->active_config_json) {
-                            active_json = strdup(server->active_config_json);
-                        } else if (server && server->active_path && server->active_path->has_value) {
-                            active_json = server_read_file_to_string(server->active_path->path);
-                        }
-                        
-                        if (active_json) {
-                            char* updated_json = server_set_value_at_pointer_str(active_json, pointer, trimmed_val);
-                            if (updated_json) {
-                                char err_msg[512] = {0};
-                                bool ok = server && server->engine && server->engine->set_config_json &&
-                                          server->engine->set_config_json(server->engine->ctx, updated_json, err_msg, sizeof(err_msg));
-                                if (ok) {
-                                    if (server->previous_config_json) free(server->previous_config_json);
-                                    server->previous_config_json = server->active_config_json;
-                                    server->active_config_json = strdup(updated_json);
-                                    if (server) server->unsaved_state_changes = true;
-                                    json_reply("SetConfigValue", "\"Ok\"", NULL, out_response, max_len);
-                                } else {
-                                    char val[600];
-                                    snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", err_msg);
-                                    json_reply("SetConfigValue", val, NULL, out_response, max_len);
-                                }
-                                free(updated_json);
-                            } else {
-                                char err[256];
-                                snprintf(err, sizeof(err), "{\"InvalidRequestError\":\"Path not found: %s\"}", pointer);
-                                json_reply("SetConfigValue", err, NULL, out_response, max_len);
-                            }
-                            free(active_json);
-                        } else {
-                            json_reply("SetConfigValue", "{\"InvalidRequestError\":\"No active config to modify\"}", NULL, out_response, max_len);
-                        }
-                        free(new_val_str);
-                    }
-                }
-                if (pointer) free(pointer);
-                goto set_config_value_done;
+                free(target_json);
+                free(active_json);
+            } else {
+                json_reply("PatchConfig", "{\"InvalidRequestError\":\"No active config to patch\"}", NULL, out_response, max_len);
             }
+        } else {
+            json_reply("PatchConfig", "{\"InvalidRequestError\":\"Could not parse PatchConfig command\"}", NULL, out_response, max_len);
         }
-        json_reply("SetConfigValue", "{\"InvalidRequestError\":\"Could not parse SetConfigValue command\"}", NULL, out_response, max_len);
-    set_config_value_done:;
-    } else if (strstr(command_text, "\"PatchConfig\"")) {
-        const char* pos = strstr(command_text, "\"PatchConfig\"");
-        if (pos) {
-            pos += 13;
-            while (*pos && *pos != ':') pos++;
-            if (*pos == ':') {
-                pos++;
-                while (*pos && (*pos == ' ' || *pos == '\t' || *pos == '\r' || *pos == '\n')) pos++;
-                const char* patch_start = pos;
-                const char* patch_end = find_json_value_end(patch_start, command_text + strlen(command_text));
-                if (patch_start && patch_end && *patch_start == '{') {
-                    char* active_json = NULL;
-                    if (server && server->active_config_json) {
-                        active_json = strdup(server->active_config_json);
-                    } else if (server && server->active_path && server->active_path->has_value) {
-                        active_json = server_read_file_to_string(server->active_path->path);
-                    }
-                    
-                    if (active_json) {
-                        char path_buf[512] = {0};
-                        char* target_json = strdup(active_json);
-                        if (server_merge_patch_recursive(&target_json, patch_start, patch_end, path_buf, sizeof(path_buf))) {
-                            char err_msg[512] = {0};
-                            bool ok = server && server->engine && server->engine->set_config_json &&
-                                      server->engine->set_config_json(server->engine->ctx, target_json, err_msg, sizeof(err_msg));
-                            if (ok) {
-                                if (server->previous_config_json) free(server->previous_config_json);
-                                server->previous_config_json = server->active_config_json;
-                                server->active_config_json = strdup(target_json);
-                                if (server) server->unsaved_state_changes = true;
-                                json_reply("PatchConfig", "\"Ok\"", NULL, out_response, max_len);
-                            } else {
-                                char val[600];
-                                snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}", err_msg);
-                                json_reply("PatchConfig", val, NULL, out_response, max_len);
-                            }
-                        } else {
-                            json_reply("PatchConfig", "{\"InvalidRequestError\":\"Failed to merge patch JSON\"}", NULL, out_response, max_len);
-                        }
-                        free(target_json);
-                        free(active_json);
-                    } else {
-                        json_reply("PatchConfig", "{\"InvalidRequestError\":\"No active config to patch\"}", NULL, out_response, max_len);
-                    }
-                    goto patch_config_done;
-                }
-            }
-        }
-        json_reply("PatchConfig", "{\"InvalidRequestError\":\"Could not parse PatchConfig command\"}", NULL, out_response, max_len);
     patch_config_done:;
     } else if (strstr(command_text, "\"GetFaderVolume\"")) {
         double idx_val;
@@ -1780,42 +1775,41 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         } else {
             json_reply("GetFaderVolume", "{\"InvalidRequestError\":\"Could not parse fader index\"}", NULL, out_response, max_len);
         }
-    } else if (strstr(command_text, "\"SetFaderVolume\"")) {
-        const char* pos = strstr(command_text, "\"SetFaderVolume\"");
-        if (pos) {
-            pos += 16;
-            while (*pos && *pos != '[') pos++;
-            if (*pos == '[') {
-                pos++;
-                char* endptr = NULL;
-                int idx = (int)strtol(pos, &endptr, 10);
-                if (endptr != pos) {
-                    pos = endptr;
-                    while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
-                    double vol = strtod(pos, &endptr);
-                    if (endptr != pos) {
-                        processing_parameters_t* params = NULL;
-                        if (server && server->engine && server->engine->get_processing_parameters &&
-                            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
-                            if (idx >= 0 && idx < FADER_COUNT) {
-                                double clamped = vol < -150.0 ? -150.0 : (vol > 50.0 ? 50.0 : vol);
-                                processing_parameters_set_target_volume_for_fader(params, clamped, (fader_t)idx);
-                                if (server) server->unsaved_state_changes = true;
-                                json_reply("SetFaderVolume", "\"Ok\"", NULL, out_response, max_len);
-                            } else {
-                                json_reply("SetFaderVolume", "\"InvalidFaderError\"", NULL, out_response, max_len);
-                            }
-                        } else {
-                            json_reply("SetFaderVolume", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
-                        }
-                        goto fader_vol_done;
-                    }
-                }
+    } else if (strcmp(simple, "SetFaderVolume") == 0 || strcmp(simple, "SetFaderExternalVolume") == 0) {
+        int idx = -1;
+        double vol = 0.0;
+        bool ok = false;
+        if (arg_idx != -1 && tokens[arg_idx].type == JSMN_ARRAY && tokens[arg_idx].size >= 2) {
+            int idx_tok = get_array_element(tokens, count, arg_idx, 0);
+            int val_tok = get_array_element(tokens, count, arg_idx, 1);
+            if (idx_tok != -1 && val_tok != -1) {
+                idx = get_tok_int(command_text, &tokens[idx_tok]);
+                vol = get_tok_double(command_text, &tokens[val_tok]);
+                ok = true;
             }
         }
-        json_reply("SetFaderVolume", "{\"InvalidRequestError\":\"Could not parse SetFaderVolume array\"}", NULL, out_response, max_len);
-    fader_vol_done:;
-    } else if (strstr(command_text, "\"GetFaderMute\"")) {
+        if (ok) {
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                if (idx >= 0 && idx < FADER_COUNT) {
+                    double clamped = vol < -150.0 ? -150.0 : (vol > 50.0 ? 50.0 : vol);
+                    processing_parameters_set_target_volume_for_fader(params, clamped, (fader_t)idx);
+                    if (strcmp(simple, "SetFaderExternalVolume") == 0) {
+                        processing_parameters_set_current_volume_for_fader(params, clamped, (fader_t)idx);
+                    }
+                    if (server) server->unsaved_state_changes = true;
+                    json_reply(simple, "\"Ok\"", NULL, out_response, max_len);
+                } else {
+                    json_reply(simple, "\"InvalidFaderError\"", NULL, out_response, max_len);
+                }
+            } else {
+                json_reply(simple, "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply(simple, "{\"InvalidRequestError\":\"Could not parse SetFaderVolume/SetFaderExternalVolume array\"}", NULL, out_response, max_len);
+        }
+    } else if (strcmp(simple, "GetFaderMute") == 0) {
         double idx_val;
         if (extract_json_double_value(command_text, "GetFaderMute", &idx_val)) {
             int idx = (int)idx_val;
@@ -1836,47 +1830,36 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         } else {
             json_reply("GetFaderMute", "{\"InvalidRequestError\":\"Could not parse fader index\"}", NULL, out_response, max_len);
         }
-    } else if (strstr(command_text, "\"SetFaderMute\"")) {
-        const char* pos = strstr(command_text, "\"SetFaderMute\"");
-        if (pos) {
-            pos += 14;
-            while (*pos && *pos != '[') pos++;
-            if (*pos == '[') {
-                pos++;
-                char* endptr = NULL;
-                int idx = (int)strtol(pos, &endptr, 10);
-                if (endptr != pos) {
-                    pos = endptr;
-                    while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
-                    bool mute = false;
-                    bool found_mute = false;
-                    if (strncmp(pos, "true", 4) == 0) {
-                        mute = true;
-                        found_mute = true;
-                    } else if (strncmp(pos, "false", 5) == 0) {
-                        mute = false;
-                        found_mute = true;
-                    }
-                    if (found_mute) {
-                        processing_parameters_t* params = NULL;
-                        if (server && server->engine && server->engine->get_processing_parameters &&
-                            server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
-                            if (idx >= 0 && idx < FADER_COUNT) {
-                                processing_parameters_set_muted_for_fader(params, mute, (fader_t)idx);
-                                if (server) server->unsaved_state_changes = true;
-                                json_reply("SetFaderMute", "\"Ok\"", NULL, out_response, max_len);
-                            } else {
-                                json_reply("SetFaderMute", "\"InvalidFaderError\"", NULL, out_response, max_len);
-                            }
-                        } else {
-                            json_reply("SetFaderMute", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
-                        }
-                        goto fader_mute_done;
-                    }
-                }
+    } else if (strcmp(simple, "SetFaderMute") == 0) {
+        int idx = -1;
+        bool mute = false;
+        bool ok = false;
+        if (arg_idx != -1 && tokens[arg_idx].type == JSMN_ARRAY && tokens[arg_idx].size >= 2) {
+            int idx_tok = get_array_element(tokens, count, arg_idx, 0);
+            int val_tok = get_array_element(tokens, count, arg_idx, 1);
+            if (idx_tok != -1 && val_tok != -1) {
+                idx = get_tok_int(command_text, &tokens[idx_tok]);
+                mute = get_tok_bool(command_text, &tokens[val_tok]);
+                ok = true;
             }
         }
-        json_reply("SetFaderMute", "{\"InvalidRequestError\":\"Could not parse SetFaderMute array\"}", NULL, out_response, max_len);
+        if (ok) {
+            processing_parameters_t* params = NULL;
+            if (server && server->engine && server->engine->get_processing_parameters &&
+                server->engine->get_processing_parameters(server->engine->ctx, (void**)&params) && params) {
+                if (idx >= 0 && idx < FADER_COUNT) {
+                    processing_parameters_set_muted_for_fader(params, mute, (fader_t)idx);
+                    if (server) server->unsaved_state_changes = true;
+                    json_reply("SetFaderMute", "\"Ok\"", NULL, out_response, max_len);
+                } else {
+                    json_reply("SetFaderMute", "\"InvalidFaderError\"", NULL, out_response, max_len);
+                }
+            } else {
+                json_reply("SetFaderMute", "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+            }
+        } else {
+            json_reply("SetFaderMute", "{\"InvalidRequestError\":\"Could not parse SetFaderMute array\"}", NULL, out_response, max_len);
+        }
     fader_mute_done:;
     } else if (strstr(command_text, "\"ToggleFaderMute\"")) {
         double idx_val;
@@ -1986,144 +1969,66 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         }
         json_reply("AdjustFaderVolume", "{\"InvalidRequestError\":\"Could not parse AdjustFaderVolume array\"}", NULL, out_response, max_len);
     adjust_fader_volume_done:;
-    } else if (strstr(command_text, "\"GetCaptureDeviceCapabilities\"")) {
-        const char* pos = strstr(command_text, "\"GetCaptureDeviceCapabilities\"");
-        if (pos) {
-            pos += 30;
-            while (*pos && *pos != '[') pos++;
-            if (*pos == '[') {
-                pos++;
-                while (*pos && (*pos == ' ' || *pos == '\t')) pos++;
-                if (*pos == '"') {
-                    pos++;
-                    char backend[128];
-                    size_t b_idx = 0;
-                    while (*pos && *pos != '"' && b_idx < sizeof(backend) - 1) {
-                        backend[b_idx++] = *pos++;
-                    }
-                    backend[b_idx] = '\0';
-                    if (*pos == '"') {
-                        pos++;
-                        while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
-                        if (*pos == '"') {
-                            pos++;
-                            char device[256];
-                            size_t d_idx = 0;
-                            while (*pos && *pos != '"' && d_idx < sizeof(device) - 1) {
-                                device[d_idx++] = *pos++;
-                            }
-                            device[d_idx] = '\0';
-                            if (*pos == '"') {
-                                audio_device_descriptor_t* desc = NULL;
-                                bool ok = server && server->engine && server->engine->get_device_capabilities &&
-                                          server->engine->get_device_capabilities(server->engine->ctx, backend, device, true, &desc);
-                                if (ok && desc) {
-                                    char val[8192];
-                                    format_device_descriptor(desc, val, sizeof(val));
-                                    json_reply("GetCaptureDeviceCapabilities", "\"Ok\"", val, out_response, max_len);
-                                    // free capabilities descriptor
-                                    if (server && server->engine && server->engine->ctx) {
-                                        // Wait, dsp_engine_free_device_capabilities can be called. Since we compile and link with libdsp.a,
-                                        // we can just call it directly! It is declared in dsp_engine.h.
-                                        // In websocket_server.c we included websocket_server.h, but we can call it.
-                                        // Let's call dsp_engine_free_device_capabilities(desc).
-                                        extern void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc);
-                                        dsp_engine_free_device_capabilities(desc);
-                                    }
-                                } else {
-                                    char err[300];
-                                    snprintf(err, sizeof(err), "{\"DeviceNotFoundError\":\"%s\"}", device);
-                                    json_reply("GetCaptureDeviceCapabilities", err, NULL, out_response, max_len);
-                                }
-                                goto capture_caps_done;
-                            }
-                        }
-                    }
-                }
+    } else if (strcmp(simple, "GetCaptureDeviceCapabilities") == 0 || strcmp(simple, "GetPlaybackDeviceCapabilities") == 0) {
+        char backend[128] = "";
+        char device[256] = "";
+        bool ok = false;
+        if (arg_idx != -1 && tokens[arg_idx].type == JSMN_ARRAY && tokens[arg_idx].size >= 2) {
+            int b_tok = get_array_element(tokens, count, arg_idx, 0);
+            int d_tok = get_array_element(tokens, count, arg_idx, 1);
+            if (b_tok != -1 && d_tok != -1 && tokens[b_tok].type == JSMN_STRING && tokens[d_tok].type == JSMN_STRING) {
+                get_tok_string_unescape(command_text, &tokens[b_tok], backend, sizeof(backend));
+                get_tok_string_unescape(command_text, &tokens[d_tok], device, sizeof(device));
+                ok = true;
             }
         }
-        json_reply("GetCaptureDeviceCapabilities", "{\"InvalidRequestError\":\"Could not parse arguments\"}", NULL, out_response, max_len);
-    capture_caps_done:;
-    } else if (strstr(command_text, "\"GetPlaybackDeviceCapabilities\"")) {
-        const char* pos = strstr(command_text, "\"GetPlaybackDeviceCapabilities\"");
-        if (pos) {
-            pos += 31;
-            while (*pos && *pos != '[') pos++;
-            if (*pos == '[') {
-                pos++;
-                while (*pos && (*pos == ' ' || *pos == '\t')) pos++;
-                if (*pos == '"') {
-                    pos++;
-                    char backend[128];
-                    size_t b_idx = 0;
-                    while (*pos && *pos != '"' && b_idx < sizeof(backend) - 1) {
-                        backend[b_idx++] = *pos++;
-                    }
-                    backend[b_idx] = '\0';
-                    if (*pos == '"') {
-                        pos++;
-                        while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
-                        if (*pos == '"') {
-                            pos++;
-                            char device[256];
-                            size_t d_idx = 0;
-                            while (*pos && *pos != '"' && d_idx < sizeof(device) - 1) {
-                                device[d_idx++] = *pos++;
-                            }
-                            device[d_idx] = '\0';
-                            if (*pos == '"') {
-                                audio_device_descriptor_t* desc = NULL;
-                                bool ok = server && server->engine && server->engine->get_device_capabilities &&
-                                          server->engine->get_device_capabilities(server->engine->ctx, backend, device, false, &desc);
-                                if (ok && desc) {
-                                    char val[8192];
-                                    format_device_descriptor(desc, val, sizeof(val));
-                                    json_reply("GetPlaybackDeviceCapabilities", "\"Ok\"", val, out_response, max_len);
-                                    extern void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc);
-                                    dsp_engine_free_device_capabilities(desc);
-                                } else {
-                                    char err[300];
-                                    snprintf(err, sizeof(err), "{\"DeviceNotFoundError\":\"%s\"}", device);
-                                    json_reply("GetPlaybackDeviceCapabilities", err, NULL, out_response, max_len);
-                                }
-                                goto playback_caps_done;
-                            }
-                        }
-                    }
-                }
+        if (ok) {
+            audio_device_descriptor_t* desc = NULL;
+            bool is_capture = (strcmp(simple, "GetCaptureDeviceCapabilities") == 0);
+            bool cap_ok = server && server->engine && server->engine->get_device_capabilities &&
+                         server->engine->get_device_capabilities(server->engine->ctx, backend, device, is_capture, &desc);
+            if (cap_ok && desc) {
+                char val[8192];
+                format_device_descriptor(desc, val, sizeof(val));
+                json_reply(simple, "\"Ok\"", val, out_response, max_len);
+                extern void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc);
+                dsp_engine_free_device_capabilities(desc);
+            } else {
+                char err[300];
+                snprintf(err, sizeof(err), "{\"DeviceNotFoundError\":\"%s\"}", device);
+                json_reply(simple, err, NULL, out_response, max_len);
             }
+        } else {
+            json_reply(simple, "{\"InvalidRequestError\":\"Could not parse backend and device arguments\"}", NULL, out_response, max_len);
         }
-        json_reply("GetPlaybackDeviceCapabilities", "{\"InvalidRequestError\":\"Could not parse arguments\"}", NULL, out_response, max_len);
-    playback_caps_done:;
-    } else if (strstr(command_text, "\"GetSpectrum\"")) {
-        const char* pos = strstr(command_text, "\"GetSpectrum\"");
-        if (pos) {
-            bool is_capture = true;
-            extract_json_bool_value(pos, "is_capture", &is_capture);
-            
-            double ch_val = 0;
-            uint32_t channel = 0;
-            if (extract_json_double_value(pos, "channel", &ch_val)) {
-                channel = (uint32_t)ch_val;
-            }
-            
-            double min_freq = 20.0;
-            extract_json_double_value(pos, "min_freq", &min_freq);
-            
-            double max_freq = 20000.0;
-            extract_json_double_value(pos, "max_freq", &max_freq);
-            
-            double n_bins_val = 1024;
-            uint32_t n_bins = 1024;
-            if (extract_json_double_value(pos, "n_bins", &n_bins_val)) {
-                n_bins = (uint32_t)n_bins_val;
-            }
-            
+    } else if (strcmp(simple, "GetSpectrum") == 0) {
+        bool is_capture = true;
+        uint32_t channel = 0;
+        double min_freq = 20.0;
+        double max_freq = 20000.0;
+        uint32_t n_bins = 1024;
+        bool ok = false;
+        
+        if (arg_idx != -1 && tokens[arg_idx].type == JSMN_OBJECT) {
+            int ic_idx = find_object_key(command_text, tokens, count, arg_idx, "is_capture");
+            if (ic_idx != -1) is_capture = get_tok_bool(command_text, &tokens[ic_idx]);
+            int ch_idx = find_object_key(command_text, tokens, count, arg_idx, "channel");
+            if (ch_idx != -1) channel = (uint32_t)get_tok_int(command_text, &tokens[ch_idx]);
+            int mn_idx = find_object_key(command_text, tokens, count, arg_idx, "min_freq");
+            if (mn_idx != -1) min_freq = get_tok_double(command_text, &tokens[mn_idx]);
+            int mx_idx = find_object_key(command_text, tokens, count, arg_idx, "max_freq");
+            if (mx_idx != -1) max_freq = get_tok_double(command_text, &tokens[mx_idx]);
+            int nb_idx = find_object_key(command_text, tokens, count, arg_idx, "n_bins");
+            if (nb_idx != -1) n_bins = (uint32_t)get_tok_int(command_text, &tokens[nb_idx]);
+            ok = true;
+        }
+        
+        if (ok) {
             spectrum_t spec;
             memset(&spec, 0, sizeof(spec));
-            bool ok = server && server->engine && server->engine->get_spectrum &&
-                      server->engine->get_spectrum(server->engine->ctx, is_capture, channel, min_freq, max_freq, n_bins, &spec);
-            if (ok) {
+            bool spec_ok = server && server->engine && server->engine->get_spectrum &&
+                           server->engine->get_spectrum(server->engine->ctx, is_capture, channel, min_freq, max_freq, n_bins, &spec);
+            if (spec_ok) {
                 size_t spec_buf_size = spec.count * 50 + 200;
                 char* spec_buf = (char*)malloc(spec_buf_size);
                 if (spec_buf) {
@@ -2138,10 +2043,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
             } else {
                 json_reply("GetSpectrum", "{\"DeviceError\":\"Failed to compute spectrum\"}", NULL, out_response, max_len);
             }
-            goto spectrum_done;
+        } else {
+            json_reply("GetSpectrum", "{\"InvalidRequestError\":\"Could not parse GetSpectrum arguments\"}", NULL, out_response, max_len);
         }
-        json_reply("GetSpectrum", "{\"InvalidRequestError\":\"Could not parse GetSpectrum arguments\"}", NULL, out_response, max_len);
-    spectrum_done:;
     } else if (strstr(command_text, "\"ReadConfigJson\"")) {
         char* config_json = extract_json_string_value_dyn(command_text, "ReadConfigJson");
         if (config_json) {
@@ -2181,6 +2085,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     } else {
         snprintf(out_response, max_len, "{\"Invalid\":{\"error\":\"Unsupported command\"}}");
     }
+    if (tokens != local_tokens) free(tokens);
 }
 
 static void send_websocket_frame(int fd, const char* response) {

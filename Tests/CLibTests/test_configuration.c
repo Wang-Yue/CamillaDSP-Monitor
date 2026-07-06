@@ -594,4 +594,105 @@ TEST(ValidateInvalidMixerConfig) {
     ASSERT_TRUE(strstr(err.message, "mixer dest 5 >= channels_out 2") != NULL);
 }
 
+TEST(ParseFullConfigWithMixerAndFilter) {
+    const char* json = "{\n"
+        "    \"devices\": {\n"
+        "        \"samplerate\": 48000,\n"
+        "        \"chunksize\": 1024,\n"
+        "        \"capture\": {\n"
+        "            \"type\": \"CoreAudio\",\n"
+        "            \"channels\": 2\n"
+        "        },\n"
+        "        \"playback\": {\n"
+        "            \"type\": \"CoreAudio\",\n"
+        "            \"channels\": 2\n"
+        "        }\n"
+        "    },\n"
+        "    \"filters\": {\n"
+        "        \"mygain\": {\n"
+        "            \"type\": \"Gain\",\n"
+        "            \"parameters\": {\n"
+        "                \"gain\": -6.0\n"
+        "            }\n"
+        "        }\n"
+        "    },\n"
+        "    \"mixers\": {\n"
+        "        \"balance\": {\n"
+        "            \"channels\": {\n"
+        "                \"in\": 2,\n"
+        "                \"out\": 2\n"
+        "            },\n"
+        "            \"mapping\": [\n"
+        "                {\n"
+        "                    \"dest\": 0,\n"
+        "                    \"sources\": [\n"
+        "                        { \"channel\": 0, \"gain\": 0.0 }\n"
+        "                    ]\n"
+        "                },\n"
+        "                {\n"
+        "                    \"dest\": 1,\n"
+        "                    \"sources\": [\n"
+        "                        { \"channel\": 1, \"gain\": -3.0 }\n"
+        "                    ]\n"
+        "                }\n"
+        "            ]\n"
+        "        }\n"
+        "    },\n"
+        "    \"pipeline\": [\n"
+        "        {\n"
+        "            \"type\": \"Mixer\",\n"
+        "            \"name\": \"balance\"\n"
+        "        },\n"
+        "        {\n"
+        "            \"type\": \"Filter\",\n"
+        "            \"channel\": 0,\n"
+        "            \"names\": [\"mygain\"]\n"
+        "        }\n"
+        "    ]\n"
+        "}";
+        
+    dsp_config_t* config = NULL;
+    config_error_t err;
+    config_error_init(&err);
+    int res = dsp_config_parse_json(json, &config, &err);
+    
+    ASSERT_EQ(0, res);
+    ASSERT_TRUE(config != NULL);
+    
+    // Validate devices
+    ASSERT_EQ(48000, config->devices.samplerate);
+    ASSERT_EQ(1024, config->devices.chunksize);
+    ASSERT_EQ(2, config->devices.capture.channels);
+    
+    // Validate filters
+    ASSERT_EQ(1, config->filters_count);
+    ASSERT_STR_EQ("mygain", config->filters[0].name);
+    ASSERT_EQ(FILTER_TYPE_GAIN, config->filters[0].filter.type);
+    ASSERT_DOUBLE_EQ(-6.0, config->filters[0].filter.parameters.gain.gain);
+    
+    // Validate mixers
+    ASSERT_EQ(1, config->mixers_count);
+    ASSERT_STR_EQ("balance", config->mixers[0].name);
+    ASSERT_EQ(2, config->mixers[0].mixer.channels_in);
+    ASSERT_EQ(2, config->mixers[0].mixer.channels_out);
+    ASSERT_EQ(2, config->mixers[0].mixer.mapping_count);
+    ASSERT_EQ(0, config->mixers[0].mixer.mapping[0].dest);
+    ASSERT_EQ(0, config->mixers[0].mixer.mapping[0].sources[0].channel);
+    ASSERT_DOUBLE_EQ(0.0, config->mixers[0].mixer.mapping[0].sources[0].gain);
+    ASSERT_EQ(1, config->mixers[0].mixer.mapping[1].dest);
+    ASSERT_EQ(1, config->mixers[0].mixer.mapping[1].sources[0].channel);
+    ASSERT_DOUBLE_EQ(-3.0, config->mixers[0].mixer.mapping[1].sources[0].gain);
+    
+    // Validate pipeline
+    ASSERT_EQ(2, config->pipeline_count);
+    ASSERT_EQ(PIPELINE_STEP_TYPE_MIXER, config->pipeline[0].type);
+    ASSERT_STR_EQ("balance", config->pipeline[0].name);
+    ASSERT_EQ(PIPELINE_STEP_TYPE_FILTER, config->pipeline[1].type);
+    ASSERT_EQ(0, config->pipeline[1].channel);
+    ASSERT_EQ(1, config->pipeline[1].names_count);
+    ASSERT_STR_EQ("mygain", config->pipeline[1].names[0]);
+    
+    dsp_config_free(config);
+}
+
 TEST_MAIN()

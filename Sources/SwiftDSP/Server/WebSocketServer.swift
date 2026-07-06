@@ -1169,6 +1169,22 @@ public final class WebSocketServer: Sendable {
       return jsonReply("SetFaderVolume", result: .ok)
     }
 
+    if let arr = json["SetFaderExternalVolume"] as? [Any], arr.count >= 2,
+      let idx = arr[0] as? Int, let vol = arr[1] as? Double
+    {
+      guard let params = processingParams else {
+        return jsonReply("SetFaderExternalVolume", result: .processingNotRunningError)
+      }
+      guard let fader = faderForIndex(idx) else {
+        return jsonReply("SetFaderExternalVolume", result: .invalidFaderError)
+      }
+      let clamped = min(50.0, max(-150.0, vol))
+      params.setTargetVolume(clamped, for: fader)
+      params.setCurrentVolume(clamped, for: fader)
+      stateLock.withLock { $0.unsavedStateChanges = true }
+      return jsonReply("SetFaderExternalVolume", result: .ok)
+    }
+
     if let idx = json["GetFaderMute"] as? Int {
       guard let params = processingParams else {
         return jsonReply("GetFaderMute", result: .processingNotRunningError)

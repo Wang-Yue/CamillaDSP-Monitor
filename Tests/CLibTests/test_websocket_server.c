@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <string.h>
 
+#include "../../Sources/CDSP/Audio/processing_parameters.h"
+
 static bool mock_get_status(void* ctx, state_update_t* out_status) {
     (void)ctx;
     if (out_status) {
@@ -20,9 +22,20 @@ static bool mock_get_status(void* ctx, state_update_t* out_status) {
     return true;
 }
 
+static processing_parameters_t* mock_params = NULL;
+
+static bool mock_get_processing_parameters(void* ctx, void** out_params) {
+    (void)ctx;
+    if (out_params) {
+        *out_params = mock_params;
+    }
+    return true;
+}
+
 static dsp_engine_interface_t mock_engine = {
     .ctx = NULL,
-    .get_status = mock_get_status
+    .get_status = mock_get_status,
+    .get_processing_parameters = mock_get_processing_parameters
 };
 
 TEST(test_websocket_commands) {
@@ -95,6 +108,21 @@ TEST(test_websocket_handle_command_direct) {
     
     websocket_server_handle_command(server, 0, "\"GetConfigFilePath\"", resp, sizeof(resp));
     ASSERT_TRUE(strstr(resp, "\"/tmp/config.json\"") != NULL);
+
+    mock_params = processing_parameters_create(2, 2);
+    ASSERT_TRUE(mock_params != NULL);
+
+    websocket_server_handle_command(server, 0, "{\"SetFaderExternalVolume\":[0,-6.0]}", resp, sizeof(resp));
+    ASSERT_TRUE(strstr(resp, "\"SetFaderExternalVolume\"") != NULL);
+    ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
+
+    double target_vol = processing_parameters_get_target_volume_for_fader(mock_params, FADER_MAIN);
+    double current_vol = processing_parameters_get_current_volume_for_fader(mock_params, FADER_MAIN);
+    ASSERT_DOUBLE_EQ(-6.0, target_vol);
+    ASSERT_DOUBLE_EQ(-6.0, current_vol);
+
+    processing_parameters_free(mock_params);
+    mock_params = NULL;
     
     websocket_server_free(server);
     active_config_path_free(path);
