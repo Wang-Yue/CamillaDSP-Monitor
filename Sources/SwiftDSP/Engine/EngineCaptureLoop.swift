@@ -177,6 +177,11 @@ final class EngineCaptureLoop: @unchecked Sendable {
 
   private func handleEmptyRead() {
     if shared.shouldStop.load(ordering: .acquiring) { return }
+    if stateMachine.state == .paused {
+      watchdog.reset()
+      _ = capture.wait(timeout: .now() + .milliseconds(20))
+      return
+    }
     if watchdog.tickEmptyRead() {
       stateMachine.setState(.stalled)
       logger.warning("Capture device stalled — no data for %fs", .double(watchdog.timeoutSeconds))
@@ -270,5 +275,11 @@ struct StallWatchdog {
       triggered = false
       onRecovery()
     }
+  }
+
+  /// Reset the watchdog last success timestamp and clear the triggered flag.
+  mutating func reset() {
+    lastSuccessNs = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+    triggered = false
   }
 }

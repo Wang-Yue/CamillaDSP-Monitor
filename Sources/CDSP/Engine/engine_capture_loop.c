@@ -146,6 +146,12 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       if (atomic_load_explicit(&loop->shared->should_stop,
                                memory_order_acquire))
         break;
+      if (engine_state_machine_get_state(loop->state_machine) ==
+          PROCESSING_STATE_PAUSED) {
+        loop->watchdog_last_success_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        capture_backend_wait(loop->capture, 20);
+        continue;
+      }
       if (!loop->watchdog_triggered) {
         uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         double elapsed =
