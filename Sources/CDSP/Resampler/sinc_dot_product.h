@@ -18,7 +18,10 @@
 extern "C" {
 #endif
 
-#ifdef __APPLE__
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC push_options
+#pragma GCC optimize ("ffp-contract=fast", "associative-math")
+#endif
 static inline double sinc_dot_product(const double* wave, const double* kernel,
                                       size_t count) {
 #if defined(__clang__)
@@ -30,39 +33,8 @@ static inline double sinc_dot_product(const double* wave, const double* kernel,
   }
   return sum;
 }
-#elif defined(__linux__)
-static inline double sinc_dot_product(const double* wave, const double* kernel,
-                                      size_t count) {
-  double a0 = 0.0, a1 = 0.0, a2 = 0.0, a3 = 0.0;
-  double a4 = 0.0, a5 = 0.0, a6 = 0.0, a7 = 0.0;
-
-  size_t i = 0;
-  size_t count_unrolled = count & ~7ULL;
-  for (; i < count_unrolled; i += 8) {
-    a0 += wave[i] * kernel[i];
-    a1 += wave[i + 1] * kernel[i + 1];
-    a2 += wave[i + 2] * kernel[i + 2];
-    a3 += wave[i + 3] * kernel[i + 3];
-    a4 += wave[i + 4] * kernel[i + 4];
-    a5 += wave[i + 5] * kernel[i + 5];
-    a6 += wave[i + 6] * kernel[i + 6];
-    a7 += wave[i + 7] * kernel[i + 7];
-  }
-  double sum = (a0 + a1) + (a2 + a3) + (a4 + a5) + (a6 + a7);
-  for (; i < count; i++) {
-    sum += wave[i] * kernel[i];
-  }
-  return sum;
-}
-#else
-static inline double sinc_dot_product(const double* wave, const double* kernel,
-                                      size_t count) {
-  double sum = 0.0;
-  for (size_t i = 0; i < count; i++) {
-    sum += wave[i] * kernel[i];
-  }
-  return sum;
-}
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC pop_options
 #endif
 
 double sinc_dot_product_fn(const double* wave, const double* kernel,

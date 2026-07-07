@@ -1,3 +1,4 @@
+#ifdef __APPLE__
 // Real-FFT backend that builds a 2N-point real FFT from one N-point
 // complex FFT plus an O(N) "untwiddle" pass. Used for any even length
 // that doesn't qualify for `VDSPRealFFT` (i.e. non-power-of-two, or
@@ -228,3 +229,4 @@ void complex_inner_real_fft_free(complex_inner_real_fft_t* fft) {
   if (fft->z_f_im) free(fft->z_f_im);
   free(fft);
 }
+#endif

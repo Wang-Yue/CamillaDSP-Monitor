@@ -9,6 +9,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+#ifdef __APPLE__
 typedef struct {
   uint64_t state;
 } splitmix64_t;
@@ -199,3 +200,8 @@ TEST(UnsupportedFactorsReturnNil) {
 }
 
 TEST_MAIN()
+#else
+int main() {
+  return 0;
+}
+#endif

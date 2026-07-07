@@ -41,6 +41,7 @@
 extern "C" {
 #endif
 
+#ifdef __APPLE__
 /// Mixed-radix complex FFT supporting `N = 2^a · 3^b · 5^c · 7^d`. Returns
 /// `nil` (or NULL in C) if `N` has any prime factor > 7 — caller should fall
 /// back to Bluestein in that case.
@@ -59,6 +60,7 @@ static inline arbitrary_complex_fft_t* mixed_radix_fft_as_arbitrary(
     mixed_radix_fft_t* fft) {
   return (arbitrary_complex_fft_t*)fft;
 }
+#endif
 
 #ifdef __cplusplus
 }

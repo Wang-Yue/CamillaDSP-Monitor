@@ -30,10 +30,11 @@ extern "C" {
 /// bins `1..N-1` in `realp[k] + i·imagp[k]`. Our public API exposes the
 /// `N+1` unique bins as flat `specRe`/`specIm` arrays with DC at index 0,
 /// Nyquist at index N — this backend repacks accordingly.
+#ifdef __APPLE__
 typedef struct vdsp_real_fft vdsp_real_fft_t;
 
-/// Returns `nil` when `length` is not a power of two `≥ 8`, or when
-/// `vDSP_create_fftsetupD` fails — caller falls back to the
+/// Returns `nil` (or NULL in C) when `length` is not a power of two `≥ 8`,
+/// or when `vDSP_create_fftsetupD` fails — caller falls back to the
 /// complex-inner backend.
 vdsp_real_fft_t* vdsp_real_fft_create(size_t length);
 void vdsp_real_fft_forward(vdsp_real_fft_t* fft, waveform_t real_in,
@@ -47,6 +48,7 @@ static inline real_fft_backend_t* vdsp_real_fft_as_backend(
     vdsp_real_fft_t* fft) {
   return (real_fft_backend_t*)fft;
 }
+#endif
 
 #ifdef __cplusplus
 }

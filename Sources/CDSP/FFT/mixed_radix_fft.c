@@ -1,3 +1,4 @@
+#ifdef __APPLE__
 // Arbitrary-N complex DFT via iterative DIT Cooley-Tukey where all prime
 // factors are all ≤ 7. Targets `N = 1029 = 3 · 7³` and `N = 1120 = 2⁵ · 5 · 7`
 // — the inner FFT sizes that RealFFT needs for 44.1↔48 kHz
@@ -737,3 +738,5 @@ void mixed_radix_fft_free(mixed_radix_fft_t* fft) {
   if (fft->permutation) free(fft->permutation);
   free(fft);
 }
+#endif
+

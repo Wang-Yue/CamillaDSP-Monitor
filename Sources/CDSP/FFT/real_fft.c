@@ -1,3 +1,10 @@
+#include "FFT/real_fft.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#if defined(__APPLE__)
+
 // Real-input FFT of arbitrary even length. `RealFFT.init` is
 // the **single dispatch point** for the resampler's FFT subsystem — it
 // inspects the requested length once and picks the fastest available
@@ -35,18 +42,71 @@
 //   - https://www.dsprelated.com/showarticle/4.php (Real FFT from complex FFT)
 //   - https://en.wikipedia.org/wiki/Fast_Fourier_transform#Real-input_FFTs
 
-#include "FFT/real_fft.h"
-
-#include <stdlib.h>
-#include <string.h>
-
 #include "FFT/bluestein_fft.h"
 #include "FFT/complex_inner_real_fft.h"
 #include "FFT/mixed_radix_fft.h"
 #include "FFT/vdsp_complex_dft.h"
 #include "FFT/vdsp_real_fft.h"
 
-#if defined(__linux__)
+
+real_fft_t* real_fft_create(size_t length) {
+  if (length == 0 || length % 2 != 0) return NULL;
+  real_fft_t* fft = (real_fft_t*)malloc(sizeof(real_fft_t));
+  if (!fft) return NULL;
+  fft->length = length;
+  fft->spectrum_length = length / 2 + 1;
+
+  // Branch 1: power-of-2 → vDSP's tuned real FFT, no complex-inner
+  // detour. `length >= 8` is the smallest size `vDSP_fft_zripD`
+  // supports; smaller pow2 lengths fall through to branch 2.
+  vdsp_real_fft_t* vdsp = vdsp_real_fft_create(length);
+  if (vdsp) {
+    fft->backend = vdsp_real_fft_as_backend(vdsp);
+    return fft;
+  }
+
+  // Branch 2: even but not power-of-2 (or pow2 < 8). Build the
+  // 2N-point real FFT from an N-point complex FFT. Pick the inner
+  // complex FFT once, here, in priority order — `ComplexInnerRealFFT`
+  // itself just consumes the chosen `inner`.
+  size_t half_n = length / 2;
+  arbitrary_complex_fft_t* inner = NULL;
+  vdsp_complex_dft_t* dft = vdsp_complex_dft_create(half_n);
+  if (dft) {
+    inner = vdsp_complex_dft_as_arbitrary(dft);
+  } else {
+    mixed_radix_fft_t* mr = mixed_radix_fft_create(half_n);
+    if (mr) {
+      inner = mixed_radix_fft_as_arbitrary(mr);
+    } else {
+      bluestein_fft_t* bs = bluestein_fft_create(half_n);
+      if (bs) {
+        inner = bluestein_fft_as_arbitrary(bs);
+      }
+    }
+  }
+
+  if (!inner) {
+    free(fft);
+    return NULL;
+  }
+
+  complex_inner_real_fft_t* complex_inner =
+      complex_inner_real_fft_create(length, inner);
+  if (!complex_inner) {
+    arbitrary_complex_fft_free(inner);
+    free(fft);
+    return NULL;
+  }
+
+  fft->backend = complex_inner_real_fft_as_backend(complex_inner);
+  return fft;
+}
+
+
+#else // !defined(__APPLE__)
+
+#include <complex.h>
 #include <fftw3.h>
 
 struct fftw_real_fft_ctx {
@@ -92,8 +152,6 @@ static void fftw_real_fft_free(void* ctx) {
   if (fft->out_complex) fftw_free(fft->out_complex);
   free(fft);
 }
-#endif
-
 real_fft_t* real_fft_create(size_t length) {
   if (length == 0 || length % 2 != 0) return NULL;
   real_fft_t* fft = (real_fft_t*)malloc(sizeof(real_fft_t));
@@ -101,17 +159,6 @@ real_fft_t* real_fft_create(size_t length) {
   fft->length = length;
   fft->spectrum_length = length / 2 + 1;
 
-  // Branch 1: power-of-2 → vDSP's tuned real FFT, no complex-inner
-  // detour. `length >= 8` is the smallest size `vDSP_fft_zripD`
-  // supports; smaller pow2 lengths fall through to branch 2.
-  vdsp_real_fft_t* vdsp = vdsp_real_fft_create(length);
-  if (vdsp) {
-    fft->backend = vdsp_real_fft_as_backend(vdsp);
-    return fft;
-  }
-
-  // Branch 1b: Linux → FFTW3 real FFT (direct implementation, no wrapper)
-#if defined(__linux__)
   struct fftw_real_fft_ctx* ctx =
       (struct fftw_real_fft_ctx*)malloc(sizeof(struct fftw_real_fft_ctx));
   if (!ctx) {
@@ -150,46 +197,11 @@ real_fft_t* real_fft_create(size_t length) {
 
   fft->backend = &ctx->base;
   return fft;
-#endif
-
-  // Branch 2: even but not power-of-2 (or pow2 < 8). Build the
-  // 2N-point real FFT from an N-point complex FFT. Pick the inner
-  // complex FFT once, here, in priority order — `ComplexInnerRealFFT`
-  // itself just consumes the chosen `inner`.
-  size_t half_n = length / 2;
-  arbitrary_complex_fft_t* inner = NULL;
-  vdsp_complex_dft_t* dft = vdsp_complex_dft_create(half_n);
-  if (dft) {
-    inner = vdsp_complex_dft_as_arbitrary(dft);
-  } else {
-    mixed_radix_fft_t* mr = mixed_radix_fft_create(half_n);
-    if (mr) {
-      inner = mixed_radix_fft_as_arbitrary(mr);
-    } else {
-      bluestein_fft_t* bs = bluestein_fft_create(half_n);
-      if (bs) {
-        inner = bluestein_fft_as_arbitrary(bs);
-      }
-    }
-  }
-
-  if (!inner) {
-    free(fft);
-    return NULL;
-  }
-
-  complex_inner_real_fft_t* complex_inner =
-      complex_inner_real_fft_create(length, inner);
-  if (!complex_inner) {
-    arbitrary_complex_fft_free(inner);
-    free(fft);
-    return NULL;
-  }
-
-  fft->backend = complex_inner_real_fft_as_backend(complex_inner);
-  return fft;
 }
 
+#endif // defined(__APPLE__)
+
+// Public API implementation (shared across Apple and non-Apple backends)
 void real_fft_forward(real_fft_t* fft, waveform_t real_in,
                       mutable_waveform_t spec_re, mutable_waveform_t spec_im) {
   if (fft && fft->backend && fft->backend->forward) {
@@ -205,9 +217,10 @@ void real_fft_inverse(real_fft_t* fft, waveform_t spec_re, waveform_t spec_im,
 }
 
 void real_fft_free(real_fft_t* fft) {
-  if (!fft) return;
-  if (fft->backend && fft->backend->free) {
-    fft->backend->free(fft->backend->ctx);
+  if (fft) {
+    if (fft->backend && fft->backend->free) {
+      fft->backend->free(fft->backend->ctx);
+    }
+    free(fft);
   }
-  free(fft);
 }

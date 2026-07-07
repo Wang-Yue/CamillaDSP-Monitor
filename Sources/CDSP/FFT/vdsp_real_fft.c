@@ -1,3 +1,4 @@
+#ifdef __APPLE__
 // vDSP `fft_zrip` backend for power-of-two real-FFT lengths.
 //
 // Selected by `RealFFT.init` when `length` is a power of two
@@ -10,23 +11,17 @@
 
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
-#endif
 
 struct vdsp_real_fft {
   real_fft_backend_t base;
   size_t half_n;
-#ifdef __APPLE__
   vDSP_Length log2n;
   FFTSetupD setup;
-#endif
   double* scratch_re;
   double* scratch_im;
 };
 
-#ifdef __APPLE__
 static void vdsp_real_fft_forward_wrapper(void* ctx, waveform_t real_in,
                                           mutable_waveform_t spec_re,
                                           mutable_waveform_t spec_im) {
@@ -42,12 +37,10 @@ static void vdsp_real_fft_inverse_wrapper(void* ctx, waveform_t spec_re,
 static void vdsp_real_fft_free_wrapper(void* ctx) {
   vdsp_real_fft_free((vdsp_real_fft_t*)ctx);
 }
-#endif
 
 vdsp_real_fft_t* vdsp_real_fft_create(size_t length) {
   if (length < 8 || (length & (length - 1)) != 0) return NULL;
 
-#ifdef __APPLE__
   vDSP_Length log2n = 0;
   size_t temp = length;
   while (temp > 1) {
@@ -77,17 +70,12 @@ vdsp_real_fft_t* vdsp_real_fft_create(size_t length) {
     return NULL;
   }
   return fft;
-#else
-  (void)length;
-  return NULL;
-#endif
 }
 
 void vdsp_real_fft_forward(vdsp_real_fft_t* fft, waveform_t real_in,
                            mutable_waveform_t spec_re,
                            mutable_waveform_t spec_im) {
   if (!fft) return;
-#ifdef __APPLE__
   size_t n = fft->half_n;
   // Deinterleave 2N real samples into N split-complex pairs:
   // scratch.real[k] = realIn[2k], scratch.imag[k] = realIn[2k+1].
@@ -113,17 +101,11 @@ void vdsp_real_fft_forward(vdsp_real_fft_t* fft, waveform_t real_in,
   spec_im[0] = 0.0;
   spec_re[n] = fft->scratch_im[0] * 0.5;
   spec_im[n] = 0.0;
-#else
-  (void)real_in;
-  (void)spec_re;
-  (void)spec_im;
-#endif
 }
 
 void vdsp_real_fft_inverse(vdsp_real_fft_t* fft, waveform_t spec_re,
                            waveform_t spec_im, mutable_waveform_t real_out) {
   if (!fft) return;
-#ifdef __APPLE__
   size_t n = fft->half_n;
   // Repack our flat (N+1)-bin layout back into vDSP's packed format
   // (DC in realp[0], Nyquist in imagp[0], bins 1..N-1 in realp[k]/imagp[k]).
@@ -146,19 +128,13 @@ void vdsp_real_fft_inverse(vdsp_real_fft_t* fft, waveform_t spec_re,
   // Re-interleave split-complex back to 2N reals: realOut[2k] = split.real[k],
   // realOut[2k+1] = split.imag[k].
   vDSP_ztocD(&split, 1, (DSPDoubleComplex*)real_out, 2, (vDSP_Length)n);
-#else
-  (void)spec_re;
-  (void)spec_im;
-  (void)real_out;
-#endif
 }
 
 void vdsp_real_fft_free(vdsp_real_fft_t* fft) {
   if (!fft) return;
-#ifdef __APPLE__
   if (fft->setup) vDSP_destroy_fftsetupD(fft->setup);
-#endif
   if (fft->scratch_re) free(fft->scratch_re);
   if (fft->scratch_im) free(fft->scratch_im);
   free(fft);
 }
+#endif

@@ -32,6 +32,7 @@ extern "C" {
 /// `RealFFT.init` does the priority-based selection so this
 /// class stays purely about the real-FFT structure (packing, untwiddle,
 /// inverse unpack) and never re-decides the backend.
+#ifdef __APPLE__
 typedef struct complex_inner_real_fft complex_inner_real_fft_t;
 
 complex_inner_real_fft_t* complex_inner_real_fft_create(
@@ -49,6 +50,7 @@ static inline real_fft_backend_t* complex_inner_real_fft_as_backend(
     complex_inner_real_fft_t* fft) {
   return (real_fft_backend_t*)fft;
 }
+#endif
 
 #ifdef __cplusplus
 }
