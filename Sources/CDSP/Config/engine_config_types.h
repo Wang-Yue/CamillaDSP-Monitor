@@ -56,7 +56,9 @@ typedef enum {
   AUDIO_BACKEND_ERR_INVALID_SAMPLERATE,
   AUDIO_BACKEND_ERR_SPECTRUM_COMPUTE,
   AUDIO_BACKEND_ERR_ENGINE_NOT_RUNNING,
-  AUDIO_BACKEND_ERR_BUFFER_EMPTY
+  AUDIO_BACKEND_ERR_BUFFER_EMPTY,
+  AUDIO_BACKEND_ERR_DEVICE_NOT_FOUND,
+  AUDIO_BACKEND_ERR_DEVICE_BUSY
 } audio_backend_error_type_t;
 
 typedef struct {
@@ -146,6 +148,12 @@ typedef enum {
 #endif
 #if defined(ENABLE_ASIO)
   AUDIO_BACKEND_TYPE_ASIO = 8,
+#endif
+#if defined(ENABLE_JACK)
+  AUDIO_BACKEND_TYPE_JACK = 9,
+#endif
+#if defined(ENABLE_BLUEZ)
+  AUDIO_BACKEND_TYPE_BLUEZ = 10,
 #endif
   AUDIO_BACKEND_TYPE_FILE = 5,
   AUDIO_BACKEND_TYPE_STDIN_OUT = 6,
@@ -279,6 +287,19 @@ typedef struct {
   char link_mute_control[256];
   bool has_link_mute_control;
 #endif
+  char** labels;
+  size_t labels_count;
+  bool has_labels;
+#if defined(ENABLE_PIPEWIRE)
+  char node_name[256];
+  bool has_node_name;
+  char node_description[256];
+  bool has_node_description;
+  char node_group_name[256];
+  bool has_node_group_name;
+  char autoconnect_to[256];
+  bool has_autoconnect_to;
+#endif
   /// If true, bypass DoP detection and handle signal strictly as PCM. Default
   /// is false.
   bool bypass_dop;
@@ -302,6 +323,14 @@ typedef struct {
   bool has_read_bytes;
   int extra_samples;
   bool has_extra_samples;
+#if defined(ENABLE_BLUEZ)
+  char service[256];
+  bool has_service;
+  char dbus_path[512];
+  bool has_dbus_path;
+  binary_sample_format_t bluez_format;
+  bool has_bluez_format;
+#endif
 } capture_device_config_t;
 
 typedef struct {
@@ -337,6 +366,19 @@ typedef struct {
   bool has_file_format;
   bool is_wav;
   bool has_is_wav;
+  char** labels;
+  size_t labels_count;
+  bool has_labels;
+#if defined(ENABLE_PIPEWIRE)
+  char node_name[256];
+  bool has_node_name;
+  char node_description[256];
+  bool has_node_description;
+  char node_group_name[256];
+  bool has_node_group_name;
+  char autoconnect_to[256];
+  bool has_autoconnect_to;
+#endif
 } playback_device_config_t;
 
 typedef struct {

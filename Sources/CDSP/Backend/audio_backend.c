@@ -24,6 +24,12 @@
 #if defined(ENABLE_WASAPI)
 #include "wasapi_backend.h"
 #endif
+#if defined(ENABLE_JACK)
+#include "jack_backend.h"
+#endif
+#if defined(ENABLE_BLUEZ)
+#include "bluez_backend.h"
+#endif
 #include <stdlib.h>
 
 #include "file_backend.h"
@@ -70,6 +76,14 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
     case AUDIO_BACKEND_TYPE_ASIO:
       return asio_capture_new(config, sample_rate, chunk_size, full_duplex,
                               err);
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      return jack_capture_create(config, sample_rate, chunk_size, params, err);
+#endif
+#if defined(ENABLE_BLUEZ)
+    case AUDIO_BACKEND_TYPE_BLUEZ:
+      return bluez_capture_create(config, sample_rate, chunk_size, params, err);
 #endif
     case AUDIO_BACKEND_TYPE_GENERATOR:
       return generator_capture_create(config, sample_rate, chunk_size, params,
@@ -125,6 +139,10 @@ playback_backend_t* create_playback_backend(
     case AUDIO_BACKEND_TYPE_ASIO:
       return asio_playback_new(config, sample_rate, chunk_size, full_duplex,
                                err);
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      return jack_playback_create(config, sample_rate, chunk_size, params, err);
 #endif
     case AUDIO_BACKEND_TYPE_FILE:
     case AUDIO_BACKEND_TYPE_STDIN_OUT:
@@ -255,6 +273,17 @@ bool playback_backend_get_is_paused(playback_backend_t* backend) {
 void playback_backend_set_is_paused(playback_backend_t* backend, bool paused) {
   if (!backend || !backend->vtable || !backend->vtable->set_is_paused) return;
   backend->vtable->set_is_paused(backend->ctx, paused);
+}
+
+bool playback_backend_pitch_control_supported(playback_backend_t* backend) {
+  if (!backend || !backend->vtable || !backend->vtable->pitch_control_supported)
+    return false;
+  return backend->vtable->pitch_control_supported(backend->ctx);
+}
+
+void playback_backend_set_pitch(playback_backend_t* backend, double multiplier) {
+  if (!backend || !backend->vtable || !backend->vtable->set_pitch) return;
+  backend->vtable->set_pitch(backend->ctx, multiplier);
 }
 
 /// Destroy and free the playback backend.

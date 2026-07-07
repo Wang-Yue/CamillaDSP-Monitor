@@ -13,6 +13,8 @@ ifeq ($(UNAME_S),Darwin)
     ENABLE_ALSA ?= 0
     ENABLE_PULSE ?= 0
     ENABLE_PIPEWIRE ?= 0
+    ENABLE_JACK ?= 0
+    ENABLE_BLUEZ ?= 0
     ENABLE_FFTW ?= 0
     ENABLE_BLAS ?= 0
     ENABLE_WASAPI ?= 0
@@ -24,6 +26,8 @@ else
     ENABLE_ALSA ?= 1
     ENABLE_PULSE ?= 1
     ENABLE_PIPEWIRE ?= 1
+    ENABLE_JACK ?= 1
+    ENABLE_BLUEZ ?= 1
     ENABLE_FFTW ?= 1
     ENABLE_BLAS ?= 1
     ENABLE_WASAPI ?= 0
@@ -59,6 +63,7 @@ ifeq ($(ENABLE_ASIO),1)
     CFLAGS += -DENABLE_ASIO
 endif
 
+
 # Map Flags to link options (LDFLAGS)
 LDFLAGS := -lm -lpthread
 ifeq ($(UNAME_S),Darwin)
@@ -89,6 +94,15 @@ else
         LDFLAGS += -lopenblas
     endif
     LDFLAGS += -lrt
+    ifeq ($(ENABLE_JACK),1)
+        CFLAGS += -DENABLE_JACK
+        LDFLAGS += -ljack
+    endif
+    ifeq ($(ENABLE_BLUEZ),1)
+        CFLAGS += -DENABLE_BLUEZ
+        LDFLAGS += $(shell pkg-config --libs dbus-1 2>/dev/null || echo "-ldbus-1")
+        CFLAGS += $(shell pkg-config --cflags dbus-1 2>/dev/null || echo "")
+    endif
 endif
 
 # All library C source files across subdirectories of CDSP
@@ -189,7 +203,8 @@ WIN_OBJ_DIR := $(ROOT_DIR)/.build/win_obj
 WIN_SRCS := $(filter-out %/alsa_capture.c %/alsa_playback.c %/alsa_device.c %/alsa_capabilities.c \
                         %/pulse_backend.c \
                         %/pipewire_backend.c \
-                        %/core_audio_capture.c %/core_audio_playback.c %/core_audio_device.c %/core_audio_capabilities.c, $(ALL_SRCS))
+                        %/core_audio_capture.c %/core_audio_playback.c %/core_audio_device.c %/core_audio_capabilities.c \
+                        %/jack_backend.c %/bluez_backend.c, $(ALL_SRCS))
 
 WIN_OBJS := $(patsubst $(ROOT_DIR)/%.c, $(WIN_OBJ_DIR)/%.o, $(WIN_SRCS))
 WIN_LIB_TARGET := $(ROOT_DIR)/Sources/CDSP/libdsp_win.a

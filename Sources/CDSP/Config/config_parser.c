@@ -102,6 +102,40 @@ static int get_array_element(const jsmntok_t* tokens, int count, int arr_idx,
   return i;
 }
 
+static void parse_labels_array(const char* js, const jsmntok_t* tokens, int count,
+                               int labels_idx, char*** out_labels, size_t* out_count,
+                               bool* out_has_labels) {
+  if (labels_idx == -1 || tokens[labels_idx].type != JSMN_ARRAY) return;
+  int size = tokens[labels_idx].size;
+  if (size <= 0) return;
+
+  char** arr = (char**)calloc(size, sizeof(char*));
+  if (!arr) return;
+
+  for (int k = 0; k < size; k++) {
+    int el_idx = get_array_element(tokens, count, labels_idx, k);
+    if (el_idx != -1) {
+      if (tokens[el_idx].type == JSMN_STRING) {
+        int len = tokens[el_idx].end - tokens[el_idx].start;
+        arr[k] = (char*)malloc(len + 1);
+        if (arr[k]) {
+          get_tok_string(js, &tokens[el_idx], arr[k], len + 1);
+        }
+      } else if (tokens[el_idx].type == JSMN_PRIMITIVE) {
+        char prim_str[16];
+        get_tok_string(js, &tokens[el_idx], prim_str, sizeof(prim_str));
+        if (strcmp(prim_str, "null") == 0) {
+          arr[k] = NULL;
+        }
+      }
+    }
+  }
+
+  *out_labels = arr;
+  *out_count = (size_t)size;
+  *out_has_labels = true;
+}
+
 static void parse_resampler(const char* js, const jsmntok_t* tokens, int count,
                             int res_val_idx, devices_config_t* devices) {
   if (res_val_idx == -1 || tokens[res_val_idx].type != JSMN_OBJECT) return;
@@ -234,6 +268,11 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
       cap->asio_format = asio_sample_format_from_string(fmt_str);
       cap->has_asio_format = true;
 #endif
+#if defined(ENABLE_BLUEZ)
+    } else if (cap->type == AUDIO_BACKEND_TYPE_BLUEZ) {
+      cap->bluez_format = binary_sample_format_from_string(fmt_str);
+      cap->has_bluez_format = true;
+#endif
     } else {
 #if defined(ENABLE_ALSA)
       cap->format = alsa_sample_format_from_string(fmt_str);
@@ -300,6 +339,45 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
     get_tok_string(js, &tokens[lmc_idx], cap->link_mute_control,
                    sizeof(cap->link_mute_control));
     cap->has_link_mute_control = true;
+  }
+#endif
+#if defined(ENABLE_PIPEWIRE)
+  int nn_idx = find_object_key(js, tokens, count, cap_val_idx, "node_name");
+  if (nn_idx != -1 && tokens[nn_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[nn_idx], cap->node_name, sizeof(cap->node_name));
+    cap->has_node_name = true;
+  }
+  int nd_idx = find_object_key(js, tokens, count, cap_val_idx, "node_description");
+  if (nd_idx != -1 && tokens[nd_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[nd_idx], cap->node_description, sizeof(cap->node_description));
+    cap->has_node_description = true;
+  }
+  int ng_idx = find_object_key(js, tokens, count, cap_val_idx, "node_group_name");
+  if (ng_idx != -1 && tokens[ng_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[ng_idx], cap->node_group_name, sizeof(cap->node_group_name));
+    cap->has_node_group_name = true;
+  }
+  int ac_idx = find_object_key(js, tokens, count, cap_val_idx, "autoconnect_to");
+  if (ac_idx != -1 && tokens[ac_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[ac_idx], cap->autoconnect_to, sizeof(cap->autoconnect_to));
+    cap->has_autoconnect_to = true;
+  }
+#endif
+
+  int labels_idx = find_object_key(js, tokens, count, cap_val_idx, "labels");
+  parse_labels_array(js, tokens, count, labels_idx, &cap->labels,
+                     &cap->labels_count, &cap->has_labels);
+
+#if defined(ENABLE_BLUEZ)
+  int srv_idx = find_object_key(js, tokens, count, cap_val_idx, "service");
+  if (srv_idx != -1 && tokens[srv_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[srv_idx], cap->service, sizeof(cap->service));
+    cap->has_service = true;
+  }
+  int dbp_idx = find_object_key(js, tokens, count, cap_val_idx, "dbus_path");
+  if (dbp_idx != -1 && tokens[dbp_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[dbp_idx], cap->dbus_path, sizeof(cap->dbus_path));
+    cap->has_dbus_path = true;
   }
 #endif
 
@@ -434,6 +512,31 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
     play->output_dop = get_tok_bool(js, &tokens[od_idx]);
     play->has_output_dop = true;
   }
+#if defined(ENABLE_PIPEWIRE)
+  int nn_idx = find_object_key(js, tokens, count, play_val_idx, "node_name");
+  if (nn_idx != -1 && tokens[nn_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[nn_idx], play->node_name, sizeof(play->node_name));
+    play->has_node_name = true;
+  }
+  int nd_idx = find_object_key(js, tokens, count, play_val_idx, "node_description");
+  if (nd_idx != -1 && tokens[nd_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[nd_idx], play->node_description, sizeof(play->node_description));
+    play->has_node_description = true;
+  }
+  int ng_idx = find_object_key(js, tokens, count, play_val_idx, "node_group_name");
+  if (ng_idx != -1 && tokens[ng_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[ng_idx], play->node_group_name, sizeof(play->node_group_name));
+    play->has_node_group_name = true;
+  }
+  int ac_idx = find_object_key(js, tokens, count, play_val_idx, "autoconnect_to");
+  if (ac_idx != -1 && tokens[ac_idx].type == JSMN_STRING) {
+    get_tok_string(js, &tokens[ac_idx], play->autoconnect_to, sizeof(play->autoconnect_to));
+    play->has_autoconnect_to = true;
+  }
+#endif
+  int labels_idx = find_object_key(js, tokens, count, play_val_idx, "labels");
+  parse_labels_array(js, tokens, count, labels_idx, &play->labels,
+                     &play->labels_count, &play->has_labels);
 }
 
 static int parse_devices(const char* js, const jsmntok_t* tokens, int count,

@@ -240,7 +240,7 @@ static void alsa_capture_init_controls(alsa_capture_t* capture) {
       {
         snd_mixer_selem_id_t* sid;
         snd_mixer_selem_id_alloca(&sid);
-        snd_mixer_selem_id_set_name(sid, "Playback Pitch 1000000");
+        snd_mixer_selem_id_set_name(sid, "Capture Pitch 1000000");
         capture->pitch_elem = snd_mixer_find_selem(mixer, sid);
       }
     } else {

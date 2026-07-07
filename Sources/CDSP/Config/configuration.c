@@ -314,5 +314,17 @@ void dsp_config_free(dsp_config_t* config) {
     }
     free(config->pipeline);
   }
+  if (config->devices.capture.has_labels && config->devices.capture.labels) {
+    for (size_t i = 0; i < config->devices.capture.labels_count; i++) {
+      free(config->devices.capture.labels[i]);
+    }
+    free(config->devices.capture.labels);
+  }
+  if (config->devices.playback.has_labels && config->devices.playback.labels) {
+    for (size_t i = 0; i < config->devices.playback.labels_count; i++) {
+      free(config->devices.playback.labels[i]);
+    }
+    free(config->devices.playback.labels);
+  }
   free(config);
 }

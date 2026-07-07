@@ -42,8 +42,10 @@ static void apply_speed(engine_playback_loop_t* loop, double speed,
   logger_t logger = logger_create("dsp.playback");
   if (changed) {
     *last_speed = speed;
-    if (loop->pitch_supported && loop->capture) {
+    if (loop->capture && capture_backend_pitch_control_supported(loop->capture)) {
       capture_backend_set_pitch(loop->capture, speed);
+    } else if (loop->playback && playback_backend_pitch_control_supported(loop->playback)) {
+      playback_backend_set_pitch(loop->playback, speed);
     } else if (loop->shared && loop->shared->resampler_ratio) {
       atomic_double_set(loop->shared->resampler_ratio, speed);
     }
@@ -94,7 +96,8 @@ engine_playback_loop_t* engine_playback_loop_create(
   loop->pipeline_rate = pipeline_rate;
   loop->chunk_size = chunk_size;
   loop->pitch_supported =
-      capture ? capture_backend_pitch_control_supported(capture) : false;
+      (capture && capture_backend_pitch_control_supported(capture)) ||
+      (playback && playback_backend_pitch_control_supported(playback));
   loop->rate_adjust_enabled = rate_adjust_enabled;
   loop->adjust_period = adjust_period;
   loop->target_level = target_level;

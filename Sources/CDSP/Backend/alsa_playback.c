@@ -26,6 +26,9 @@ struct alsa_playback {
 
   void* interleaved_buf;
   size_t interleaved_buf_size;
+
+  snd_mixer_t* mixer;
+  snd_mixer_elem_t* pitch_elem;
 };
 
 static bool vtable_open(void* ctx, backend_error_t* err) {
@@ -65,6 +68,14 @@ static void vtable_destroy(void* ctx) {
   alsa_playback_destroy((alsa_playback_t*)ctx);
 }
 
+static bool vtable_pitch_control_supported(void* ctx) {
+  return alsa_playback_pitch_control_supported((alsa_playback_t*)ctx);
+}
+
+static void vtable_set_pitch(void* ctx, double mult) {
+  alsa_playback_set_pitch((alsa_playback_t*)ctx, mult);
+}
+
 static const playback_backend_vtable_t ALSA_PLAYBACK_VTABLE = {
     .open = vtable_open,
     .write = vtable_write,
@@ -74,6 +85,8 @@ static const playback_backend_vtable_t ALSA_PLAYBACK_VTABLE = {
     .prefill_silence = vtable_prefill,
     .get_is_paused = vtable_get_paused,
     .set_is_paused = vtable_set_paused,
+    .pitch_control_supported = vtable_pitch_control_supported,
+    .set_pitch = vtable_set_pitch,
     .destroy = vtable_destroy};
 
 playback_backend_t* alsa_playback_create(const playback_device_config_t* config,
@@ -269,6 +282,33 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
   playback->interleaved_buf = malloc(playback->interleaved_buf_size);
 
   playback->paused = false;
+
+  // Initialize mixer for pitch control
+  snd_pcm_info_t* pcm_info;
+  snd_pcm_info_alloca(&pcm_info);
+  if (snd_pcm_info(playback->pcm, pcm_info) >= 0) {
+    char ctl_name[32];
+    int card = snd_pcm_info_get_card(pcm_info);
+    if (card >= 0) {
+      snprintf(ctl_name, sizeof(ctl_name), "hw:%d", card);
+      snd_mixer_t* mixer = NULL;
+      if (snd_mixer_open(&mixer, 0) >= 0) {
+        if (snd_mixer_attach(mixer, ctl_name) >= 0 &&
+            snd_mixer_selem_register(mixer, NULL, NULL) >= 0 &&
+            snd_mixer_load(mixer) >= 0) {
+          playback->mixer = mixer;
+
+          snd_mixer_selem_id_t* sid;
+          snd_mixer_selem_id_alloca(&sid);
+          snd_mixer_selem_id_set_name(sid, "Playback Pitch 1000000");
+          playback->pitch_elem = snd_mixer_find_selem(mixer, sid);
+        } else {
+          snd_mixer_close(mixer);
+        }
+      }
+    }
+  }
+
   pthread_mutex_unlock(&g_alsa_mutex);
   return true;
 
@@ -392,6 +432,11 @@ void alsa_playback_close(alsa_playback_t* playback) {
     free(playback->interleaved_buf);
     playback->interleaved_buf = NULL;
   }
+  if (playback->mixer) {
+    snd_mixer_close(playback->mixer);
+    playback->mixer = NULL;
+    playback->pitch_elem = NULL;
+  }
 }
 
 size_t alsa_playback_get_buffer_level(alsa_playback_t* playback) {
@@ -446,6 +491,20 @@ void alsa_playback_set_is_paused(alsa_playback_t* playback, bool paused) {
   if (!playback->pcm) return;
   playback->paused = paused;
   snd_pcm_pause(playback->pcm, paused ? 1 : 0);
+}
+
+bool alsa_playback_pitch_control_supported(alsa_playback_t* playback) {
+  return playback && playback->pitch_elem != NULL;
+}
+
+void alsa_playback_set_pitch(alsa_playback_t* playback, double multiplier) {
+  if (!playback || !playback->pitch_elem) return;
+  long value = (long)round(1000000.0 / multiplier);
+  if (snd_mixer_selem_has_playback_volume(playback->pitch_elem)) {
+    snd_mixer_selem_set_playback_volume_all(playback->pitch_elem, value);
+  } else if (snd_mixer_selem_has_capture_volume(playback->pitch_elem)) {
+    snd_mixer_selem_set_capture_volume_all(playback->pitch_elem, value);
+  }
 }
 
 void alsa_playback_destroy(alsa_playback_t* playback) {

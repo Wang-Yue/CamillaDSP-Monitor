@@ -18,6 +18,15 @@ struct pipewire_capture {
   int channels;
   int chunk_size;
 
+  char node_name[256];
+  char node_description[256];
+  char node_group_name[256];
+  char autoconnect_to[256];
+  bool has_node_name;
+  bool has_node_description;
+  bool has_node_group_name;
+  bool has_autoconnect_to;
+
   struct pw_thread_loop* loop;
   struct pw_context* context;
   struct pw_stream* stream;
@@ -32,6 +41,15 @@ struct pipewire_playback {
   int sample_rate;
   int channels;
   int chunk_size;
+
+  char node_name[256];
+  char node_description[256];
+  char node_group_name[256];
+  char autoconnect_to[256];
+  bool has_node_name;
+  bool has_node_description;
+  bool has_node_group_name;
+  bool has_autoconnect_to;
 
   struct pw_thread_loop* loop;
   struct pw_context* context;
@@ -160,6 +178,23 @@ capture_backend_t* pipewire_capture_create(
   capture->channels = config->channels;
   capture->chunk_size = chunk_size;
 
+  if (config->has_node_name) {
+    strncpy(capture->node_name, config->node_name, sizeof(capture->node_name) - 1);
+    capture->has_node_name = true;
+  }
+  if (config->has_node_description) {
+    strncpy(capture->node_description, config->node_description, sizeof(capture->node_description) - 1);
+    capture->has_node_description = true;
+  }
+  if (config->has_node_group_name) {
+    strncpy(capture->node_group_name, config->node_group_name, sizeof(capture->node_group_name) - 1);
+    capture->has_node_group_name = true;
+  }
+  if (config->has_autoconnect_to) {
+    strncpy(capture->autoconnect_to, config->autoconnect_to, sizeof(capture->autoconnect_to) - 1);
+    capture->has_autoconnect_to = true;
+  }
+
   capture_backend_t* backend =
       (capture_backend_t*)calloc(1, sizeof(capture_backend_t));
   if (!backend) {
@@ -206,11 +241,15 @@ bool pipewire_capture_open(pipewire_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
+  const char* node_name = capture->has_node_name ? capture->node_name : "cdsp-capture";
+  const char* node_desc = capture->has_node_description ? capture->node_description : "CDSP Capture";
+  const char* node_group = capture->has_node_group_name ? capture->node_group_name : "cdsp";
+
   struct pw_properties* props = pw_properties_new(
       PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Capture",
       PW_KEY_MEDIA_ROLE, "DSP", PW_KEY_APP_NAME, "CDSP", PW_KEY_NODE_NAME,
-      "cdsp-capture", PW_KEY_NODE_DESCRIPTION, "CDSP Capture",
-      PW_KEY_NODE_GROUP, "cdsp", NULL);
+      node_name, PW_KEY_NODE_DESCRIPTION, node_desc,
+      PW_KEY_NODE_GROUP, node_group, NULL);
 
   if (props) {
     char latency_str[64];
@@ -219,6 +258,8 @@ bool pipewire_capture_open(pipewire_capture_t* capture, backend_error_t* err) {
     pw_properties_set(props, PW_KEY_NODE_LATENCY, latency_str);
     if (capture->device[0] != '\0') {
       pw_properties_set(props, "target.object", capture->device);
+    } else if (capture->has_autoconnect_to) {
+      pw_properties_set(props, "target.object", capture->autoconnect_to);
     }
   }
 
@@ -246,11 +287,13 @@ bool pipewire_capture_open(pipewire_capture_t* capture, backend_error_t* err) {
                                     .channels = (uint32_t)capture->channels};
   params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &info);
 
+  uint32_t flags = PW_STREAM_FLAG_MAP_BUFFERS | PW_STREAM_FLAG_RT_PROCESS;
+  if (capture->device[0] != '\0' || capture->has_autoconnect_to) {
+    flags |= PW_STREAM_FLAG_AUTOCONNECT;
+  }
+
   int rc = pw_stream_connect(capture->stream, PW_DIRECTION_INPUT, PW_ID_ANY,
-                             PW_STREAM_FLAG_AUTOCONNECT |
-                                 PW_STREAM_FLAG_MAP_BUFFERS |
-                                 PW_STREAM_FLAG_RT_PROCESS,
-                             params, 1);
+                             flags, params, 1);
 
   pw_thread_loop_unlock(capture->loop);
 
@@ -448,6 +491,23 @@ playback_backend_t* pipewire_playback_create(
   playback->channels = config->channels;
   playback->chunk_size = chunk_size;
 
+  if (config->has_node_name) {
+    strncpy(playback->node_name, config->node_name, sizeof(playback->node_name) - 1);
+    playback->has_node_name = true;
+  }
+  if (config->has_node_description) {
+    strncpy(playback->node_description, config->node_description, sizeof(playback->node_description) - 1);
+    playback->has_node_description = true;
+  }
+  if (config->has_node_group_name) {
+    strncpy(playback->node_group_name, config->node_group_name, sizeof(playback->node_group_name) - 1);
+    playback->has_node_group_name = true;
+  }
+  if (config->has_autoconnect_to) {
+    strncpy(playback->autoconnect_to, config->autoconnect_to, sizeof(playback->autoconnect_to) - 1);
+    playback->has_autoconnect_to = true;
+  }
+
   playback_backend_t* backend =
       (playback_backend_t*)calloc(1, sizeof(playback_backend_t));
   if (!backend) {
@@ -495,11 +555,15 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
     return false;
   }
 
+  const char* node_name = playback->has_node_name ? playback->node_name : "cdsp-playback";
+  const char* node_desc = playback->has_node_description ? playback->node_description : "CDSP Playback";
+  const char* node_group = playback->has_node_group_name ? playback->node_group_name : "cdsp";
+
   struct pw_properties* props = pw_properties_new(
       PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback",
       PW_KEY_MEDIA_ROLE, "DSP", PW_KEY_APP_NAME, "CDSP", PW_KEY_NODE_NAME,
-      "cdsp-playback", PW_KEY_NODE_DESCRIPTION, "CDSP Playback",
-      PW_KEY_NODE_GROUP, "cdsp", NULL);
+      node_name, PW_KEY_NODE_DESCRIPTION, node_desc,
+      PW_KEY_NODE_GROUP, node_group, NULL);
 
   if (props) {
     char latency_str[64];
@@ -508,6 +572,8 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
     pw_properties_set(props, PW_KEY_NODE_LATENCY, latency_str);
     if (playback->device[0] != '\0') {
       pw_properties_set(props, "target.object", playback->device);
+    } else if (playback->has_autoconnect_to) {
+      pw_properties_set(props, "target.object", playback->autoconnect_to);
     }
   }
 
@@ -535,11 +601,13 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
                                     .channels = (uint32_t)playback->channels};
   params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &info);
 
+  uint32_t flags = PW_STREAM_FLAG_MAP_BUFFERS | PW_STREAM_FLAG_RT_PROCESS;
+  if (playback->device[0] != '\0' || playback->has_autoconnect_to) {
+    flags |= PW_STREAM_FLAG_AUTOCONNECT;
+  }
+
   int rc = pw_stream_connect(playback->stream, PW_DIRECTION_OUTPUT, PW_ID_ANY,
-                             PW_STREAM_FLAG_AUTOCONNECT |
-                                 PW_STREAM_FLAG_MAP_BUFFERS |
-                                 PW_STREAM_FLAG_RT_PROCESS,
-                             params, 1);
+                             flags, params, 1);
 
   pw_thread_loop_unlock(playback->loop);
 

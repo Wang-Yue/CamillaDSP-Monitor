@@ -531,14 +531,9 @@ static bool iface_get_spectrum(void* ctx, bool is_capture, uint32_t channel,
   return true;
 }
 static bool iface_set_config_json(void* ctx, const char* json_str,
-                                  char* out_err_msg, size_t err_len) {
+                                  audio_backend_error_t* out_err) {
   if (!ctx) return false;
-  audio_backend_error_t err;
-  bool ok = dsp_engine_set_config((dsp_engine_t*)ctx, json_str, &err);
-  if (!ok && out_err_msg && err_len > 0) {
-    snprintf(out_err_msg, err_len, "%s", err.message);
-  }
-  return ok;
+  return dsp_engine_set_config((dsp_engine_t*)ctx, json_str, out_err);
 }
 static void iface_stop(void* ctx) {
   if (ctx) dsp_engine_stop((dsp_engine_t*)ctx);

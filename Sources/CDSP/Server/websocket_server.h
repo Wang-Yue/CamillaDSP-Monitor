@@ -42,8 +42,8 @@ typedef struct {
   bool (*get_spectrum)(void* ctx, bool is_capture, uint32_t channel,
                        double min_freq, double max_freq, uint32_t n_bins,
                        spectrum_t* out_spec);
-  bool (*set_config_json)(void* ctx, const char* json_str, char* out_err_msg,
-                          size_t err_len);
+  bool (*set_config_json)(void* ctx, const char* json_str,
+                          audio_backend_error_t* out_err);
   void (*stop)(void* ctx);
 } dsp_engine_interface_t;
 

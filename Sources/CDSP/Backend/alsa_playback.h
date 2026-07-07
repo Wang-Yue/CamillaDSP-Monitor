@@ -27,6 +27,8 @@ bool alsa_playback_prefill_silence(alsa_playback_t* playback, size_t frames,
                                    backend_error_t* err);
 bool alsa_playback_get_is_paused(alsa_playback_t* playback);
 void alsa_playback_set_is_paused(alsa_playback_t* playback, bool paused);
+bool alsa_playback_pitch_control_supported(alsa_playback_t* playback);
+void alsa_playback_set_pitch(alsa_playback_t* playback, double multiplier);
 void alsa_playback_destroy(alsa_playback_t* playback);
 
 #endif  // ENABLE_ALSA

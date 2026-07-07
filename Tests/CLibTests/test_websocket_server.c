@@ -32,10 +32,25 @@ static bool mock_get_processing_parameters(void* ctx, void** out_params) {
   return true;
 }
 
+static audio_backend_error_type_t simulated_error_type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+static const char* simulated_error_message = "Simulated error message";
+
+static bool mock_set_config_json(void* ctx, const char* json_str,
+                                 audio_backend_error_t* out_err) {
+  (void)ctx;
+  (void)json_str;
+  if (out_err) {
+    out_err->type = simulated_error_type;
+    snprintf(out_err->message, sizeof(out_err->message), "%s", simulated_error_message);
+  }
+  return false;
+}
+
 static dsp_engine_interface_t mock_engine = {
     .ctx = NULL,
     .get_status = mock_get_status,
-    .get_processing_parameters = mock_get_processing_parameters};
+    .get_processing_parameters = mock_get_processing_parameters,
+    .set_config_json = mock_set_config_json};
 
 TEST(test_websocket_commands) {
   active_config_path_t* path = active_config_path_create(NULL);
@@ -141,6 +156,45 @@ TEST(test_backend_error_description) {
   char buf[256];
   backend_error_description(&err, buf, sizeof(buf));
   ASSERT_STR_EQ("Device not found: Test device", buf);
+}
+
+TEST(test_websocket_error_translation) {
+  active_config_path_t* path = active_config_path_create(NULL);
+  websocket_server_t* server =
+      websocket_server_create(54323, "127.0.0.1", path);
+  websocket_server_set_engine(server, &mock_engine);
+
+  char resp[4096];
+
+  // 1. Test ConfigValidationError translation
+  simulated_error_type = AUDIO_BACKEND_ERR_CONFIG_PARSE;
+  simulated_error_message = "Failed to parse JSON";
+  websocket_server_handle_command(
+      server, 0, "{\"SetConfigJson\":\"{}\"}", resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"SetConfigJson\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"ConfigValidationError\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "Failed to parse JSON") != NULL);
+
+  // 2. Test DeviceNotFoundError translation
+  simulated_error_type = AUDIO_BACKEND_ERR_DEVICE_NOT_FOUND;
+  simulated_error_message = "hw:0 not found";
+  websocket_server_handle_command(
+      server, 0, "{\"SetConfigJson\":\"{}\"}", resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"SetConfigJson\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"DeviceNotFoundError\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "hw:0 not found") != NULL);
+
+  // 3. Test DeviceBusyError translation
+  simulated_error_type = AUDIO_BACKEND_ERR_DEVICE_BUSY;
+  simulated_error_message = "hw:0 in use";
+  websocket_server_handle_command(
+      server, 0, "{\"SetConfigJson\":\"{}\"}", resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"SetConfigJson\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"DeviceBusyError\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "hw:0 in use") != NULL);
+
+  websocket_server_free(server);
+  active_config_path_free(path);
 }
 
 TEST_MAIN()

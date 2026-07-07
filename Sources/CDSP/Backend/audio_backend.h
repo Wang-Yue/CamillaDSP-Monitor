@@ -81,6 +81,8 @@ typedef struct {
   /// Flag to indicate if the playback is currently paused, to suppress underrun
   /// warnings.
   void (*set_is_paused)(void* ctx, bool paused);
+  bool (*pitch_control_supported)(void* ctx);
+  void (*set_pitch)(void* ctx, double multiplier);
   void (*destroy)(void* ctx);
 } playback_backend_vtable_t;
 
@@ -148,6 +150,8 @@ bool playback_backend_prefill_silence(playback_backend_t* backend,
 bool playback_backend_get_is_paused(playback_backend_t* backend);
 /// Set paused flag status.
 void playback_backend_set_is_paused(playback_backend_t* backend, bool paused);
+bool playback_backend_pitch_control_supported(playback_backend_t* backend);
+void playback_backend_set_pitch(playback_backend_t* backend, double multiplier);
 /// Destroy and free the playback backend.
 void playback_backend_free(playback_backend_t* backend);
 

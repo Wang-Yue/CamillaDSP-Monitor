@@ -139,10 +139,17 @@ const processing_stop_reason_t* dsp_engine_core_get_stop_reason(
 
 // MARK: - Lifecycle
 
-// MARK: - Private: runtime construction
-/// Bag of components built in `start()` and handed to each loop.
-/// Bundling them avoids passing eight parameters around and keeps
-/// the loop initialisers concise.
+static audio_backend_error_type_t map_backend_error(backend_error_type_t type) {
+  switch (type) {
+    case BACKEND_ERROR_DEVICE_NOT_FOUND:
+      return AUDIO_BACKEND_ERR_DEVICE_NOT_FOUND;
+    case BACKEND_ERROR_DEVICE_BUSY:
+      return AUDIO_BACKEND_ERR_DEVICE_BUSY;
+    default:
+      return AUDIO_BACKEND_ERR_COMMAND_SEND;
+  }
+}
+
 bool dsp_engine_core_start(dsp_engine_core_t* core,
                            audio_backend_error_t* err) {
   if (!core) return false;
@@ -223,7 +230,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
       (int)capture_chunk_size, full_duplex, core->processing_params, &berr);
   if (!core->capture || berr.type != BACKEND_ERROR_NONE) {
     if (err) {
-      err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+      err->type = map_backend_error(berr.type);
       snprintf(err->message, sizeof(err->message), "%s", berr.message);
     }
     return false;
@@ -233,7 +240,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
       (int)playback_chunk_size, full_duplex, core->processing_params, &berr);
   if (!core->playback || berr.type != BACKEND_ERROR_NONE) {
     if (err) {
-      err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+      err->type = map_backend_error(berr.type);
       snprintf(err->message, sizeof(err->message), "%s", berr.message);
     }
     return false;
@@ -241,14 +248,14 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
 
   if (!capture_backend_open(core->capture, &berr)) {
     if (err) {
-      err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+      err->type = map_backend_error(berr.type);
       snprintf(err->message, sizeof(err->message), "%s", berr.message);
     }
     return false;
   }
   if (!playback_backend_open(core->playback, &berr)) {
     if (err) {
-      err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+      err->type = map_backend_error(berr.type);
       snprintf(err->message, sizeof(err->message), "%s", berr.message);
     }
     return false;

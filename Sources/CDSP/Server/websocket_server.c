@@ -323,7 +323,18 @@ static void format_state_event_payload(processing_state_t state,
            processing_state_to_string(state), reason_str);
 }
 
-// MARK: - JSON Helpers
+static const char* get_websocket_error_key(audio_backend_error_type_t type) {
+  switch (type) {
+    case AUDIO_BACKEND_ERR_CONFIG_PARSE:
+      return "ConfigValidationError";
+    case AUDIO_BACKEND_ERR_DEVICE_NOT_FOUND:
+      return "DeviceNotFoundError";
+    case AUDIO_BACKEND_ERR_DEVICE_BUSY:
+      return "DeviceBusyError";
+    default:
+      return "DeviceError";
+  }
+}
 
 static void json_reply(const char* cmd, const char* res_str,
                        const char* val_str, char* out, size_t max_len) {
@@ -1880,10 +1891,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     if (path) {
       char* json = server_read_file_to_string(path);
       if (json) {
-        char err_msg[512] = {0};
+        audio_backend_error_t err;
+        memset(&err, 0, sizeof(err));
         bool ok = server && server->engine && server->engine->set_config_json &&
-                  server->engine->set_config_json(server->engine->ctx, json,
-                                                  err_msg, sizeof(err_msg));
+                  server->engine->set_config_json(server->engine->ctx, json, &err);
         if (ok) {
           if (server->previous_config_json) free(server->previous_config_json);
           server->previous_config_json = server->active_config_json;
@@ -1892,8 +1903,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           json_reply("Reload", "\"Ok\"", NULL, out_response, max_len);
         } else {
           char val[600];
-          snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}",
-                   err_msg);
+          snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
+                   get_websocket_error_key(err.type), err.message);
           json_reply("Reload", val, NULL, out_response, max_len);
         }
         free(json);
@@ -1984,10 +1995,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     char* new_json =
         extract_json_string_value_dyn(command_text, "SetConfigJson");
     if (new_json) {
-      char err_msg[512] = {0};
+      audio_backend_error_t err;
+      memset(&err, 0, sizeof(err));
       bool ok = server && server->engine && server->engine->set_config_json &&
-                server->engine->set_config_json(server->engine->ctx, new_json,
-                                                err_msg, sizeof(err_msg));
+                server->engine->set_config_json(server->engine->ctx, new_json, &err);
       if (ok) {
         if (server->previous_config_json) free(server->previous_config_json);
         server->previous_config_json = server->active_config_json;
@@ -1996,8 +2007,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         json_reply("SetConfigJson", "\"Ok\"", NULL, out_response, max_len);
       } else {
         char val[600];
-        snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}",
-                 err_msg);
+        snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
+                 get_websocket_error_key(err.type), err.message);
         json_reply("SetConfigJson", val, NULL, out_response, max_len);
       }
       free(new_json);
@@ -2074,12 +2085,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           char* updated_json = server_set_value_at_pointer_str(
               active_json, pointer, trimmed_val);
           if (updated_json) {
-            char err_msg[512] = {0};
+            audio_backend_error_t err;
+            memset(&err, 0, sizeof(err));
             bool ok = server && server->engine &&
                       server->engine->set_config_json &&
                       server->engine->set_config_json(server->engine->ctx,
-                                                      updated_json, err_msg,
-                                                      sizeof(err_msg));
+                                                      updated_json, &err);
             if (ok) {
               if (server->previous_config_json)
                 free(server->previous_config_json);
@@ -2090,8 +2101,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                          max_len);
             } else {
               char val[600];
-              snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}",
-                       err_msg);
+              snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
+                       get_websocket_error_key(err.type), err.message);
               json_reply("SetConfigValue", val, NULL, out_response, max_len);
             }
             free(updated_json);
@@ -2131,11 +2142,11 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         char* target_json = strdup(active_json);
         if (server_merge_patch_tokens(&target_json, command_text, tokens, count,
                                       arg_idx, path_buf, sizeof(path_buf))) {
-          char err_msg[512] = {0};
+          audio_backend_error_t err;
+          memset(&err, 0, sizeof(err));
           bool ok =
               server && server->engine && server->engine->set_config_json &&
-              server->engine->set_config_json(server->engine->ctx, target_json,
-                                              err_msg, sizeof(err_msg));
+              server->engine->set_config_json(server->engine->ctx, target_json, &err);
           if (ok) {
             if (server->previous_config_json)
               free(server->previous_config_json);
@@ -2145,8 +2156,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
             json_reply("PatchConfig", "\"Ok\"", NULL, out_response, max_len);
           } else {
             char val[600];
-            snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}",
-                     err_msg);
+            snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
+                     get_websocket_error_key(err.type), err.message);
             json_reply("PatchConfig", val, NULL, out_response, max_len);
           }
         } else {

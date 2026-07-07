@@ -712,4 +712,126 @@ TEST(ParseFullConfigWithMixerAndFilter) {
   dsp_config_free(config);
 }
 
+TEST(ParseChannelLabels) {
+  const char* json =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 4,\n"
+      "            \"labels\": [\"Left\", \"Right\", null, \"Center\"]\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 4,\n"
+      "            \"labels\": [\"OutputLeft\", null, \"OutputRight\", null]\n"
+      "        }\n"
+      "    }\n"
+      "}";
+  dsp_config_t* config = NULL;
+  config_error_t err;
+  config_error_init(&err);
+  int res = dsp_config_parse_json(json, &config, &err);
+  if (res != 0) {
+    printf("PARSE ERROR: %s\n", err.message);
+  }
+  ASSERT_EQ(0, res);
+  ASSERT_TRUE(config != NULL);
+  
+  // Verify capture labels
+  ASSERT_TRUE(config->devices.capture.has_labels);
+  ASSERT_EQ(4, config->devices.capture.labels_count);
+  ASSERT_STR_EQ("Left", config->devices.capture.labels[0]);
+  ASSERT_STR_EQ("Right", config->devices.capture.labels[1]);
+  ASSERT_TRUE(config->devices.capture.labels[2] == NULL);
+  ASSERT_STR_EQ("Center", config->devices.capture.labels[3]);
+
+  // Verify playback labels
+  ASSERT_TRUE(config->devices.playback.has_labels);
+  ASSERT_EQ(4, config->devices.playback.labels_count);
+  ASSERT_STR_EQ("OutputLeft", config->devices.playback.labels[0]);
+  ASSERT_TRUE(config->devices.playback.labels[1] == NULL);
+  ASSERT_STR_EQ("OutputRight", config->devices.playback.labels[2]);
+  ASSERT_TRUE(config->devices.playback.labels[3] == NULL);
+
+  dsp_config_free(config);
+}
+
+#if defined(ENABLE_JACK)
+TEST(ParseJackConfig) {
+  const char* json =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Jack\",\n"
+      "            \"channels\": 2,\n"
+      "            \"device\": \"my_jack_capture\"\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Jack\",\n"
+      "            \"channels\": 2,\n"
+      "            \"device\": \"my_jack_playback\"\n"
+      "        }\n"
+      "    }\n"
+      "}";
+  dsp_config_t* config = NULL;
+  config_error_t err;
+  config_error_init(&err);
+  int res = dsp_config_parse_json(json, &config, &err);
+  ASSERT_EQ(0, res);
+  ASSERT_TRUE(config != NULL);
+  
+  ASSERT_EQ(AUDIO_BACKEND_TYPE_JACK, config->devices.capture.type);
+  ASSERT_EQ(2, config->devices.capture.channels);
+  ASSERT_STR_EQ("my_jack_capture", config->devices.capture.device);
+
+  ASSERT_EQ(AUDIO_BACKEND_TYPE_JACK, config->devices.playback.type);
+  ASSERT_EQ(2, config->devices.playback.channels);
+  ASSERT_STR_EQ("my_jack_playback", config->devices.playback.device);
+
+  dsp_config_free(config);
+}
+#endif
+
+#if defined(ENABLE_BLUEZ)
+TEST(ParseBluezConfig) {
+  const char* json =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Bluez\",\n"
+      "            \"channels\": 2,\n"
+      "            \"service\": \"org.bluealsa.custom\",\n"
+      "            \"dbus_path\": \"/org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dp/source/profile\",\n"
+      "            \"format\": \"S16_LE\"\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    }\n"
+      "}";
+  dsp_config_t* config = NULL;
+  config_error_t err;
+  config_error_init(&err);
+  int res = dsp_config_parse_json(json, &config, &err);
+  ASSERT_EQ(0, res);
+  ASSERT_TRUE(config != NULL);
+  
+  ASSERT_EQ(AUDIO_BACKEND_TYPE_BLUEZ, config->devices.capture.type);
+  ASSERT_EQ(2, config->devices.capture.channels);
+  ASSERT_STR_EQ("org.bluealsa.custom", config->devices.capture.service);
+  ASSERT_STR_EQ("/org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dp/source/profile", config->devices.capture.dbus_path);
+  ASSERT_EQ(BINARY_SAMPLE_FORMAT_S16_LE, config->devices.capture.bluez_format);
+
+  dsp_config_free(config);
+}
+#endif
+
 TEST_MAIN()

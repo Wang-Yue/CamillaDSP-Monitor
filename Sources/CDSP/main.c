@@ -65,6 +65,12 @@ static void print_usage(void) {
 #if defined(ENABLE_PIPEWIRE)
       "PipeWire, "
 #endif
+#if defined(ENABLE_JACK)
+      "JACK, "
+#endif
+#if defined(ENABLE_BLUEZ)
+      "Bluez, "
+#endif
 #if defined(ENABLE_WASAPI)
       "WASAPI, "
 #endif
@@ -84,6 +90,9 @@ static void print_usage(void) {
 #endif
 #if defined(ENABLE_PIPEWIRE)
       "PipeWire, "
+#endif
+#if defined(ENABLE_JACK)
+      "JACK, "
 #endif
 #if defined(ENABLE_WASAPI)
       "WASAPI, "

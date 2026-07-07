@@ -87,6 +87,12 @@ void audio_backend_error_description(const audio_backend_error_t* err,
     case AUDIO_BACKEND_ERR_BUFFER_EMPTY:
       snprintf(out_buf, buf_len, "Audio history buffer is empty");
       break;
+    case AUDIO_BACKEND_ERR_DEVICE_NOT_FOUND:
+      snprintf(out_buf, buf_len, "Device not found: %s", err->message);
+      break;
+    case AUDIO_BACKEND_ERR_DEVICE_BUSY:
+      snprintf(out_buf, buf_len, "Device busy: %s", err->message);
+      break;
     default:
       out_buf[0] = '\0';
       break;
@@ -180,6 +186,14 @@ const char* audio_backend_type_to_string(audio_backend_type_t type) {
     case AUDIO_BACKEND_TYPE_ASIO:
       return "Asio";
 #endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      return "Jack";
+#endif
+#if defined(ENABLE_BLUEZ)
+    case AUDIO_BACKEND_TYPE_BLUEZ:
+      return "Bluez";
+#endif
     case AUDIO_BACKEND_TYPE_FILE:
       return "File";
     case AUDIO_BACKEND_TYPE_STDIN_OUT:
@@ -216,6 +230,14 @@ audio_backend_type_t audio_backend_type_from_string(const char* str) {
 #if defined(ENABLE_ASIO)
   if (strcasecmp(str, "Asio") == 0 || strcasecmp(str, "ASIO") == 0)
     return AUDIO_BACKEND_TYPE_ASIO;
+#endif
+#if defined(ENABLE_JACK)
+  if (strcasecmp(str, "Jack") == 0 || strcasecmp(str, "JACK") == 0)
+    return AUDIO_BACKEND_TYPE_JACK;
+#endif
+#if defined(ENABLE_BLUEZ)
+  if (strcasecmp(str, "Bluez") == 0 || strcasecmp(str, "BLUEZ") == 0)
+    return AUDIO_BACKEND_TYPE_BLUEZ;
 #endif
   if (strcasecmp(str, "File") == 0 || strcasecmp(str, "RawFile") == 0 ||
       strcasecmp(str, "WavFile") == 0)
