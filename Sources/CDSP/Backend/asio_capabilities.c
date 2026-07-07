@@ -137,7 +137,7 @@ int asio_capabilities_available_device_names(bool is_capture,
                                              char out_names[][256],
                                              int max_names) {
   (void)is_capture;
-  CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
   HKEY hk;
   if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "Software\\ASIO", 0, KEY_READ, &hk) !=
@@ -173,7 +173,7 @@ bool asio_capabilities_default_device_name(bool is_capture, char* out_name,
 
 audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
                                                       bool is_capture) {
-  CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
   CLSID clsid;
   if (!find_asio_driver_caps_clsid(device_name, &clsid)) {
@@ -219,8 +219,10 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
   cap->channels = (int)target_channels;
 
   // Probe supported sample rates
-  const double PROBE_RATES[] = {44100.0, 48000.0,  88200.0,
-                                96000.0, 176400.0, 192000.0};
+  const double PROBE_RATES[] = {
+      5512.0,   8000.0,   11025.0,  16000.0,  22050.0, 32000.0,
+      44100.0,  48000.0,  64000.0,  88200.0,  96000.0, 176400.0,
+      192000.0, 352800.0, 384000.0, 705600.0, 768000.0};
   const size_t PROBE_RATES_COUNT = sizeof(PROBE_RATES) / sizeof(PROBE_RATES[0]);
 
   cap->samplerates = (samplerate_capability_t*)calloc(

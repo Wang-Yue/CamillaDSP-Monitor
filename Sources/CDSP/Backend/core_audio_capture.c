@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <time.h>
 
 struct core_audio_capture {
   char device_name[256];
@@ -578,12 +578,23 @@ void core_audio_capture_set_pitch(core_audio_capture_t* capture,
   core_audio_device_set_pitch(capture->opened_device_id, multiplier);
 }
 
-/// Wait for new samples to become available, up to the given timeout.
 bool core_audio_capture_wait(core_audio_capture_t* capture,
                              uint32_t timeout_ms) {
-  (void)capture;
-  usleep(timeout_ms * 1000);
-  return false;
+  if (!capture || capture->channels <= 0 || !capture->capture_rings ||
+      !capture->capture_rings[0])
+    return false;
+  size_t requested = capture->chunk_size;
+  uint32_t elapsed = 0;
+  while (spsc_audio_ring_buffer_get_available_to_read(
+             capture->capture_rings[0]) < requested) {
+    if (elapsed >= timeout_ms) {
+      return false;
+    }
+    struct timespec req = {.tv_sec = 0, .tv_nsec = 1000000L};  // 1ms
+    nanosleep(&req, NULL);
+    elapsed += 1;
+  }
+  return true;
 }
 
 /// Destroy and free the CoreAudio capture backend.

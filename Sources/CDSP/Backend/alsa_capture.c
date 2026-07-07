@@ -11,6 +11,7 @@
 #include <time.h>
 
 #include "Audio/processing_parameters.h"
+#include "Logging/app_logger.h"
 
 struct alsa_capture {
   char device_name[256];
@@ -418,6 +419,22 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
+  snd_pcm_sw_params_t* sw_params;
+  snd_pcm_sw_params_alloca(&sw_params);
+  rc = snd_pcm_sw_params_current(capture->pcm, sw_params);
+  if (rc >= 0) {
+    snd_pcm_sw_params_set_start_threshold(capture->pcm, sw_params, 0);
+    snd_pcm_sw_params_set_avail_min(capture->pcm, sw_params,
+                                    capture->chunk_size);
+    rc = snd_pcm_sw_params(capture->pcm, sw_params);
+    if (rc < 0) {
+      logger_t logger = logger_create("dsp.backend.alsa");
+      logger_warn(&logger, "Failed to set ALSA software parameters: %s",
+                  log_arg_string(snd_strerror(rc)), log_arg_none(),
+                  log_arg_none(), log_arg_none());
+    }
+  }
+
   size_t sample_size = 4;
   if (capture->format == SND_PCM_FORMAT_S16_LE) {
     sample_size = 2;
@@ -450,8 +467,8 @@ bool alsa_capture_read(alsa_capture_t* capture, size_t frames,
   snd_pcm_sframes_t rc =
       snd_pcm_readi(capture->pcm, capture->interleaved_buf, frames);
   if (rc < 0) {
-    if (rc == -EPIPE) {
-      snd_pcm_prepare(capture->pcm);
+    rc = snd_pcm_recover(capture->pcm, rc, 0);
+    if (rc >= 0) {
       rc = snd_pcm_readi(capture->pcm, capture->interleaved_buf, frames);
     }
     if (rc < 0) {

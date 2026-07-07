@@ -22,9 +22,9 @@
 #include "file_backend.h"
 #include "generator_capture.h"
 
-/// Create a capture backend instance based on the configuration.
 capture_backend_t* create_capture_backend(const capture_device_config_t* config,
                                           int sample_rate, int chunk_size,
+                                          bool full_duplex,
                                           processing_parameters_t* params,
                                           backend_error_t* err) {
   if (!config) {
@@ -50,7 +50,8 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
       return wasapi_capture_create(config, sample_rate, chunk_size, params,
                                    err);
     case AUDIO_BACKEND_TYPE_ASIO:
-      return asio_capture_new(config, sample_rate, chunk_size, err);
+      return asio_capture_new(config, sample_rate, chunk_size, full_duplex,
+                              err);
 #endif
     case AUDIO_BACKEND_TYPE_GENERATOR:
       return generator_capture_create(config, sample_rate, chunk_size, params,
@@ -66,10 +67,9 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
   }
 }
 
-/// Create a playback backend instance based on the configuration.
 playback_backend_t* create_playback_backend(
     const playback_device_config_t* config, int sample_rate, int chunk_size,
-    processing_parameters_t* params, backend_error_t* err) {
+    bool full_duplex, processing_parameters_t* params, backend_error_t* err) {
   if (!config) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
@@ -94,7 +94,8 @@ playback_backend_t* create_playback_backend(
       return wasapi_playback_create(config, sample_rate, chunk_size, params,
                                     err);
     case AUDIO_BACKEND_TYPE_ASIO:
-      return asio_playback_new(config, sample_rate, chunk_size, err);
+      return asio_playback_new(config, sample_rate, chunk_size, full_duplex,
+                               err);
 #endif
     case AUDIO_BACKEND_TYPE_FILE:
     case AUDIO_BACKEND_TYPE_STDIN_OUT:
@@ -154,6 +155,12 @@ bool capture_backend_wait(capture_backend_t* backend, uint32_t timeout_ms) {
   if (!backend || !backend->vtable || !backend->vtable->wait_for_data)
     return false;
   return backend->vtable->wait_for_data(backend->ctx, timeout_ms);
+}
+
+/// Notify the capture backend of the paused state.
+void capture_backend_set_is_paused(capture_backend_t* backend, bool paused) {
+  if (!backend || !backend->vtable || !backend->vtable->set_is_paused) return;
+  backend->vtable->set_is_paused(backend->ctx, paused);
 }
 
 /// Destroy and free the capture backend.

@@ -110,11 +110,18 @@ bool pulse_capture_open(pulse_capture_t* capture, backend_error_t* err) {
                        .rate = (uint32_t)capture->sample_rate,
                        .channels = (uint8_t)capture->channels};
 
+  pa_buffer_attr attr = {
+      .maxlength = (uint32_t)-1,
+      .tlength = (uint32_t)-1,
+      .prebuf = (uint32_t)-1,
+      .minreq = (uint32_t)-1,
+      .fragsize = (uint32_t)(capture->channels * sizeof(float))};
+
   int error;
   capture->s =
       pa_simple_new(NULL, "CDSP-Monitor", PA_STREAM_RECORD,
                     capture->device[0] != '\0' ? capture->device : NULL,
-                    "Capture", &ss, NULL, NULL, &error);
+                    "Capture", &ss, NULL, &attr, &error);
 
   if (!capture->s) {
     if (err)
@@ -290,11 +297,18 @@ bool pulse_playback_open(pulse_playback_t* playback, backend_error_t* err) {
                        .rate = (uint32_t)playback->sample_rate,
                        .channels = (uint8_t)playback->channels};
 
+  pa_buffer_attr attr = {
+      .maxlength = (uint32_t)-1,
+      .tlength = (uint32_t)-1,
+      .prebuf = (uint32_t)(playback->channels * sizeof(float)),
+      .minreq = (uint32_t)-1,
+      .fragsize = (uint32_t)-1};
+
   int error;
   playback->s =
       pa_simple_new(NULL, "CDSP-Monitor", PA_STREAM_PLAYBACK,
                     playback->device[0] != '\0' ? playback->device : NULL,
-                    "Playback", &ss, NULL, NULL, &error);
+                    "Playback", &ss, NULL, &attr, &error);
 
   if (!playback->s) {
     if (err)

@@ -210,11 +210,25 @@ bool pipewire_capture_open(pipewire_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
-  capture->stream = pw_stream_new_simple(
-      pw_thread_loop_get_loop(capture->loop), "CDSP-Capture-Stream",
-      pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY,
-                        "Capture", PW_KEY_MEDIA_ROLE, "Music", NULL),
-      &capture_stream_events, capture);
+  struct pw_properties* props = pw_properties_new(
+      PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Capture",
+      PW_KEY_MEDIA_ROLE, "DSP", PW_KEY_APP_NAME, "CDSP", PW_KEY_NODE_NAME,
+      "cdsp-capture", PW_KEY_NODE_DESCRIPTION, "CDSP Capture",
+      PW_KEY_NODE_GROUP, "cdsp", NULL);
+
+  if (props) {
+    char latency_str[64];
+    snprintf(latency_str, sizeof(latency_str), "%d/%d", capture->chunk_size,
+             capture->sample_rate);
+    pw_properties_set(props, PW_KEY_NODE_LATENCY, latency_str);
+    if (capture->device[0] != '\0') {
+      pw_properties_set(props, "target.object", capture->device);
+    }
+  }
+
+  capture->stream = pw_stream_new_simple(pw_thread_loop_get_loop(capture->loop),
+                                         "CDSP-Capture-Stream", props,
+                                         &capture_stream_events, capture);
 
   if (!capture->stream) {
     pw_context_destroy(capture->context);
@@ -236,12 +250,11 @@ bool pipewire_capture_open(pipewire_capture_t* capture, backend_error_t* err) {
                                     .channels = (uint32_t)capture->channels};
   params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &info);
 
-  int rc = pw_stream_connect(
-      capture->stream, PW_DIRECTION_INPUT,
-      capture->device[0] != '\0' ? (uint32_t)atoi(capture->device) : PW_ID_ANY,
-      PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS |
-          PW_STREAM_FLAG_RT_PROCESS,
-      params, 1);
+  int rc = pw_stream_connect(capture->stream, PW_DIRECTION_INPUT, PW_ID_ANY,
+                             PW_STREAM_FLAG_AUTOCONNECT |
+                                 PW_STREAM_FLAG_MAP_BUFFERS |
+                                 PW_STREAM_FLAG_RT_PROCESS,
+                             params, 1);
 
   pw_thread_loop_unlock(capture->loop);
 
@@ -286,11 +299,11 @@ bool pipewire_capture_read(pipewire_capture_t* capture, size_t frames,
     capture->decode_buf_size = requested;
   }
 
-  // Wait until enough data is in SPSC ring buffer
-  while (spsc_audio_ring_buffer_get_available_to_read(capture->ring) <
-         requested) {
-    struct timespec req = {.tv_sec = 0, .tv_nsec = 1000000L};  // 1ms
-    nanosleep(&req, NULL);
+  if (spsc_audio_ring_buffer_get_available_to_read(capture->ring) < requested) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_NONE, "");
+    }
+    return false;
   }
 
   size_t consumed = spsc_audio_ring_buffer_consume(
@@ -359,8 +372,10 @@ void pipewire_capture_set_pitch(pipewire_capture_t* capture,
 
 bool pipewire_capture_wait(pipewire_capture_t* capture, uint32_t timeout_ms) {
   if (!capture->ring) return false;
+  size_t requested = capture->chunk_size * capture->channels;
   uint32_t elapsed = 0;
-  while (spsc_audio_ring_buffer_get_available_to_read(capture->ring) == 0) {
+  while (spsc_audio_ring_buffer_get_available_to_read(capture->ring) <
+         requested) {
     if (elapsed >= timeout_ms) {
       return false;
     }
@@ -484,10 +499,24 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
     return false;
   }
 
+  struct pw_properties* props = pw_properties_new(
+      PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback",
+      PW_KEY_MEDIA_ROLE, "DSP", PW_KEY_APP_NAME, "CDSP", PW_KEY_NODE_NAME,
+      "cdsp-playback", PW_KEY_NODE_DESCRIPTION, "CDSP Playback",
+      PW_KEY_NODE_GROUP, "cdsp", NULL);
+
+  if (props) {
+    char latency_str[64];
+    snprintf(latency_str, sizeof(latency_str), "%d/%d", playback->chunk_size,
+             playback->sample_rate);
+    pw_properties_set(props, PW_KEY_NODE_LATENCY, latency_str);
+    if (playback->device[0] != '\0') {
+      pw_properties_set(props, "target.object", playback->device);
+    }
+  }
+
   playback->stream = pw_stream_new_simple(
-      pw_thread_loop_get_loop(playback->loop), "CDSP-Playback-Stream",
-      pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY,
-                        "Playback", PW_KEY_MEDIA_ROLE, "Music", NULL),
+      pw_thread_loop_get_loop(playback->loop), "CDSP-Playback-Stream", props,
       &playback_stream_events, playback);
 
   if (!playback->stream) {
@@ -510,13 +539,11 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
                                     .channels = (uint32_t)playback->channels};
   params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &info);
 
-  int rc = pw_stream_connect(
-      playback->stream, PW_DIRECTION_OUTPUT,
-      playback->device[0] != '\0' ? (uint32_t)atoi(playback->device)
-                                  : PW_ID_ANY,
-      PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS |
-          PW_STREAM_FLAG_RT_PROCESS,
-      params, 1);
+  int rc = pw_stream_connect(playback->stream, PW_DIRECTION_OUTPUT, PW_ID_ANY,
+                             PW_STREAM_FLAG_AUTOCONNECT |
+                                 PW_STREAM_FLAG_MAP_BUFFERS |
+                                 PW_STREAM_FLAG_RT_PROCESS,
+                             params, 1);
 
   pw_thread_loop_unlock(playback->loop);
 
@@ -574,9 +601,13 @@ bool pipewire_playback_write(pipewire_playback_t* playback,
 
   // Wait until there is space in the SPSC ring buffer (to prevent overwriting
   // oldest data)
+  int retries = 100;
   while (spsc_audio_ring_buffer_get_available_to_read(playback->ring) +
              requested >
          playback->ring->capacity) {
+    if (retries-- <= 0) {
+      return false;
+    }
     struct timespec req = {.tv_sec = 0, .tv_nsec = 1000000L};  // 1ms
     nanosleep(&req, NULL);
   }

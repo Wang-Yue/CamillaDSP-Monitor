@@ -10,8 +10,9 @@
 #include <string.h>
 #include <time.h>
 
-const int ALSA_PROBE_RATES[] = {44100,  48000,  88200,  96000,
-                                176400, 192000, 352800, 384000};
+const int ALSA_PROBE_RATES[] = {5512,   8000,   11025,  16000,  22050, 32000,
+                                44100,  48000,  64000,  88200,  96000, 176400,
+                                192000, 352800, 384000, 705600, 768000};
 const size_t ALSA_PROBE_RATES_COUNT =
     sizeof(ALSA_PROBE_RATES) / sizeof(ALSA_PROBE_RATES[0]);
 
@@ -137,17 +138,21 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
         samplerate_capability_t* rate_cap = &cap->samplerates[rate_idx];
         rate_cap->samplerate = test_rate;
 
-        // Formats we support: S16, S24, S32, F32
+        // Formats we support: S16_LE, S24_3_LE, S24_4_LE, S32_LE, F32_LE,
+        // F64_LE
         const snd_pcm_format_t test_formats[] = {
-            SND_PCM_FORMAT_S16_LE, SND_PCM_FORMAT_S24_3LE,
-            SND_PCM_FORMAT_S24_LE, SND_PCM_FORMAT_S32_LE,
-            SND_PCM_FORMAT_FLOAT_LE};
-        const char* format_names[] = {"S16", "S24", "S24", "S32", "F32"};
+            SND_PCM_FORMAT_S16_LE,   SND_PCM_FORMAT_S24_3LE,
+            SND_PCM_FORMAT_S24_LE,   SND_PCM_FORMAT_S32_LE,
+            SND_PCM_FORMAT_FLOAT_LE, SND_PCM_FORMAT_FLOAT64_LE};
+        const char* format_names[] = {"S16_LE", "S24_3_LE", "S24_4_LE",
+                                      "S32_LE", "F32_LE",   "F64_LE"};
+        const size_t test_formats_count =
+            sizeof(test_formats) / sizeof(test_formats[0]);
 
-        rate_cap->formats = (char**)calloc(5, sizeof(char*));
+        rate_cap->formats = (char**)calloc(test_formats_count, sizeof(char*));
         size_t fmt_idx = 0;
 
-        for (size_t f = 0; f < 5; f++) {
+        for (size_t f = 0; f < test_formats_count; f++) {
           snd_pcm_hw_params_any(pcm, params);
           snd_pcm_hw_params_set_channels(pcm, params, ch);
           snd_pcm_hw_params_set_rate(pcm, params, test_rate, 0);

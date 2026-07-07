@@ -9,6 +9,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "Logging/app_logger.h"
+
 struct alsa_playback {
   char device_name[256];
   int sample_rate;
@@ -243,6 +245,22 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
     return false;
   }
 
+  snd_pcm_sw_params_t* sw_params;
+  snd_pcm_sw_params_alloca(&sw_params);
+  rc = snd_pcm_sw_params_current(playback->pcm, sw_params);
+  if (rc >= 0) {
+    snd_pcm_sw_params_set_start_threshold(playback->pcm, sw_params, 1);
+    snd_pcm_sw_params_set_avail_min(playback->pcm, sw_params,
+                                    playback->chunk_size);
+    rc = snd_pcm_sw_params(playback->pcm, sw_params);
+    if (rc < 0) {
+      logger_t logger = logger_create("dsp.backend.alsa");
+      logger_warn(&logger, "Failed to set ALSA software parameters: %s",
+                  log_arg_string(snd_strerror(rc)), log_arg_none(),
+                  log_arg_none(), log_arg_none());
+    }
+  }
+
   size_t sample_size = 4;
   if (playback->format == SND_PCM_FORMAT_S16_LE) {
     sample_size = 2;
@@ -344,8 +362,8 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
   snd_pcm_sframes_t rc =
       snd_pcm_writei(playback->pcm, playback->interleaved_buf, frames);
   if (rc < 0) {
-    if (rc == -EPIPE) {
-      snd_pcm_prepare(playback->pcm);
+    rc = snd_pcm_recover(playback->pcm, rc, 0);
+    if (rc >= 0) {
       rc = snd_pcm_writei(playback->pcm, playback->interleaved_buf, frames);
     }
     if (rc < 0) {

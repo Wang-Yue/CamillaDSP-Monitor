@@ -11,8 +11,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if !defined(_WIN32)
+#include <poll.h>
+#endif
 
 #include "Logging/app_logger.h"
+
+static uint64_t get_time_ns(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+}
 
 struct file_capture {
   char filename[512];
@@ -30,6 +39,8 @@ struct file_capture {
   size_t extra_samples_generated;
   uint8_t* raw_buf;
   size_t raw_buf_capacity;
+  uint64_t last_read_time_ns;
+  bool is_paused;
 };
 
 struct file_playback {
@@ -334,6 +345,9 @@ static bool cap_vtable_wait_for_data(void* ctx, uint32_t timeout_ms) {
 static void cap_vtable_destroy(void* ctx) {
   file_capture_destroy((file_capture_t*)ctx);
 }
+static void cap_vtable_set_is_paused(void* ctx, bool paused) {
+  file_capture_set_is_paused((file_capture_t*)ctx, paused);
+}
 
 static const capture_backend_vtable_t file_capture_vtable = {
     .open = cap_vtable_open,
@@ -343,6 +357,7 @@ static const capture_backend_vtable_t file_capture_vtable = {
     .is_pitch_control_supported = cap_vtable_is_pitch_control_supported,
     .set_pitch = cap_vtable_set_pitch,
     .wait_for_data = cap_vtable_wait_for_data,
+    .set_is_paused = cap_vtable_set_is_paused,
     .destroy = cap_vtable_destroy};
 
 capture_backend_t* file_capture_create(const capture_device_config_t* config,
@@ -438,12 +453,38 @@ bool file_capture_open(file_capture_t* capture, backend_error_t* err) {
 
   capture->total_bytes_read = 0;
   capture->extra_samples_generated = 0;
+  capture->last_read_time_ns = get_time_ns();
   return true;
 }
 
 bool file_capture_read(file_capture_t* capture, size_t frames,
                        audio_chunk_t* chunk, backend_error_t* err) {
   (void)err;
+  if (capture->is_paused) {
+    chunk->valid_frames = 0;
+    return false;
+  }
+
+#if !defined(_WIN32)
+  // Poll the file descriptor to see if data is readable.
+  // Timeout is set to 50ms. If no data, return false (no data read) so that
+  // the engine capture loop doesn't block forever and can check should_stop.
+  struct pollfd pfd = {
+      .fd = fileno(capture->f), .events = POLLIN, .revents = 0};
+  int poll_ret = poll(&pfd, 1, 50);
+  if (poll_ret == 0) {
+    // Timeout
+    chunk->valid_frames = 0;
+    return false;
+  } else if (poll_ret < 0) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_READ_ERROR, "Poll error");
+    }
+    chunk->valid_frames = 0;
+    return false;
+  }
+#endif
+
   size_t sample_size = get_sample_size(capture->format);
   size_t frames_to_read = frames;
 
@@ -492,6 +533,29 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
   }
 
   chunk->valid_frames = frames_read;
+
+  // Real-time pacing (throttling): Sleep if we read faster than real-time.
+  // This prevents high CPU usage and data drops in SPSC queues when playing
+  // local files, and fixes the paused-state fast-forward bug.
+  if (frames_read > 0) {
+    uint64_t expected_duration_ns =
+        (uint64_t)(((double)frames_read / (double)capture->sample_rate) *
+                   1000000000.0);
+    uint64_t next_read_time_ns =
+        capture->last_read_time_ns + expected_duration_ns;
+    uint64_t now_ns = get_time_ns();
+
+    if (now_ns < next_read_time_ns) {
+      uint64_t sleep_ns = next_read_time_ns - now_ns;
+      struct timespec req = {.tv_sec = (time_t)(sleep_ns / 1000000000ULL),
+                             .tv_nsec = (long)(sleep_ns % 1000000000ULL)};
+      nanosleep(&req, NULL);
+      capture->last_read_time_ns = next_read_time_ns;
+    } else {
+      capture->last_read_time_ns = now_ns;
+    }
+  }
+
   return (frames_read > 0);
 }
 
@@ -532,6 +596,12 @@ bool file_capture_wait(file_capture_t* capture, uint32_t timeout_ms) {
 }
 
 void file_capture_destroy(file_capture_t* capture) { free(capture); }
+
+void file_capture_set_is_paused(file_capture_t* capture, bool paused) {
+  if (capture) {
+    capture->is_paused = paused;
+  }
+}
 
 // MARK: - File Playback Backend implementation
 

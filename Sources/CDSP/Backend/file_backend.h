@@ -26,6 +26,7 @@ bool file_capture_get_pending_rate_change(file_capture_t* capture,
 bool file_capture_pitch_control_supported(file_capture_t* capture);
 void file_capture_set_pitch(file_capture_t* capture, double multiplier);
 bool file_capture_wait(file_capture_t* capture, uint32_t timeout_ms);
+void file_capture_set_is_paused(file_capture_t* capture, bool paused);
 void file_capture_destroy(file_capture_t* capture);
 
 // Playback backend factory & methods

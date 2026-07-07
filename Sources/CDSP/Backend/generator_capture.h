@@ -24,6 +24,7 @@ bool generator_capture_pitch_control_supported(generator_capture_t* capture);
 void generator_capture_set_pitch(generator_capture_t* capture,
                                  double multiplier);
 bool generator_capture_wait(generator_capture_t* capture, uint32_t timeout_ms);
+void generator_capture_set_is_paused(generator_capture_t* capture, bool paused);
 void generator_capture_destroy(generator_capture_t* capture);
 
 #endif  // CLIB_BACKEND_GENERATOR_CAPTURE_H

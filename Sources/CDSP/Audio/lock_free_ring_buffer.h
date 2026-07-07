@@ -101,6 +101,21 @@ static inline size_t spsc_audio_ring_buffer_get_available_to_read(
   return (size_t)(w - r);
 }
 
+/// Number of samples that can be written to the buffer without
+/// overwriting unread data.
+static inline size_t spsc_audio_ring_buffer_get_available_to_write(
+    const spsc_audio_ring_buffer_t* ring) {
+  uint64_t w = atomic_load_explicit((_Atomic uint64_t*)&ring->write_index,
+                                    memory_order_relaxed);
+  uint64_t r = atomic_load_explicit((_Atomic uint64_t*)&ring->read_index,
+                                    memory_order_acquire);
+  size_t occupied = (size_t)(w - r);
+  if (occupied >= ring->capacity) {
+    return 0;
+  }
+  return ring->capacity - occupied;
+}
+
 // MARK: Producer
 
 /// **Producer-only.** Write `count` `float` samples from

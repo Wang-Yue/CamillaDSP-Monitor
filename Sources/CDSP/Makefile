@@ -83,7 +83,7 @@ WIN_LIB_TARGET := $(ROOT_DIR)/Sources/CDSP/libdsp_win.a
 
 $(WIN_OBJ_DIR)/%.o: $(ROOT_DIR)/%.c
 	@mkdir -p $(dir $@)
-	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging -c $< -o $@
+	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging -c $< -o $@
 
 .PHONY: windows-lib
 windows-lib: $(WIN_OBJS)

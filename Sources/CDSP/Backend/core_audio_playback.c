@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <time.h>
 
 struct core_audio_playback {
   char device_name[256];
@@ -45,6 +45,7 @@ struct core_audio_playback {
   rate_change_watcher_t* rate_watcher;
   _Atomic bool is_device_alive;
   _Atomic bool is_paused;
+  bool is_interleaved;
 };
 
 static OSStatus playback_alive_listener_callback(
@@ -83,21 +84,40 @@ static OSStatus playback_callback(void* inRefCon,
 
   int frame_count = (int)inNumberFrames;
 
-  for (UInt32 ch = 0; ch < ioData->mNumberBuffers; ch++) {
-    float* float_ptr = (float*)ioData->mBuffers[ch].mData;
-    if (!float_ptr) continue;
-    if ((int)ch < playback->channels) {
-      size_t copied = spsc_audio_ring_buffer_consume(
-          playback->playback_rings[ch], float_ptr, frame_count);
-      if ((int)copied < frame_count) {
-        float zero = 0.0f;
-        vDSP_vfill(&zero, float_ptr + copied, 1, frame_count - (int)copied);
+  if (playback->is_interleaved) {
+    float* dst = (float*)ioData->mBuffers[0].mData;
+    if (dst) {
+      int channels = playback->channels;
+      memset(dst, 0, frame_count * channels * sizeof(float));
+
+      float* temp = (float*)alloca(frame_count * sizeof(float));
+
+      for (int c = 0; c < channels; c++) {
+        size_t copied = spsc_audio_ring_buffer_consume(
+            playback->playback_rings[c], temp, frame_count);
+        for (size_t f = 0; f < copied; f++) {
+          dst[f * channels + c] = temp[f];
+        }
       }
-    } else {
-      float zero = 0.0f;
-      vDSP_vfill(&zero, float_ptr, 1, frame_count);
+    }
+  } else {
+    for (UInt32 ch = 0; ch < ioData->mNumberBuffers; ch++) {
+      float* float_ptr = (float*)ioData->mBuffers[ch].mData;
+      if (!float_ptr) continue;
+      if ((int)ch < playback->channels) {
+        size_t copied = spsc_audio_ring_buffer_consume(
+            playback->playback_rings[ch], float_ptr, frame_count);
+        if ((int)copied < frame_count) {
+          float zero = 0.0f;
+          vDSP_vfill(&zero, float_ptr + copied, 1, frame_count - (int)copied);
+        }
+      } else {
+        float zero = 0.0f;
+        vDSP_vfill(&zero, float_ptr, 1, frame_count);
+      }
     }
   }
+
   return noErr;
 }
 
@@ -297,14 +317,24 @@ bool core_audio_playback_open(core_audio_playback_t* playback,
   AudioStreamBasicDescription stream_format =
       core_audio_device_float32_stream_format(playback->sample_rate,
                                               playback->channels, false);
+  playback->is_interleaved = false;
   status = AudioUnitSetProperty(
       playback->audio_unit, kAudioUnitProperty_StreamFormat,
       kAudioUnitScope_Input, 0, &stream_format, sizeof(stream_format));
   if (status != noErr) {
-    if (err)
-      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                         "Failed to set playback stream format");
-    goto cleanup;
+    stream_format = core_audio_device_float32_stream_format(
+        playback->sample_rate, playback->channels, true);
+    playback->is_interleaved = true;
+    status = AudioUnitSetProperty(
+        playback->audio_unit, kAudioUnitProperty_StreamFormat,
+        kAudioUnitScope_Input, 0, &stream_format, sizeof(stream_format));
+    if (status != noErr) {
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                           "Failed to set playback stream format (both "
+                           "interleaved and non-interleaved formats rejected)");
+      goto cleanup;
+    }
   }
 
   AURenderCallbackStruct cb = {.inputProc = playback_callback,
@@ -380,6 +410,39 @@ bool core_audio_playback_write(core_audio_playback_t* playback,
   int usable_channels = playback->channels < (int)chunk->buffers->channels
                             ? playback->channels
                             : (int)chunk->buffers->channels;
+
+  uint32_t elapsed_ms = 0;
+  while (true) {
+    bool space_available = true;
+    for (int ch = 0; ch < usable_channels; ch++) {
+      size_t free_space = spsc_audio_ring_buffer_get_available_to_write(
+          playback->playback_rings[ch]);
+      if (free_space < frames) {
+        space_available = false;
+        break;
+      }
+    }
+    if (space_available) {
+      break;
+    }
+
+    struct timespec req = {.tv_sec = 0, .tv_nsec = 1000000L};  // 1ms sleep
+    nanosleep(&req, NULL);
+    elapsed_ms += 1;
+
+    if (elapsed_ms >= 1000) {
+      return false;  // Timeout 1s
+    }
+
+    if (!atomic_load_explicit(&playback->is_device_alive,
+                              memory_order_acquire)) {
+      return false;
+    }
+    if (atomic_load_explicit(&playback->is_paused, memory_order_acquire)) {
+      return false;
+    }
+  }
+
   for (int ch = 0; ch < usable_channels; ch++) {
     const double* src_ptr = audio_chunk_get_channel(chunk, ch);
     if (src_ptr) {

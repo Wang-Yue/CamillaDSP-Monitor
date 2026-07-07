@@ -249,6 +249,11 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
     cap->loopback = get_tok_bool(js, &tokens[lb_idx]);
     cap->has_loopback = true;
   }
+  int ex_idx = find_object_key(js, tokens, count, cap_val_idx, "exclusive");
+  if (ex_idx != -1 && tokens[ex_idx].type == JSMN_PRIMITIVE) {
+    cap->exclusive = get_tok_bool(js, &tokens[ex_idx]);
+    cap->has_exclusive = true;
+  }
 #endif
 
   int sb_idx = find_object_key(js, tokens, count, cap_val_idx, "skip_bytes");

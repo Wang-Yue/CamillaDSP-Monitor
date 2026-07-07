@@ -45,6 +45,8 @@ typedef struct {
   void (*set_pitch)(void* ctx, double multiplier);
   /// Wait for new samples to become available, up to the given timeout.
   bool (*wait_for_data)(void* ctx, uint32_t timeout_ms);
+  /// Notify the capture backend of the paused state of the processing loop.
+  void (*set_is_paused)(void* ctx, bool paused);
   void (*destroy)(void* ctx);
 } capture_backend_vtable_t;
 
@@ -94,12 +96,13 @@ typedef struct processing_parameters processing_parameters_t;
 /// Create a capture backend instance based on the configuration.
 capture_backend_t* create_capture_backend(const capture_device_config_t* config,
                                           int sample_rate, int chunk_size,
+                                          bool full_duplex,
                                           processing_parameters_t* params,
                                           backend_error_t* err);
 /// Create a playback backend instance based on the configuration.
 playback_backend_t* create_playback_backend(
     const playback_device_config_t* config, int sample_rate, int chunk_size,
-    processing_parameters_t* params, backend_error_t* err);
+    bool full_duplex, processing_parameters_t* params, backend_error_t* err);
 
 // CaptureBackend wrapper methods
 /// Open the capture device
@@ -119,6 +122,8 @@ bool capture_backend_pitch_control_supported(capture_backend_t* backend);
 void capture_backend_set_pitch(capture_backend_t* backend, double multiplier);
 /// Wait for new samples to become available, up to the given timeout.
 bool capture_backend_wait(capture_backend_t* backend, uint32_t timeout_ms);
+/// Notify the capture backend of the paused state.
+void capture_backend_set_is_paused(capture_backend_t* backend, bool paused);
 /// Destroy and free the capture backend.
 void capture_backend_free(capture_backend_t* backend);
 

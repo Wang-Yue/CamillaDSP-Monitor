@@ -7,7 +7,7 @@
 #define JSMN_STATIC
 #include "websocket_server.h"
 
-#include "jsmn.h"
+#include "Config/jsmn.h"
 #ifndef _WIN32
 #include <sys/time.h>
 

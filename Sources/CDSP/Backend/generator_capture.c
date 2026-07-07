@@ -33,6 +33,7 @@ struct generator_capture {
   double phase;
   unsigned int rand_seed;
   uint64_t last_read_time_ns;
+  bool is_paused;
 };
 
 static uint64_t get_time_ns(void) {
@@ -76,6 +77,9 @@ static bool vtable_wait_for_data(void* ctx, uint32_t timeout_ms) {
 static void vtable_destroy(void* ctx) {
   generator_capture_destroy((generator_capture_t*)ctx);
 }
+static void vtable_set_is_paused(void* ctx, bool paused) {
+  generator_capture_set_is_paused((generator_capture_t*)ctx, paused);
+}
 
 static const capture_backend_vtable_t generator_capture_vtable = {
     .open = vtable_open,
@@ -85,6 +89,7 @@ static const capture_backend_vtable_t generator_capture_vtable = {
     .is_pitch_control_supported = vtable_is_pitch_control_supported,
     .set_pitch = vtable_set_pitch,
     .wait_for_data = vtable_wait_for_data,
+    .set_is_paused = vtable_set_is_paused,
     .destroy = vtable_destroy};
 
 capture_backend_t* generator_capture_create(
@@ -110,7 +115,7 @@ capture_backend_t* generator_capture_create(
   capture->sample_rate = sample_rate;
   capture->channels = config->channels;
   capture->chunk_size = chunk_size;
-  capture->rand_seed = (unsigned int)time(NULL);
+  capture->rand_seed = (unsigned int)(get_time_ns() & 0xFFFFFFFF);
 
   capture_backend_t* backend =
       (capture_backend_t*)calloc(1, sizeof(capture_backend_t));
@@ -142,6 +147,10 @@ bool generator_capture_open(generator_capture_t* capture,
 bool generator_capture_read(generator_capture_t* capture, size_t frames,
                             audio_chunk_t* chunk, backend_error_t* err) {
   (void)err;
+  if (capture->is_paused) {
+    chunk->valid_frames = 0;
+    return false;
+  }
 
   uint64_t expected_duration_ns =
       (uint64_t)(((double)frames / (double)capture->sample_rate) *
@@ -225,3 +234,10 @@ bool generator_capture_wait(generator_capture_t* capture, uint32_t timeout_ms) {
 }
 
 void generator_capture_destroy(generator_capture_t* capture) { free(capture); }
+
+void generator_capture_set_is_paused(generator_capture_t* capture,
+                                     bool paused) {
+  if (capture) {
+    capture->is_paused = paused;
+  }
+}

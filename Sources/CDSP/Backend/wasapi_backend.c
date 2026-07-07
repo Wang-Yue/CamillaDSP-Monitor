@@ -29,12 +29,14 @@ struct wasapi_capture {
   int chunk_size;
   wasapi_sample_format_t format;
   bool loopback;
+  bool exclusive;
 
   IMMDeviceEnumerator* enumerator;
   IMMDevice* mm_device;
   IAudioClient* client;
   IAudioCaptureClient* capture_client;
   UINT32 buffer_frame_count;
+  HANDLE event;
 };
 
 struct wasapi_playback {
@@ -51,6 +53,7 @@ struct wasapi_playback {
   IAudioRenderClient* render_client;
   UINT32 buffer_frame_count;
   bool paused;
+  HANDLE event;
 };
 
 static size_t get_sample_size(wasapi_sample_format_t format) {
@@ -254,6 +257,7 @@ capture_backend_t* wasapi_capture_create(const capture_device_config_t* config,
   capture->chunk_size = chunk_size;
   capture->format = config->format;
   capture->loopback = config->loopback;
+  capture->exclusive = config->exclusive;
 
   capture_backend_t* backend =
       (capture_backend_t*)calloc(1, sizeof(capture_backend_t));
@@ -379,11 +383,24 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
                       ? KSDATAFORMAT_SUBTYPE_IEEE_FLOAT
                       : KSDATAFORMAT_SUBTYPE_PCM;
 
-  REFERENCE_TIME duration = 10000000;  // 1 second buffer
-  DWORD flags = capture->loopback ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0;
+  AUDCLNT_SHAREMODE mode = AUDCLNT_SHAREMODE_SHARED;
+  if (capture->exclusive && !capture->loopback) {
+    mode = AUDCLNT_SHAREMODE_EXCLUSIVE;
+  }
 
-  hr = IAudioClient_Initialize(capture->client, AUDCLNT_SHAREMODE_SHARED, flags,
-                               duration, 0, (WAVEFORMATEX*)&wfx, NULL);
+  REFERENCE_TIME duration =
+      (REFERENCE_TIME)(((double)capture->chunk_size / capture->sample_rate) *
+                       10000000.0);
+  if (mode == AUDCLNT_SHAREMODE_SHARED) {
+    duration = 10000000;
+  }
+  DWORD flags = (capture->loopback ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0) |
+                AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
+
+  hr = IAudioClient_Initialize(
+      capture->client, mode, flags, duration,
+      (mode == AUDCLNT_SHAREMODE_EXCLUSIVE) ? duration : 0, (WAVEFORMATEX*)&wfx,
+      NULL);
   if (FAILED(hr)) {
     SAFE_RELEASE(capture->client);
     SAFE_RELEASE(capture->mm_device);
@@ -391,6 +408,30 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to initialize IAudioClient");
+    return false;
+  }
+
+  capture->event = CreateEvent(NULL, FALSE, FALSE, NULL);
+  if (!capture->event) {
+    SAFE_RELEASE(capture->client);
+    SAFE_RELEASE(capture->mm_device);
+    SAFE_RELEASE(capture->enumerator);
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to create event handle");
+    return false;
+  }
+
+  hr = IAudioClient_SetEventHandle(capture->client, capture->event);
+  if (FAILED(hr)) {
+    CloseHandle(capture->event);
+    capture->event = NULL;
+    SAFE_RELEASE(capture->client);
+    SAFE_RELEASE(capture->mm_device);
+    SAFE_RELEASE(capture->enumerator);
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to set event handle");
     return false;
   }
 
@@ -412,12 +453,14 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
 
   logger_t logger = logger_create("dsp.backend.wasapi");
   logger_info(
-      &logger,
-      "Opened WASAPI capture: device=%s, rate=%d, channels=%d, loopback=%d",
+      &logger, "Opened WASAPI capture: device=%s, rate=%d, channels=%d",
       log_arg_string(capture->device[0] != '\0' ? capture->device : "default"),
       log_arg_int((int64_t)capture->sample_rate),
-      log_arg_int((int64_t)capture->channels),
-      log_arg_int((int64_t)capture->loopback));
+      log_arg_int((int64_t)capture->channels), log_arg_none());
+  logger_info(&logger, "WASAPI capture options: loopback=%d, exclusive=%d",
+              log_arg_int((int64_t)capture->loopback),
+              log_arg_int((int64_t)capture->exclusive), log_arg_none(),
+              log_arg_none());
 
   return true;
 }
@@ -453,7 +496,9 @@ bool wasapi_capture_read(wasapi_capture_t* capture, size_t frames,
         frames_read += to_copy;
       }
     } else {
-      Sleep(1);
+      if (WaitForSingleObject(capture->event, 100) != WAIT_OBJECT_0) {
+        // Timeout or error wait
+      }
     }
   }
 
@@ -466,6 +511,10 @@ void wasapi_capture_close(wasapi_capture_t* capture) {
     IAudioClient_Stop(capture->client);
     SAFE_RELEASE(capture->capture_client);
     SAFE_RELEASE(capture->client);
+  }
+  if (capture->event) {
+    CloseHandle(capture->event);
+    capture->event = NULL;
   }
   SAFE_RELEASE(capture->mm_device);
   SAFE_RELEASE(capture->enumerator);
@@ -489,17 +538,8 @@ void wasapi_capture_set_pitch(wasapi_capture_t* capture, double multiplier) {
 }
 
 bool wasapi_capture_wait(wasapi_capture_t* capture, uint32_t timeout_ms) {
-  if (!capture->capture_client) return false;
-  UINT32 elapsed = 0;
-  while (elapsed < timeout_ms) {
-    UINT32 packet_size = 0;
-    IAudioCaptureClient_GetNextPacketSize(capture->capture_client,
-                                          &packet_size);
-    if (packet_size > 0) return true;
-    Sleep(1);
-    elapsed++;
-  }
-  return false;
+  if (!capture->event) return false;
+  return WaitForSingleObject(capture->event, timeout_ms) == WAIT_OBJECT_0;
 }
 
 void wasapi_capture_destroy(wasapi_capture_t* capture) { free(capture); }
@@ -697,9 +737,9 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
   AUDCLNT_SHAREMODE mode = playback->exclusive ? AUDCLNT_SHAREMODE_EXCLUSIVE
                                                : AUDCLNT_SHAREMODE_SHARED;
 
-  hr = IAudioClient_Initialize(playback->client, mode, 0, duration,
-                               playback->exclusive ? duration : 0,
-                               (WAVEFORMATEX*)&wfx, NULL);
+  hr = IAudioClient_Initialize(
+      playback->client, mode, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, duration,
+      playback->exclusive ? duration : 0, (WAVEFORMATEX*)&wfx, NULL);
   if (FAILED(hr)) {
     SAFE_RELEASE(playback->client);
     SAFE_RELEASE(playback->mm_device);
@@ -707,6 +747,30 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to initialize IAudioClient");
+    return false;
+  }
+
+  playback->event = CreateEvent(NULL, FALSE, FALSE, NULL);
+  if (!playback->event) {
+    SAFE_RELEASE(playback->client);
+    SAFE_RELEASE(playback->mm_device);
+    SAFE_RELEASE(playback->enumerator);
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to create event handle");
+    return false;
+  }
+
+  hr = IAudioClient_SetEventHandle(playback->client, playback->event);
+  if (FAILED(hr)) {
+    CloseHandle(playback->event);
+    playback->event = NULL;
+    SAFE_RELEASE(playback->client);
+    SAFE_RELEASE(playback->mm_device);
+    SAFE_RELEASE(playback->enumerator);
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to set event handle");
     return false;
   }
 
@@ -774,7 +838,9 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
         frames_written += to_write;
       }
     } else {
-      Sleep(1);
+      if (WaitForSingleObject(playback->event, 100) != WAIT_OBJECT_0) {
+        // Timeout or error wait
+      }
     }
   }
   return true;
@@ -785,6 +851,10 @@ void wasapi_playback_close(wasapi_playback_t* playback) {
     IAudioClient_Stop(playback->client);
     SAFE_RELEASE(playback->render_client);
     SAFE_RELEASE(playback->client);
+  }
+  if (playback->event) {
+    CloseHandle(playback->event);
+    playback->event = NULL;
   }
   SAFE_RELEASE(playback->mm_device);
   SAFE_RELEASE(playback->enumerator);

@@ -249,6 +249,8 @@ typedef struct {
   wasapi_sample_format_t format;
   asio_sample_format_t asio_format;
   bool has_asio_format;
+  bool exclusive;
+  bool has_exclusive;
 #endif
   bool has_format;
   bool loopback;

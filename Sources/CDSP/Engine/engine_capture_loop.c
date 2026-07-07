@@ -195,6 +195,8 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       engine_state_machine_set_state(loop->state_machine, desired);
       playback_backend_set_is_paused(loop->playback,
                                      (desired == PROCESSING_STATE_PAUSED));
+      capture_backend_set_is_paused(loop->capture,
+                                    (desired == PROCESSING_STATE_PAUSED));
     }
 
     // Enqueue for processing. The lock-free SPSC queue is
