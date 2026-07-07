@@ -9,10 +9,6 @@
 
 #include "audio_backend.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct wasapi_capture wasapi_capture_t;
 typedef struct wasapi_playback wasapi_playback_t;
 
@@ -50,10 +46,6 @@ bool wasapi_playback_prefill_silence(wasapi_playback_t* playback, size_t frames,
 bool wasapi_playback_get_is_paused(wasapi_playback_t* playback);
 void wasapi_playback_set_is_paused(wasapi_playback_t* playback, bool paused);
 void wasapi_playback_destroy(wasapi_playback_t* playback);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // _WIN32
 

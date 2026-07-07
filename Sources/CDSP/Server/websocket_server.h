@@ -13,10 +13,6 @@
 #include "Config/configuration.h"
 #include "Config/engine_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct active_config_path active_config_path_t;
 typedef struct websocket_server websocket_server_t;
 
@@ -150,9 +146,5 @@ void websocket_server_free(websocket_server_t* server);
 void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                                      const char* command_text,
                                      char* out_response, size_t max_len);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_SERVER_WEBSOCKET_SERVER_H

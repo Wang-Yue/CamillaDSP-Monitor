@@ -42,10 +42,6 @@
 #include "engine_shared_state.h"
 #include "engine_state_machine.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   // MARK: - Configuration
   dsp_config_t* current_config;
@@ -111,9 +107,5 @@ void dsp_engine_core_stop(dsp_engine_core_t* core,
 bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
                                    dsp_config_t* new_config,
                                    audio_backend_error_t* err);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_ENGINE_DSP_ENGINE_CORE_H

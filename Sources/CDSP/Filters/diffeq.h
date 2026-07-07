@@ -6,10 +6,6 @@
 #include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // Difference equation filter (Direct Form I / II IIR/FIR filter
 // implementation). Normalize by a[0]
 typedef struct {
@@ -32,9 +28,5 @@ void diffeq_filter_update_parameters(diffeq_filter_t* filter,
                                      const filter_config_t* config,
                                      int sample_rate);
 void diffeq_filter_free(diffeq_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_DIFFEQ_H

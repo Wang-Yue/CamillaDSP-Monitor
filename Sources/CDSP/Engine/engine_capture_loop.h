@@ -31,10 +31,6 @@
 #include "engine_shared_state.h"
 #include "engine_state_machine.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// `@unchecked Sendable` is a *transfer* vouch, not a *share*
 /// vouch: the instance is safe to cross the Thread spawn boundary
 /// because exactly one thread (the loop thread) ever touches it
@@ -103,9 +99,5 @@ engine_capture_loop_t* engine_capture_loop_create(
 
 void engine_capture_loop_free(engine_capture_loop_t* loop);
 void engine_capture_loop_run(engine_capture_loop_t* loop);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_ENGINE_ENGINE_CAPTURE_LOOP_H

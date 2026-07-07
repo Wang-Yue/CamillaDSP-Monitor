@@ -41,10 +41,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // MARK: - SPSCAudioRingBuffer
 
 /// Lock-free SPSC ring buffer of `float` samples. Power-of-two
@@ -258,9 +254,5 @@ static inline void atomic_double_set(atomic_double_t* a, double value) {
 
 atomic_double_t* atomic_double_create(double value);
 void atomic_double_free(atomic_double_t* a);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_AUDIO_LOCK_FREE_RING_BUFFER_H

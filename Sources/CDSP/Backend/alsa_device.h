@@ -8,14 +8,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifdef __cplusplus
-}
-#endif
-
 #endif  // !__APPLE__
 
 #endif  // CLIB_BACKEND_ALSA_DEVICE_H

@@ -6,10 +6,6 @@
 
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Bind the *calling* thread to a Mach time-constraint scheduling policy
 /// tailored to the given audio buffer parameters.
 ///
@@ -22,9 +18,5 @@ extern "C" {
 ///   - sample_rate: The sample rate in Hz.
 void set_realtime_thread_priority(const char* name, size_t buffer_frames,
                                   size_t sample_rate);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_ENGINE_THREAD_PRIORITY_H

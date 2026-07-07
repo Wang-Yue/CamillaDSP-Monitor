@@ -20,10 +20,6 @@
 #include "noise_gate_processor.h"
 #include "race_processor.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief Enumeration of concrete processor implementation types.
  */
@@ -125,9 +121,5 @@ static inline void dsp_processor_free(dsp_processor_t* proc) {
     proc->free(proc);
   }
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_PROCESSORS_PROCESSOR_H

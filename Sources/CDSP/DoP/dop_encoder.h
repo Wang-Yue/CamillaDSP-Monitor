@@ -32,10 +32,6 @@
 #include "Config/engine_config_types.h"
 #include "sigma_delta_modulator.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   double fifo[64];  // 32 * 2 doubles
   int fifo_pos;
@@ -110,9 +106,5 @@ void dop_encoder_free(dop_encoder_t* encoder);
 /// for these specific DSD rates, and a downstream DAC won't recognize
 /// the marker pattern at any other carrier rate.
 bool dop_encoder_is_supported_carrier_rate(int rate);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_DOP_DOP_ENCODER_H

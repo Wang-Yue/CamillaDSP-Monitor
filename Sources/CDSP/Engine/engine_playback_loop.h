@@ -36,10 +36,6 @@
 #include "engine_state_machine.h"
 #include "rate_controller.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// `@unchecked Sendable` is a *transfer* vouch, not a *share*
 /// vouch: the instance is safe to cross the Thread spawn boundary
 /// because exactly one thread (the loop thread) ever touches it
@@ -70,9 +66,5 @@ engine_playback_loop_t* engine_playback_loop_create(
 
 void engine_playback_loop_free(engine_playback_loop_t* loop);
 void engine_playback_loop_run(engine_playback_loop_t* loop);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_ENGINE_ENGINE_PLAYBACK_LOOP_H

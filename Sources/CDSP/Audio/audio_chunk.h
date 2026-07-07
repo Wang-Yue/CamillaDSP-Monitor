@@ -5,10 +5,6 @@
 
 #include "audio_buffers.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// A chunk of non-interleaved audio data flowing through the pipeline.
 ///
 /// Storage is heap-backed (`audio_buffers_t`) so per-channel mutable pointers
@@ -64,9 +60,5 @@ round_robin_chunk_pool_t* round_robin_chunk_pool_create(size_t capacity,
 /// Retrieves the next available unique chunk buffer from the pool.
 audio_chunk_t* round_robin_chunk_pool_next(round_robin_chunk_pool_t* pool);
 void round_robin_chunk_pool_free(round_robin_chunk_pool_t* pool);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_AUDIO_AUDIO_CHUNK_H

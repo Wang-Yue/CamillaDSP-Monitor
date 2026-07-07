@@ -12,10 +12,6 @@
 #include <Accelerate/Accelerate.h>
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   double b0;
   double b1;
@@ -65,9 +61,5 @@ void biquad_filter_update_parameters(biquad_filter_t* filter,
                                      const filter_config_t* config,
                                      int sample_rate);
 void biquad_filter_free(biquad_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_BIQUAD_H

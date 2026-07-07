@@ -9,10 +9,6 @@
 
 #include "audio_backend.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct alsa_playback alsa_playback_t;
 
 typedef struct processing_parameters processing_parameters_t;
@@ -32,10 +28,6 @@ bool alsa_playback_prefill_silence(alsa_playback_t* playback, size_t frames,
 bool alsa_playback_get_is_paused(alsa_playback_t* playback);
 void alsa_playback_set_is_paused(alsa_playback_t* playback, bool paused);
 void alsa_playback_destroy(alsa_playback_t* playback);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // !__APPLE__
 

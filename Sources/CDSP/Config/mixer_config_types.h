@@ -10,10 +10,6 @@
 #include "config_error.h"
 #include "filter_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   size_t channel;
   /// Gain value. Optional (defaults to 0.0 dB when omitted).
@@ -64,9 +60,5 @@ double mixer_source_gain_value(const mixer_source_t* src);
 /// range, no dest appears twice, and within a single dest no source
 /// channel appears twice.
 int mixer_config_validate(const mixer_config_t* mixer, config_error_t* err);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_CONFIG_MIXER_CONFIG_TYPES_H

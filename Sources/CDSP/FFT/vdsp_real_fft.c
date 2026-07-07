@@ -9,9 +9,9 @@
 
 #include "FFT/vdsp_real_fft.h"
 
+#include <Accelerate/Accelerate.h>
 #include <stdlib.h>
 #include <string.h>
-#include <Accelerate/Accelerate.h>
 
 struct vdsp_real_fft {
   real_fft_backend_t base;

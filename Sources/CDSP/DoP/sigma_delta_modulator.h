@@ -6,10 +6,6 @@
 
 #include "Config/engine_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Sigma-delta modulator for DSD oversampling.
 ///
 /// Heap-backed fixed storage for the non-trellis path's two-state
@@ -39,9 +35,5 @@ void sigma_delta_modulator_init(sigma_delta_modulator_t* mod,
                                 sdm_filter_t filter_name, uint32_t freq);
 double sigma_delta_modulator_sample(sigma_delta_modulator_t* mod, double x);
 void sigma_delta_modulator_free(sigma_delta_modulator_t* mod);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_DOP_SIGMA_DELTA_MODULATOR_H

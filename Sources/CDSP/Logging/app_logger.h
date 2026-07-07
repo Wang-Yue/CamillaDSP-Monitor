@@ -10,10 +10,6 @@
 
 #include "Config/log_level.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   LOG_ARG_NONE = 0,
   LOG_ARG_INT = 1,
@@ -116,9 +112,5 @@ static inline void logger_debug(const logger_t* logger, const char* msg,
   app_logger_log(app_logger_get_shared(), LOG_LEVEL_DEBUG, logger->label, msg,
                  a1, a2, a3, a4);
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_LOGGING_APP_LOGGER_H

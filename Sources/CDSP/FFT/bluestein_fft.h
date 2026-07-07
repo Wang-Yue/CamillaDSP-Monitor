@@ -38,10 +38,6 @@
 #include "Audio/double_helpers.h"
 #include "arbitrary_complex_fft.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Computes the unnormalised forward DFT
 ///   `X[k] = Σₙ x[n] · exp(-2πi · n · k / N)`
 /// or the unnormalised inverse DFT
@@ -73,10 +69,6 @@ void bluestein_fft_free(bluestein_fft_t* fft);
 static inline arbitrary_complex_fft_t* bluestein_fft_as_arbitrary(
     bluestein_fft_t* fft) {
   return (arbitrary_complex_fft_t*)fft;
-}
-#endif
-
-#ifdef __cplusplus
 }
 #endif
 

@@ -12,10 +12,6 @@
 #include "Audio/double_helpers.h"
 #include "arbitrary_complex_fft.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Wraps `vDSP_DFT_zopD` (complex out-of-place DFT). Setup creation
 /// returns `nil` for any size outside the supported family, in which
 /// case the caller (`RealFFT.init`) falls back to
@@ -37,10 +33,6 @@ void vdsp_complex_dft_free(vdsp_complex_dft_t* dft);
 static inline arbitrary_complex_fft_t* vdsp_complex_dft_as_arbitrary(
     vdsp_complex_dft_t* dft) {
   return (arbitrary_complex_fft_t*)dft;
-}
-#endif
-
-#ifdef __cplusplus
 }
 #endif
 

@@ -21,10 +21,6 @@
 #include "apple_resampler.h"
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   RESAMPLER_IMPL_SYNCHRONOUS = 0,
   RESAMPLER_IMPL_ASYNC_SINC,
@@ -139,9 +135,5 @@ static inline void audio_resampler_free(audio_resampler_t* resampler) {
 sinc_interpolation_type_t sinc_interpolation_type_from_string(const char* str);
 /// Polynomial degree exposed by `AsyncPolyResampler`.
 poly_interpolation_t poly_interpolation_from_string(const char* str);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_RESAMPLER_AUDIO_RESAMPLER_H

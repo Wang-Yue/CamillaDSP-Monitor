@@ -27,10 +27,6 @@
 #include "audio_backend.h"
 #include "core_audio_device.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct core_audio_capture core_audio_capture_t;
 
 /// Create a CoreAudio capture backend instance.
@@ -60,10 +56,6 @@ bool core_audio_capture_wait(core_audio_capture_t* capture,
                              uint32_t timeout_ms);
 /// Destroy and free the CoreAudio capture backend.
 void core_audio_capture_destroy(core_audio_capture_t* capture);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // __APPLE__
 

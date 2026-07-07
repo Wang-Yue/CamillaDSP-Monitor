@@ -26,10 +26,6 @@
 #include "audio_backend.h"
 #include "core_audio_device.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct core_audio_playback core_audio_playback_t;
 
 /// Create a CoreAudio playback backend instance.
@@ -60,10 +56,6 @@ void core_audio_playback_set_is_paused(core_audio_playback_t* playback,
                                        bool paused);
 /// Destroy and free the CoreAudio playback backend.
 void core_audio_playback_destroy(core_audio_playback_t* playback);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // __APPLE__
 

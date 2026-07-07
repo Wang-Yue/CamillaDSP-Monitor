@@ -9,10 +9,6 @@
 #include "Config/filter_config_types.h"
 #include "biquad.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   char name[64];
   biquad_filter_t** sections;
@@ -36,9 +32,5 @@ void biquad_combo_filter_update_parameters(biquad_combo_filter_t* filter,
                                            const filter_config_t* config,
                                            int sample_rate);
 void biquad_combo_filter_free(biquad_combo_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_BIQUAD_COMBO_H

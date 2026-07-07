@@ -8,10 +8,6 @@
 #include "Config/filter_config_types.h"
 #include "biquad.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // Delay filter with optional subsample interpolation using Thiran allpass
 // biquads.
 typedef struct {
@@ -35,9 +31,5 @@ void delay_filter_update_parameters(delay_filter_t* filter,
                                     const filter_config_t* config,
                                     int sample_rate);
 void delay_filter_free(delay_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_DELAY_H

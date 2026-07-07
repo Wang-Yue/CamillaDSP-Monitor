@@ -8,10 +8,6 @@
 #include "Audio/processing_parameters.h"
 #include "Config/filter_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   char name[64];
   fader_t fader;
@@ -52,9 +48,5 @@ void volume_filter_update_parameters(volume_filter_t* filter,
                                      const filter_config_t* config,
                                      int sample_rate);
 void volume_filter_free(volume_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_VOLUME_H

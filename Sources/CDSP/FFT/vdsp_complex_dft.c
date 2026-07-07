@@ -6,8 +6,8 @@
 
 #include "FFT/vdsp_complex_dft.h"
 
-#include <stdlib.h>
 #include <Accelerate/Accelerate.h>
+#include <stdlib.h>
 
 struct vdsp_complex_dft {
   arbitrary_complex_fft_t base;

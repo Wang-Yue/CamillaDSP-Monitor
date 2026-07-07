@@ -6,10 +6,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Errors raised by the audio I/O backends (capture and playback).
 typedef enum {
   BACKEND_ERROR_NONE = 0,
@@ -32,9 +28,5 @@ void backend_error_init(backend_error_t* err, backend_error_type_t type,
 /// Get the string description of a backend error.
 const char* backend_error_description(const backend_error_t* err, char* out_buf,
                                       size_t buf_len);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_BACKEND_BACKEND_ERROR_H

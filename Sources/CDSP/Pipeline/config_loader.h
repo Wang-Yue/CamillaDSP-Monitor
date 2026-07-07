@@ -15,16 +15,8 @@
 #include "Config/config_error.h"
 #include "Config/configuration.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Parse a DSP configuration from JSON and run full validation.
 int config_loader_parse(const char* json, dsp_config_t** out_config,
                         config_error_t* err);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_PIPELINE_CONFIG_LOADER_H

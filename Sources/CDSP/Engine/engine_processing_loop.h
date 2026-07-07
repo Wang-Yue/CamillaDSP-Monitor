@@ -35,10 +35,6 @@
 #include "engine_shared_state.h"
 #include "engine_state_machine.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef void (*chunk_callback_t)(void* ctx, const audio_chunk_t* chunk);
 
 typedef struct {
@@ -96,9 +92,5 @@ void engine_processing_loop_set_pipeline(engine_processing_loop_t* loop,
 void engine_processing_loop_enqueue_update(engine_processing_loop_t* loop,
                                            pending_update_t* update);
 void pending_update_free(pending_update_t* update);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_ENGINE_ENGINE_PROCESSING_LOOP_H

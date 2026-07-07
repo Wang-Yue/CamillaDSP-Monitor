@@ -7,10 +7,6 @@
 
 #include "audio_backend.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct file_capture file_capture_t;
 typedef struct file_playback file_playback_t;
 
@@ -49,9 +45,5 @@ bool file_playback_prefill_silence(file_playback_t* playback, size_t frames,
 bool file_playback_get_is_paused(file_playback_t* playback);
 void file_playback_set_is_paused(file_playback_t* playback, bool paused);
 void file_playback_destroy(file_playback_t* playback);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_BACKEND_FILE_BACKEND_H

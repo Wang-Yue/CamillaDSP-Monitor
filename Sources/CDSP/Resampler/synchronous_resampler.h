@@ -88,10 +88,6 @@
 #include "resampler_error.h"
 #include "sinc_window_function.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   /// Number of channels processed per call.
   size_t channels;
@@ -152,9 +148,5 @@ size_t synchronous_resampler_get_chunk_size(
     const synchronous_resampler_t* resampler);
 size_t synchronous_resampler_get_channels(
     const synchronous_resampler_t* resampler);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_RESAMPLER_SYNCHRONOUS_RESAMPLER_H

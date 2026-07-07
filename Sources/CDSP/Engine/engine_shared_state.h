@@ -96,10 +96,6 @@ static inline void engine_sem_wait(engine_semaphore_t sem) {
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Genuinely `Sendable` — every stored field is itself `Sendable`
 /// (the SPSC queues, the kernel `DispatchSemaphore`s, and the
 /// atomics). Producers and consumers may freely access these from
@@ -141,9 +137,5 @@ typedef struct {
 engine_shared_state_t* engine_shared_state_create(size_t captured_queue_depth,
                                                   size_t processed_queue_depth);
 void engine_shared_state_free(engine_shared_state_t* state);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_ENGINE_ENGINE_SHARED_STATE_H

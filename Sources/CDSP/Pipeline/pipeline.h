@@ -15,10 +15,6 @@
 #include "Mixer/mixer.h"
 #include "Processors/processor.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   PIPELINE_OK = 0,
   PIPELINE_ERR_INPUT_SIZE_MISMATCH = -1,
@@ -105,9 +101,5 @@ static inline size_t pipeline_get_last_error_needed(
 static inline size_t pipeline_get_last_error_got(const pipeline_t* pipeline) {
   return pipeline ? pipeline->last_error_got : 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_PIPELINE_PIPELINE_H

@@ -9,10 +9,6 @@
 
 #include "audio_backend.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct pulse_capture pulse_capture_t;
 typedef struct pulse_playback pulse_playback_t;
 
@@ -50,10 +46,6 @@ bool pulse_playback_prefill_silence(pulse_playback_t* playback, size_t frames,
 bool pulse_playback_get_is_paused(pulse_playback_t* playback);
 void pulse_playback_set_is_paused(pulse_playback_t* playback, bool paused);
 void pulse_playback_destroy(pulse_playback_t* playback);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // __linux__
 

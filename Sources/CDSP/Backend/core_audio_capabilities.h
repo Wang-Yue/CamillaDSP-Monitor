@@ -12,10 +12,6 @@
 #include "Config/engine_config_types.h"
 #include "core_audio_device.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // MARK: - Discovery
 
 /// Sample rates we report when a device exposes a *range* rather than a
@@ -70,10 +66,6 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
 
 /// Free the audio device descriptor and its internal capability sets.
 void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // __APPLE__
 

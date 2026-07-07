@@ -23,10 +23,6 @@
 #include "arbitrary_complex_fft.h"
 #include "real_fft.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Computes a 2N-point real FFT via an N-point complex FFT plus an O(N)
 /// untwiddle. The inner complex FFT is supplied by the caller —
 /// `RealFFT.init` does the priority-based selection so this
@@ -49,10 +45,6 @@ void complex_inner_real_fft_free(complex_inner_real_fft_t* fft);
 static inline real_fft_backend_t* complex_inner_real_fft_as_backend(
     complex_inner_real_fft_t* fft) {
   return (real_fft_backend_t*)fft;
-}
-#endif
-
-#ifdef __cplusplus
 }
 #endif
 

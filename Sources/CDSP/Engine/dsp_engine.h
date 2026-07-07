@@ -21,10 +21,6 @@
 
 #include "Server/websocket_server.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   dsp_engine_core_t* core;
   spectrum_analyzer_t* spectrum;
@@ -73,9 +69,5 @@ void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc);
 const dsp_config_t* dsp_engine_get_active_config(const dsp_engine_t* engine);
 processing_parameters_t* dsp_engine_get_processing_parameters(
     const dsp_engine_t* engine);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_ENGINE_DSP_ENGINE_H

@@ -15,10 +15,6 @@
 #include "Audio/double_helpers.h"
 #include "real_fft.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Wraps Apple's `vDSP_fft_zripD` (radix-2 split-complex real FFT). vDSP's
 /// internal scaling is asymmetric — forward applies a `2×` factor, inverse
 /// does not — so we fold a `0.5` factor into the spectrum unpack on the
@@ -47,10 +43,6 @@ void vdsp_real_fft_free(vdsp_real_fft_t* fft);
 static inline real_fft_backend_t* vdsp_real_fft_as_backend(
     vdsp_real_fft_t* fft) {
   return (real_fft_backend_t*)fft;
-}
-#endif
-
-#ifdef __cplusplus
 }
 #endif
 

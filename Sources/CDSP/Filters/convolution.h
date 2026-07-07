@@ -8,10 +8,6 @@
 #include "Config/filter_config_types.h"
 #include "FFT/real_fft.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // Uniform-partitioned overlap-save FIR convolution.
 // Stockham-style segmented overlap-save with one 2N-point real FFT per
 // chunk and an N+1-bin spectrum-domain multiply-accumulate across the
@@ -91,9 +87,5 @@ convolution_filter_t* convolution_filter_create(const char* name,
 void convolution_filter_process(convolution_filter_t* filter,
                                 mutable_waveform_t waveform, size_t count);
 void convolution_filter_free(convolution_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_CONVOLUTION_H

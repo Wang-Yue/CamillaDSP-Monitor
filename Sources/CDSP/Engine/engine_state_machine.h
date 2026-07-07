@@ -28,10 +28,6 @@
 
 #include "Config/engine_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef ENGINE_STOP_CALLBACK_T_DEFINED
 #define ENGINE_STOP_CALLBACK_T_DEFINED
 typedef void (*engine_stop_callback_t)(void* ctx,
@@ -73,9 +69,5 @@ const processing_stop_reason_t* engine_state_machine_get_stop_reason(
 /// threads that acquire-load the state.
 bool engine_state_machine_begin_stop(engine_state_machine_t* sm,
                                      processing_stop_reason_t reason);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_ENGINE_ENGINE_STATE_MACHINE_H

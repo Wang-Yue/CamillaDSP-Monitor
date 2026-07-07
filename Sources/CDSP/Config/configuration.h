@@ -19,10 +19,6 @@
 #include "mixer_config_types.h"
 #include "processor_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   PIPELINE_STEP_TYPE_FILTER = 0,
   PIPELINE_STEP_TYPE_MIXER,
@@ -84,9 +80,5 @@ mixer_config_t* dsp_config_get_mixer(const dsp_config_t* config,
                                      const char* name);
 processor_config_t* dsp_config_get_processor(const dsp_config_t* config,
                                              const char* name);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_CONFIG_CONFIGURATION_H

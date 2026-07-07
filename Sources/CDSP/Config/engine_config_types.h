@@ -10,10 +10,6 @@
 #include "config_error.h"
 #include "resampler_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Engine processing state.
 typedef enum {
   PROCESSING_STATE_INACTIVE = 0,
@@ -364,9 +360,5 @@ void playback_device_config_init(playback_device_config_t* config,
 void devices_config_init(devices_config_t* config, size_t samplerate,
                          size_t chunksize, capture_device_config_t capture,
                          playback_device_config_t playback);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_CONFIG_ENGINE_CONFIG_TYPES_H

@@ -43,10 +43,6 @@
 
 #include "Audio/double_helpers.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef void (*real_fft_backend_forward_fn)(void* ctx, waveform_t real_in,
                                             mutable_waveform_t spec_re,
                                             mutable_waveform_t spec_im);
@@ -96,9 +92,5 @@ void real_fft_forward(real_fft_t* fft, waveform_t real_in,
 void real_fft_inverse(real_fft_t* fft, waveform_t spec_re, waveform_t spec_im,
                       mutable_waveform_t real_out);
 void real_fft_free(real_fft_t* fft);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FFT_REALFFT_H

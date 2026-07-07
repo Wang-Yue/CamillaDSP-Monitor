@@ -38,10 +38,6 @@
 #include "Audio/double_helpers.h"
 #include "Config/mixer_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief Error codes returned by mixer processing functions.
  */
@@ -140,9 +136,5 @@ void audio_mixer_update_parameters(audio_mixer_t* mixer,
  * @param mixer Pointer to audio mixer instance to free.
  */
 void audio_mixer_free(audio_mixer_t* mixer);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_MIXER_MIXER_H

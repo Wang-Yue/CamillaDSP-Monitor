@@ -14,10 +14,6 @@
 #include "Config/engine_config_types.h"
 #include "backend_error.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct capture_backend capture_backend_t;
 typedef struct playback_backend playback_backend_t;
 
@@ -149,9 +145,5 @@ bool playback_backend_get_is_paused(playback_backend_t* backend);
 void playback_backend_set_is_paused(playback_backend_t* backend, bool paused);
 /// Destroy and free the playback backend.
 void playback_backend_free(playback_backend_t* backend);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_BACKEND_AUDIO_BACKEND_H

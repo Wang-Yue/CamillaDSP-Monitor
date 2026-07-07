@@ -29,10 +29,6 @@
 
 #include "double_helpers.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Contiguous, per-channel audio storage backed by a single heap allocation.
 typedef struct {
   /// Number of channels.
@@ -62,9 +58,5 @@ static inline mutable_waveform_t audio_buffers_get_channel(
     const audio_buffers_t* buffers, size_t ch) {
   return buffers->channel_buffers[ch];
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_AUDIO_AUDIO_BUFFERS_H

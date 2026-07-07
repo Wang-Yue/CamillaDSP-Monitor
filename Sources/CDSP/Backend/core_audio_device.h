@@ -15,10 +15,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Direction marker for HAL device queries. The
 /// `kAudioDevicePropertyScopeInput` and `kAudioDevicePropertyScopeOutput`
 /// constants are aliases of `kAudioObjectPropertyScopeInput`/`Output`, so the
@@ -158,10 +154,6 @@ bool rate_change_watcher_get_pending_change(rate_change_watcher_t* watcher,
 void rate_change_watcher_dispose(rate_change_watcher_t* watcher);
 /// Destroy and free the rate change watcher.
 void rate_change_watcher_free(rate_change_watcher_t* watcher);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // __APPLE__
 

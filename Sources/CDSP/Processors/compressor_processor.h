@@ -48,10 +48,6 @@
 #include "Config/processor_config_types.h"
 #include "Filters/limiter.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief Dynamic range compressor processor state structure.
  */
@@ -125,9 +121,5 @@ void compressor_processor_process(compressor_processor_t* processor,
 void compressor_processor_update_parameters(compressor_processor_t* processor,
                                             const processor_config_t* config,
                                             int sample_rate);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_PROCESSORS_COMPRESSOR_PROCESSOR_H

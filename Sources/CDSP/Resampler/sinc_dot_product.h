@@ -14,13 +14,9 @@
 
 #include "Audio/double_helpers.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC push_options
-#pragma GCC optimize ("ffp-contract=fast", "associative-math")
+#pragma GCC optimize("ffp-contract=fast", "associative-math")
 #endif
 static inline double sinc_dot_product(const double* wave, const double* kernel,
                                       size_t count) {
@@ -39,9 +35,5 @@ static inline double sinc_dot_product(const double* wave, const double* kernel,
 
 double sinc_dot_product_fn(const double* wave, const double* kernel,
                            size_t count);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_RESAMPLER_SINC_DOT_PRODUCT_H

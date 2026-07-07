@@ -10,10 +10,6 @@
 
 #include "Audio/double_helpers.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifdef __APPLE__
 typedef void (*arbitrary_complex_fft_execute_fn)(void* ctx, waveform_t real_in,
                                                  waveform_t imag_in,
@@ -45,10 +41,6 @@ void arbitrary_complex_fft_execute(arbitrary_complex_fft_t* fft,
                                    mutable_waveform_t real_out,
                                    mutable_waveform_t imag_out, bool inverse);
 void arbitrary_complex_fft_free(arbitrary_complex_fft_t* fft);
-#endif
-
-#ifdef __cplusplus
-}
 #endif
 
 #endif  // CLIB_FFT_ARBITRARYCOMPLEXFFT_H

@@ -7,10 +7,6 @@
 #include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // MARK: - Ditherers
 
 // MARK: - NoiseShaper
@@ -47,9 +43,5 @@ void dither_filter_update_parameters(dither_filter_t* filter,
                                      const filter_config_t* config,
                                      int sample_rate);
 void dither_filter_free(dither_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_DITHER_H

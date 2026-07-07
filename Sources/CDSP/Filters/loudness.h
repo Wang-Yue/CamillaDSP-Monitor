@@ -12,10 +12,6 @@
 #include "Config/filter_config_types.h"
 #include "biquad.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   char name[64];
   int sample_rate;
@@ -38,9 +34,5 @@ void loudness_filter_update_parameters(loudness_filter_t* filter,
                                        const filter_config_t* config,
                                        int sample_rate);
 void loudness_filter_free(loudness_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_LOUDNESS_H

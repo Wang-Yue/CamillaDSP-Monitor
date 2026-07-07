@@ -18,10 +18,6 @@
 #include "loudness.h"
 #include "volume.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   FILTER_INSTANCE_BIQUAD,
   FILTER_INSTANCE_BIQUAD_COMBO,
@@ -68,9 +64,5 @@ void filter_process(filter_t* filter, mutable_waveform_t waveform,
 void filter_update_parameters(filter_t* filter, const filter_config_t* config,
                               int sample_rate);
 void filter_free(filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_FILTER_H

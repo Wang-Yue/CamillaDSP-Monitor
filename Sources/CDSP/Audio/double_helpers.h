@@ -18,10 +18,6 @@
 #include <string.h>
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// A high-performance descriptive view of a single channel's mutable buffer
 /// pointer
 typedef double* mutable_waveform_t;
@@ -156,9 +152,5 @@ static inline double dsp_ops_rms(waveform_t buffer, size_t count) {
   return sqrt(sum / count);
 #endif
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_AUDIO_DOUBLE_HELPERS_H

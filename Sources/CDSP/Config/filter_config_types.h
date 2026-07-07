@@ -9,10 +9,6 @@
 
 #include "config_error.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef FADER_T_DEFINED
 #define FADER_T_DEFINED
 typedef enum {
@@ -269,9 +265,5 @@ int volume_parameters_validate(const volume_parameters_t* params,
 
 int filter_config_validate(const filter_config_t* filter, int sample_rate,
                            config_error_t* err);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_CONFIG_FILTER_CONFIG_TYPES_H

@@ -10,10 +10,6 @@
 #include "Audio/audio_chunk.h"
 #include "Audio/lock_free_ring_buffer.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Maximum number of frames retained per channel. At 48 kHz that's roughly 5.5
 /// s of audio — enough headroom for an FFT down to ~5 Hz.
 #define AUDIO_HISTORY_BUFFER_CAPACITY 262144
@@ -66,9 +62,5 @@ void audio_history_buffer_append(audio_history_buffer_t* history,
 audio_history_buffer_status_t audio_history_buffer_read_latest(
     const audio_history_buffer_t* history, float* dest, size_t count,
     int channel, bool* enough_data);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_AUDIO_AUDIO_HISTORY_BUFFER_H

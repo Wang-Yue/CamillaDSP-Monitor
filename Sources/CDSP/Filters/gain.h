@@ -7,10 +7,6 @@
 #include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   char name[64];
   double linear_gain;
@@ -26,9 +22,5 @@ void gain_filter_update_parameters(gain_filter_t* filter,
                                    const filter_config_t* config,
                                    int sample_rate);
 void gain_filter_free(gain_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_GAIN_H

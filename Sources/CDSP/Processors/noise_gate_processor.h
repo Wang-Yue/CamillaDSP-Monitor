@@ -37,10 +37,6 @@
 #include "Audio/double_helpers.h"
 #include "Config/processor_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief Noise gate processor state structure.
  */
@@ -108,9 +104,5 @@ void noise_gate_processor_process(noise_gate_processor_t* processor,
 void noise_gate_processor_update_parameters(noise_gate_processor_t* processor,
                                             const processor_config_t* config,
                                             int sample_rate);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_PROCESSORS_NOISE_GATE_PROCESSOR_H

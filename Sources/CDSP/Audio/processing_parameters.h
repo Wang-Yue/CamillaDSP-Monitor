@@ -16,10 +16,6 @@
 #include "Audio/double_helpers.h"
 #include "Audio/lock_free_ring_buffer.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef FADER_T_DEFINED
 #define FADER_T_DEFINED
 typedef enum {
@@ -134,9 +130,5 @@ double processing_parameters_update_capture_levels(
 /// thread. Does not allocate.
 double processing_parameters_update_playback_levels(
     processing_parameters_t* params, const audio_chunk_t* chunk);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_AUDIO_PROCESSING_PARAMETERS_H

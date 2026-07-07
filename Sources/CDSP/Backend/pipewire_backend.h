@@ -9,10 +9,6 @@
 
 #include "audio_backend.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct pipewire_capture pipewire_capture_t;
 typedef struct pipewire_playback pipewire_playback_t;
 
@@ -51,10 +47,6 @@ bool pipewire_playback_get_is_paused(pipewire_playback_t* playback);
 void pipewire_playback_set_is_paused(pipewire_playback_t* playback,
                                      bool paused);
 void pipewire_playback_destroy(pipewire_playback_t* playback);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // __linux__
 

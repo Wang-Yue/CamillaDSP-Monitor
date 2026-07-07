@@ -5,10 +5,6 @@
 
 #include "audio_backend.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct asio_capture asio_capture_t;
 typedef struct asio_playback asio_playback_t;
 
@@ -20,10 +16,6 @@ capture_backend_t* asio_capture_new(const capture_device_config_t* config,
 playback_backend_t* asio_playback_new(const playback_device_config_t* config,
                                       int sample_rate, int chunk_size,
                                       backend_error_t* err);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // _WIN32
 

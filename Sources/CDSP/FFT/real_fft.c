@@ -48,7 +48,6 @@
 #include "FFT/vdsp_complex_dft.h"
 #include "FFT/vdsp_real_fft.h"
 
-
 real_fft_t* real_fft_create(size_t length) {
   if (length == 0 || length % 2 != 0) return NULL;
   real_fft_t* fft = (real_fft_t*)malloc(sizeof(real_fft_t));
@@ -103,8 +102,7 @@ real_fft_t* real_fft_create(size_t length) {
   return fft;
 }
 
-
-#else // !defined(__APPLE__)
+#else  // !defined(__APPLE__)
 
 #include <complex.h>
 #include <fftw3.h>
@@ -199,7 +197,7 @@ real_fft_t* real_fft_create(size_t length) {
   return fft;
 }
 
-#endif // defined(__APPLE__)
+#endif  // defined(__APPLE__)
 
 // Public API implementation (shared across Apple and non-Apple backends)
 void real_fft_forward(real_fft_t* fft, waveform_t real_in,

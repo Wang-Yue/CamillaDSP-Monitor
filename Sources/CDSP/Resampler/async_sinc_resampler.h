@@ -19,10 +19,6 @@
 #include "sinc_dot_product.h"
 #include "sinc_window_function.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   SINC_INTERPOLATION_LINEAR = 0,
   SINC_INTERPOLATION_QUADRATIC,
@@ -80,9 +76,5 @@ size_t async_sinc_resampler_get_chunk_size(
     const async_sinc_resampler_t* resampler);
 size_t async_sinc_resampler_get_channels(
     const async_sinc_resampler_t* resampler);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_RESAMPLER_ASYNC_SINC_RESAMPLER_H

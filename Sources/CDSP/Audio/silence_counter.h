@@ -7,10 +7,6 @@
 
 #include "Config/engine_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Counts consecutive silent chunks against a dB threshold and
 /// reports back the desired engine state. `silence_counter_update(...)`
 /// returns `PROCESSING_STATE_PAUSED` once silence has persisted for at least
@@ -32,9 +28,5 @@ void silence_counter_init(silence_counter_t* counter, double threshold_db,
 /// engine state the capture loop should drive to.
 processing_state_t silence_counter_update(silence_counter_t* counter,
                                           double signal_peak_db);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_AUDIO_SILENCE_COUNTER_H

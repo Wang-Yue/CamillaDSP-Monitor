@@ -8,10 +8,6 @@
 
 #include "Audio/double_helpers.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Window functions usable for sinc-kernel design. The `*2` variants are the
 /// squared versions of the periodic base window — wider main lobe but stronger
 /// stopband attenuation.
@@ -54,9 +50,5 @@ double calculate_cutoff(size_t sinc_len, window_function_t window);
 /// Stored layout: `table[s * sincLen + p] == sincs[s][p]`.
 double* make_sinc_table(size_t sinc_len, size_t oversampling_factor,
                         window_function_t window, double fc);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_RESAMPLER_SINC_WINDOW_FUNCTION_H

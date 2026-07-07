@@ -7,10 +7,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   RESAMPLER_TYPE_SYNCHRONOUS = 0,
 #if defined(__APPLE__)
@@ -89,9 +85,5 @@ resampler_profile_t resampler_profile_from_string(const char* str);
 void resampler_config_init(resampler_config_t* config, resampler_type_t type);
 void resampler_config_description(const resampler_config_t* config,
                                   char* out_buf, size_t buf_len);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_CONFIG_RESAMPLER_CONFIG_TYPES_H

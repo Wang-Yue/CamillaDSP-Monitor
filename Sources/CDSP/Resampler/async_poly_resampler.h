@@ -19,10 +19,6 @@
 #include "Audio/audio_chunk.h"
 #include "resampler_error.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   POLY_INTERPOLATION_LINEAR = 0,
   POLY_INTERPOLATION_CUBIC,
@@ -85,9 +81,5 @@ size_t async_poly_resampler_get_chunk_size(
     const async_poly_resampler_t* resampler);
 size_t async_poly_resampler_get_channels(
     const async_poly_resampler_t* resampler);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_RESAMPLER_ASYNC_POLY_RESAMPLER_H

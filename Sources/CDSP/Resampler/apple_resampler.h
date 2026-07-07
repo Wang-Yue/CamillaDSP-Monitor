@@ -13,10 +13,6 @@
 #include "Config/resampler_config_types.h"
 #include "resampler_error.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   audio_buffers_t* buffers;
   size_t read_offset;
@@ -50,10 +46,6 @@ size_t apple_resampler_get_max_output_frames(
     const apple_resampler_t* resampler);
 size_t apple_resampler_get_chunk_size(const apple_resampler_t* resampler);
 size_t apple_resampler_get_channels(const apple_resampler_t* resampler);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // __APPLE__
 

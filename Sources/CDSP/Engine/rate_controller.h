@@ -38,10 +38,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // MARK: - PI rate controller
 
 /// Discrete-time proportional-integral controller that produces a
@@ -116,9 +112,5 @@ typedef struct {
 void stopwatch_init(stopwatch_t* sw);
 void stopwatch_restart(stopwatch_t* sw);
 double stopwatch_elapsed_seconds(const stopwatch_t* sw);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_ENGINE_RATE_CONTROLLER_H

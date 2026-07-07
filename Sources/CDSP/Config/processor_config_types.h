@@ -8,10 +8,6 @@
 #include "config_error.h"
 #include "filter_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef enum {
   PROCESSOR_TYPE_COMPRESSOR = 0,
   PROCESSOR_TYPE_NOISE_GATE,
@@ -73,9 +69,5 @@ typedef struct {
 
 int processor_config_validate(const processor_config_t* proc,
                               config_error_t* err);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_CONFIG_PROCESSOR_CONFIG_TYPES_H

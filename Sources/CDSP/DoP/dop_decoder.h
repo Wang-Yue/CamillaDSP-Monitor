@@ -31,10 +31,6 @@
 
 #include "Audio/audio_chunk.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Per-channel state for DoP decoding. Holds a 64-byte ring FIFO of DSD bytes
 /// and hysteretic lock counters.
 typedef struct {
@@ -101,9 +97,5 @@ dop_decoder_t* dop_decoder_create(int channels, double sample_rate,
 bool dop_decoder_detect_and_process(dop_decoder_t* decoder,
                                     audio_chunk_t* chunk);
 void dop_decoder_free(dop_decoder_t* decoder);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_DOP_DOP_DECODER_H

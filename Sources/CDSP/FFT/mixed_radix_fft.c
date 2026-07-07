@@ -739,4 +739,3 @@ void mixed_radix_fft_free(mixed_radix_fft_t* fft) {
   free(fft);
 }
 #endif
-

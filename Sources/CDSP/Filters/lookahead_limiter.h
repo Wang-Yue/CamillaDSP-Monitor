@@ -8,10 +8,6 @@
 #include "Config/config_error.h"
 #include "Config/filter_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   char name[64];
   double limit;
@@ -41,9 +37,5 @@ void lookahead_limiter_filter_update_parameters(
     lookahead_limiter_filter_t* filter, const filter_config_t* config,
     int sample_rate);
 void lookahead_limiter_filter_free(lookahead_limiter_filter_t* filter);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_FILTERS_LOOKAHEAD_LIMITER_H

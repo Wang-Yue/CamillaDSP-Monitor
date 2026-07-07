@@ -9,10 +9,6 @@
 
 #include "Config/engine_config_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Enumerate available ASIO drivers and return count.
 int asio_capabilities_available_device_names(bool is_capture,
                                              char out_names[][256],
@@ -25,10 +21,6 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
                                                       bool is_capture);
 /// Free descriptor memory.
 void asio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // _WIN32
 

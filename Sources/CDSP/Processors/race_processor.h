@@ -59,10 +59,6 @@
 #include "Filters/delay.h"
 #include "Filters/gain.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief RACE cross-talk cancellation processor state structure.
  */
@@ -125,9 +121,5 @@ void race_processor_process(race_processor_t* processor, audio_chunk_t* chunk);
 void race_processor_update_parameters(race_processor_t* processor,
                                       const processor_config_t* config,
                                       int sample_rate);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_PROCESSORS_RACE_PROCESSOR_H

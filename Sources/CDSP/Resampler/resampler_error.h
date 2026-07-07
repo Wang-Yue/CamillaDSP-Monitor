@@ -4,10 +4,6 @@
 #ifndef CLIB_RESAMPLER_RESAMPLER_ERROR_H
 #define CLIB_RESAMPLER_RESAMPLER_ERROR_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Errors raised by `AudioResampler` implementations during construction
 /// and the per-chunk `process(...)` call.
 typedef enum {
@@ -27,9 +23,5 @@ typedef enum {
 
 /// Returns a description string for the given resampler error.
 const char* resampler_error_description(resampler_error_t err);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_RESAMPLER_RESAMPLER_ERROR_H

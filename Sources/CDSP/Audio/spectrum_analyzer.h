@@ -10,10 +10,6 @@
 #include <Accelerate/Accelerate.h>
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /// Result of an FFT spectrum query — bin-center frequencies (Hz) and
 /// magnitudes (dBFS).
 typedef struct {
@@ -88,9 +84,5 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
                                             double max_freq, size_t n_bins,
                                             size_t samplerate,
                                             spectrum_result_t* out_result);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  // CLIB_AUDIO_SPECTRUM_ANALYZER_H
