@@ -1,4 +1,5 @@
 #include "../../Sources/CDSP/Engine/dsp_engine.h"
+#include "../../Sources/CDSP/Pipeline/config_loader.h"
 #include "test_support.h"
 #include <unistd.h>
 #include <time.h>
@@ -166,6 +167,69 @@ TEST(DSPEngineSetConfigAndReload) {
   audio_backend_error_t err;
   dsp_engine_set_config(engine, json1, &err);
   dsp_engine_set_config(engine, json2, &err);
+  dsp_engine_stop(engine);
+  dsp_engine_free(engine);
+}
+
+TEST(DSPEngineSetConfigStruct) {
+  dsp_engine_t* engine = dsp_engine_create();
+  ASSERT_TRUE(engine != NULL);
+
+#if defined(__linux__)
+  const char* json =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Alsa\",\n"
+      "            \"device\": \"null\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Alsa\",\n"
+      "            \"device\": \"null\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    }\n"
+      "}";
+#else
+  const char* json =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    }\n"
+      "}";
+#endif
+
+  dsp_config_t* parsed = NULL;
+  config_error_t cerr;
+  int parse_res = config_loader_parse(json, &parsed, &cerr);
+  ASSERT_EQ(0, parse_res);
+  ASSERT_TRUE(parsed != NULL);
+
+  // Apply overrides
+  parsed->devices.samplerate = 48000;
+  parsed->devices.capture.channels = 4;
+
+  audio_backend_error_t berr;
+  bool ok = dsp_engine_set_config_struct(engine, parsed, &berr);
+  ASSERT_TRUE(ok);
+
+  const dsp_config_t* active = dsp_engine_get_active_config(engine);
+  ASSERT_TRUE(active != NULL);
+  ASSERT_EQ(48000, active->devices.samplerate);
+  ASSERT_EQ(4, active->devices.capture.channels);
+
   dsp_engine_stop(engine);
   dsp_engine_free(engine);
 }

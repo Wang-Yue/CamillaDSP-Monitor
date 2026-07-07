@@ -47,6 +47,81 @@ void dsp_engine_free(dsp_engine_t* engine) {
   free(engine);
 }
 
+bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
+                                  audio_backend_error_t* err) {
+  if (!engine || !config) return false;
+
+  if (engine->core &&
+      dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
+    if (memcmp(&engine->core->current_config->devices, &config->devices,
+               sizeof(devices_config_t)) == 0) {
+      audio_backend_error_t berr;
+      if (dsp_engine_core_reload_config(engine->core, config, &berr)) {
+        return true;
+      } else {
+        dsp_engine_core_stop(
+            engine->core, (processing_stop_reason_t){.type = STOP_REASON_NONE});
+        dsp_engine_core_free(engine->core);
+        engine->core = NULL;
+        if (err) *err = berr;
+        return false;
+      }
+    }
+  }
+
+  if (engine->core &&
+      dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
+    dsp_engine_core_stop(engine->core,
+                         (processing_stop_reason_t){.type = STOP_REASON_NONE});
+  }
+  if (engine->core) {
+    dsp_engine_core_free(engine->core);
+    engine->core = NULL;
+  }
+
+  dsp_engine_core_t* core = dsp_engine_core_create(config);
+  if (!core) {
+    dsp_config_free(config);
+    if (err) {
+      err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+      snprintf(err->message, sizeof(err->message), "Failed to create core");
+    }
+    return false;
+  }
+
+  for (int i = 0; i < FADER_COUNT; i++) {
+    double vol = engine->desired_fader_volumes[i];
+    bool mute = engine->desired_fader_mutes[i];
+    processing_parameters_set_target_volume_for_fader(core->processing_params,
+                                                      vol, (fader_t)i);
+    processing_parameters_set_current_volume_for_fader(core->processing_params,
+                                                       vol, (fader_t)i);
+    processing_parameters_set_muted_for_fader(core->processing_params, mute,
+                                              (fader_t)i);
+  }
+
+  audio_history_buffer_reset(engine->capture_buffer,
+                             config->devices.capture.channels);
+  audio_history_buffer_reset(engine->playback_buffer,
+                             config->devices.playback.channels);
+
+  core->on_chunk_captured = engine_on_chunk_captured_callback;
+  core->on_chunk_captured_ctx = engine->capture_buffer;
+  core->on_chunk_processed = engine_on_chunk_processed_callback;
+  core->on_chunk_processed_ctx = engine->playback_buffer;
+
+  audio_backend_error_t start_err;
+  if (!dsp_engine_core_start(core, &start_err)) {
+    dsp_engine_core_free(core);
+    if (err) *err = start_err;
+    return false;
+  }
+
+  engine->core = core;
+  engine->has_last_stop_reason = false;
+  return true;
+}
+
 bool dsp_engine_set_config(dsp_engine_t* engine, const char* json,
                            audio_backend_error_t* err) {
   if (!engine || !json) return false;
@@ -73,76 +148,7 @@ bool dsp_engine_set_config(dsp_engine_t* engine, const char* json,
     }
     return false;
   }
-
-  if (engine->core &&
-      dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
-    if (memcmp(&engine->core->current_config->devices, &parsed->devices,
-               sizeof(devices_config_t)) == 0) {
-      audio_backend_error_t berr;
-      if (dsp_engine_core_reload_config(engine->core, parsed, &berr)) {
-        return true;
-      } else {
-        dsp_engine_core_stop(
-            engine->core, (processing_stop_reason_t){.type = STOP_REASON_NONE});
-        dsp_engine_core_free(engine->core);
-        engine->core = NULL;
-        if (err) *err = berr;
-        return false;
-      }
-    }
-  }
-
-  if (engine->core &&
-      dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
-    dsp_engine_core_stop(engine->core,
-                         (processing_stop_reason_t){.type = STOP_REASON_NONE});
-  }
-  if (engine->core) {
-    dsp_engine_core_free(engine->core);
-    engine->core = NULL;
-  }
-
-  dsp_engine_core_t* core = dsp_engine_core_create(parsed);
-  if (!core) {
-    dsp_config_free(parsed);
-    if (err) {
-      err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
-      snprintf(err->message, sizeof(err->message), "Failed to create core");
-    }
-    return false;
-  }
-
-  for (int i = 0; i < FADER_COUNT; i++) {
-    double vol = engine->desired_fader_volumes[i];
-    bool mute = engine->desired_fader_mutes[i];
-    processing_parameters_set_target_volume_for_fader(core->processing_params,
-                                                      vol, (fader_t)i);
-    processing_parameters_set_current_volume_for_fader(core->processing_params,
-                                                       vol, (fader_t)i);
-    processing_parameters_set_muted_for_fader(core->processing_params, mute,
-                                              (fader_t)i);
-  }
-
-  audio_history_buffer_reset(engine->capture_buffer,
-                             parsed->devices.capture.channels);
-  audio_history_buffer_reset(engine->playback_buffer,
-                             parsed->devices.playback.channels);
-
-  core->on_chunk_captured = engine_on_chunk_captured_callback;
-  core->on_chunk_captured_ctx = engine->capture_buffer;
-  core->on_chunk_processed = engine_on_chunk_processed_callback;
-  core->on_chunk_processed_ctx = engine->playback_buffer;
-
-  audio_backend_error_t start_err;
-  if (!dsp_engine_core_start(core, &start_err)) {
-    dsp_engine_core_free(core);
-    if (err) *err = start_err;
-    return false;
-  }
-
-  engine->core = core;
-  engine->has_last_stop_reason = false;
-  return true;
+  return dsp_engine_set_config_struct(engine, parsed, err);
 }
 
 void dsp_engine_stop(dsp_engine_t* engine) {

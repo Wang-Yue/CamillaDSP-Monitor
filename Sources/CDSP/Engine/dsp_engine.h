@@ -41,6 +41,8 @@ void dsp_engine_free(dsp_engine_t* engine);
 
 bool dsp_engine_set_config(dsp_engine_t* engine, const char* json,
                            audio_backend_error_t* err);
+bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
+                                  audio_backend_error_t* err);
 void dsp_engine_stop(dsp_engine_t* engine);
 
 void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader, float db);

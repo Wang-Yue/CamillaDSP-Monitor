@@ -11,6 +11,7 @@
 #include "Config/engine_config_types.h"
 #include "Config/log_level.h"
 #include "Engine/dsp_engine.h"
+#include "Backend/audio_backend.h"
 #include "Pipeline/config_loader.h"
 #include "Pipeline/state_file.h"
 #include "Server/websocket_server.h"
@@ -50,7 +51,9 @@ static void print_usage(void) {
       "  --mute4           Start with Aux4 fader muted.\n"
       "  -r, --samplerate  Override samplerate in config.\n"
       "  -n, --channels    Override number of channels of capture device in "
-      "config.\n\n"
+      "config.\n"
+      "  -f, --format      Override sample format of capture device in config.\n"
+      "  -e, --extra_samples Override number of extra samples in config.\n\n"
       "Supported device types:\n"
       "  Capture: "
 #if defined(ENABLE_COREAUDIO)
@@ -152,6 +155,8 @@ int main(int argc, char** argv) {
 
   int samplerate_override = -1;
   int channels_override = -1;
+  const char* format_override = NULL;
+  int extra_samples_override = -1;
 
   for (int i = 1; i < argc; i++) {
     const char* arg = argv[i];
@@ -272,6 +277,20 @@ int main(int argc, char** argv) {
         printf("Error: Invalid channels value\n");
         return 1;
       }
+    } else if (strcmp(arg, "-f") == 0 || strcmp(arg, "--format") == 0) {
+      if (i + 1 < argc) {
+        format_override = argv[++i];
+      } else {
+        printf("Error: Missing format value for %s\n", arg);
+        return 1;
+      }
+    } else if (strcmp(arg, "-e") == 0 || strcmp(arg, "--extra_samples") == 0) {
+      if (i + 1 < argc) {
+        extra_samples_override = atoi(argv[++i]);
+      } else {
+        printf("Error: Missing extra_samples value for %s\n", arg);
+        return 1;
+      }
     } else {
       if (arg[0] != '-') {
         config_path = arg;
@@ -336,6 +355,7 @@ int main(int argc, char** argv) {
   }
 
   char* config_json = NULL;
+  dsp_config_t* parsed = NULL;
   if (!wait_config && !no_config) {
     if (!config_path) {
       printf("Error: Missing required configuration file.\n");
@@ -348,7 +368,6 @@ int main(int argc, char** argv) {
              config_path);
       return 1;
     }
-    dsp_config_t* parsed = NULL;
     config_error_t cerr;
     if (config_loader_parse(config_json, &parsed, &cerr) != 0 || !parsed) {
       printf("Failed to load configuration: %s\n", cerr.message);
@@ -359,27 +378,114 @@ int main(int argc, char** argv) {
       parsed->devices.samplerate = samplerate_override;
     if (channels_override > 0)
       parsed->devices.capture.channels = channels_override;
-    dsp_config_free(parsed);
+    if (extra_samples_override >= 0) {
+      parsed->devices.capture.extra_samples = extra_samples_override;
+      parsed->devices.capture.has_extra_samples = true;
+    }
+    if (format_override) {
+      if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_ALSA) {
+#if defined(ENABLE_ALSA)
+        alsa_sample_format_t fmt = alsa_sample_format_from_string(format_override);
+        if (fmt != ALSA_SAMPLE_FORMAT_INVALID) {
+          parsed->devices.capture.format = fmt;
+          parsed->devices.capture.has_format = true;
+        } else {
+          printf("Error: Invalid format '%s' for ALSA\n", format_override);
+          dsp_config_free(parsed);
+          free(config_json);
+          return 1;
+        }
+#endif
+#if defined(ENABLE_COREAUDIO)
+      } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_CORE_AUDIO) {
+        coreaudio_sample_format_t fmt = coreaudio_sample_format_from_string(format_override);
+        if (fmt != COREAUDIO_SAMPLE_FORMAT_INVALID) {
+          parsed->devices.capture.format = fmt;
+          parsed->devices.capture.has_format = true;
+        } else {
+          printf("Error: Invalid format '%s' for CoreAudio\n", format_override);
+          dsp_config_free(parsed);
+          free(config_json);
+          return 1;
+        }
+#endif
+#if defined(ENABLE_WASAPI)
+      } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_WASAPI) {
+        wasapi_sample_format_t fmt = wasapi_sample_format_from_string(format_override);
+        if (fmt != WASAPI_SAMPLE_FORMAT_INVALID) {
+          parsed->devices.capture.format = fmt;
+          parsed->devices.capture.has_format = true;
+        } else {
+          printf("Error: Invalid format '%s' for WASAPI\n", format_override);
+          dsp_config_free(parsed);
+          free(config_json);
+          return 1;
+        }
+#endif
+#if defined(ENABLE_ASIO)
+      } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_ASIO) {
+        asio_sample_format_t fmt = asio_sample_format_from_string(format_override);
+        if (fmt != ASIO_SAMPLE_FORMAT_INVALID) {
+          parsed->devices.capture.asio_format = fmt;
+          parsed->devices.capture.has_asio_format = true;
+        } else {
+          printf("Error: Invalid format '%s' for ASIO\n", format_override);
+          dsp_config_free(parsed);
+          free(config_json);
+          return 1;
+        }
+#endif
+#if defined(ENABLE_BLUEZ)
+      } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_BLUEZ) {
+        binary_sample_format_t fmt = binary_sample_format_from_string(format_override);
+        if (fmt != BINARY_SAMPLE_FORMAT_INVALID) {
+          parsed->devices.capture.bluez_format = fmt;
+          parsed->devices.capture.has_bluez_format = true;
+        } else {
+          printf("Error: Invalid format '%s' for Bluez\n", format_override);
+          dsp_config_free(parsed);
+          free(config_json);
+          return 1;
+        }
+#endif
+      } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_FILE ||
+                 parsed->devices.capture.type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
+        binary_sample_format_t fmt = binary_sample_format_from_string(format_override);
+        if (fmt != BINARY_SAMPLE_FORMAT_INVALID) {
+          parsed->devices.capture.file_format = fmt;
+          parsed->devices.capture.has_file_format = true;
+        } else {
+          printf("Error: Invalid format '%s' for File\n", format_override);
+          dsp_config_free(parsed);
+          free(config_json);
+          return 1;
+        }
+      } else {
+        printf("Warning: Overriding format is not supported for this backend, ignoring\n");
+      }
+    }
   }
 
   dsp_engine_t* engine = dsp_engine_create();
   if (!engine) {
     printf("Error starting engine: Failed to allocate engine\n");
+    if (parsed) dsp_config_free(parsed);
     if (config_json) free(config_json);
     return 1;
   }
 
-  if (config_json) {
+  if (parsed) {
     audio_backend_error_t berr;
-    if (dsp_engine_set_config(engine, config_json, &berr)) {
+    if (dsp_engine_set_config_struct(engine, parsed, &berr)) {
       printf("Engine started successfully.\n");
     } else {
       printf("Error starting engine: %s\n", berr.message);
+      // dsp_engine_set_config_struct frees parsed on failure
       dsp_engine_free(engine);
-      free(config_json);
+      if (config_json) free(config_json);
       return 1;
     }
-    free(config_json);
+    if (config_json) free(config_json);
   } else {
     printf(
         "Starting engine in inactive state (waiting for websocket "
