@@ -19,6 +19,8 @@ DEFINE_GUID(IID_IASIO, 0x3f12c5c4, 0x4850, 0x11d1, 0x89, 0xe2, 0x00, 0x00, 0xe8,
             0x19, 0xc6, 0x56);
 
 // COM Release helper
+static bool find_asio_driver_clsid(const char* driver_name, CLSID* out_clsid);
+
 #define SAFE_RELEASE(punk)         \
   if ((punk) != NULL) {            \
     (punk)->lpVtbl->Release(punk); \
@@ -67,6 +69,8 @@ typedef struct {
   void* (*bufferSwitchTimeInfo)(void* params, long doubleBufferIndex,
                                 ASIOBool directProcess);
 } ASIOCallbacks;
+
+static ASIOCallbacks asio_callbacks;
 
 // Forward declaration of COM interface
 typedef struct IASIO IASIO;
@@ -435,8 +439,8 @@ static void release_shared_asio(bool is_input, IASIO* iasio) {
         free(g_asio_shared.combined_channel_infos);
 
       memset(&g_asio_shared, 0, sizeof(g_asio_shared));
-      g_asio_shared.lock = SRWLOCK_INIT;
-      g_asio_shared.cond = CONDITION_VARIABLE_INIT;
+      InitializeSRWLock(&g_asio_shared.lock);
+      InitializeConditionVariable(&g_asio_shared.cond);
     }
   }
   ReleaseSRWLockExclusive(&g_asio_shared.lock);
@@ -596,7 +600,7 @@ static long asio_message(long selector, long value, void* message,
     {
       logger_t logger = logger_create("dsp.backend.asio");
       logger_warn(&logger, "ASIO reset request received from driver.",
-                  log_arg_none());
+                  log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
     }
       return 1;
     case 6:  // kAsioBufferSizeChange
@@ -624,7 +628,12 @@ static ASIOCallbacks asio_callbacks = {
 // Capture Backend Methods
 // ==========================================
 
-if (capture->full_duplex) {
+static bool asio_capture_open_internal(void* ctx, backend_error_t* err) {
+  asio_capture_t* capture = (asio_capture_t*)ctx;
+  CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+  HRESULT hr;
+
+  if (capture->full_duplex) {
   if (!register_and_wait_asio(
           true, capture->device, capture->sample_rate, capture->channels,
           capture->format, &capture->iasio, &capture->buffer_infos,
@@ -640,7 +649,7 @@ if (capture->full_duplex) {
     return false;
   }
 
-  HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &IID_IASIO,
+  hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &IID_IASIO,
                                 (void**)&capture->iasio);
   if (FAILED(hr)) {
     if (err)
@@ -823,6 +832,7 @@ static const capture_backend_vtable_t asio_capture_vtable = {
     NULL,
     NULL,
     asio_capture_wait_for_data,
+    NULL,
     asio_capture_destroy_internal};
 
 capture_backend_t* asio_capture_new(const capture_device_config_t* config,
@@ -857,6 +867,7 @@ capture_backend_t* asio_capture_new(const capture_device_config_t* config,
 static bool asio_playback_open_internal(void* ctx, backend_error_t* err) {
   asio_playback_t* playback = (asio_playback_t*)ctx;
   CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+  HRESULT hr = S_OK;
 
   if (playback->full_duplex) {
     if (!register_and_wait_asio(
@@ -874,8 +885,8 @@ static bool asio_playback_open_internal(void* ctx, backend_error_t* err) {
       return false;
     }
 
-    HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER,
-                                  &IID_IASIO, (void**)&playback->iasio);
+    hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER,
+                          &IID_IASIO, (void**)&playback->iasio);
     if (FAILED(hr)) {
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,

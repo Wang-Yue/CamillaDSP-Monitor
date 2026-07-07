@@ -1268,16 +1268,73 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  "{\"InvalidRequestError\":\"Could not parse side argument\"}",
                  NULL, out_response, max_len);
     }
+  } else if (strstr(command_text, "\"SubscribeSpectrum\"")) {
+    bool is_capture = true;
+    uint32_t channel = 0;
+    double min_freq = 20.0;
+    double max_freq = 20000.0;
+    uint32_t n_bins = 1024;
+    double max_rate = 0.0;
+    bool ok = false;
+
+    if (arg_idx != -1 && tokens[arg_idx].type == JSMN_OBJECT) {
+      int ic_idx =
+          find_object_key(command_text, tokens, count, arg_idx, "is_capture");
+      if (ic_idx != -1)
+        is_capture = get_tok_bool(command_text, &tokens[ic_idx]);
+      int ch_idx =
+          find_object_key(command_text, tokens, count, arg_idx, "channel");
+      if (ch_idx != -1)
+        channel = (uint32_t)get_tok_int(command_text, &tokens[ch_idx]);
+      int mn_idx =
+          find_object_key(command_text, tokens, count, arg_idx, "min_freq");
+      if (mn_idx != -1)
+        min_freq = get_tok_double(command_text, &tokens[mn_idx]);
+      int mx_idx =
+          find_object_key(command_text, tokens, count, arg_idx, "max_freq");
+      if (mx_idx != -1)
+        max_freq = get_tok_double(command_text, &tokens[mx_idx]);
+      int nb_idx =
+          find_object_key(command_text, tokens, count, arg_idx, "n_bins");
+      if (nb_idx != -1)
+        n_bins = (uint32_t)get_tok_int(command_text, &tokens[nb_idx]);
+      int mr_idx =
+          find_object_key(command_text, tokens, count, arg_idx, "max_rate");
+      if (mr_idx != -1)
+        max_rate = get_tok_double(command_text, &tokens[mr_idx]);
+      ok = true;
+    }
+
+    if (ok) {
+      if (server) {
+        server->client_sessions[client_idx].spectrum_subscribed = true;
+        server->client_sessions[client_idx].spectrum_is_capture = is_capture;
+        server->client_sessions[client_idx].spectrum_channel = channel;
+        server->client_sessions[client_idx].spectrum_min_freq = min_freq;
+        server->client_sessions[client_idx].spectrum_max_freq = max_freq;
+        server->client_sessions[client_idx].spectrum_n_bins = n_bins;
+        server->client_sessions[client_idx].spectrum_max_rate = max_rate;
+        server->client_sessions[client_idx].last_spectrum_push_time = 0;
+      }
+      json_reply("SubscribeSpectrum", "\"Ok\"", NULL, out_response, max_len);
+    } else {
+      json_reply(
+          "SubscribeSpectrum",
+          "{\"InvalidRequestError\":\"Could not parse SubscribeSpectrum arguments\"}",
+          NULL, out_response, max_len);
+    }
   } else if (strcmp(simple, "StopSubscription") == 0) {
     if (server) {
       bool active =
           server->client_sessions[client_idx].state_subscribed ||
           server->client_sessions[client_idx].vu_subscribed ||
-          server->client_sessions[client_idx].signal_levels_subscribed;
+          server->client_sessions[client_idx].signal_levels_subscribed ||
+          server->client_sessions[client_idx].spectrum_subscribed;
       if (active) {
         server->client_sessions[client_idx].state_subscribed = false;
         server->client_sessions[client_idx].vu_subscribed = false;
         server->client_sessions[client_idx].signal_levels_subscribed = false;
+        server->client_sessions[client_idx].spectrum_subscribed = false;
         json_reply("StopSubscription", "\"Ok\"", NULL, out_response, max_len);
       } else {
         json_reply("StopSubscription",
@@ -2880,6 +2937,38 @@ static void* server_thread_func(void* arg) {
             free(msg);
             free(rms_str);
             free(pk_str);
+          }
+        }
+
+        if (session->spectrum_subscribed) {
+          double interval =
+              session->spectrum_max_rate > 0.0 ? 1000.0 / session->spectrum_max_rate : 0.0;
+          if (now - session->last_spectrum_push_time >= interval) {
+            spectrum_t spec;
+            memset(&spec, 0, sizeof(spec));
+            bool spec_ok =
+                server && server->engine && server->engine->get_spectrum &&
+                server->engine->get_spectrum(server->engine->ctx,
+                                             session->spectrum_is_capture,
+                                             session->spectrum_channel,
+                                             session->spectrum_min_freq,
+                                             session->spectrum_max_freq,
+                                             session->spectrum_n_bins, &spec);
+            if (spec_ok) {
+              size_t spec_buf_size = spec.count * 50 + 200;
+              char* spec_buf = (char*)malloc(spec_buf_size);
+              if (spec_buf) {
+                format_spectrum(&spec, spec_buf, spec_buf_size);
+                char* msg = (char*)malloc(spec_buf_size + 120);
+                sprintf(msg, "{\"SpectrumEvent\":{\"result\":\"Ok\",\"value\":%s}}", spec_buf);
+                send_websocket_frame(client_fds[i], msg);
+                free(msg);
+                free(spec_buf);
+              }
+              if (spec.frequencies) free(spec.frequencies);
+              if (spec.magnitudes) free(spec.magnitudes);
+              session->last_spectrum_push_time = now;
+            }
           }
         }
       }

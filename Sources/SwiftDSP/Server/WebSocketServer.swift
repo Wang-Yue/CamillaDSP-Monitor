@@ -181,6 +181,15 @@ public final class WebSocketServer: Sendable {
     var signalLevelsSubscribed: Bool = false
     var signalLevelsSide: String = ""
 
+    var spectrumSubscribed: Bool = false
+    var spectrumIsCapture: Bool = true
+    var spectrumChannel: UInt32? = nil
+    var spectrumMinFreq: Double = 20.0
+    var spectrumMaxFreq: Double = 20000.0
+    var spectrumNBins: UInt32 = 1024
+    var spectrumMaxRate: Double = 0.0
+    var lastSpectrumPushTime: UInt64 = 0
+
     var vuMaxRate: Double = 0.0
     var vuAttack: Double = 0.0
     var vuRelease: Double = 0.0
@@ -556,6 +565,67 @@ public final class WebSocketServer: Sendable {
     for (conn, msg) in connectionsToNotify {
       send(msg, to: conn)
     }
+
+    // Fetch and send spectrum subscription updates
+    struct SpectrumReq {
+      let conn: NWConnection
+      let isCapture: Bool
+      let channel: UInt32?
+      let minFreq: Double
+      let maxFreq: Double
+      let nBins: UInt32
+      let id: ObjectIdentifier
+    }
+
+    let spectrumReqs = stateLock.withLock { state -> [SpectrumReq] in
+      var reqs: [SpectrumReq] = []
+      for conn in state.connections {
+        let id = ObjectIdentifier(conn)
+        if let sub = state.subscriptions[id], sub.spectrumSubscribed {
+          let interval = sub.spectrumMaxRate > 0.0 ? 1000.0 / sub.spectrumMaxRate : 0.0
+          if Double(now - sub.lastSpectrumPushTime) >= interval {
+            reqs.append(
+              SpectrumReq(
+                conn: conn,
+                isCapture: sub.spectrumIsCapture,
+                channel: sub.spectrumChannel,
+                minFreq: sub.spectrumMinFreq,
+                maxFreq: sub.spectrumMaxFreq,
+                nBins: sub.spectrumNBins,
+                id: id
+              ))
+          }
+        }
+      }
+      return reqs
+    }
+
+    for req in spectrumReqs {
+      do {
+        let spec = try await engine.getSpectrum(
+          isCapture: req.isCapture,
+          channel: req.channel,
+          minFreq: req.minFreq,
+          maxFreq: req.maxFreq,
+          nBins: req.nBins
+        )
+        let specData = try JSONEncoder().encode(spec)
+        if let specVal = String(data: specData, encoding: .utf8) {
+          let msg = "{\"SpectrumEvent\":{\"result\":\"Ok\",\"value\":\(specVal)}}"
+          send(msg, to: req.conn)
+          stateLock.withLock { state in
+            if var sub = state.subscriptions[req.id] {
+              sub.lastSpectrumPushTime = now
+              state.subscriptions[req.id] = sub
+            }
+          }
+        }
+      } catch {
+        let msg =
+          "{\"SpectrumEvent\":{\"result\":{\"DeviceError\":\"\(error.localizedDescription)\"}}}"
+        send(msg, to: req.conn)
+      }
+    }
   }
 
   // MARK: - Command Handler
@@ -797,7 +867,9 @@ public final class WebSocketServer: Sendable {
       let found = stateLock.withLock { state in
         let id = ObjectIdentifier(connection)
         if let sub = state.subscriptions[id] {
-          let active = sub.stateSubscribed || sub.vuSubscribed || sub.signalLevelsSubscribed
+          let active =
+            sub.stateSubscribed || sub.vuSubscribed || sub.signalLevelsSubscribed
+            || sub.spectrumSubscribed
           if active {
             state.subscriptions.removeValue(forKey: id)
             return true
@@ -1363,6 +1435,30 @@ public final class WebSocketServer: Sendable {
           "SubscribeSignalLevels",
           result: .invalidValueError("side must be playback, capture, or both"))
       }
+    }
+
+    if let subSpecObj = json["SubscribeSpectrum"] as? [String: Any] {
+      let isCapture = subSpecObj["is_capture"] as? Bool ?? subSpecObj["isCapture"] as? Bool ?? true
+      let channel = subSpecObj["channel"] as? UInt32
+      let minFreq = subSpecObj["min_freq"] as? Double ?? subSpecObj["minFreq"] as? Double ?? 20.0
+      let maxFreq = subSpecObj["max_freq"] as? Double ?? subSpecObj["maxFreq"] as? Double ?? 20000.0
+      let nBins = subSpecObj["n_bins"] as? UInt32 ?? subSpecObj["nBins"] as? UInt32 ?? 1024
+      let maxRate = subSpecObj["max_rate"] as? Double ?? subSpecObj["maxRate"] as? Double ?? 0.0
+
+      stateLock.withLock { state in
+        let id = ObjectIdentifier(connection)
+        var sub = state.subscriptions[id] ?? ConnectionSubscription()
+        sub.spectrumSubscribed = true
+        sub.spectrumIsCapture = isCapture
+        sub.spectrumChannel = channel
+        sub.spectrumMinFreq = minFreq
+        sub.spectrumMaxFreq = maxFreq
+        sub.spectrumNBins = nBins
+        sub.spectrumMaxRate = maxRate
+        sub.lastSpectrumPushTime = 0
+        state.subscriptions[id] = sub
+      }
+      return jsonReply("SubscribeSpectrum", result: .ok)
     }
 
     if let secs = json["GetCaptureSignalRmsSince"] as? Double {

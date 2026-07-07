@@ -214,11 +214,25 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
 }
 
 // MARK: - Ditherers
+static inline uint32_t xorshift32(uint32_t* state) {
+  uint32_t x = *state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  *state = x;
+  return x;
+}
+
+static inline double sample_rng_0_1(uint32_t* state) {
+  uint32_t val = xorshift32(state);
+  return (double)val / (double)4294967295.0; // 2^32 - 1
+}
+
 static double sample_dither(dither_filter_t* filter) {
   if (filter->type == DITHER_TYPE_NONE) return 0.0;
   double half_amp = filter->amplitude / 2.0;
   if (filter->type == DITHER_TYPE_FLAT) {
-    double u = ((double)rand() / RAND_MAX);
+    double u = sample_rng_0_1(&filter->rng_state);
     double a = -half_amp;
     double b = half_amp;
     double c = 0.0;
@@ -229,7 +243,7 @@ static double sample_dither(dither_filter_t* filter) {
       return b - sqrt((1.0 - u) * (b - a) * (b - c));
     }
   } else if (filter->type == DITHER_TYPE_HIGHPASS) {
-    double u = ((double)rand() / RAND_MAX);
+    double u = sample_rng_0_1(&filter->rng_state);
     double new_sample = (2.0 * u - 1.0) * half_amp;
     double high_passed = new_sample - filter->previous_sample;
     filter->previous_sample = new_sample;
@@ -248,6 +262,18 @@ dither_filter_t* dither_filter_create(const char* name,
     filter->name[sizeof(filter->name) - 1] = '\0';
   } else {
     strcpy(filter->name, "dither");
+  }
+
+  // Initialize RNG seed
+  filter->rng_state = 123456789U;
+  if (name) {
+    uint32_t hash = 5381;
+    for (const char* p = name; *p; p++) {
+      hash = ((hash << 5) + hash) + (uint8_t)*p;
+    }
+    if (hash != 0) {
+      filter->rng_state = hash;
+    }
   }
 
   int bits = params ? params->bits : 16;

@@ -100,6 +100,29 @@ extension DSPConfiguration {
     guard devices.playback.channels > 0 else {
       throw ConfigError.validationError("Playback channels must be positive")
     }
+
+    if let timeout = devices.silenceTimeout {
+      guard timeout >= 0.0 else {
+        throw ConfigError.validationError("silence_timeout cannot be negative")
+      }
+    }
+    if let threshold = devices.silenceThreshold {
+      guard threshold <= 0.0 else {
+        throw ConfigError.validationError("silence_threshold must be less than or equal to 0")
+      }
+    }
+    if let limit = devices.volumeLimit {
+      guard limit >= -150.0 && limit <= 50.0 else {
+        throw ConfigError.validationError("Volume limit must be between -150 and +50 dB")
+      }
+    }
+    if let targetLevel = devices.targetLevel {
+      let qlimit = devices.queuelimit ?? 4
+      let targetLimit = (2 + qlimit) * devices.chunksize
+      guard targetLevel <= targetLimit else {
+        throw ConfigError.validationError("target_level cannot be larger than \(targetLimit)")
+      }
+    }
   }
 
   private func validatePipeline() throws {

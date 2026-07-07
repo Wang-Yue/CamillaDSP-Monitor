@@ -254,6 +254,11 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
     cap->exclusive = get_tok_bool(js, &tokens[ex_idx]);
     cap->has_exclusive = true;
   }
+  int pol_idx = find_object_key(js, tokens, count, cap_val_idx, "polling");
+  if (pol_idx != -1 && tokens[pol_idx].type == JSMN_PRIMITIVE) {
+    cap->polling = get_tok_bool(js, &tokens[pol_idx]);
+    cap->has_polling = true;
+  }
 #endif
 
   int sb_idx = find_object_key(js, tokens, count, cap_val_idx, "skip_bytes");
@@ -410,6 +415,14 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
     play->exclusive = get_tok_bool(js, &tokens[ex_idx]);
     play->has_exclusive = true;
   }
+
+#if defined(_WIN32)
+  int pol_idx = find_object_key(js, tokens, count, play_val_idx, "polling");
+  if (pol_idx != -1 && tokens[pol_idx].type == JSMN_PRIMITIVE) {
+    play->polling = get_tok_bool(js, &tokens[pol_idx]);
+    play->has_polling = true;
+  }
+#endif
 
   int od_idx = find_object_key(js, tokens, count, play_val_idx, "output_dop");
   if (od_idx != -1 && tokens[od_idx].type == JSMN_PRIMITIVE) {
@@ -1352,6 +1365,234 @@ static int parse_filters(const char* js, const jsmntok_t* tokens, int count,
   return 0;
 }
 
+static int parse_processors(const char* js, const jsmntok_t* tokens, int count,
+                            int processors_val_idx, dsp_config_t* config,
+                            config_error_t* err) {
+  if (tokens[processors_val_idx].type != JSMN_OBJECT) {
+    config_error_set(err, CONFIG_ERR_PARSE, "processors must be an object");
+    return -1;
+  }
+  int size = tokens[processors_val_idx].size;
+  if (size == 0) return 0;
+
+  config->processors =
+      (named_processor_config_t*)calloc(size, sizeof(named_processor_config_t));
+  if (!config->processors) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Memory allocation failure");
+    return -1;
+  }
+  config->processors_count = size;
+
+  int proc_key_idx = processors_val_idx + 1;
+  for (int p = 0; p < size; p++) {
+    named_processor_config_t* np = &config->processors[p];
+    get_tok_string(js, &tokens[proc_key_idx], np->name, sizeof(np->name));
+
+    int proc_val_idx = proc_key_idx + 1;
+    if (tokens[proc_val_idx].type != JSMN_OBJECT) {
+      config_error_set(err, CONFIG_ERR_PARSE,
+                       "Processor definition must be an object");
+      return -1;
+    }
+
+    processor_config_t* p_conf = &np->processor;
+
+    int type_idx = find_object_key(js, tokens, count, proc_val_idx, "type");
+    if (type_idx != -1 && tokens[type_idx].type == JSMN_STRING) {
+      char type_str[64];
+      get_tok_string(js, &tokens[type_idx], type_str, sizeof(type_str));
+      p_conf->type = processor_type_from_string(type_str);
+    }
+
+    int params_idx =
+        find_object_key(js, tokens, count, proc_val_idx, "parameters");
+    if (params_idx != -1 && tokens[params_idx].type == JSMN_OBJECT) {
+      switch (p_conf->type) {
+        case PROCESSOR_TYPE_COMPRESSOR: {
+          compressor_parameters_t* cp = &p_conf->parameters.compressor;
+          
+          int ch_idx = find_object_key(js, tokens, count, params_idx, "channels");
+          if (ch_idx != -1 && tokens[ch_idx].type == JSMN_PRIMITIVE) {
+            cp->channels = get_tok_int(js, &tokens[ch_idx]);
+          }
+          
+          int att_idx = find_object_key(js, tokens, count, params_idx, "attack");
+          if (att_idx != -1 && tokens[att_idx].type == JSMN_PRIMITIVE) {
+            cp->attack = get_tok_double(js, &tokens[att_idx]);
+          }
+
+          int rel_idx = find_object_key(js, tokens, count, params_idx, "release");
+          if (rel_idx != -1 && tokens[rel_idx].type == JSMN_PRIMITIVE) {
+            cp->release = get_tok_double(js, &tokens[rel_idx]);
+          }
+
+          int th_idx = find_object_key(js, tokens, count, params_idx, "threshold");
+          if (th_idx != -1 && tokens[th_idx].type == JSMN_PRIMITIVE) {
+            cp->threshold = get_tok_double(js, &tokens[th_idx]);
+          }
+
+          int fac_idx = find_object_key(js, tokens, count, params_idx, "factor");
+          if (fac_idx != -1 && tokens[fac_idx].type == JSMN_PRIMITIVE) {
+            cp->factor = get_tok_double(js, &tokens[fac_idx]);
+          }
+
+          int mg_idx = find_object_key(js, tokens, count, params_idx, "makeup_gain");
+          if (mg_idx != -1 && tokens[mg_idx].type == JSMN_PRIMITIVE) {
+            cp->makeup_gain = get_tok_double(js, &tokens[mg_idx]);
+            cp->has_makeup_gain = true;
+          }
+
+          int sc_idx = find_object_key(js, tokens, count, params_idx, "soft_clip");
+          if (sc_idx != -1 && tokens[sc_idx].type == JSMN_PRIMITIVE) {
+            cp->soft_clip = get_tok_bool(js, &tokens[sc_idx]);
+          }
+
+          int cl_idx = find_object_key(js, tokens, count, params_idx, "clip_limit");
+          if (cl_idx != -1 && tokens[cl_idx].type == JSMN_PRIMITIVE) {
+            cp->clip_limit = get_tok_double(js, &tokens[cl_idx]);
+            cp->has_clip_limit = true;
+          }
+
+          int mon_idx = find_object_key(js, tokens, count, params_idx, "monitor_channels");
+          if (mon_idx != -1 && tokens[mon_idx].type == JSMN_ARRAY) {
+            int m_size = tokens[mon_idx].size;
+            cp->monitor_channels = (int*)calloc(m_size, sizeof(int));
+            cp->monitor_channels_count = m_size;
+            for (int i = 0; i < m_size; i++) {
+              int el = get_array_element(tokens, count, mon_idx, i);
+              if (el != -1 && tokens[el].type == JSMN_PRIMITIVE) {
+                cp->monitor_channels[i] = get_tok_int(js, &tokens[el]);
+              }
+            }
+          }
+
+          int pr_idx = find_object_key(js, tokens, count, params_idx, "process_channels");
+          if (pr_idx != -1 && tokens[pr_idx].type == JSMN_ARRAY) {
+            int p_size = tokens[pr_idx].size;
+            cp->process_channels = (int*)calloc(p_size, sizeof(int));
+            cp->process_channels_count = p_size;
+            for (int i = 0; i < p_size; i++) {
+              int el = get_array_element(tokens, count, pr_idx, i);
+              if (el != -1 && tokens[el].type == JSMN_PRIMITIVE) {
+                cp->process_channels[i] = get_tok_int(js, &tokens[el]);
+              }
+            }
+          }
+          break;
+        }
+        case PROCESSOR_TYPE_NOISE_GATE: {
+          noise_gate_parameters_t* ng = &p_conf->parameters.noise_gate;
+          
+          int ch_idx = find_object_key(js, tokens, count, params_idx, "channels");
+          if (ch_idx != -1 && tokens[ch_idx].type == JSMN_PRIMITIVE) {
+            ng->channels = get_tok_int(js, &tokens[ch_idx]);
+          }
+
+          int att_idx = find_object_key(js, tokens, count, params_idx, "attack");
+          if (att_idx != -1 && tokens[att_idx].type == JSMN_PRIMITIVE) {
+            ng->attack = get_tok_double(js, &tokens[att_idx]);
+          }
+
+          int rel_idx = find_object_key(js, tokens, count, params_idx, "release");
+          if (rel_idx != -1 && tokens[rel_idx].type == JSMN_PRIMITIVE) {
+            ng->release = get_tok_double(js, &tokens[rel_idx]);
+          }
+
+          int th_idx = find_object_key(js, tokens, count, params_idx, "threshold");
+          if (th_idx != -1 && tokens[th_idx].type == JSMN_PRIMITIVE) {
+            ng->threshold = get_tok_double(js, &tokens[th_idx]);
+          }
+
+          int attn_idx = find_object_key(js, tokens, count, params_idx, "attenuation");
+          if (attn_idx != -1 && tokens[attn_idx].type == JSMN_PRIMITIVE) {
+            ng->attenuation = get_tok_double(js, &tokens[attn_idx]);
+          }
+
+          int mon_idx = find_object_key(js, tokens, count, params_idx, "monitor_channels");
+          if (mon_idx != -1 && tokens[mon_idx].type == JSMN_ARRAY) {
+            int m_size = tokens[mon_idx].size;
+            ng->monitor_channels = (int*)calloc(m_size, sizeof(int));
+            ng->monitor_channels_count = m_size;
+            for (int i = 0; i < m_size; i++) {
+              int el = get_array_element(tokens, count, mon_idx, i);
+              if (el != -1 && tokens[el].type == JSMN_PRIMITIVE) {
+                ng->monitor_channels[i] = get_tok_int(js, &tokens[el]);
+              }
+            }
+          }
+
+          int pr_idx = find_object_key(js, tokens, count, params_idx, "process_channels");
+          if (pr_idx != -1 && tokens[pr_idx].type == JSMN_ARRAY) {
+            int p_size = tokens[pr_idx].size;
+            ng->process_channels = (int*)calloc(p_size, sizeof(int));
+            ng->process_channels_count = p_size;
+            for (int i = 0; i < p_size; i++) {
+              int el = get_array_element(tokens, count, pr_idx, i);
+              if (el != -1 && tokens[el].type == JSMN_PRIMITIVE) {
+                ng->process_channels[i] = get_tok_int(js, &tokens[el]);
+              }
+            }
+          }
+          break;
+        }
+        case PROCESSOR_TYPE_RACE: {
+          race_parameters_t* rp = &p_conf->parameters.race;
+          
+          int ch_idx = find_object_key(js, tokens, count, params_idx, "channels");
+          if (ch_idx != -1 && tokens[ch_idx].type == JSMN_PRIMITIVE) {
+            rp->channels = get_tok_int(js, &tokens[ch_idx]);
+          }
+
+          int cha_idx = find_object_key(js, tokens, count, params_idx, "channel_a");
+          if (cha_idx != -1 && tokens[cha_idx].type == JSMN_PRIMITIVE) {
+            rp->channel_a = get_tok_int(js, &tokens[cha_idx]);
+          }
+
+          int chb_idx = find_object_key(js, tokens, count, params_idx, "channel_b");
+          if (chb_idx != -1 && tokens[chb_idx].type == JSMN_PRIMITIVE) {
+            rp->channel_b = get_tok_int(js, &tokens[chb_idx]);
+          }
+
+          int del_idx = find_object_key(js, tokens, count, params_idx, "delay");
+          if (del_idx != -1 && tokens[del_idx].type == JSMN_PRIMITIVE) {
+            rp->delay = get_tok_double(js, &tokens[del_idx]);
+          }
+
+          int ssd_idx = find_object_key(js, tokens, count, params_idx, "subsample_delay");
+          if (ssd_idx != -1 && tokens[ssd_idx].type == JSMN_PRIMITIVE) {
+            rp->subsample_delay = get_tok_bool(js, &tokens[ssd_idx]);
+            rp->has_subsample_delay = true;
+          }
+
+          int du_idx = find_object_key(js, tokens, count, params_idx, "delay_unit");
+          if (du_idx != -1 && tokens[du_idx].type == JSMN_STRING) {
+            char du_str[32];
+            get_tok_string(js, &tokens[du_idx], du_str, sizeof(du_str));
+            if (strcmp(du_str, "ms") == 0)
+              rp->delay_unit = DELAY_UNIT_MS;
+            else if (strcmp(du_str, "us") == 0)
+              rp->delay_unit = DELAY_UNIT_US;
+            else if (strcmp(du_str, "samples") == 0)
+              rp->delay_unit = DELAY_UNIT_SAMPLES;
+            else if (strcmp(du_str, "mm") == 0)
+              rp->delay_unit = DELAY_UNIT_MM;
+            rp->has_delay_unit = true;
+          }
+
+          int attn_idx = find_object_key(js, tokens, count, params_idx, "attenuation");
+          if (attn_idx != -1 && tokens[attn_idx].type == JSMN_PRIMITIVE) {
+            rp->attenuation = get_tok_double(js, &tokens[attn_idx]);
+          }
+          break;
+        }
+      }
+    }
+
+    proc_key_idx = skip_token(tokens, proc_val_idx);
+  }
+  return 0;
+}
+
 int dsp_config_parse_json(const char* json, dsp_config_t** out_config,
                           config_error_t* err) {
   if (!json || !out_config) {
@@ -1427,6 +1668,15 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config,
   int filters_idx = find_top_level_key(json, tokens, count, "filters");
   if (filters_idx != -1) {
     if (parse_filters(json, tokens, count, filters_idx, config, err) != 0) {
+      free(tokens);
+      dsp_config_free(config);
+      return -1;
+    }
+  }
+
+  int processors_idx = find_top_level_key(json, tokens, count, "processors");
+  if (processors_idx != -1) {
+    if (parse_processors(json, tokens, count, processors_idx, config, err) != 0) {
       free(tokens);
       dsp_config_free(config);
       return -1;

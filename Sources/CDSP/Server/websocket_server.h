@@ -74,6 +74,14 @@ typedef struct {
   bool vu_subscribed;
   bool signal_levels_subscribed;
   char signal_levels_side[16];
+  bool spectrum_subscribed;
+  bool spectrum_is_capture;
+  uint32_t spectrum_channel;
+  double spectrum_min_freq;
+  double spectrum_max_freq;
+  uint32_t spectrum_n_bins;
+  double spectrum_max_rate;
+  uint64_t last_spectrum_push_time;
 
   double vu_max_rate;
   double vu_attack;

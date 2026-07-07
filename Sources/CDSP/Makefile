@@ -85,10 +85,18 @@ $(WIN_OBJ_DIR)/%.o: $(ROOT_DIR)/%.c
 	@mkdir -p $(dir $@)
 	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging -c $< -o $@
 
-.PHONY: windows-lib
+WIN_CLI_BIN := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli.exe
+
+.PHONY: windows windows-lib windows-cli
+windows: windows-lib windows-cli
+
 windows-lib: $(WIN_OBJS)
 	@rm -f $(WIN_LIB_TARGET)
 	$(WIN_AR) rcs $(WIN_LIB_TARGET) $(WIN_OBJS)
+
+windows-cli: $(WIN_LIB_TARGET)
+	@mkdir -p $(dir $(WIN_CLI_BIN))
+	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging $(CLI_SRC) $(WIN_LIB_TARGET) /tmp/win_fftw/libfftw3-3.dll -pthread -lws2_32 -lwinmm -lole32 -luuid -lksuser -lksguid -o $(WIN_CLI_BIN)
 
 clean:
 	rm -rf $(OBJ_DIR) $(WIN_OBJ_DIR) $(LIB_TARGET) $(WIN_LIB_TARGET) $(ROOT_DIR)/Tests/CLibTests/bin $(ROOT_DIR)/Sources/CDSP/bin

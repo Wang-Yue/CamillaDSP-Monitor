@@ -18,21 +18,33 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
   double gain = params->gain;
   double q = params->q > 0 ? params->q : 0.707;
 
-  double w0 = 2.0 * M_PI * freq / fs;
-  double cos_w0 = cos(w0);
-  double sin_w0 = sin(w0);
-  double A = pow(10.0, gain / 40.0);
+  double w0 = 0.0;
+  double cos_w0 = 0.0;
+  double sin_w0 = 0.0;
+  double A = 1.0;
+  double alpha = 0.0;
 
-  // Compute effective Q if bandwidth or slope is present
-  if (params->steepness_type == STEEPNESS_TYPE_BANDWIDTH) {
-    double bw = params->bandwidth;
-    q = 1.0 / (2.0 * sinh(log(2.0) / 2.0 * bw * w0 / sin_w0));
-  } else if (params->steepness_type == STEEPNESS_TYPE_SLOPE) {
-    double slope_s = params->slope / 12.0;
-    q = 1.0 / sqrt((A + 1.0 / A) * (1.0 / slope_s - 1.0) + 2.0);
+  bool needs_w0 = (params->type != BIQUAD_TYPE_FREE &&
+                   params->type != BIQUAD_TYPE_GENERAL_NOTCH &&
+                   params->type != BIQUAD_TYPE_LINKWITZ_TRANSFORM);
+
+  if (needs_w0) {
+    w0 = 2.0 * M_PI * freq / fs;
+    cos_w0 = cos(w0);
+    sin_w0 = sin(w0);
+    A = pow(10.0, gain / 40.0);
+
+    // Compute effective Q if bandwidth or slope is present
+    if (params->steepness_type == STEEPNESS_TYPE_BANDWIDTH) {
+      double bw = params->bandwidth;
+      q = 1.0 / (2.0 * sinh(log(2.0) / 2.0 * bw * w0 / sin_w0));
+    } else if (params->steepness_type == STEEPNESS_TYPE_SLOPE) {
+      double slope_s = params->slope / 12.0;
+      q = 1.0 / sqrt((A + 1.0 / A) * (1.0 / slope_s - 1.0) + 2.0);
+    }
+
+    alpha = sin_w0 / (2.0 * q);
   }
-
-  double alpha = sin_w0 / (2.0 * q);
 
   double b0 = 0, b1 = 0, b2 = 0, a0 = 1, a1 = 0, a2 = 0;
 

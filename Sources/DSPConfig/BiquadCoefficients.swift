@@ -29,20 +29,30 @@ public struct BiquadCoefficients: Sendable {
     let gain = parameters.gain ?? 0.0
     var q = parameters.q ?? 0.707
 
-    let w0 = 2.0 * .pi * freq / fs
-    let cosW0 = cos(w0)
-    let sinW0 = sin(w0)
-    let A = pow(10.0, gain / 40.0)
+    var w0 = 0.0
+    var cosW0 = 0.0
+    var sinW0 = 0.0
+    var A = 1.0
+    var alpha = 0.0
 
-    // Compute effective Q if bandwidth or slope is present
-    if let bw = parameters.bandwidth {
-      q = 1.0 / (2.0 * sinh(log(2.0) / 2.0 * bw * w0 / sinW0))
-    } else if let s = parameters.slope {
-      let slopeS = s / 12.0
-      q = 1.0 / sqrt((A + 1.0 / A) * (1.0 / slopeS - 1.0) + 2.0)
+    let needsW0 = type != .free && type != .generalNotch && type != .linkwitzTransform
+
+    if needsW0 {
+      w0 = 2.0 * .pi * freq / fs
+      cosW0 = cos(w0)
+      sinW0 = sin(w0)
+      A = pow(10.0, gain / 40.0)
+
+      // Compute effective Q if bandwidth or slope is present
+      if let bw = parameters.bandwidth {
+        q = 1.0 / (2.0 * sinh(log(2.0) / 2.0 * bw * w0 / sinW0))
+      } else if let s = parameters.slope {
+        let slopeS = s / 12.0
+        q = 1.0 / sqrt((A + 1.0 / A) * (1.0 / slopeS - 1.0) + 2.0)
+      }
+
+      alpha = sinW0 / (2.0 * q)
     }
-
-    let alpha = sinW0 / (2.0 * q)
 
     var b0: Double
     var b1: Double

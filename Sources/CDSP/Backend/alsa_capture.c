@@ -30,6 +30,7 @@ struct alsa_capture {
   snd_mixer_t* mixer;
   snd_mixer_elem_t* vol_elem;
   snd_mixer_elem_t* mute_elem;
+  snd_mixer_elem_t* pitch_elem;
   double last_synced_volume;
   bool last_synced_mute;
 
@@ -237,6 +238,13 @@ static void alsa_capture_init_controls(alsa_capture_t* capture) {
           processing_parameters_set_muted(capture->params,
                                           capture->last_synced_mute);
         }
+      }
+      // Find pitch element
+      {
+        snd_mixer_selem_id_t* sid;
+        snd_mixer_selem_id_alloca(&sid);
+        snd_mixer_selem_id_set_name(sid, "Playback Pitch 1000000");
+        capture->pitch_elem = snd_mixer_find_selem(mixer, sid);
       }
     } else {
       snd_mixer_close(mixer);
@@ -559,6 +567,7 @@ void alsa_capture_close(alsa_capture_t* capture) {
   }
   capture->vol_elem = NULL;
   capture->mute_elem = NULL;
+  capture->pitch_elem = NULL;
   if (capture->interleaved_buf) {
     free(capture->interleaved_buf);
     capture->interleaved_buf = NULL;
@@ -573,13 +582,17 @@ bool alsa_capture_get_pending_rate_change(alsa_capture_t* capture,
 }
 
 bool alsa_capture_pitch_control_supported(alsa_capture_t* capture) {
-  (void)capture;
-  return false;
+  return capture->pitch_elem != NULL;
 }
 
 void alsa_capture_set_pitch(alsa_capture_t* capture, double multiplier) {
-  (void)capture;
-  (void)multiplier;
+  if (!capture->pitch_elem) return;
+  long value = (long)round(multiplier * 1000000.0);
+  if (snd_mixer_selem_has_playback_volume(capture->pitch_elem)) {
+    snd_mixer_selem_set_playback_volume_all(capture->pitch_elem, value);
+  } else if (snd_mixer_selem_has_capture_volume(capture->pitch_elem)) {
+    snd_mixer_selem_set_capture_volume_all(capture->pitch_elem, value);
+  }
 }
 
 bool alsa_capture_wait(alsa_capture_t* capture, uint32_t timeout_ms) {

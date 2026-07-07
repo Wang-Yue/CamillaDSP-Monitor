@@ -1,6 +1,8 @@
 #include "convolution.h"
+#include "Config/engine_config_types.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -35,6 +37,255 @@
 ///
 /// Convenience initialiser that resolves `ConvParameters` to a flat
 /// IR buffer first (control plane only, may touch the filesystem).
+static size_t get_raw_sample_size(binary_sample_format_t format) {
+  switch (format) {
+    case BINARY_SAMPLE_FORMAT_S16_LE: return 2;
+    case BINARY_SAMPLE_FORMAT_S24_3_LE: return 3;
+    case BINARY_SAMPLE_FORMAT_S32_LE: return 4;
+    case BINARY_SAMPLE_FORMAT_F32_LE: return 4;
+    case BINARY_SAMPLE_FORMAT_F64_LE: return 8;
+    default: return 0;
+  }
+}
+
+static double* load_wav_file(const char* path, int channel, size_t* out_count) {
+  FILE* f = fopen(path, "rb");
+  if (!f) return NULL;
+
+  uint8_t header[44];
+  if (fread(header, 1, 44, f) != 44) {
+    fclose(f);
+    return NULL;
+  }
+
+  if (memcmp(header, "RIFF", 4) != 0 || memcmp(header + 8, "WAVE", 4) != 0 ||
+      memcmp(header + 12, "fmt ", 4) != 0) {
+    fclose(f);
+    return NULL;
+  }
+
+  uint16_t audio_format = header[20] | (header[21] << 8);
+  uint16_t channels = header[22] | (header[23] << 8);
+  uint32_t sample_rate = header[24] | (header[25] << 8) | (header[26] << 16) | (header[27] << 24);
+  uint16_t bits_per_sample = header[34] | (header[35] << 8);
+
+  if (audio_format != 1 && audio_format != 3) {
+    fclose(f);
+    return NULL;
+  }
+
+  if (channel >= (int)channels) {
+    fclose(f);
+    return NULL;
+  }
+
+  // Find data chunk
+  uint32_t data_bytes = 0;
+  if (memcmp(header + 36, "data", 4) == 0) {
+    data_bytes = header[40] | (header[41] << 8) | (header[42] << 16) | (header[43] << 24);
+  } else {
+    fseek(f, 36, SEEK_SET);
+    uint8_t chunk_id[4];
+    uint32_t chunk_size;
+    while (fread(chunk_id, 1, 4, f) == 4) {
+      if (fread(&chunk_size, 4, 1, f) != 1) break;
+      if (memcmp(chunk_id, "data", 4) == 0) {
+        data_bytes = chunk_size;
+        break;
+      }
+      fseek(f, chunk_size, SEEK_CUR);
+    }
+  }
+
+  if (data_bytes == 0) {
+    fclose(f);
+    return NULL;
+  }
+
+  size_t bytes_per_sample = bits_per_sample / 8;
+  size_t num_frames = data_bytes / (channels * bytes_per_sample);
+  if (num_frames == 0) {
+    fclose(f);
+    return NULL;
+  }
+
+  double* result = (double*)malloc(num_frames * sizeof(double));
+  if (!result) {
+    fclose(f);
+    return NULL;
+  }
+
+  uint8_t* frame_buf = (uint8_t*)malloc(channels * bytes_per_sample);
+  if (!frame_buf) {
+    free(result);
+    fclose(f);
+    return NULL;
+  }
+
+  size_t read_frames = 0;
+  for (size_t i = 0; i < num_frames; i++) {
+    if (fread(frame_buf, 1, channels * bytes_per_sample, f) != channels * bytes_per_sample) {
+      break;
+    }
+    const uint8_t* src = frame_buf + channel * bytes_per_sample;
+    double sample = 0.0;
+    if (bits_per_sample == 16) {
+      int16_t val = src[0] | (src[1] << 8);
+      sample = (double)val / 32768.0;
+    } else if (bits_per_sample == 24) {
+      int32_t val = src[0] | (src[1] << 8) | (src[2] << 16);
+      if (val & 0x800000) val |= ~0xFFFFFF;
+      sample = (double)val / 8388608.0;
+    } else if (bits_per_sample == 32) {
+      if (audio_format == 3) {
+        float val;
+        memcpy(&val, src, 4);
+        sample = (double)val;
+      } else {
+        int32_t val = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
+        sample = (double)val / 2147483648.0;
+      }
+    } else if (bits_per_sample == 64) {
+      double val;
+      memcpy(&val, src, 8);
+      sample = val;
+    }
+    result[read_frames++] = sample;
+  }
+
+  free(frame_buf);
+  fclose(f);
+  *out_count = read_frames;
+  return result;
+}
+
+static double* load_raw_file(const char* path, const char* format_str,
+                             int skip_bytes, int read_bytes, size_t* out_count) {
+  if (strcmp(format_str, "TEXT") == 0) {
+    FILE* f = fopen(path, "r");
+    if (!f) return NULL;
+    char line[128];
+    for (int i = 0; i < skip_bytes; i++) {
+      if (!fgets(line, sizeof(line), f)) break;
+    }
+    size_t cap = 1024;
+    double* result = (double*)malloc(cap * sizeof(double));
+    size_t count = 0;
+    while (fgets(line, sizeof(line), f)) {
+      if (read_bytes > 0 && (int)count >= read_bytes) break;
+      if (count >= cap) {
+        cap *= 2;
+        result = (double*)realloc(result, cap * sizeof(double));
+      }
+      char* endptr;
+      double val = strtod(line, &endptr);
+      if (endptr != line) {
+        result[count++] = val;
+      }
+    }
+    fclose(f);
+    *out_count = count;
+    return result;
+  }
+
+  FILE* f = fopen(path, "rb");
+  if (!f) return NULL;
+
+  if (skip_bytes > 0) {
+    fseek(f, skip_bytes, SEEK_SET);
+  }
+
+  binary_sample_format_t format = binary_sample_format_from_string(format_str);
+  if (format == BINARY_SAMPLE_FORMAT_INVALID) {
+    fclose(f);
+    return NULL;
+  }
+
+  size_t sample_size = get_raw_sample_size(format);
+  if (sample_size == 0) {
+    fclose(f);
+    return NULL;
+  }
+
+  fseek(f, 0, SEEK_END);
+  long file_size = ftell(f) - skip_bytes;
+  fseek(f, skip_bytes, SEEK_SET);
+  if (file_size <= 0) {
+    fclose(f);
+    return NULL;
+  }
+
+  long max_read = file_size;
+  if (read_bytes > 0 && read_bytes < file_size) {
+    max_read = read_bytes;
+  }
+
+  size_t num_samples = max_read / sample_size;
+  if (num_samples == 0) {
+    fclose(f);
+    return NULL;
+  }
+
+  double* result = (double*)malloc(num_samples * sizeof(double));
+  if (!result) {
+    fclose(f);
+    return NULL;
+  }
+
+  uint8_t* buf = (uint8_t*)malloc(sample_size);
+  if (!buf) {
+    free(result);
+    fclose(f);
+    return NULL;
+  }
+
+  size_t read_count = 0;
+  for (size_t i = 0; i < num_samples; i++) {
+    if (fread(buf, 1, sample_size, f) != sample_size) {
+      break;
+    }
+    double val = 0.0;
+    switch (format) {
+      case BINARY_SAMPLE_FORMAT_S16_LE: {
+        int16_t v = buf[0] | (buf[1] << 8);
+        val = (double)v / 32767.0;
+        break;
+      }
+      case BINARY_SAMPLE_FORMAT_S24_3_LE: {
+        int32_t v = buf[0] | (buf[1] << 8) | (buf[2] << 16);
+        if (v & 0x800000) v |= ~0xFFFFFF;
+        val = (double)v / 8388607.0;
+        break;
+      }
+      case BINARY_SAMPLE_FORMAT_S32_LE: {
+        int32_t v = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
+        val = (double)v / 2147483647.0;
+        break;
+      }
+      case BINARY_SAMPLE_FORMAT_F32_LE: {
+        float v;
+        memcpy(&v, buf, 4);
+        val = (double)v;
+        break;
+      }
+      case BINARY_SAMPLE_FORMAT_F64_LE: {
+        double v;
+        memcpy(&v, buf, 8);
+        val = v;
+        break;
+      }
+      default:
+        break;
+    }
+    result[read_count++] = val;
+  }
+
+  free(buf);
+  fclose(f);
+  *out_count = read_count;
+  return result;
+}
+
 convolution_filter_t* convolution_filter_create(const char* name,
                                                 const conv_parameters_t* params,
                                                 size_t chunk_size) {
@@ -70,6 +321,18 @@ convolution_filter_t* convolution_filter_create(const char* name,
     dummy_coeffs[0] = 1.0;
     coeffs = dummy_coeffs;
     coeffs_count = len;
+  } else if (params->type == CONV_TYPE_WAV) {
+    size_t count = 0;
+    dummy_coeffs = load_wav_file(params->filename, params->channel, &count);
+    coeffs = dummy_coeffs;
+    coeffs_count = count;
+  } else if (params->type == CONV_TYPE_RAW) {
+    size_t count = 0;
+    dummy_coeffs = load_raw_file(params->filename, params->format,
+                                 params->skip_bytes_lines,
+                                 params->read_bytes_lines, &count);
+    coeffs = dummy_coeffs;
+    coeffs_count = count;
   }
 
   if (!coeffs || coeffs_count == 0) {

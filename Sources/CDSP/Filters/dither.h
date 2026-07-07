@@ -33,6 +33,7 @@ typedef struct {
   double amplitude;
   noise_shaper_t* shaper;
   double previous_sample;
+  uint32_t rng_state;
 } dither_filter_t;
 
 dither_filter_t* dither_filter_create(const char* name,

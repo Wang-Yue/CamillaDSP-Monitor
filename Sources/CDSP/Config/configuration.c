@@ -1,5 +1,6 @@
 #include "configuration.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -60,6 +61,44 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     config_error_set(err, CONFIG_ERR_VALIDATION,
                      "Playback channels must be positive");
     return -1;
+  }
+
+  if (config->devices.has_silence_timeout && config->devices.silence_timeout < 0.0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION,
+                     "silence_timeout cannot be negative");
+    return -1;
+  }
+  if (config->devices.has_silence_threshold && config->devices.silence_threshold > 0.0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION,
+                     "silence_threshold must be less than or equal to 0");
+    return -1;
+  }
+  if (config->devices.has_volume_limit) {
+    if (config->devices.volume_limit > 50.0) {
+      config_error_set(err, CONFIG_ERR_VALIDATION,
+                       "Volume limit cannot be above +50 dB");
+      return -1;
+    }
+    if (config->devices.volume_limit < -150.0) {
+      config_error_set(err, CONFIG_ERR_VALIDATION,
+                       "Volume limit cannot be less than -150 dB");
+      return -1;
+    }
+  }
+  if (config->devices.has_target_level) {
+    int qlimit = config->devices.has_queuelimit ? config->devices.queuelimit : 4;
+    int target_limit = (2 + qlimit) * config->devices.chunksize;
+#if defined(__linux__)
+    if (config->devices.playback.type == AUDIO_BACKEND_TYPE_ALSA) {
+      target_limit = (4 + qlimit) * config->devices.chunksize;
+    }
+#endif
+    if (config->devices.target_level > target_limit) {
+      char msg[128];
+      snprintf(msg, sizeof(msg), "target_level cannot be larger than %d", target_limit);
+      config_error_set(err, CONFIG_ERR_VALIDATION, msg);
+      return -1;
+    }
   }
 
   // Validate filters
