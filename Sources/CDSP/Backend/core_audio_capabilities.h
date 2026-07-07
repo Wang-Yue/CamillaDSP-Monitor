@@ -11,6 +11,7 @@
 
 #include "Config/engine_config_types.h"
 #include "core_audio_device.h"
+#include "backend_error.h"
 
 // MARK: - Discovery
 
@@ -62,7 +63,7 @@ int core_audio_capabilities_channel_count(const char* device_name,
 /// physical-format probe + aggregation that's specific to the UI's
 /// `AudioDeviceDescriptor` shape.
 audio_device_descriptor_t* core_audio_capabilities_describe(
-    const char* device_name, bool is_capture);
+    const char* device_name, bool is_capture, device_error_t* err);
 
 /// Free the audio device descriptor and its internal capability sets.
 void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc);

@@ -68,7 +68,8 @@ int dsp_engine_get_available_devices(const char* backend, bool input,
                                      audio_device_t* out_devices,
                                      int max_devices);
 audio_device_descriptor_t* dsp_engine_get_device_capabilities(
-    const char* backend, const char* device, bool is_capture);
+    const char* backend, const char* device, bool is_capture,
+    device_error_t* err);
 void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc);
 const dsp_config_t* dsp_engine_get_active_config(const dsp_engine_t* engine);
 processing_parameters_t* dsp_engine_get_processing_parameters(

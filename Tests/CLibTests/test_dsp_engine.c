@@ -46,7 +46,7 @@ TEST(DSPEngineDeviceCapabilities) {
 
   if (count > 0) {
     audio_device_descriptor_t* desc =
-        dsp_engine_get_device_capabilities("coreaudio", devs[0].name, false);
+        dsp_engine_get_device_capabilities("coreaudio", devs[0].name, false, NULL);
     if (desc) {
       dsp_engine_free_device_capabilities(desc);
     }

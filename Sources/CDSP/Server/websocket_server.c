@@ -1766,9 +1766,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     char play_labels[2048] = "null";
     char cap_labels[2048] = "null";
     if (json) {
-      server_get_value_at_pointer(json, "/devices/playback/channel_labels",
+      server_get_value_at_pointer(json, "/devices/playback/labels",
                                   play_labels, sizeof(play_labels));
-      server_get_value_at_pointer(json, "/devices/capture/channel_labels",
+      server_get_value_at_pointer(json, "/devices/capture/labels",
                                   cap_labels, sizeof(cap_labels));
     }
     char val[4096];
@@ -2487,10 +2487,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     if (ok) {
       audio_device_descriptor_t* desc = NULL;
       bool is_capture = (strcmp(simple, "GetCaptureDeviceCapabilities") == 0);
+      device_error_t d_err;
+      device_error_clear(&d_err);
       bool cap_ok =
           server && server->engine && server->engine->get_device_capabilities &&
           server->engine->get_device_capabilities(server->engine->ctx, backend,
-                                                  device, is_capture, &desc);
+                                                  device, is_capture, &desc, &d_err);
       if (cap_ok && desc) {
         char val[8192];
         format_device_descriptor(desc, val, sizeof(val));
@@ -2499,8 +2501,20 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
             audio_device_descriptor_t * desc);
         dsp_engine_free_device_capabilities(desc);
       } else {
-        char err[300];
-        snprintf(err, sizeof(err), "{\"DeviceNotFoundError\":\"%s\"}", device);
+        char err[512];
+        const char* err_key = "DeviceError";
+        const char* err_msg = d_err.is_error ? d_err.message : "Unknown error";
+        if (d_err.is_error) {
+          if (d_err.type == DEVICE_ERROR_NOT_FOUND) {
+            err_key = "DeviceNotFoundError";
+          } else if (d_err.type == DEVICE_ERROR_BUSY) {
+            err_key = "DeviceBusyError";
+          }
+        } else {
+          err_key = "DeviceNotFoundError";
+          err_msg = device;
+        }
+        snprintf(err, sizeof(err), "{\"%s\":\"%s\"}", err_key, err_msg);
         json_reply(simple, err, NULL, out_response, max_len);
       }
     } else {

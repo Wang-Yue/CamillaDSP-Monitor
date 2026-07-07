@@ -178,20 +178,32 @@ bool asio_capabilities_default_device_name(bool is_capture, char* out_name,
 }
 
 audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
-                                                      bool is_capture) {
+                                                      bool is_capture,
+                                                      device_error_t* err) {
   CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
   CLSID clsid;
   if (!find_asio_driver_caps_clsid(device_name, &clsid)) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_NOT_FOUND, "ASIO driver not found");
+    }
     goto error_cleanup;
   }
 
   IASIO* iasio = NULL;
   HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER,
                                 &clsid, (void**)&iasio);
-  if (FAILED(hr)) goto error_cleanup;
+  if (FAILED(hr)) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "Failed to instantiate ASIO COM object");
+    }
+    goto error_cleanup;
+  }
 
   if (!iasio->lpVtbl->init(iasio, GetDesktopWindow())) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_BUSY, "ASIO driver initialization failed (busy or disconnected)");
+    }
     SAFE_RELEASE(iasio);
     goto error_cleanup;
   }
@@ -200,6 +212,9 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
   iasio->lpVtbl->getChannels(iasio, &num_inputs, &num_outputs);
   long target_channels = is_capture ? num_inputs : num_outputs;
   if (target_channels <= 0) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "ASIO driver has no channels in the requested direction");
+    }
     SAFE_RELEASE(iasio);
     goto error_cleanup;
   }
@@ -207,6 +222,9 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
   audio_device_descriptor_t* desc =
       (audio_device_descriptor_t*)calloc(1, sizeof(audio_device_descriptor_t));
   if (!desc) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "Out of memory");
+    }
     SAFE_RELEASE(iasio);
     goto error_cleanup;
   }

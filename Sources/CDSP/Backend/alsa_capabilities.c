@@ -76,11 +76,15 @@ int alsa_capabilities_channel_count(const char* device_name, bool is_capture) {
 }
 
 audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
-                                                      bool is_capture) {
+                                                      bool is_capture,
+                                                      device_error_t* err) {
   pthread_mutex_lock(&g_alsa_mutex);
   audio_device_descriptor_t* desc =
       (audio_device_descriptor_t*)calloc(1, sizeof(audio_device_descriptor_t));
   if (!desc) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "Out of memory");
+    }
     pthread_mutex_unlock(&g_alsa_mutex);
     return NULL;
   }
@@ -94,7 +98,19 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
   snd_pcm_stream_t stream =
       is_capture ? SND_PCM_STREAM_CAPTURE : SND_PCM_STREAM_PLAYBACK;
   snd_pcm_t* pcm = NULL;
-  if (snd_pcm_open(&pcm, clean_name, stream, SND_PCM_NONBLOCK) < 0) {
+  int open_res = snd_pcm_open(&pcm, clean_name, stream, SND_PCM_NONBLOCK);
+  if (open_res < 0) {
+    if (err) {
+      if (open_res == -EBUSY) {
+        device_error_init(err, DEVICE_ERROR_BUSY, "Device or resource busy");
+      } else if (open_res == -ENOENT || open_res == -ENODEV) {
+        device_error_init(err, DEVICE_ERROR_NOT_FOUND, "Device not found");
+      } else {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "ALSA open failed: %s", snd_strerror(open_res));
+        device_error_init(err, DEVICE_ERROR_OTHER, msg);
+      }
+    }
     goto error_cleanup;
   }
 

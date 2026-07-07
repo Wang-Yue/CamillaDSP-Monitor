@@ -119,7 +119,8 @@ int wasapi_capabilities_channel_count(const char* device_name,
 }
 
 audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
-                                                        bool is_capture) {
+                                                        bool is_capture,
+                                                        device_error_t* err) {
   HRESULT init_hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
   bool com_initialized = SUCCEEDED(init_hr);
 
@@ -130,7 +131,12 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
 
   HRESULT hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
                                 &IID_IMMDeviceEnumerator, (void**)&enumerator);
-  if (FAILED(hr)) goto error_cleanup;
+  if (FAILED(hr)) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "Failed to create MMDeviceEnumerator");
+    }
+    goto error_cleanup;
+  }
 
   if (device_name[0] == '\0' || strcmp(device_name, "default") == 0) {
     hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
@@ -191,12 +197,24 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
   }
 
   if (!device) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_NOT_FOUND, "Device not found");
+    }
     goto error_cleanup;
   }
 
   hr = IMMDevice_Activate(device, &IID_IAudioClient, CLSCTX_ALL, NULL,
                           (void**)&client);
   if (FAILED(hr)) {
+    if (err) {
+      if (hr == AUDCLNT_E_DEVICE_INVALIDATED) {
+        device_error_init(err, DEVICE_ERROR_NOT_FOUND, "Device invalidated");
+      } else if (hr == E_ACCESSDENIED || hr == AUDCLNT_E_RESOURCES_INVALIDATED) {
+        device_error_init(err, DEVICE_ERROR_BUSY, "Device is busy");
+      } else {
+        device_error_init(err, DEVICE_ERROR_OTHER, "Failed to activate WASAPI client");
+      }
+    }
     goto error_cleanup;
   }
 

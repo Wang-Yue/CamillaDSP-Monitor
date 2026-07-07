@@ -12,6 +12,7 @@
 
 #include "Config/configuration.h"
 #include "Config/engine_config_types.h"
+#include "Backend/backend_error.h"
 
 typedef struct active_config_path active_config_path_t;
 typedef struct websocket_server websocket_server_t;
@@ -38,7 +39,8 @@ typedef struct {
                                 size_t* out_count);
   bool (*get_device_capabilities)(void* ctx, const char* backend,
                                   const char* device, bool is_capture,
-                                  audio_device_descriptor_t** out_desc);
+                                  audio_device_descriptor_t** out_desc,
+                                  device_error_t* out_err);
   bool (*get_spectrum)(void* ctx, bool is_capture, uint32_t channel,
                        double min_freq, double max_freq, uint32_t n_bins,
                        spectrum_t* out_spec);

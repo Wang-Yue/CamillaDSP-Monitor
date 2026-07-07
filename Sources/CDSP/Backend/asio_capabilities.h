@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "Config/engine_config_types.h"
+#include "backend_error.h"
 
 /// Enumerate available ASIO drivers and return count.
 int asio_capabilities_available_device_names(bool is_capture,
@@ -18,7 +19,8 @@ bool asio_capabilities_default_device_name(bool is_capture, char* out_name,
                                            size_t max_len);
 /// Generate capabilities descriptor for a specific ASIO driver.
 audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
-                                                      bool is_capture);
+                                                      bool is_capture,
+                                                      device_error_t* err);
 /// Free descriptor memory.
 void asio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 

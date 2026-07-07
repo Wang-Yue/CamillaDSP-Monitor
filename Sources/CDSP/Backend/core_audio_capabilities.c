@@ -73,7 +73,7 @@ bool core_audio_capabilities_default_device_name(bool is_capture,
 int core_audio_capabilities_channel_count(const char* device_name,
                                           bool is_capture) {
   audio_device_descriptor_t* desc =
-      core_audio_capabilities_describe(device_name, is_capture);
+      core_audio_capabilities_describe(device_name, is_capture, NULL);
   if (!desc) return 0;
   int max_ch = 0;
   for (size_t s = 0; s < desc->capability_sets_count; s++) {
@@ -143,15 +143,25 @@ static const char* format_string_for_asbd(
 /// `mMinimum == mMaximum`; in that case we return the single value
 /// (rounded to `Int`).
 audio_device_descriptor_t* core_audio_capabilities_describe(
-    const char* device_name, bool is_capture) {
+    const char* device_name, bool is_capture, device_error_t* err) {
   core_audio_scope_t scope =
       is_capture ? CORE_AUDIO_SCOPE_INPUT : CORE_AUDIO_SCOPE_OUTPUT;
   AudioDeviceID id = core_audio_device_id_for_name(device_name, scope);
-  if (id == 0) return NULL;
+  if (id == 0) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_NOT_FOUND, "Device not found");
+    }
+    return NULL;
+  }
 
   audio_device_descriptor_t* desc =
       (audio_device_descriptor_t*)calloc(1, sizeof(audio_device_descriptor_t));
-  if (!desc) return NULL;
+  if (!desc) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "Out of memory");
+    }
+    return NULL;
+  }
 
   if (!core_audio_device_name(id, desc->name, sizeof(desc->name))) {
     if (device_name) {

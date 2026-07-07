@@ -421,32 +421,53 @@ int dsp_engine_get_available_devices(const char* backend, bool input,
 }
 
 audio_device_descriptor_t* dsp_engine_get_device_capabilities(
-    const char* backend, const char* device, bool is_capture) {
-  if (!backend || !device) return NULL;
+    const char* backend, const char* device, bool is_capture,
+    device_error_t* err) {
+  if (!backend || !device) {
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "Invalid backend or device name");
+    }
+    return NULL;
+  }
   if (strcasecmp(backend, "coreaudio") == 0) {
 #if defined(ENABLE_COREAUDIO)
-    return core_audio_capabilities_describe(device, is_capture);
+    return core_audio_capabilities_describe(device, is_capture, err);
 #else
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "CoreAudio backend not compiled");
+    }
     return NULL;
 #endif
   } else if (strcasecmp(backend, "alsa") == 0) {
 #if defined(ENABLE_ALSA)
-    return alsa_capabilities_describe(device, is_capture);
+    return alsa_capabilities_describe(device, is_capture, err);
 #else
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "ALSA backend not compiled");
+    }
     return NULL;
 #endif
   } else if (strcasecmp(backend, "wasapi") == 0) {
 #if defined(ENABLE_WASAPI)
-    return wasapi_capabilities_describe(device, is_capture);
+    return wasapi_capabilities_describe(device, is_capture, err);
 #else
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "WASAPI backend not compiled");
+    }
     return NULL;
 #endif
   } else if (strcasecmp(backend, "asio") == 0) {
 #if defined(ENABLE_ASIO)
-    return asio_capabilities_describe(device, is_capture);
+    return asio_capabilities_describe(device, is_capture, err);
 #else
+    if (err) {
+      device_error_init(err, DEVICE_ERROR_OTHER, "ASIO backend not compiled");
+    }
     return NULL;
 #endif
+  }
+  if (err) {
+    device_error_init(err, DEVICE_ERROR_OTHER, "Unsupported backend");
   }
   return NULL;
 }
@@ -506,9 +527,9 @@ static bool iface_get_available_devices(void* ctx, const char* backend,
 }
 static bool iface_get_device_capabilities(
     void* ctx, const char* backend, const char* device, bool is_capture,
-    audio_device_descriptor_t** out_desc) {
+    audio_device_descriptor_t** out_desc, device_error_t* out_err) {
   if (!ctx || !out_desc) return false;
-  *out_desc = dsp_engine_get_device_capabilities(backend, device, is_capture);
+  *out_desc = dsp_engine_get_device_capabilities(backend, device, is_capture, out_err);
   return *out_desc != NULL;
 }
 static bool iface_get_spectrum(void* ctx, bool is_capture, uint32_t channel,

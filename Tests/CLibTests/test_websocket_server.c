@@ -35,6 +35,28 @@ static bool mock_get_processing_parameters(void* ctx, void** out_params) {
 static audio_backend_error_type_t simulated_error_type = AUDIO_BACKEND_ERR_COMMAND_SEND;
 static const char* simulated_error_message = "Simulated error message";
 
+static device_error_type_t simulated_cap_error_type = DEVICE_ERROR_OTHER;
+static const char* simulated_cap_error_message = "Simulated cap error";
+static bool simulate_cap_error = false;
+
+static bool mock_get_device_capabilities(
+    void* ctx, const char* backend, const char* device, bool is_capture,
+    audio_device_descriptor_t** out_desc, device_error_t* out_err) {
+  (void)ctx;
+  (void)backend;
+  (void)device;
+  (void)is_capture;
+  (void)out_desc;
+
+  if (simulate_cap_error) {
+    if (out_err) {
+      device_error_init(out_err, simulated_cap_error_type, simulated_cap_error_message);
+    }
+    return false;
+  }
+  return true;
+}
+
 static bool mock_set_config_json(void* ctx, const char* json_str,
                                  audio_backend_error_t* out_err) {
   (void)ctx;
@@ -50,7 +72,8 @@ static dsp_engine_interface_t mock_engine = {
     .ctx = NULL,
     .get_status = mock_get_status,
     .get_processing_parameters = mock_get_processing_parameters,
-    .set_config_json = mock_set_config_json};
+    .set_config_json = mock_set_config_json,
+    .get_device_capabilities = mock_get_device_capabilities};
 
 TEST(test_websocket_commands) {
   active_config_path_t* path = active_config_path_create(NULL);
@@ -143,6 +166,17 @@ TEST(test_websocket_handle_command_direct) {
   ASSERT_DOUBLE_EQ(-6.0, target_vol);
   ASSERT_DOUBLE_EQ(-6.0, current_vol);
 
+  // Test GetChannelLabels
+  server->active_config_json = strdup(
+      "{\"devices\":{\"playback\":{\"labels\":[\"Left\",\"Right\"]},\"capture\":{\"labels\":[\"Mic\"]}}}");
+  websocket_server_handle_command(server, 0, "\"GetChannelLabels\"", resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"GetChannelLabels\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"playback\":[\"Left\",\"Right\"]") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"capture\":[\"Mic\"]") != NULL);
+  free(server->active_config_json);
+  server->active_config_json = NULL;
+
   processing_parameters_free(mock_params);
   mock_params = NULL;
 
@@ -192,6 +226,36 @@ TEST(test_websocket_error_translation) {
   ASSERT_TRUE(strstr(resp, "\"SetConfigJson\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"DeviceBusyError\"") != NULL);
   ASSERT_TRUE(strstr(resp, "hw:0 in use") != NULL);
+
+  // 4. Test capabilities DeviceNotFoundError translation
+  simulate_cap_error = true;
+  simulated_cap_error_type = DEVICE_ERROR_NOT_FOUND;
+  simulated_cap_error_message = "hw:0 not found";
+  websocket_server_handle_command(
+      server, 0, "{\"GetCaptureDeviceCapabilities\":[\"alsa\", \"hw:0\"]}", resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"GetCaptureDeviceCapabilities\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"DeviceNotFoundError\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "hw:0 not found") != NULL);
+
+  // 5. Test capabilities DeviceBusyError translation
+  simulated_cap_error_type = DEVICE_ERROR_BUSY;
+  simulated_cap_error_message = "hw:0 busy";
+  websocket_server_handle_command(
+      server, 0, "{\"GetCaptureDeviceCapabilities\":[\"alsa\", \"hw:0\"]}", resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"GetCaptureDeviceCapabilities\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"DeviceBusyError\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "hw:0 busy") != NULL);
+
+  // 6. Test capabilities Generic DeviceError translation
+  simulated_cap_error_type = DEVICE_ERROR_OTHER;
+  simulated_cap_error_message = "hw:0 bad driver";
+  websocket_server_handle_command(
+      server, 0, "{\"GetCaptureDeviceCapabilities\":[\"alsa\", \"hw:0\"]}", resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"GetCaptureDeviceCapabilities\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"DeviceError\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "hw:0 bad driver") != NULL);
+
+  simulate_cap_error = false;
 
   websocket_server_free(server);
   active_config_path_free(path);

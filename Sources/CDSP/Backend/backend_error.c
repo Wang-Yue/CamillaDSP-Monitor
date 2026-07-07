@@ -41,3 +41,22 @@ const char* backend_error_description(const backend_error_t* err, char* out_buf,
   }
   return out_buf;
 }
+
+void device_error_init(device_error_t* err, device_error_type_t type,
+                       const char* message) {
+  if (!err) return;
+  err->type = type;
+  err->is_error = true;
+  if (message) {
+    strncpy(err->message, message, sizeof(err->message) - 1);
+    err->message[sizeof(err->message) - 1] = '\0';
+  } else {
+    err->message[0] = '\0';
+  }
+}
+
+void device_error_clear(device_error_t* err) {
+  if (!err) return;
+  err->is_error = false;
+  err->message[0] = '\0';
+}
