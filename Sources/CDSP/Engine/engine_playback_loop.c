@@ -178,9 +178,11 @@ void engine_playback_loop_run(engine_playback_loop_t* loop) {
       bool ok = playback_backend_write(loop->playback, chunk, &err);
       if (!ok || err.type != BACKEND_ERROR_NONE) {
         static char s_playback_err_log[256];
-        snprintf(s_playback_err_log, sizeof(s_playback_err_log), "%s", err.message);
-        logger_error(&logger, "Playback error: %s", log_arg_string(s_playback_err_log),
-                     log_arg_none(), log_arg_none(), log_arg_none());
+        snprintf(s_playback_err_log, sizeof(s_playback_err_log), "%s",
+                 err.message);
+        logger_error(&logger, "Playback error: %s",
+                     log_arg_string(s_playback_err_log), log_arg_none(),
+                     log_arg_none(), log_arg_none());
         processing_stop_reason_t reason = {.type = STOP_REASON_PLAYBACK_ERROR};
         snprintf(reason.message, sizeof(reason.message), "%s", err.message);
         if (loop->on_stop) loop->on_stop(loop->on_stop_ctx, reason);

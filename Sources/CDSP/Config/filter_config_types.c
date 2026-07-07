@@ -477,10 +477,16 @@ int biquad_parameters_validate(const biquad_parameters_t* params,
       return -1;
     }
   }
-  if (params->slope < 0.0 || params->slope > 12.0) {
-    if (err)
-      config_error_set(err, CONFIG_ERR_INVALID_FILTER, "slope out of range");
-    return -1;
+  if (params->type == BIQUAD_TYPE_HIGHSHELF ||
+      params->type == BIQUAD_TYPE_LOWSHELF) {
+    if (params->steepness_type == STEEPNESS_TYPE_SLOPE) {
+      if (params->slope <= 0.0 || params->slope > 12.0) {
+        if (err)
+          config_error_set(err, CONFIG_ERR_INVALID_FILTER,
+                           "slope out of range");
+        return -1;
+      }
+    }
   }
   // Stability check: pole positions of the realised coefficients must
   // lie strictly inside the unit circle.

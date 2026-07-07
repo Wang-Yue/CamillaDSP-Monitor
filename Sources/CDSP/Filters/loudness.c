@@ -40,6 +40,7 @@ static void recompute_shelves(loudness_filter_t* filter, double volume) {
   lp_cfg.parameters.biquad.freq = 70.0;
   lp_cfg.parameters.biquad.gain = low_boost;
   lp_cfg.parameters.biquad.slope = 12.0;
+  lp_cfg.parameters.biquad.steepness_type = STEEPNESS_TYPE_SLOPE;
   biquad_filter_update_parameters(filter->low_shelf_filter, &lp_cfg,
                                   filter->sample_rate);
 
@@ -51,6 +52,7 @@ static void recompute_shelves(loudness_filter_t* filter, double volume) {
   hp_cfg.parameters.biquad.freq = 3500.0;
   hp_cfg.parameters.biquad.gain = high_boost;
   hp_cfg.parameters.biquad.slope = 12.0;
+  hp_cfg.parameters.biquad.steepness_type = STEEPNESS_TYPE_SLOPE;
   biquad_filter_update_parameters(filter->high_shelf_filter, &hp_cfg,
                                   filter->sample_rate);
 }

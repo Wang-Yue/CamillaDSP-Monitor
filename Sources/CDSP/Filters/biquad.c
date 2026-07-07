@@ -24,10 +24,10 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
   double A = pow(10.0, gain / 40.0);
 
   // Compute effective Q if bandwidth or slope is present
-  if (params->bandwidth > 0) {
+  if (params->steepness_type == STEEPNESS_TYPE_BANDWIDTH) {
     double bw = params->bandwidth;
     q = 1.0 / (2.0 * sinh(log(2.0) / 2.0 * bw * w0 / sin_w0));
-  } else if (params->slope > 0) {
+  } else if (params->steepness_type == STEEPNESS_TYPE_SLOPE) {
     double slope_s = params->slope / 12.0;
     q = 1.0 / sqrt((A + 1.0 / A) * (1.0 / slope_s - 1.0) + 2.0);
   }

@@ -136,9 +136,11 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
     if (!got_data) {
       if (err.type != BACKEND_ERROR_NONE) {
         static char s_capture_err_log[256];
-        snprintf(s_capture_err_log, sizeof(s_capture_err_log), "%s", err.message);
-        logger_error(&logger, "Capture error: %s", log_arg_string(s_capture_err_log),
-                     log_arg_none(), log_arg_none(), log_arg_none());
+        snprintf(s_capture_err_log, sizeof(s_capture_err_log), "%s",
+                 err.message);
+        logger_error(&logger, "Capture error: %s",
+                     log_arg_string(s_capture_err_log), log_arg_none(),
+                     log_arg_none(), log_arg_none());
         processing_stop_reason_t reason = {.type = STOP_REASON_CAPTURE_ERROR};
         snprintf(reason.message, sizeof(reason.message), "%s", err.message);
         if (loop->on_stop) loop->on_stop(loop->on_stop_ctx, reason);

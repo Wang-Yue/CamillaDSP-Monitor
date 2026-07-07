@@ -15,12 +15,12 @@
 #include "core_audio_capture.h"
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
+#include <dispatch/dispatch.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <dispatch/dispatch.h>
 
 struct core_audio_capture {
   char device_name[256];
@@ -599,8 +599,7 @@ void core_audio_capture_set_pitch(core_audio_capture_t* capture,
 
 bool core_audio_capture_wait(core_audio_capture_t* capture,
                              uint32_t timeout_ms) {
-  if (!capture || !capture->semaphore)
-    return false;
+  if (!capture || !capture->semaphore) return false;
   dispatch_time_t timeout =
       dispatch_time(DISPATCH_TIME_NOW, (int64_t)timeout_ms * 1000000LL);
   return dispatch_semaphore_wait(capture->semaphore, timeout) == 0;

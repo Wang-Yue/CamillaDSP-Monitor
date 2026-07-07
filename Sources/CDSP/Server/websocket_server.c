@@ -1218,7 +1218,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       server->client_sessions[client_idx].state_subscribed = true;
     }
     json_reply("SubscribeState", "\"Ok\"", NULL, out_response, max_len);
-  } else if (strstr(command_text, "\"SubscribeVuLevels\"") && strcmp(simple, "SubscribeVuLevels") != 0) {
+  } else if (strstr(command_text, "\"SubscribeVuLevels\"") &&
+             strcmp(simple, "SubscribeVuLevels") != 0) {
     double max_rate = 0;
     double attack = 0;
     double release = 0;

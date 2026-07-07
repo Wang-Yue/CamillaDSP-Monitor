@@ -45,7 +45,9 @@ size_t biquad_combo_linkwitz_riley_q(int order, double* out_q, size_t max_q) {
 
 static biquad_filter_t* create_section(biquad_type_t type, double freq,
                                        double q, double gain, double slope,
-                                       double bandwidth, int sample_rate) {
+                                       double bandwidth,
+                                       steepness_type_t steepness_type,
+                                       int sample_rate) {
   biquad_parameters_t bp;
   memset(&bp, 0, sizeof(bp));
   bp.type = type;
@@ -54,6 +56,7 @@ static biquad_filter_t* create_section(biquad_type_t type, double freq,
   bp.gain = gain;
   bp.slope = slope;
   bp.bandwidth = bandwidth;
+  bp.steepness_type = steepness_type;
   biquad_coefficients_t coeffs;
   if (!biquad_coefficients_compute(&bp, sample_rate, &coeffs)) return NULL;
   return biquad_filter_create("combo_sec", &coeffs);
@@ -91,7 +94,7 @@ biquad_combo_filter_t* biquad_combo_filter_create(
         }
         secs[num++] =
             create_section(t, params->freq, q_vals[i] > 0 ? q_vals[i] : 0.707,
-                           0.0, 0.0, 0.0, sample_rate);
+                           0.0, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
       }
       break;
     }
@@ -103,17 +106,19 @@ biquad_combo_filter_t* biquad_combo_filter_create(
       for (size_t i = 0; i < nq; i++) {
         biquad_type_t t = hp ? BIQUAD_TYPE_HIGHPASS : BIQUAD_TYPE_LOWPASS;
         secs[num++] = create_section(t, params->freq, q_vals[i], 0.0, 0.0, 0.0,
-                                     sample_rate);
+                                     STEEPNESS_TYPE_Q, sample_rate);
       }
       break;
     }
     // MARK: - Tilt EQ
     case BIQUAD_COMBO_TYPE_TILT: {
       double gain = params->has_gain ? params->gain : 0.0;
-      secs[num++] = create_section(BIQUAD_TYPE_LOWSHELF, 110.0, 0.35,
-                                   -gain / 2.0, 0.0, 0.0, sample_rate);
-      secs[num++] = create_section(BIQUAD_TYPE_HIGHSHELF, 3500.0, 0.35,
-                                   gain / 2.0, 0.0, 0.0, sample_rate);
+      secs[num++] =
+          create_section(BIQUAD_TYPE_LOWSHELF, 110.0, 0.35, -gain / 2.0, 0.0,
+                         0.0, STEEPNESS_TYPE_Q, sample_rate);
+      secs[num++] =
+          create_section(BIQUAD_TYPE_HIGHSHELF, 3500.0, 0.35, gain / 2.0, 0.0,
+                         0.0, STEEPNESS_TYPE_Q, sample_rate);
       break;
     }
     // MARK: - Graphic EQ
@@ -131,35 +136,35 @@ biquad_combo_filter_t* biquad_combo_filter_create(
         double log_freq = log_min + ((double)i + 0.5) * bw;
         double f = pow(2.0, log_freq);
         secs[num++] = create_section(BIQUAD_TYPE_PEAKING, f, 0.0, g, 0.0, bw,
-                                     sample_rate);
+                                     STEEPNESS_TYPE_BANDWIDTH, sample_rate);
       }
       break;
     }
     // MARK: - Five Point PEQ
     case BIQUAD_COMBO_TYPE_FIVE_POINT_PEQ: {
       // Low shelf
-      secs[num++] = create_section(BIQUAD_TYPE_LOWSHELF,
-                                   params->fls > 0 ? params->fls : 80.0,
-                                   params->qls > 0 ? params->qls : 0.707,
-                                   params->gls, 0.0, 0.0, sample_rate);
+      secs[num++] = create_section(
+          BIQUAD_TYPE_LOWSHELF, params->fls > 0 ? params->fls : 80.0,
+          params->qls > 0 ? params->qls : 0.707, params->gls, 0.0, 0.0,
+          STEEPNESS_TYPE_Q, sample_rate);
       // Mid bands
-      secs[num++] = create_section(BIQUAD_TYPE_PEAKING,
-                                   params->fp1 > 0 ? params->fp1 : 250.0,
-                                   params->qp1 > 0 ? params->qp1 : 1.5,
-                                   params->gp1, 0.0, 0.0, sample_rate);
-      secs[num++] = create_section(BIQUAD_TYPE_PEAKING,
-                                   params->fp2 > 0 ? params->fp2 : 1000.0,
-                                   params->qp2 > 0 ? params->qp2 : 2.0,
-                                   params->gp2, 0.0, 0.0, sample_rate);
-      secs[num++] = create_section(BIQUAD_TYPE_PEAKING,
-                                   params->fp3 > 0 ? params->fp3 : 4000.0,
-                                   params->qp3 > 0 ? params->qp3 : 1.0,
-                                   params->gp3, 0.0, 0.0, sample_rate);
+      secs[num++] = create_section(
+          BIQUAD_TYPE_PEAKING, params->fp1 > 0 ? params->fp1 : 250.0,
+          params->qp1 > 0 ? params->qp1 : 1.5, params->gp1, 0.0, 0.0,
+          STEEPNESS_TYPE_Q, sample_rate);
+      secs[num++] = create_section(
+          BIQUAD_TYPE_PEAKING, params->fp2 > 0 ? params->fp2 : 1000.0,
+          params->qp2 > 0 ? params->qp2 : 2.0, params->gp2, 0.0, 0.0,
+          STEEPNESS_TYPE_Q, sample_rate);
+      secs[num++] = create_section(
+          BIQUAD_TYPE_PEAKING, params->fp3 > 0 ? params->fp3 : 4000.0,
+          params->qp3 > 0 ? params->qp3 : 1.0, params->gp3, 0.0, 0.0,
+          STEEPNESS_TYPE_Q, sample_rate);
       // High shelf
-      secs[num++] = create_section(BIQUAD_TYPE_HIGHSHELF,
-                                   params->fhs > 0 ? params->fhs : 12000.0,
-                                   params->qhs > 0 ? params->qhs : 0.707,
-                                   params->ghs, 0.0, 0.0, sample_rate);
+      secs[num++] = create_section(
+          BIQUAD_TYPE_HIGHSHELF, params->fhs > 0 ? params->fhs : 12000.0,
+          params->qhs > 0 ? params->qhs : 0.707, params->ghs, 0.0, 0.0,
+          STEEPNESS_TYPE_Q, sample_rate);
       break;
     }
   }

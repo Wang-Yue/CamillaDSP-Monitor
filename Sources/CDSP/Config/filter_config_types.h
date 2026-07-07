@@ -81,6 +81,12 @@ typedef enum {
   BIQUAD_TYPE_LINKWITZ_TRANSFORM
 } biquad_type_t;
 
+typedef enum {
+  STEEPNESS_TYPE_Q = 0,
+  STEEPNESS_TYPE_BANDWIDTH,
+  STEEPNESS_TYPE_SLOPE
+} steepness_type_t;
+
 typedef struct {
   biquad_type_t type;
   double freq;
@@ -95,6 +101,7 @@ typedef struct {
   bool normalize_at_dc;
   // LinkwitzTransform parameters
   double freq_act, q_act, freq_target, q_target;
+  steepness_type_t steepness_type;
 } biquad_parameters_t;
 
 typedef enum {
