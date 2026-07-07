@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
 #if !defined(_WIN32)
 #include <poll.h>
 #endif
@@ -399,9 +400,12 @@ bool file_capture_open(file_capture_t* capture, backend_error_t* err) {
   } else {
     capture->f = fopen(capture->filename, "rb");
     if (!capture->f) {
-      if (err)
-        backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                           "Failed to open input file");
+      if (err) {
+        char err_msg[512];
+        snprintf(err_msg, sizeof(err_msg), "Failed to open input file '%s': %s",
+                 capture->filename, strerror(errno));
+        backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, err_msg);
+      }
       return false;
     }
   }
@@ -683,9 +687,12 @@ bool file_playback_open(file_playback_t* playback, backend_error_t* err) {
   } else {
     playback->f = fopen(playback->filename, "wb");
     if (!playback->f) {
-      if (err)
-        backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                           "Failed to open output file");
+      if (err) {
+        char err_msg[512];
+        snprintf(err_msg, sizeof(err_msg), "Failed to open output file '%s': %s",
+                 playback->filename, strerror(errno));
+        backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, err_msg);
+      }
       return false;
     }
   }

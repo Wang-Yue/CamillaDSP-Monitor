@@ -5,8 +5,7 @@ import Foundation
 /// `capabilities.name == ""` means system default (no specific device selected).
 /// `enforced()` cascades any out-of-range selection down to the nearest valid value.
 public struct DeviceConfig: Equatable, Sendable, Codable {
-  /// Full capabilities as reported by the device. `name` field doubles as the selected device name;
-  /// empty name means "system default". `capability_sets` may be empty before capabilities are fetched.
+  public var backend: AudioBackendType
   public var capabilities: AudioDeviceDescriptor
 
   public var channels: Int
@@ -24,6 +23,19 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   /// Selected sigma-delta modulator noise-shaping filter or "auto"
   public var dopEncoderFilter: SDMFilter
 
+  // File Backend Settings
+  public var filename: String
+  public var fileFormat: String
+  public var isWav: Bool
+  public var skipBytes: Int
+  public var readBytes: Int
+  public var extraSamples: Int
+
+  // Generator Backend Settings
+  public var generatorType: String
+  public var generatorFreq: Double
+  public var generatorLevel: Double
+
   /// `nil` -> system default (capabilities.name is "").
   /// Setting this replaces capabilities with a bare descriptor (capability_sets cleared),
   /// signalling that a fetch is needed.
@@ -40,6 +52,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   }
 
   public init() {
+    self.backend = .coreAudio
     self.capabilities = AudioDeviceDescriptor()
     self.channels = 2
     self.deviceChannels = 2
@@ -49,17 +62,27 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.dopCutoffHz = 20_000
     self.outputDoP = false
     self.dopEncoderFilter = .sdm6
+    self.filename = ""
+    self.fileFormat = "S16_LE"
+    self.isWav = false
+    self.skipBytes = 0
+    self.readBytes = 0
+    self.extraSamples = 0
+    self.generatorType = "Sine"
+    self.generatorFreq = 1000.0
+    self.generatorLevel = -6.0
   }
 
-  // Custom decode tolerates configs persisted before `dopCutoffHz` / `outputDoP` existed.
+  // Custom decode tolerates configs persisted before new fields existed.
   private enum CodingKeys: String, CodingKey {
-    case capabilities, channels, deviceChannels, sampleRate, format, bypassDoP, dopCutoffHz,
-      outputDoP,
-      dopEncoderFilter
+    case backend, capabilities, channels, deviceChannels, sampleRate, format, bypassDoP, dopCutoffHz,
+      outputDoP, dopEncoderFilter, filename, fileFormat, isWav, skipBytes, readBytes, extraSamples,
+      generatorType, generatorFreq, generatorLevel
   }
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
+    self.backend = try c.decodeIfPresent(AudioBackendType.self, forKey: .backend) ?? .coreAudio
     self.capabilities = try c.decode(AudioDeviceDescriptor.self, forKey: .capabilities)
     self.channels = try c.decode(Int.self, forKey: .channels)
     self.deviceChannels = try c.decodeIfPresent(Int.self, forKey: .deviceChannels) ?? self.channels
@@ -70,6 +93,15 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.outputDoP = try c.decodeIfPresent(Bool.self, forKey: .outputDoP) ?? false
     self.dopEncoderFilter =
       try c.decodeIfPresent(SDMFilter.self, forKey: .dopEncoderFilter) ?? .sdm6
+    self.filename = try c.decodeIfPresent(String.self, forKey: .filename) ?? ""
+    self.fileFormat = try c.decodeIfPresent(String.self, forKey: .fileFormat) ?? "S16_LE"
+    self.isWav = try c.decodeIfPresent(Bool.self, forKey: .isWav) ?? false
+    self.skipBytes = try c.decodeIfPresent(Int.self, forKey: .skipBytes) ?? 0
+    self.readBytes = try c.decodeIfPresent(Int.self, forKey: .readBytes) ?? 0
+    self.extraSamples = try c.decodeIfPresent(Int.self, forKey: .extraSamples) ?? 0
+    self.generatorType = try c.decodeIfPresent(String.self, forKey: .generatorType) ?? "Sine"
+    self.generatorFreq = try c.decodeIfPresent(Double.self, forKey: .generatorFreq) ?? 1000.0
+    self.generatorLevel = try c.decodeIfPresent(Double.self, forKey: .generatorLevel) ?? -6.0
   }
 
   // MARK: - Capabilities Logic

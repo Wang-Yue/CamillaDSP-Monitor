@@ -69,7 +69,11 @@ case "c":
       path: "Sources/CDSP",
       exclude: ["main.c"],
       publicHeadersPath: ".",
-      cSettings: [.headerSearchPath(".")],
+      cSettings: [
+        .headerSearchPath("."),
+        .define("ENABLE_COREAUDIO"),
+        .define("ENABLE_ACCELERATE"),
+      ],
       linkerSettings: [
         .linkedFramework("Accelerate"),
         .linkedFramework("AudioToolbox"),

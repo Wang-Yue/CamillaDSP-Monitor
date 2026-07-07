@@ -226,13 +226,22 @@ public actor DSPEngine {
     isCapture: Bool
   ) async -> AudioDeviceDescriptor? {
     guard engine != nil else { return nil }
+    var devErr = device_error_t()
     guard
       let desc = backend.withCString({ bStr in
         device.withCString { dStr in
-          dsp_engine_get_device_capabilities(bStr, dStr, isCapture)
+          dsp_engine_get_device_capabilities(bStr, dStr, isCapture, &devErr)
         }
       })
-    else { return nil }
+    else {
+      if devErr.is_error {
+        let msg = withUnsafePointer(to: devErr.message) { ptr in
+          ptr.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }
+        }
+        print("[CDSPEngine] Device capabilities error: \(msg)")
+      }
+      return nil
+    }
     defer { dsp_engine_free_device_capabilities(desc) }
     let name = withUnsafePointer(to: desc.pointee.name) { ptr in
       ptr.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }

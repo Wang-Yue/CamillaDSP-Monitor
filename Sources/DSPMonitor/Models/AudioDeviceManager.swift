@@ -37,7 +37,7 @@ final class AudioDeviceManager {
       if let data = try? JSONEncoder().encode(captureConfig) {
         defaults.set(data, forKey: "captureConfig")
       }
-      if captureConfig.deviceName != oldValue.deviceName {
+      if captureConfig.deviceName != oldValue.deviceName || captureConfig.backend != oldValue.backend {
         Task { await refreshDeviceCapabilities() }
       } else {
         validateSampleRates()
@@ -57,7 +57,7 @@ final class AudioDeviceManager {
       if let data = try? JSONEncoder().encode(playbackConfig) {
         defaults.set(data, forKey: "playbackConfig")
       }
-      if playbackConfig.deviceName != oldValue.deviceName {
+      if playbackConfig.deviceName != oldValue.deviceName || playbackConfig.backend != oldValue.backend {
         Task { await refreshDeviceCapabilities() }
       } else {
         validateSampleRates()
@@ -138,22 +138,26 @@ final class AudioDeviceManager {
     var newCapture = captureConfig
     var newPlayback = playbackConfig
 
-    if let name = newCapture.deviceName {
+    if newCapture.backend == .coreAudio {
+      let name = newCapture.deviceName ?? ""
       if let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: true)
       {
         newCapture.capabilities = desc
       }
-      print("[AudioDeviceManager] Capture \(name): channels \(newCapture.supportedChannels)")
+    } else {
+      newCapture.capabilities = AudioDeviceDescriptor()
     }
 
-    if let name = newPlayback.deviceName {
+    if newPlayback.backend == .coreAudio {
+      let name = newPlayback.deviceName ?? ""
       if let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: false)
       {
         newPlayback.capabilities = desc
       }
-      print("[AudioDeviceManager] Playback \(name): channels \(newPlayback.supportedChannels)")
+    } else {
+      newPlayback.capabilities = AudioDeviceDescriptor()
     }
 
     let enforcedCapture = newCapture.enforced()

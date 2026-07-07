@@ -12,6 +12,10 @@ func createCaptureBackend(config: CaptureDeviceConfig, sampleRate: Int, chunkSiz
   switch config.type {
   case .coreAudio:
     return CoreAudioCapture(config: config, sampleRate: sampleRate, chunkSize: chunkSize)
+  case .rawFile, .wavFile:
+    throw BackendError.initializationFailed("File capture backend is only supported by the C engine")
+  case .signalGenerator:
+    throw BackendError.initializationFailed("Generator capture backend is only supported by the C engine")
   }
 }
 
@@ -21,6 +25,10 @@ func createPlaybackBackend(config: PlaybackDeviceConfig, sampleRate: Int, chunkS
   switch config.type {
   case .coreAudio:
     return CoreAudioPlayback(config: config, sampleRate: sampleRate, chunkSize: chunkSize)
+  case .rawFile, .wavFile:
+    throw BackendError.initializationFailed("File playback backend is only supported by the C engine")
+  case .signalGenerator:
+    throw BackendError.initializationFailed("Generator playback backend is not supported")
   }
 }
 

@@ -85,25 +85,88 @@ final class DSPEngineController {
   // MARK: - Config Building
 
   func buildConfig() -> DSPConfiguration {
-    var captureConfig = CaptureDeviceConfig(
-      type: .coreAudio,
-      channels: devices.captureConfig.channels,
-      device: devices.captureConfig.deviceName
-    )
-    if !DSPEngine.isRustEngine {
-      captureConfig.bypassDoP = devices.captureConfig.bypassDoP
-      captureConfig.dopCutoffHz = devices.captureConfig.dopCutoffHz
+    var captureConfig: CaptureDeviceConfig
+    switch devices.captureConfig.backend {
+    case .coreAudio:
+      captureConfig = CaptureDeviceConfig(
+        type: .coreAudio,
+        channels: devices.captureConfig.channels,
+        device: devices.captureConfig.deviceName
+      )
+      if !DSPEngine.isRustEngine {
+        captureConfig.bypassDoP = devices.captureConfig.bypassDoP
+        captureConfig.dopCutoffHz = devices.captureConfig.dopCutoffHz
+      }
+    case .rawFile:
+      captureConfig = CaptureDeviceConfig(
+        type: .rawFile,
+        channels: devices.captureConfig.channels,
+        filename: devices.captureConfig.filename.isEmpty ? nil : devices.captureConfig.filename,
+        fileFormat: devices.captureConfig.fileFormat,
+        isWav: false,
+        skipBytes: devices.captureConfig.skipBytes > 0 ? devices.captureConfig.skipBytes : nil,
+        readBytes: devices.captureConfig.readBytes > 0 ? devices.captureConfig.readBytes : nil,
+        extraSamples: devices.captureConfig.extraSamples > 0 ? devices.captureConfig.extraSamples : nil
+      )
+    case .wavFile:
+      captureConfig = CaptureDeviceConfig(
+        type: .wavFile,
+        channels: nil,
+        filename: devices.captureConfig.filename.isEmpty ? nil : devices.captureConfig.filename,
+        fileFormat: nil,
+        isWav: nil,
+        skipBytes: nil,
+        readBytes: nil,
+        extraSamples: devices.captureConfig.extraSamples > 0 ? devices.captureConfig.extraSamples : nil
+      )
+    case .signalGenerator:
+      captureConfig = CaptureDeviceConfig(
+        type: .signalGenerator,
+        channels: devices.captureConfig.channels,
+        signal: GeneratorConfig(
+          type: devices.captureConfig.generatorType,
+          freq: devices.captureConfig.generatorType == "WhiteNoise" ? nil : devices.captureConfig.generatorFreq,
+          level: devices.captureConfig.generatorLevel
+        )
+      )
     }
 
-    var playbackConfig = PlaybackDeviceConfig(
-      type: .coreAudio,
-      channels: devices.playbackConfig.channels,
-      device: devices.playbackConfig.deviceName,
-      exclusive: devices.exclusiveMode
-    )
-    if !DSPEngine.isRustEngine {
-      playbackConfig.outputDoP = devices.playbackConfig.outputDoP
-      playbackConfig.dopEncoderFilter = devices.playbackConfig.dopEncoderFilter
+    var playbackConfig: PlaybackDeviceConfig
+    switch devices.playbackConfig.backend {
+    case .coreAudio:
+      playbackConfig = PlaybackDeviceConfig(
+        type: .coreAudio,
+        channels: devices.playbackConfig.channels,
+        device: devices.playbackConfig.deviceName,
+        exclusive: devices.exclusiveMode
+      )
+      if !DSPEngine.isRustEngine {
+        playbackConfig.outputDoP = devices.playbackConfig.outputDoP
+        playbackConfig.dopEncoderFilter = devices.playbackConfig.dopEncoderFilter
+      }
+    case .rawFile:
+      playbackConfig = PlaybackDeviceConfig(
+        type: .rawFile,
+        channels: devices.playbackConfig.channels,
+        filename: devices.playbackConfig.filename.isEmpty ? nil : devices.playbackConfig.filename,
+        fileFormat: devices.playbackConfig.fileFormat,
+        isWav: false
+      )
+    case .wavFile:
+      playbackConfig = PlaybackDeviceConfig(
+        type: .wavFile,
+        channels: devices.playbackConfig.channels,
+        filename: devices.playbackConfig.filename.isEmpty ? nil : devices.playbackConfig.filename,
+        fileFormat: devices.playbackConfig.fileFormat,
+        isWav: true
+      )
+    case .signalGenerator:
+      playbackConfig = PlaybackDeviceConfig(
+        type: .coreAudio,
+        channels: devices.playbackConfig.channels,
+        device: devices.playbackConfig.deviceName,
+        exclusive: devices.exclusiveMode
+      )
     }
 
     var devicesConfig = DevicesConfig(
@@ -224,6 +287,7 @@ final class DSPEngineController {
 
   private func apply(config: DSPConfiguration) async throws {
     let encoder = JSONEncoder()
+    encoder.outputFormatting = .withoutEscapingSlashes
     let data = try encoder.encode(config)
     guard let json = String(data: data, encoding: .utf8) else {
       throw AudioBackendError.configParse(message: "Failed to convert JSON data to UTF-8 string")

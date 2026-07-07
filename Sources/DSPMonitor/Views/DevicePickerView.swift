@@ -15,165 +15,148 @@ struct DevicePickerView: View {
     ScrollView {
       VStack(spacing: 20) {
         // Capture device
-        DeviceSection(
-          title: "Capture (Input)",
-          icon: "mic.fill",
-          iconColor: .blue,
-          devices: bindableDevices.captureDevices,
-          selectedDevice: Binding(
-            get: { bindableDevices.captureConfig.deviceName },
-            set: { bindableDevices.captureConfig.deviceName = $0 }),
-          channels: $bindableDevices.captureConfig.channels,
-          deviceChannels: $bindableDevices.captureConfig.deviceChannels,
-          supportedChannels: bindableDevices.captureConfig.supportedChannels
-        ) {
-          VStack(alignment: .leading, spacing: 8) {
-            HStack {
-              Text("Sample Rate")
-                .frame(width: 100, alignment: .leading)
-              if bindableSettings.resamplerEnabled {
-                Picker("", selection: $bindableDevices.captureConfig.sampleRate) {
-                  ForEach(bindableDevices.captureRateOptions, id: \.self) { rate in
-                    Text(formatRate(rate)).tag(rate)
-                  }
-                }
-                .labelsHidden()
-              } else {
-                Text(formatRate(bindableDevices.captureConfig.sampleRate))
-                  .font(.system(.body, design: .monospaced))
-                  .foregroundStyle(.secondary)
-              }
-            }
+        GroupBox {
+          VStack(alignment: .leading, spacing: 12) {
+            Label("Capture (Input)", systemImage: "mic.fill")
+              .font(.headline)
+              .foregroundStyle(.blue)
 
             HStack {
-              Text("Format")
+              Text("Backend")
                 .frame(width: 100, alignment: .leading)
-              if bindableDevices.captureConfig.supportedFormats.isEmpty {
-                Text(bindableDevices.captureConfig.format)
-                  .font(.system(.body, design: .monospaced))
-                  .foregroundStyle(.secondary)
-              } else {
-                Picker("", selection: $bindableDevices.captureConfig.format) {
-                  ForEach(bindableDevices.captureConfig.supportedFormats, id: \.self) { fmt in
-                    Text(fmt).tag(fmt)
-                  }
-                }
-                .labelsHidden()
-              }
-            }
-
-            Divider()
-              .padding(.vertical, 2)
-
-            if !DSPEngine.isRustEngine {
-              Toggle("Bypass DoP Detection", isOn: $bindableDevices.captureConfig.bypassDoP)
-
-              HStack {
-                Text("DoP Cutoff")
-                  .frame(width: 100, alignment: .leading)
-                Picker("", selection: $bindableDevices.captureConfig.dopCutoffHz) {
-                  Text("20 kHz").tag(20_000.0)
-                  Text("25 kHz").tag(25_000.0)
-                  Text("30 kHz").tag(30_000.0)
-                  Text("40 kHz").tag(40_000.0)
-                  Text("50 kHz").tag(50_000.0)
-                }
-                .labelsHidden()
-                .disabled(bindableDevices.captureConfig.bypassDoP)
-              }
-              Text("Lower cutoff = higher SINAD; higher cutoff preserves more ultrasonic content")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            }
-
-            if !bindableSettings.resamplerEnabled {
-              Text("Follows the playback sample rate (enable Resampler for independent rates)")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            }
-          }
-        }
-
-        // Playback device
-        DeviceSection(
-          title: "Playback (Output)",
-          icon: "hifispeaker.2.fill",
-          iconColor: .green,
-          devices: bindableDevices.playbackDevices,
-          selectedDevice: Binding(
-            get: { bindableDevices.playbackConfig.deviceName },
-            set: { bindableDevices.playbackConfig.deviceName = $0 }),
-          channels: $bindableDevices.playbackConfig.channels,
-          deviceChannels: $bindableDevices.playbackConfig.deviceChannels,
-          supportedChannels: bindableDevices.playbackConfig.supportedChannels
-        ) {
-          VStack(alignment: .leading, spacing: 8) {
-            HStack {
-              Text("Sample Rate")
-                .frame(width: 100, alignment: .leading)
-              Picker("", selection: $bindableDevices.playbackConfig.sampleRate) {
-                ForEach(bindableDevices.playbackRateOptions, id: \.self) { rate in
-                  Text(formatRate(rate)).tag(rate)
+              Picker("", selection: $bindableDevices.captureConfig.backend) {
+                ForEach(AudioBackendType.allCases, id: \.self) { type in
+                  Text(type.rawValue).tag(type)
                 }
               }
               .labelsHidden()
             }
 
-            HStack {
-              Text("Format")
-                .frame(width: 100, alignment: .leading)
-              if bindableDevices.playbackConfig.supportedFormats.isEmpty {
-                Text(bindableDevices.playbackConfig.format)
-                  .font(.system(.body, design: .monospaced))
-                  .foregroundStyle(.secondary)
-              } else {
-                Picker("", selection: $bindableDevices.playbackConfig.format) {
-                  ForEach(bindableDevices.playbackConfig.supportedFormats, id: \.self) { fmt in
-                    Text(fmt).tag(fmt)
-                  }
-                }
-                .labelsHidden()
-              }
-            }
+            Divider()
 
-            Toggle("Exclusive Mode (Hog)", isOn: $bindableDevices.exclusiveMode)
-            Text(
-              "Takes exclusive access to the output device, preventing other apps from using it"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            if !DSPEngine.isRustEngine {
-              let isCapable = [176_400, 352_800, 705_600, 192_000, 384_000, 768_000].contains(
-                bindableDevices.playbackConfig.sampleRate)
-
-              Divider()
-                .padding(.vertical, 2)
-
-              Toggle("Output DoP (DSD-over-PCM)", isOn: $bindableDevices.playbackConfig.outputDoP)
-                .disabled(!isCapable)
-
-              HStack {
-                Text("SDM Filter")
-                  .frame(width: 100, alignment: .leading)
-                Picker("", selection: $bindableDevices.playbackConfig.dopEncoderFilter) {
-                  ForEach(SDMFilter.allCases, id: \.self) { filter in
-                    Text(filter.rawValue).tag(filter)
-                  }
-                }
-                .labelsHidden()
-                .disabled(!bindableDevices.playbackConfig.outputDoP || !isCapable)
-              }
-
-              if !isCapable {
-                Text(
-                  "Sample rate must be a DSD carrier rate (176.4 / 192 / 352.8 / 384 / 705.6 / 768 kHz) to enable DoP output"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-              }
+            switch bindableDevices.captureConfig.backend {
+            case .coreAudio:
+              CoreAudioDeviceSelectionView(
+                devices: bindableDevices.captureDevices,
+                selectedDevice: Binding(
+                  get: { bindableDevices.captureConfig.deviceName },
+                  set: { bindableDevices.captureConfig.deviceName = $0 }),
+                channels: $bindableDevices.captureConfig.channels,
+                deviceChannels: $bindableDevices.captureConfig.deviceChannels,
+                supportedChannels: bindableDevices.captureConfig.supportedChannels,
+                sampleRate: $bindableDevices.captureConfig.sampleRate,
+                format: $bindableDevices.captureConfig.format,
+                supportedRates: bindableDevices.captureRateOptions,
+                supportedFormats: bindableDevices.captureConfig.supportedFormats,
+                resamplerEnabled: bindableSettings.resamplerEnabled,
+                bypassDoP: $bindableDevices.captureConfig.bypassDoP,
+                dopCutoffHz: $bindableDevices.captureConfig.dopCutoffHz
+              )
+            case .rawFile:
+              FileSelectionView(
+                filename: $bindableDevices.captureConfig.filename,
+                format: $bindableDevices.captureConfig.fileFormat,
+                isWav: false,
+                channels: $bindableDevices.captureConfig.channels,
+                skipBytes: $bindableDevices.captureConfig.skipBytes,
+                readBytes: $bindableDevices.captureConfig.readBytes,
+                extraSamples: $bindableDevices.captureConfig.extraSamples,
+                showExtras: true,
+                isCapture: true
+              )
+            case .wavFile:
+              FileSelectionView(
+                filename: $bindableDevices.captureConfig.filename,
+                format: $bindableDevices.captureConfig.fileFormat,
+                isWav: true,
+                channels: $bindableDevices.captureConfig.channels,
+                skipBytes: $bindableDevices.captureConfig.skipBytes,
+                readBytes: $bindableDevices.captureConfig.readBytes,
+                extraSamples: $bindableDevices.captureConfig.extraSamples,
+                showExtras: true,
+                isCapture: true
+              )
+            case .signalGenerator:
+              GeneratorSelectionView(
+                channels: $bindableDevices.captureConfig.channels,
+                genType: $bindableDevices.captureConfig.generatorType,
+                freq: $bindableDevices.captureConfig.generatorFreq,
+                level: $bindableDevices.captureConfig.generatorLevel
+              )
             }
           }
+          .padding(4)
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        // Playback device
+        GroupBox {
+          VStack(alignment: .leading, spacing: 12) {
+            Label("Playback (Output)", systemImage: "hifispeaker.2.fill")
+              .font(.headline)
+              .foregroundStyle(.green)
+
+            HStack {
+              Text("Backend")
+                .frame(width: 100, alignment: .leading)
+              Picker("", selection: $bindableDevices.playbackConfig.backend) {
+                Text("CoreAudio").tag(AudioBackendType.coreAudio)
+                Text("RawFile").tag(AudioBackendType.rawFile)
+                Text("WavFile").tag(AudioBackendType.wavFile)
+              }
+              .labelsHidden()
+            }
+
+            Divider()
+
+            switch bindableDevices.playbackConfig.backend {
+            case .coreAudio:
+              CoreAudioPlaybackSelectionView(
+                devices: bindableDevices.playbackDevices,
+                selectedDevice: Binding(
+                  get: { bindableDevices.playbackConfig.deviceName },
+                  set: { bindableDevices.playbackConfig.deviceName = $0 }),
+                channels: $bindableDevices.playbackConfig.channels,
+                deviceChannels: $bindableDevices.playbackConfig.deviceChannels,
+                supportedChannels: bindableDevices.playbackConfig.supportedChannels,
+                sampleRate: $bindableDevices.playbackConfig.sampleRate,
+                format: $bindableDevices.playbackConfig.format,
+                supportedRates: bindableDevices.playbackRateOptions,
+                supportedFormats: bindableDevices.playbackConfig.supportedFormats,
+                exclusiveMode: $bindableDevices.exclusiveMode,
+                outputDoP: $bindableDevices.playbackConfig.outputDoP,
+                dopEncoderFilter: $bindableDevices.playbackConfig.dopEncoderFilter
+              )
+            case .rawFile:
+              FileSelectionView(
+                filename: $bindableDevices.playbackConfig.filename,
+                format: $bindableDevices.playbackConfig.fileFormat,
+                isWav: false,
+                channels: $bindableDevices.playbackConfig.channels,
+                skipBytes: .constant(0),
+                readBytes: .constant(0),
+                extraSamples: .constant(0),
+                showExtras: false,
+                isCapture: false
+              )
+            case .wavFile:
+              FileSelectionView(
+                filename: $bindableDevices.playbackConfig.filename,
+                format: $bindableDevices.playbackConfig.fileFormat,
+                isWav: true,
+                channels: $bindableDevices.playbackConfig.channels,
+                skipBytes: .constant(0),
+                readBytes: .constant(0),
+                extraSamples: .constant(0),
+                showExtras: false,
+                isCapture: false
+              )
+            case .signalGenerator:
+              EmptyView()
+            }
+          }
+          .padding(4)
+          .frame(maxWidth: .infinity, alignment: .leading)
         }
 
         // Processing settings
@@ -262,99 +245,402 @@ struct DevicePickerView: View {
   }
 }
 
-// MARK: - Device Section
+// MARK: - Helper Views
 
-struct DeviceSection<ExtraContent: View>: View {
-  let title: String
-  let icon: String
-  let iconColor: Color
+struct CoreAudioDeviceSelectionView: View {
   let devices: [AudioDevice]
   @Binding var selectedDevice: String?
   @Binding var channels: Int
   @Binding var deviceChannels: Int
   let supportedChannels: [Int]
-  let extraContent: ExtraContent
-
-  init(
-    title: String, icon: String, iconColor: Color, devices: [AudioDevice],
-    selectedDevice: Binding<String?>, channels: Binding<Int>, deviceChannels: Binding<Int>,
-    supportedChannels: [Int] = [],
-    @ViewBuilder extraContent: () -> ExtraContent
-  ) {
-    self.title = title
-    self.icon = icon
-    self.iconColor = iconColor
-    self.devices = devices
-    self._selectedDevice = selectedDevice
-    self._channels = channels
-    self._deviceChannels = deviceChannels
-    self.supportedChannels = supportedChannels
-    self.extraContent = extraContent()
-  }
+  @Binding var sampleRate: Int
+  @Binding var format: String
+  let supportedRates: [Int]
+  let supportedFormats: [String]
+  let resamplerEnabled: Bool
+  @Binding var bypassDoP: Bool
+  @Binding var dopCutoffHz: Double
 
   var body: some View {
-    GroupBox {
-      VStack(alignment: .leading, spacing: 12) {
-        Label(title, systemImage: icon)
-          .font(.headline)
-          .foregroundStyle(iconColor)
+    VStack(alignment: .leading, spacing: 12) {
+      if devices.isEmpty {
+        HStack {
+          Image(systemName: "exclamationmark.triangle")
+            .foregroundStyle(.orange)
+          Text("No devices found")
+            .foregroundStyle(.secondary)
+        }
+      } else {
+        VStack(alignment: .leading, spacing: 6) {
+          DeviceRow(
+            name: "System Default",
+            isSelected: selectedDevice == nil,
+            onSelect: { selectedDevice = nil }
+          )
 
-        if devices.isEmpty {
-          HStack {
-            Image(systemName: "exclamationmark.triangle")
-              .foregroundStyle(.orange)
-            Text("No devices found")
-              .foregroundStyle(.secondary)
-          }
-        } else {
-          VStack(alignment: .leading, spacing: 6) {
+          Divider()
+
+          ForEach(devices) { device in
             DeviceRow(
-              name: "System Default",
-              isSelected: selectedDevice == nil,
-              onSelect: { selectedDevice = nil }
+              name: device.name,
+              isSelected: selectedDevice == device.name,
+              onSelect: { selectedDevice = device.name }
             )
-
-            Divider()
-
-            ForEach(devices) { device in
-              DeviceRow(
-                name: device.name,
-                isSelected: selectedDevice == device.name,
-                onSelect: { selectedDevice = device.name }
-              )
-            }
           }
         }
-
-        HStack(spacing: 24) {
-          HStack(spacing: 8) {
-            Text("Device Channels")
-              .frame(width: 110, alignment: .leading)
-            if supportedChannels.isEmpty {
-              Stepper("\(deviceChannels)", value: $deviceChannels, in: 1...32)
-                .frame(width: 100)
-            } else {
-              Picker("", selection: $deviceChannels) {
-                ForEach(supportedChannels, id: \.self) { ch in
-                  Text("\(ch)").tag(ch)
-                }
-              }
-              .labelsHidden()
-            }
-          }
-
-          HStack(spacing: 8) {
-            Text("Stream Channels")
-              .frame(width: 110, alignment: .leading)
-            Stepper("\(channels)", value: $channels, in: 1...deviceChannels)
-              .frame(width: 100)
-          }
-        }
-
-        extraContent
       }
-      .padding(4)
-      .frame(maxWidth: .infinity, alignment: .leading)
+
+      HStack(spacing: 24) {
+        HStack(spacing: 8) {
+          Text("Device Channels")
+            .frame(width: 110, alignment: .leading)
+          if supportedChannels.isEmpty {
+            Stepper("\(deviceChannels)", value: $deviceChannels, in: 1...32)
+              .frame(width: 100)
+          } else {
+            Picker("", selection: $deviceChannels) {
+              ForEach(supportedChannels, id: \.self) { ch in
+                Text("\(ch)").tag(ch)
+              }
+            }
+            .labelsHidden()
+          }
+        }
+
+        HStack(spacing: 8) {
+          Text("Stream Channels")
+            .frame(width: 110, alignment: .leading)
+          Stepper("\(channels)", value: $channels, in: 1...deviceChannels)
+            .frame(width: 100)
+        }
+      }
+
+      HStack {
+        Text("Sample Rate")
+          .frame(width: 100, alignment: .leading)
+        if resamplerEnabled {
+          Picker("", selection: $sampleRate) {
+            ForEach(supportedRates, id: \.self) { rate in
+              Text(formatRate(rate)).tag(rate)
+            }
+          }
+          .labelsHidden()
+        } else {
+          Text(formatRate(sampleRate))
+            .font(.system(.body, design: .monospaced))
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      HStack {
+        Text("Format")
+          .frame(width: 100, alignment: .leading)
+        if supportedFormats.isEmpty {
+          Text(format)
+            .font(.system(.body, design: .monospaced))
+            .foregroundStyle(.secondary)
+        } else {
+          Picker("", selection: $format) {
+            ForEach(supportedFormats, id: \.self) { fmt in
+              Text(fmt).tag(fmt)
+            }
+          }
+          .labelsHidden()
+        }
+      }
+
+      if !DSPEngine.isRustEngine {
+        Divider()
+          .padding(.vertical, 2)
+
+        Toggle("Bypass DoP Detection", isOn: $bypassDoP)
+
+        HStack {
+          Text("DoP Cutoff")
+            .frame(width: 100, alignment: .leading)
+          Picker("", selection: $dopCutoffHz) {
+            Text("20 kHz").tag(20_000.0)
+            Text("25 kHz").tag(25_000.0)
+            Text("30 kHz").tag(30_000.0)
+            Text("40 kHz").tag(40_000.0)
+            Text("50 kHz").tag(50_000.0)
+          }
+          .labelsHidden()
+          .disabled(bypassDoP)
+        }
+        Text("Lower cutoff = higher SINAD; higher cutoff preserves more ultrasonic content")
+          .font(.caption)
+          .foregroundStyle(.tertiary)
+      }
+    }
+  }
+
+  private func formatRate(_ rate: Int) -> String {
+    rate >= 1000 ? String(format: "%.1f kHz", Double(rate) / 1000.0) : "\(rate) Hz"
+  }
+}
+
+struct CoreAudioPlaybackSelectionView: View {
+  let devices: [AudioDevice]
+  @Binding var selectedDevice: String?
+  @Binding var channels: Int
+  @Binding var deviceChannels: Int
+  let supportedChannels: [Int]
+  @Binding var sampleRate: Int
+  @Binding var format: String
+  let supportedRates: [Int]
+  let supportedFormats: [String]
+  @Binding var exclusiveMode: Bool
+  @Binding var outputDoP: Bool
+  @Binding var dopEncoderFilter: SDMFilter
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      if devices.isEmpty {
+        HStack {
+          Image(systemName: "exclamationmark.triangle")
+            .foregroundStyle(.orange)
+          Text("No devices found")
+            .foregroundStyle(.secondary)
+        }
+      } else {
+        VStack(alignment: .leading, spacing: 6) {
+          DeviceRow(
+            name: "System Default",
+            isSelected: selectedDevice == nil,
+            onSelect: { selectedDevice = nil }
+          )
+
+          Divider()
+
+          ForEach(devices) { device in
+            DeviceRow(
+              name: device.name,
+              isSelected: selectedDevice == device.name,
+              onSelect: { selectedDevice = device.name }
+            )
+          }
+        }
+      }
+
+      HStack(spacing: 24) {
+        HStack(spacing: 8) {
+          Text("Device Channels")
+            .frame(width: 110, alignment: .leading)
+          if supportedChannels.isEmpty {
+            Stepper("\(deviceChannels)", value: $deviceChannels, in: 1...32)
+              .frame(width: 100)
+          } else {
+            Picker("", selection: $deviceChannels) {
+              ForEach(supportedChannels, id: \.self) { ch in
+                Text("\(ch)").tag(ch)
+              }
+            }
+            .labelsHidden()
+          }
+        }
+
+        HStack(spacing: 8) {
+          Text("Stream Channels")
+            .frame(width: 110, alignment: .leading)
+          Stepper("\(channels)", value: $channels, in: 1...deviceChannels)
+            .frame(width: 100)
+        }
+      }
+
+      HStack {
+        Text("Sample Rate")
+          .frame(width: 100, alignment: .leading)
+        Picker("", selection: $sampleRate) {
+          ForEach(supportedRates, id: \.self) { rate in
+            Text(formatRate(rate)).tag(rate)
+          }
+        }
+        .labelsHidden()
+      }
+
+      HStack {
+        Text("Format")
+          .frame(width: 100, alignment: .leading)
+        if supportedFormats.isEmpty {
+          Text(format)
+            .font(.system(.body, design: .monospaced))
+            .foregroundStyle(.secondary)
+        } else {
+          Picker("", selection: $format) {
+            ForEach(supportedFormats, id: \.self) { fmt in
+              Text(fmt).tag(fmt)
+            }
+          }
+          .labelsHidden()
+        }
+      }
+
+      Toggle("Exclusive Mode (Hog)", isOn: $exclusiveMode)
+      Text("Takes exclusive access to the output device, preventing other apps from using it")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      if !DSPEngine.isRustEngine {
+        let isCapable = [176_400, 352_800, 705_600, 192_000, 384_000, 768_000].contains(sampleRate)
+
+        Divider()
+          .padding(.vertical, 2)
+
+        Toggle("Output DoP (DSD-over-PCM)", isOn: $outputDoP)
+          .disabled(!isCapable)
+
+        HStack {
+          Text("SDM Filter")
+            .frame(width: 100, alignment: .leading)
+          Picker("", selection: $dopEncoderFilter) {
+            ForEach(SDMFilter.allCases, id: \.self) { filter in
+              Text(filter.rawValue).tag(filter)
+            }
+          }
+          .labelsHidden()
+          .disabled(!outputDoP || !isCapable)
+        }
+
+        if !isCapable {
+          Text("Sample rate must be a DSD carrier rate to enable DoP output")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+    }
+  }
+
+  private func formatRate(_ rate: Int) -> String {
+    rate >= 1000 ? String(format: "%.1f kHz", Double(rate) / 1000.0) : "\(rate) Hz"
+  }
+}
+
+struct FileSelectionView: View {
+  @Binding var filename: String
+  @Binding var format: String
+  let isWav: Bool
+  @Binding var channels: Int
+  @Binding var skipBytes: Int
+  @Binding var readBytes: Int
+  @Binding var extraSamples: Int
+  let showExtras: Bool
+  let isCapture: Bool
+
+  let formats = [
+    "S16_LE", "S24_3_LE", "S24_4_RJ_LE", "S24_4_LJ_LE", "S32_LE", "F32_LE", "F64_LE"
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Text("File Path")
+          .frame(width: 100, alignment: .leading)
+        TextField(isWav ? "e.g. /path/to/audio.wav" : "e.g. /path/to/audio.raw", text: $filename)
+          .textFieldStyle(.roundedBorder)
+      }
+
+      if isCapture && isWav {
+        Text("Sample rate, channels, and format are parsed from the file header")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      } else {
+        HStack {
+          Text("Format")
+            .frame(width: 100, alignment: .leading)
+          Picker("", selection: $format) {
+            ForEach(formats, id: \.self) { fmt in
+              Text(fmt).tag(fmt)
+            }
+          }
+          .labelsHidden()
+        }
+
+        HStack {
+          Text("Channels")
+            .frame(width: 100, alignment: .leading)
+          Stepper("\(channels)", value: $channels, in: 1...32)
+            .frame(width: 100)
+        }
+      }
+
+      if showExtras {
+        Divider()
+          .padding(.vertical, 2)
+
+        HStack {
+          Text("Skip Bytes")
+            .frame(width: 100, alignment: .leading)
+          TextField("0", value: $skipBytes, format: .number)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 100)
+        }
+
+        HStack {
+          Text("Read Bytes")
+            .frame(width: 100, alignment: .leading)
+          TextField("0 (All)", value: $readBytes, format: .number)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 100)
+        }
+
+        HStack {
+          Text("Extra Samples")
+            .frame(width: 100, alignment: .leading)
+          Stepper("\(extraSamples)", value: $extraSamples, in: 0...1000000)
+            .frame(width: 120)
+        }
+      }
+    }
+  }
+}
+
+struct GeneratorSelectionView: View {
+  @Binding var channels: Int
+  @Binding var genType: String
+  @Binding var freq: Double
+  @Binding var level: Double
+
+  let types = ["Sine", "Square", "WhiteNoise"]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Text("Generator")
+          .frame(width: 100, alignment: .leading)
+        Picker("", selection: $genType) {
+          ForEach(types, id: \.self) { type in
+            Text(type).tag(type)
+          }
+        }
+        .labelsHidden()
+      }
+
+      HStack {
+        Text("Channels")
+          .frame(width: 100, alignment: .leading)
+        Stepper("\(channels)", value: $channels, in: 1...32)
+          .frame(width: 100)
+      }
+
+      HStack {
+        Text("Freq (Hz)")
+          .frame(width: 100, alignment: .leading)
+        TextField("1000", value: $freq, format: .number)
+          .textFieldStyle(.roundedBorder)
+          .frame(width: 100)
+        Slider(value: $freq, in: 1.0...20000.0, step: 1.0)
+      }
+      .disabled(genType == "WhiteNoise")
+
+      HStack {
+        Text("Level (dB)")
+          .frame(width: 100, alignment: .leading)
+        TextField("-6", value: $level, format: .number)
+          .textFieldStyle(.roundedBorder)
+          .frame(width: 100)
+        Slider(value: $level, in: -100.0...0.0, step: 0.5)
+      }
     }
   }
 }
@@ -395,3 +681,4 @@ struct DeviceRow: View {
     .padding(.vertical, 2)
   }
 }
+

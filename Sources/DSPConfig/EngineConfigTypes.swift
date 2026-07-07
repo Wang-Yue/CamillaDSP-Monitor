@@ -164,14 +164,28 @@ public struct AudioDeviceDescriptor: Codable, Sendable, Equatable {
 
 // MARK: - Device Config Models
 
-/// Audio I/O backend. DSPMonitor only ever uses CoreAudio.
-public enum AudioBackendType: String, Codable, Equatable, Sendable {
+public enum AudioBackendType: String, Codable, Equatable, Sendable, CaseIterable {
   case coreAudio = "CoreAudio"
+  case rawFile = "RawFile"
+  case wavFile = "WavFile"
+  case signalGenerator = "SignalGenerator"
+}
+
+public struct GeneratorConfig: Codable, Equatable, Sendable {
+  public var type: String
+  public var freq: Double?
+  public var level: Double
+
+  public init(type: String = "Sine", freq: Double? = 1000.0, level: Double = -6.0) {
+    self.type = type
+    self.freq = freq
+    self.level = level
+  }
 }
 
 public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
   public var type: AudioBackendType
-  public var channels: Int
+  public var channels: Int?
   public var device: String?
   /// If true, bypass DoP detection and handle signal strictly as PCM. Default is false.
   public var bypassDoP: Bool?
@@ -181,16 +195,37 @@ public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
   public var dopCutoffHz: Double?
   public var channelLabels: [String]?
 
+  // File Backend fields:
+  public var filename: String?
+  public var fileFormat: String? // "S16_LE", "S32_LE", etc.
+  public var isWav: Bool?
+  public var skipBytes: Int?
+  public var readBytes: Int?
+  public var extraSamples: Int?
+
+  // Generator Backend fields:
+  public var signal: GeneratorConfig?
+
   enum CodingKeys: String, CodingKey {
     case type, channels, device
     case bypassDoP = "bypass_dop"
     case dopCutoffHz = "dop_cutoff_hz"
     case channelLabels = "channel_labels"
+    case filename
+    case fileFormat = "format"
+    case isWav = "is_wav"
+    case skipBytes = "skip_bytes"
+    case readBytes = "read_bytes"
+    case extraSamples = "extra_samples"
+    case signal = "signal"
   }
 
   public init(
-    type: AudioBackendType, channels: Int, device: String? = nil, format: String? = nil,
-    bypassDoP: Bool? = nil, dopCutoffHz: Double? = nil, channelLabels: [String]? = nil
+    type: AudioBackendType, channels: Int? = nil, device: String? = nil, format: String? = nil,
+    bypassDoP: Bool? = nil, dopCutoffHz: Double? = nil, channelLabels: [String]? = nil,
+    filename: String? = nil, fileFormat: String? = nil, isWav: Bool? = nil,
+    skipBytes: Int? = nil, readBytes: Int? = nil, extraSamples: Int? = nil,
+    signal: GeneratorConfig? = nil
   ) {
     _ = format
     self.type = type
@@ -199,6 +234,13 @@ public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
     self.bypassDoP = bypassDoP
     self.dopCutoffHz = dopCutoffHz
     self.channelLabels = channelLabels
+    self.filename = filename
+    self.fileFormat = fileFormat
+    self.isWav = isWav
+    self.skipBytes = skipBytes
+    self.readBytes = readBytes
+    self.extraSamples = extraSamples
+    self.signal = signal
   }
 }
 
@@ -232,15 +274,25 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
   public var dopEncoderFilter: SDMFilter?
   public var channelLabels: [String]?
 
+  // File Backend fields:
+  public var filename: String?
+  public var fileFormat: String? // "S16_LE", "S32_LE", etc.
+  public var isWav: Bool?
+
   enum CodingKeys: String, CodingKey {
     case type, channels, device, exclusive
     case outputDoP = "output_dop"
     case dopEncoderFilter = "dop_encoder_filter"
     case channelLabels = "channel_labels"
+    case filename
+    case fileFormat = "format"
+    case isWav = "is_wav"
+    case wavHeader = "wav_header"
   }
   public init(
     type: AudioBackendType, channels: Int, device: String? = nil,
-    exclusive: Bool? = nil, channelLabels: [String]? = nil
+    exclusive: Bool? = nil, channelLabels: [String]? = nil,
+    filename: String? = nil, fileFormat: String? = nil, isWav: Bool? = nil
   ) {
     self.type = type
     self.channels = channels
@@ -249,8 +301,49 @@ public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
     self.outputDoP = nil
     self.dopEncoderFilter = nil
     self.channelLabels = channelLabels
+    self.filename = filename
+    self.fileFormat = fileFormat
+    self.isWav = isWav
   }
 
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let typeStr = try container.decode(String.self, forKey: .type)
+    if typeStr == "File" {
+      let isWavVal = try container.decodeIfPresent(Bool.self, forKey: .wavHeader) ?? false
+      self.type = isWavVal ? .wavFile : .rawFile
+      self.isWav = isWavVal
+    } else {
+      self.type = AudioBackendType(rawValue: typeStr) ?? .coreAudio
+      self.isWav = nil
+    }
+    self.channels = try container.decode(Int.self, forKey: .channels)
+    self.device = try container.decodeIfPresent(String.self, forKey: .device)
+    self.exclusive = try container.decodeIfPresent(Bool.self, forKey: .exclusive)
+    self.outputDoP = try container.decodeIfPresent(Bool.self, forKey: .outputDoP)
+    self.dopEncoderFilter = try container.decodeIfPresent(SDMFilter.self, forKey: .dopEncoderFilter)
+    self.channelLabels = try container.decodeIfPresent([String].self, forKey: .channelLabels)
+    self.filename = try container.decodeIfPresent(String.self, forKey: .filename)
+    self.fileFormat = try container.decodeIfPresent(String.self, forKey: .fileFormat)
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    if type == .rawFile || type == .wavFile {
+      try container.encode("File", forKey: .type)
+      try container.encode(type == .wavFile, forKey: .wavHeader)
+    } else {
+      try container.encode(type.rawValue, forKey: .type)
+    }
+    try container.encode(channels, forKey: .channels)
+    try container.encodeIfPresent(device, forKey: .device)
+    try container.encodeIfPresent(exclusive, forKey: .exclusive)
+    try container.encodeIfPresent(outputDoP, forKey: .outputDoP)
+    try container.encodeIfPresent(dopEncoderFilter, forKey: .dopEncoderFilter)
+    try container.encodeIfPresent(channelLabels, forKey: .channelLabels)
+    try container.encodeIfPresent(filename, forKey: .filename)
+    try container.encodeIfPresent(fileFormat, forKey: .fileFormat)
+  }
 }
 
 public struct DevicesConfig: Codable, Equatable, Sendable {
