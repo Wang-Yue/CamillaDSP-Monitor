@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 
 #include "alsa_playback.h"
+#include "alsa_device.h"
 
 #include <alloca.h>
 #include <alsa/asoundlib.h>
@@ -115,6 +116,7 @@ playback_backend_t* alsa_playback_create(const playback_device_config_t* config,
 }
 
 bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
+  pthread_mutex_lock(&g_alsa_mutex);
   int rc;
   rc = snd_pcm_open(&playback->pcm, playback->device_name,
                     SND_PCM_STREAM_PLAYBACK, 0);
@@ -122,6 +124,7 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
+    pthread_mutex_unlock(&g_alsa_mutex);
     return false;
   }
 
@@ -129,21 +132,19 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
   snd_pcm_hw_params_alloca(&params);
   rc = snd_pcm_hw_params_any(playback->pcm, params);
   if (rc < 0) {
-    snd_pcm_close(playback->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   rc = snd_pcm_hw_params_set_access(playback->pcm, params,
                                     SND_PCM_ACCESS_RW_INTERLEAVED);
   if (rc < 0) {
-    snd_pcm_close(playback->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   snd_pcm_format_t formats[5];
@@ -186,63 +187,57 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
     }
   }
   if (!format_ok) {
-    snd_pcm_close(playback->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Requested or supported ALSA format not available");
-    return false;
+    goto error_cleanup;
   }
 
   rc =
       snd_pcm_hw_params_set_channels(playback->pcm, params, playback->channels);
   if (rc < 0) {
-    snd_pcm_close(playback->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   unsigned int val = playback->sample_rate;
   int dir = 0;
   rc = snd_pcm_hw_params_set_rate_near(playback->pcm, params, &val, &dir);
   if (rc < 0) {
-    snd_pcm_close(playback->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   snd_pcm_uframes_t period_size = playback->chunk_size;
   rc = snd_pcm_hw_params_set_period_size_near(playback->pcm, params,
                                               &period_size, &dir);
   if (rc < 0) {
-    snd_pcm_close(playback->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   snd_pcm_uframes_t buffer_size = period_size * 4;
   rc = snd_pcm_hw_params_set_buffer_size_near(playback->pcm, params,
                                               &buffer_size);
   if (rc < 0) {
-    snd_pcm_close(playback->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   rc = snd_pcm_hw_params(playback->pcm, params);
   if (rc < 0) {
-    snd_pcm_close(playback->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   snd_pcm_sw_params_t* sw_params;
@@ -276,7 +271,20 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
   playback->interleaved_buf = malloc(playback->interleaved_buf_size);
 
   playback->paused = false;
+  pthread_mutex_unlock(&g_alsa_mutex);
   return true;
+
+error_cleanup:
+  if (playback->pcm) {
+    snd_pcm_close(playback->pcm);
+    playback->pcm = NULL;
+  }
+  if (playback->interleaved_buf) {
+    free(playback->interleaved_buf);
+    playback->interleaved_buf = NULL;
+  }
+  pthread_mutex_unlock(&g_alsa_mutex);
+  return false;
 }
 
 bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,

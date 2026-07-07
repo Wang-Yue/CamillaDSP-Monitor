@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 
 #include "alsa_capabilities.h"
+#include "alsa_device.h"
 
 #include <alloca.h>
 #include <alsa/asoundlib.h>
@@ -47,6 +48,7 @@ bool alsa_capabilities_default_device_name(bool is_capture, char* out_name,
 }
 
 int alsa_capabilities_channel_count(const char* device_name, bool is_capture) {
+  pthread_mutex_lock(&g_alsa_mutex);
   snd_pcm_t* pcm = NULL;
   snd_pcm_stream_t stream =
       is_capture ? SND_PCM_STREAM_CAPTURE : SND_PCM_STREAM_PLAYBACK;
@@ -56,25 +58,34 @@ int alsa_capabilities_channel_count(const char* device_name, bool is_capture) {
   if (space) *space = '\0';
 
   int err = snd_pcm_open(&pcm, clean_name, stream, SND_PCM_NONBLOCK);
-  if (err < 0) return 2;  // fallback default
+  if (err < 0) {
+    pthread_mutex_unlock(&g_alsa_mutex);
+    return 2;  // fallback default
+  }
 
   snd_pcm_hw_params_t* params = NULL;
   snd_pcm_hw_params_alloca(&params);
   if (snd_pcm_hw_params_any(pcm, params) < 0) {
     snd_pcm_close(pcm);
+    pthread_mutex_unlock(&g_alsa_mutex);
     return 2;
   }
   unsigned int max_ch = 2;
   snd_pcm_hw_params_get_channels_max(params, &max_ch);
   snd_pcm_close(pcm);
+  pthread_mutex_unlock(&g_alsa_mutex);
   return (int)max_ch;
 }
 
 audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
                                                       bool is_capture) {
+  pthread_mutex_lock(&g_alsa_mutex);
   audio_device_descriptor_t* desc =
       (audio_device_descriptor_t*)calloc(1, sizeof(audio_device_descriptor_t));
-  if (!desc) return NULL;
+  if (!desc) {
+    pthread_mutex_unlock(&g_alsa_mutex);
+    return NULL;
+  }
   snprintf(desc->name, sizeof(desc->name), "%s", device_name);
 
   char clean_name[256];
@@ -86,16 +97,13 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
       is_capture ? SND_PCM_STREAM_CAPTURE : SND_PCM_STREAM_PLAYBACK;
   snd_pcm_t* pcm = NULL;
   if (snd_pcm_open(&pcm, clean_name, stream, SND_PCM_NONBLOCK) < 0) {
-    free(desc);
-    return NULL;
+    goto error_cleanup;
   }
 
   snd_pcm_hw_params_t* params = NULL;
   snd_pcm_hw_params_alloca(&params);
   if (snd_pcm_hw_params_any(pcm, params) < 0) {
-    snd_pcm_close(pcm);
-    free(desc);
-    return NULL;
+    goto error_cleanup;
   }
 
   unsigned int min_ch = 1, max_ch = 2;
@@ -192,7 +200,18 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
 
   set->capabilities_count = cap_idx;
   snd_pcm_close(pcm);
+  pthread_mutex_unlock(&g_alsa_mutex);
   return desc;
+
+error_cleanup:
+  if (pcm) {
+    snd_pcm_close(pcm);
+  }
+  if (desc) {
+    alsa_capabilities_free_descriptor(desc);
+  }
+  pthread_mutex_unlock(&g_alsa_mutex);
+  return NULL;
 }
 
 void alsa_capabilities_free_descriptor(audio_device_descriptor_t* desc) {

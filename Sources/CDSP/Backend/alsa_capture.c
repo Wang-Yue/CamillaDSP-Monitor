@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 
 #include "alsa_capture.h"
+#include "alsa_device.h"
 
 #include <alloca.h>
 #include <alsa/asoundlib.h>
@@ -298,6 +299,7 @@ static void alsa_capture_sync_controls(alsa_capture_t* capture) {
 }
 
 bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
+  pthread_mutex_lock(&g_alsa_mutex);
   int rc;
   rc = snd_pcm_open(&capture->pcm, capture->device_name, SND_PCM_STREAM_CAPTURE,
                     0);
@@ -305,6 +307,7 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
+    pthread_mutex_unlock(&g_alsa_mutex);
     return false;
   }
 
@@ -312,21 +315,19 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
   snd_pcm_hw_params_alloca(&params);
   rc = snd_pcm_hw_params_any(capture->pcm, params);
   if (rc < 0) {
-    snd_pcm_close(capture->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   rc = snd_pcm_hw_params_set_access(capture->pcm, params,
                                     SND_PCM_ACCESS_RW_INTERLEAVED);
   if (rc < 0) {
-    snd_pcm_close(capture->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   snd_pcm_format_t formats[5];
@@ -369,62 +370,56 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     }
   }
   if (!format_ok) {
-    snd_pcm_close(capture->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Requested or supported ALSA format not available");
-    return false;
+    goto error_cleanup;
   }
 
   rc = snd_pcm_hw_params_set_channels(capture->pcm, params, capture->channels);
   if (rc < 0) {
-    snd_pcm_close(capture->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   unsigned int val = capture->sample_rate;
   int dir = 0;
   rc = snd_pcm_hw_params_set_rate_near(capture->pcm, params, &val, &dir);
   if (rc < 0) {
-    snd_pcm_close(capture->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   snd_pcm_uframes_t period_size = capture->chunk_size;
   rc = snd_pcm_hw_params_set_period_size_near(capture->pcm, params,
                                               &period_size, &dir);
   if (rc < 0) {
-    snd_pcm_close(capture->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   snd_pcm_uframes_t buffer_size = period_size * 4;
   rc = snd_pcm_hw_params_set_buffer_size_near(capture->pcm, params,
                                               &buffer_size);
   if (rc < 0) {
-    snd_pcm_close(capture->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   rc = snd_pcm_hw_params(capture->pcm, params);
   if (rc < 0) {
-    snd_pcm_close(capture->pcm);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          snd_strerror(rc));
-    return false;
+    goto error_cleanup;
   }
 
   snd_pcm_sw_params_t* sw_params;
@@ -459,7 +454,16 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
 
   alsa_capture_init_controls(capture);
 
+  pthread_mutex_unlock(&g_alsa_mutex);
   return true;
+
+error_cleanup:
+  if (capture->pcm) {
+    snd_pcm_close(capture->pcm);
+    capture->pcm = NULL;
+  }
+  pthread_mutex_unlock(&g_alsa_mutex);
+  return false;
 }
 
 bool alsa_capture_read(alsa_capture_t* capture, size_t frames,
