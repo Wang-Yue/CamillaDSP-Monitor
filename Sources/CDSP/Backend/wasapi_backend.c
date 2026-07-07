@@ -32,6 +32,11 @@ struct wasapi_capture {
   bool exclusive;
   bool polling;
 
+  int bits_per_sample;
+  int valid_bits;
+  bool is_float;
+  bool com_initialized;
+
   IMMDeviceEnumerator* enumerator;
   IMMDevice* mm_device;
   IAudioClient* client;
@@ -49,6 +54,11 @@ struct wasapi_playback {
   bool exclusive;
   bool polling;
 
+  int bits_per_sample;
+  int valid_bits;
+  bool is_float;
+  bool com_initialized;
+
   IMMDeviceEnumerator* enumerator;
   IMMDevice* mm_device;
   IAudioClient* client;
@@ -58,26 +68,13 @@ struct wasapi_playback {
   HANDLE event;
 };
 
-static size_t get_sample_size(wasapi_sample_format_t format) {
-  switch (format) {
-    case WASAPI_SAMPLE_FORMAT_S16:
-      return 2;
-    case WASAPI_SAMPLE_FORMAT_S24:
-      return 4;  // 24-bit in 32-bit container
-    case WASAPI_SAMPLE_FORMAT_S32:
-      return 4;
-    case WASAPI_SAMPLE_FORMAT_F32:
-      return 4;
-    default:
-      return 0;
-  }
-}
-
 static inline void decode_samples_from_wasapi(audio_chunk_t* chunk,
                                               size_t chunk_offset,
                                               const BYTE* src, size_t frames,
-                                              wasapi_sample_format_t format,
-                                              int channels, DWORD flags) {
+                                              int channels, DWORD flags,
+                                              int bits_per_sample,
+                                              int valid_bits,
+                                              bool is_float) {
   if (flags & AUDCLNT_BUFFERFLAGS_SILENT) {
     for (size_t f = 0; f < frames; f++) {
       for (int c = 0; c < channels; c++) {
@@ -87,115 +84,126 @@ static inline void decode_samples_from_wasapi(audio_chunk_t* chunk,
     return;
   }
 
-  switch (format) {
-    case WASAPI_SAMPLE_FORMAT_S16: {
-      const int16_t* s16 = (const int16_t*)src;
-      for (size_t f = 0; f < frames; f++) {
-        for (int c = 0; c < channels; c++) {
-          audio_chunk_get_channel(chunk, c)[chunk_offset + f] =
-              (double)s16[f * channels + c] / 32768.0;
-        }
+  if (is_float) {
+    const float* f32 = (const float*)src;
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        audio_chunk_get_channel(chunk, c)[chunk_offset + f] =
+            (double)f32[f * channels + c];
       }
-      break;
     }
-    case WASAPI_SAMPLE_FORMAT_S24: {
-      // S24 is typically stored in the high 24 bits of 32-bit integers
-      const int32_t* s32 = (const int32_t*)src;
-      for (size_t f = 0; f < frames; f++) {
-        for (int c = 0; c < channels; c++) {
-          int32_t val =
-              s32[f * channels + c] >> 8;  // shift right to match 24-bit range
-          audio_chunk_get_channel(chunk, c)[chunk_offset + f] =
-              (double)val / 8388608.0;
-        }
+    return;
+  }
+
+  if (bits_per_sample == 16) {
+    const int16_t* s16 = (const int16_t*)src;
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        audio_chunk_get_channel(chunk, c)[chunk_offset + f] =
+            (double)s16[f * channels + c] / 32768.0;
       }
-      break;
     }
-    case WASAPI_SAMPLE_FORMAT_S32: {
-      const int32_t* s32 = (const int32_t*)src;
-      for (size_t f = 0; f < frames; f++) {
-        for (int c = 0; c < channels; c++) {
-          audio_chunk_get_channel(chunk, c)[chunk_offset + f] =
-              (double)s32[f * channels + c] / 2147483648.0;
+  } else if (bits_per_sample == 24) {
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        size_t idx = (f * channels + c) * 3;
+        int32_t val = (src[idx] | (src[idx + 1] << 8) | (src[idx + 2] << 16));
+        if (val & 0x800000) {
+          val |= 0xFF000000;
         }
+        audio_chunk_get_channel(chunk, c)[chunk_offset + f] =
+            (double)val / 8388608.0;
       }
-      break;
     }
-    case WASAPI_SAMPLE_FORMAT_F32: {
-      const float* f32 = (const float*)src;
-      for (size_t f = 0; f < frames; f++) {
-        for (int c = 0; c < channels; c++) {
-          audio_chunk_get_channel(chunk, c)[chunk_offset + f] =
-              (double)f32[f * channels + c];
-        }
+  } else if (bits_per_sample == 32 && valid_bits == 24) {
+    const int32_t* s32 = (const int32_t*)src;
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        int32_t val = s32[f * channels + c] >> 8;
+        audio_chunk_get_channel(chunk, c)[chunk_offset + f] =
+            (double)val / 8388608.0;
       }
-      break;
     }
-    default:
-      break;
+  } else if (bits_per_sample == 32 && valid_bits == 32) {
+    const int32_t* s32 = (const int32_t*)src;
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        audio_chunk_get_channel(chunk, c)[chunk_offset + f] =
+            (double)s32[f * channels + c] / 2147483648.0;
+      }
+    }
   }
 }
 
 static inline void encode_samples_to_wasapi(BYTE* dst,
                                             const audio_chunk_t* chunk,
                                             size_t chunk_offset, size_t frames,
-                                            wasapi_sample_format_t format,
-                                            int channels) {
-  switch (format) {
-    case WASAPI_SAMPLE_FORMAT_S16: {
-      int16_t* s16 = (int16_t*)dst;
-      for (size_t f = 0; f < frames; f++) {
-        for (int c = 0; c < channels; c++) {
-          double val = audio_chunk_get_channel(chunk, c)[chunk_offset + f];
-          if (val > 1.0)
-            val = 1.0;
-          else if (val < -1.0)
-            val = -1.0;
-          s16[f * channels + c] = (int16_t)(val * 32767.0);
-        }
+                                            int channels,
+                                            int bits_per_sample,
+                                            int valid_bits,
+                                            bool is_float) {
+  if (is_float) {
+    float* f32 = (float*)dst;
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        f32[f * channels + c] =
+            (float)audio_chunk_get_channel(chunk, c)[chunk_offset + f];
       }
-      break;
     }
-    case WASAPI_SAMPLE_FORMAT_S24: {
-      int32_t* s32 = (int32_t*)dst;
-      for (size_t f = 0; f < frames; f++) {
-        for (int c = 0; c < channels; c++) {
-          double val = audio_chunk_get_channel(chunk, c)[chunk_offset + f];
-          if (val > 1.0)
-            val = 1.0;
-          else if (val < -1.0)
-            val = -1.0;
-          s32[f * channels + c] = ((int32_t)(val * 8388607.0)) << 8;
-        }
+    return;
+  }
+
+  if (bits_per_sample == 16) {
+    int16_t* s16 = (int16_t*)dst;
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        double val = audio_chunk_get_channel(chunk, c)[chunk_offset + f];
+        if (val > 1.0)
+          val = 1.0;
+        else if (val < -1.0)
+          val = -1.0;
+        s16[f * channels + c] = (int16_t)(val * 32767.0);
       }
-      break;
     }
-    case WASAPI_SAMPLE_FORMAT_S32: {
-      int32_t* s32 = (int32_t*)dst;
-      for (size_t f = 0; f < frames; f++) {
-        for (int c = 0; c < channels; c++) {
-          double val = audio_chunk_get_channel(chunk, c)[chunk_offset + f];
-          if (val > 1.0)
-            val = 1.0;
-          else if (val < -1.0)
-            val = -1.0;
-          s32[f * channels + c] = (int32_t)(val * 2147483647.0);
-        }
+  } else if (bits_per_sample == 24) {
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        double val = audio_chunk_get_channel(chunk, c)[chunk_offset + f];
+        if (val > 1.0)
+          val = 1.0;
+        else if (val < -1.0)
+          val = -1.0;
+        int32_t val24 = (int32_t)(val * 8388607.0);
+        size_t idx = (f * channels + c) * 3;
+        dst[idx] = val24 & 0xFF;
+        dst[idx + 1] = (val24 >> 8) & 0xFF;
+        dst[idx + 2] = (val24 >> 16) & 0xFF;
       }
-      break;
     }
-    case WASAPI_SAMPLE_FORMAT_F32: {
-      float* f32 = (float*)dst;
-      for (size_t f = 0; f < frames; f++) {
-        for (int c = 0; c < channels; c++) {
-          f32[f * channels + c] =
-              (float)audio_chunk_get_channel(chunk, c)[chunk_offset + f];
-        }
+  } else if (bits_per_sample == 32 && valid_bits == 24) {
+    int32_t* s32 = (int32_t*)dst;
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        double val = audio_chunk_get_channel(chunk, c)[chunk_offset + f];
+        if (val > 1.0)
+          val = 1.0;
+        else if (val < -1.0)
+          val = -1.0;
+        s32[f * channels + c] = ((int32_t)(val * 8388607.0)) << 8;
       }
-      break;
     }
-    default:
-      break;
+  } else if (bits_per_sample == 32 && valid_bits == 32) {
+    int32_t* s32 = (int32_t*)dst;
+    for (size_t f = 0; f < frames; f++) {
+      for (int c = 0; c < channels; c++) {
+        double val = audio_chunk_get_channel(chunk, c)[chunk_offset + f];
+        if (val > 1.0)
+          val = 1.0;
+        else if (val < -1.0)
+          val = -1.0;
+        s32[f * channels + c] = (int32_t)(val * 2147483647.0);
+      }
+    }
   }
 }
 
@@ -274,7 +282,8 @@ capture_backend_t* wasapi_capture_create(const capture_device_config_t* config,
 }
 
 bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
-  CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  HRESULT init_hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  capture->com_initialized = SUCCEEDED(init_hr);
 
   HRESULT hr =
       CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
@@ -283,7 +292,7 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to create MMDeviceEnumerator");
-    return false;
+    goto error_cleanup;
   }
 
   if (capture->device[0] == '\0') {
@@ -303,7 +312,6 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
         IMMDeviceCollection_Item(collection, i, &dev);
         bool matched = false;
 
-        // 1. Try friendly name matching first
         IPropertyStore* properties = NULL;
         HRESULT hr_prop =
             IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
@@ -323,7 +331,6 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
           SAFE_RELEASE(properties);
         }
 
-        // 2. Fallback to ID matching
         if (!matched) {
           LPWSTR id = NULL;
           IMMDevice_GetId(dev, &id);
@@ -348,22 +355,24 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
   }
 
   if (!capture->mm_device) {
-    SAFE_RELEASE(capture->enumerator);
     if (err)
       backend_error_init(err, BACKEND_ERROR_DEVICE_NOT_FOUND,
                          "WASAPI capture device not found");
-    return false;
+    goto error_cleanup;
   }
 
   hr = IMMDevice_Activate(capture->mm_device, &IID_IAudioClient, CLSCTX_ALL,
                           NULL, (void**)&capture->client);
   if (FAILED(hr)) {
-    SAFE_RELEASE(capture->mm_device);
-    SAFE_RELEASE(capture->enumerator);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to activate IAudioClient");
-    return false;
+    goto error_cleanup;
+  }
+
+  AUDCLNT_SHAREMODE mode = AUDCLNT_SHAREMODE_SHARED;
+  if (capture->exclusive && !capture->loopback) {
+    mode = AUDCLNT_SHAREMODE_EXCLUSIVE;
   }
 
   WAVEFORMATEXTENSIBLE wfx;
@@ -371,24 +380,96 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
   wfx.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
   wfx.Format.nChannels = capture->channels;
   wfx.Format.nSamplesPerSec = capture->sample_rate;
-  wfx.Format.wBitsPerSample =
-      (capture->format == WASAPI_SAMPLE_FORMAT_S16) ? 16 : 32;
-  wfx.Format.nBlockAlign = (wfx.Format.wBitsPerSample / 8) * capture->channels;
-  wfx.Format.nAvgBytesPerSec =
-      wfx.Format.nSamplesPerSec * wfx.Format.nBlockAlign;
   wfx.Format.cbSize = 22;
-  wfx.Samples.wValidBitsPerSample =
-      (capture->format == WASAPI_SAMPLE_FORMAT_S24) ? 24
-                                                    : wfx.Format.wBitsPerSample;
   wfx.dwChannelMask =
       (capture->channels == 2) ? (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT) : 0;
-  wfx.SubFormat = (capture->format == WASAPI_SAMPLE_FORMAT_F32)
-                      ? KSDATAFORMAT_SUBTYPE_IEEE_FLOAT
-                      : KSDATAFORMAT_SUBTYPE_PCM;
 
-  AUDCLNT_SHAREMODE mode = AUDCLNT_SHAREMODE_SHARED;
-  if (capture->exclusive && !capture->loopback) {
-    mode = AUDCLNT_SHAREMODE_EXCLUSIVE;
+  bool format_found = false;
+  if (mode == AUDCLNT_SHAREMODE_SHARED) {
+    wfx.Format.wBitsPerSample = 32;
+    wfx.Format.nBlockAlign = 4 * capture->channels;
+    wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+    wfx.Samples.wValidBitsPerSample = 32;
+    wfx.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+
+    capture->bits_per_sample = 32;
+    capture->valid_bits = 32;
+    capture->is_float = true;
+    format_found = true;
+  } else {
+    if (capture->format == WASAPI_SAMPLE_FORMAT_S16) {
+      wfx.Format.wBitsPerSample = 16;
+      wfx.Format.nBlockAlign = 2 * capture->channels;
+      wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Samples.wValidBitsPerSample = 16;
+      wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+      hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      if (SUCCEEDED(hr)) {
+        capture->bits_per_sample = 16;
+        capture->valid_bits = 16;
+        capture->is_float = false;
+        format_found = true;
+      }
+    } else if (capture->format == WASAPI_SAMPLE_FORMAT_S32) {
+      wfx.Format.wBitsPerSample = 32;
+      wfx.Format.nBlockAlign = 4 * capture->channels;
+      wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Samples.wValidBitsPerSample = 32;
+      wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+      hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      if (SUCCEEDED(hr)) {
+        capture->bits_per_sample = 32;
+        capture->valid_bits = 32;
+        capture->is_float = false;
+        format_found = true;
+      }
+    } else if (capture->format == WASAPI_SAMPLE_FORMAT_F32) {
+      wfx.Format.wBitsPerSample = 32;
+      wfx.Format.nBlockAlign = 4 * capture->channels;
+      wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Samples.wValidBitsPerSample = 32;
+      wfx.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+      hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      if (SUCCEEDED(hr)) {
+        capture->bits_per_sample = 32;
+        capture->valid_bits = 32;
+        capture->is_float = true;
+        format_found = true;
+      }
+    } else if (capture->format == WASAPI_SAMPLE_FORMAT_S24) {
+      wfx.Format.wBitsPerSample = 24;
+      wfx.Format.nBlockAlign = 3 * capture->channels;
+      wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Samples.wValidBitsPerSample = 24;
+      wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+      hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      if (SUCCEEDED(hr)) {
+        capture->bits_per_sample = 24;
+        capture->valid_bits = 24;
+        capture->is_float = false;
+        format_found = true;
+      } else {
+        wfx.Format.wBitsPerSample = 32;
+        wfx.Format.nBlockAlign = 4 * capture->channels;
+        wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+        wfx.Samples.wValidBitsPerSample = 24;
+        wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+        hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+        if (SUCCEEDED(hr)) {
+          capture->bits_per_sample = 32;
+          capture->valid_bits = 24;
+          capture->is_float = false;
+          format_found = true;
+        }
+      }
+    }
+  }
+
+  if (!format_found) {
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Unsupported sample format");
+    goto error_cleanup;
   }
 
   REFERENCE_TIME duration =
@@ -407,55 +488,40 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
       (mode == AUDCLNT_SHAREMODE_EXCLUSIVE) ? duration : 0, (WAVEFORMATEX*)&wfx,
       NULL);
   if (FAILED(hr)) {
-    SAFE_RELEASE(capture->client);
-    SAFE_RELEASE(capture->mm_device);
-    SAFE_RELEASE(capture->enumerator);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to initialize IAudioClient");
-    return false;
+    goto error_cleanup;
   }
 
   if (!capture->polling) {
     capture->event = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (!capture->event) {
-      SAFE_RELEASE(capture->client);
-      SAFE_RELEASE(capture->mm_device);
-      SAFE_RELEASE(capture->enumerator);
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                            "Failed to create event handle");
-      return false;
+      goto error_cleanup;
     }
 
     hr = IAudioClient_SetEventHandle(capture->client, capture->event);
     if (FAILED(hr)) {
-      CloseHandle(capture->event);
-      capture->event = NULL;
-      SAFE_RELEASE(capture->client);
-      SAFE_RELEASE(capture->mm_device);
-      SAFE_RELEASE(capture->enumerator);
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                            "Failed to set event handle");
-      return false;
+      goto error_cleanup;
     }
   } else {
     capture->event = NULL;
   }
 
-  hr =
-      IAudioClient_GetBufferSize(capture->client, &capture->buffer_frame_count);
+  hr = IAudioClient_GetBufferSize(capture->client, &capture->buffer_frame_count);
   hr = IAudioClient_GetService(capture->client, &IID_IAudioCaptureClient,
                                (void**)&capture->capture_client);
   if (FAILED(hr)) {
-    SAFE_RELEASE(capture->client);
-    SAFE_RELEASE(capture->mm_device);
-    SAFE_RELEASE(capture->enumerator);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to get IAudioCaptureClient");
-    return false;
+    goto error_cleanup;
   }
 
   IAudioClient_Start(capture->client);
@@ -472,6 +538,29 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
               log_arg_none());
 
   return true;
+
+error_cleanup:
+  if (capture->capture_client) {
+    SAFE_RELEASE(capture->capture_client);
+  }
+  if (capture->client) {
+    SAFE_RELEASE(capture->client);
+  }
+  if (capture->mm_device) {
+    SAFE_RELEASE(capture->mm_device);
+  }
+  if (capture->enumerator) {
+    SAFE_RELEASE(capture->enumerator);
+  }
+  if (capture->event) {
+    CloseHandle(capture->event);
+    capture->event = NULL;
+  }
+  if (capture->com_initialized) {
+    CoUninitialize();
+    capture->com_initialized = false;
+  }
+  return false;
 }
 
 bool wasapi_capture_read(wasapi_capture_t* capture, size_t frames,
@@ -500,7 +589,10 @@ bool wasapi_capture_read(wasapi_capture_t* capture, size_t frames,
         if (to_copy > num_frames) to_copy = num_frames;
 
         decode_samples_from_wasapi(chunk, frames_read, data, to_copy,
-                                   capture->format, capture->channels, flags);
+                                   capture->channels, flags,
+                                   capture->bits_per_sample,
+                                   capture->valid_bits,
+                                   capture->is_float);
         IAudioCaptureClient_ReleaseBuffer(capture->capture_client, num_frames);
         frames_read += to_copy;
       }
@@ -531,6 +623,11 @@ void wasapi_capture_close(wasapi_capture_t* capture) {
   }
   SAFE_RELEASE(capture->mm_device);
   SAFE_RELEASE(capture->enumerator);
+
+  if (capture->com_initialized) {
+    CoUninitialize();
+    capture->com_initialized = false;
+  }
 }
 
 bool wasapi_capture_get_pending_rate_change(wasapi_capture_t* capture,
@@ -639,7 +736,8 @@ playback_backend_t* wasapi_playback_create(
 }
 
 bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
-  CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  HRESULT init_hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  playback->com_initialized = SUCCEEDED(init_hr);
 
   HRESULT hr =
       CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
@@ -648,7 +746,7 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to create MMDeviceEnumerator");
-    return false;
+    goto error_cleanup;
   }
 
   if (playback->device[0] == '\0') {
@@ -666,7 +764,6 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
         IMMDeviceCollection_Item(collection, i, &dev);
         bool matched = false;
 
-        // 1. Try friendly name matching first
         IPropertyStore* properties = NULL;
         HRESULT hr_prop =
             IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
@@ -686,7 +783,6 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
           SAFE_RELEASE(properties);
         }
 
-        // 2. Fallback to ID matching
         if (!matched) {
           LPWSTR id = NULL;
           IMMDevice_GetId(dev, &id);
@@ -711,50 +807,123 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
   }
 
   if (!playback->mm_device) {
-    SAFE_RELEASE(playback->enumerator);
     if (err)
       backend_error_init(err, BACKEND_ERROR_DEVICE_NOT_FOUND,
                          "WASAPI playback device not found");
-    return false;
+    goto error_cleanup;
   }
 
   hr = IMMDevice_Activate(playback->mm_device, &IID_IAudioClient, CLSCTX_ALL,
                           NULL, (void**)&playback->client);
   if (FAILED(hr)) {
-    SAFE_RELEASE(playback->mm_device);
-    SAFE_RELEASE(playback->enumerator);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to activate IAudioClient");
-    return false;
+    goto error_cleanup;
   }
+
+  AUDCLNT_SHAREMODE mode = playback->exclusive ? AUDCLNT_SHAREMODE_EXCLUSIVE
+                                               : AUDCLNT_SHAREMODE_SHARED;
 
   WAVEFORMATEXTENSIBLE wfx;
   memset(&wfx, 0, sizeof(wfx));
   wfx.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
   wfx.Format.nChannels = playback->channels;
   wfx.Format.nSamplesPerSec = playback->sample_rate;
-  wfx.Format.wBitsPerSample =
-      (playback->format == WASAPI_SAMPLE_FORMAT_S16) ? 16 : 32;
-  wfx.Format.nBlockAlign = (wfx.Format.wBitsPerSample / 8) * playback->channels;
-  wfx.Format.nAvgBytesPerSec =
-      wfx.Format.nSamplesPerSec * wfx.Format.nBlockAlign;
   wfx.Format.cbSize = 22;
-  wfx.Samples.wValidBitsPerSample =
-      (playback->format == WASAPI_SAMPLE_FORMAT_S24)
-          ? 24
-          : wfx.Format.wBitsPerSample;
   wfx.dwChannelMask = (playback->channels == 2)
                           ? (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT)
                           : 0;
-  wfx.SubFormat = (playback->format == WASAPI_SAMPLE_FORMAT_F32)
-                      ? KSDATAFORMAT_SUBTYPE_IEEE_FLOAT
-                      : KSDATAFORMAT_SUBTYPE_PCM;
+
+  bool format_found = false;
+  if (mode == AUDCLNT_SHAREMODE_SHARED) {
+    wfx.Format.wBitsPerSample = 32;
+    wfx.Format.nBlockAlign = 4 * playback->channels;
+    wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+    wfx.Samples.wValidBitsPerSample = 32;
+    wfx.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+
+    playback->bits_per_sample = 32;
+    playback->valid_bits = 32;
+    playback->is_float = true;
+    format_found = true;
+  } else {
+    if (playback->format == WASAPI_SAMPLE_FORMAT_S16) {
+      wfx.Format.wBitsPerSample = 16;
+      wfx.Format.nBlockAlign = 2 * playback->channels;
+      wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Samples.wValidBitsPerSample = 16;
+      wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+      hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      if (SUCCEEDED(hr)) {
+        playback->bits_per_sample = 16;
+        playback->valid_bits = 16;
+        playback->is_float = false;
+        format_found = true;
+      }
+    } else if (playback->format == WASAPI_SAMPLE_FORMAT_S32) {
+      wfx.Format.wBitsPerSample = 32;
+      wfx.Format.nBlockAlign = 4 * playback->channels;
+      wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Samples.wValidBitsPerSample = 32;
+      wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+      hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      if (SUCCEEDED(hr)) {
+        playback->bits_per_sample = 32;
+        playback->valid_bits = 32;
+        playback->is_float = false;
+        format_found = true;
+      }
+    } else if (playback->format == WASAPI_SAMPLE_FORMAT_F32) {
+      wfx.Format.wBitsPerSample = 32;
+      wfx.Format.nBlockAlign = 4 * playback->channels;
+      wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Samples.wValidBitsPerSample = 32;
+      wfx.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+      hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      if (SUCCEEDED(hr)) {
+        playback->bits_per_sample = 32;
+        playback->valid_bits = 32;
+        playback->is_float = true;
+        format_found = true;
+      }
+    } else if (playback->format == WASAPI_SAMPLE_FORMAT_S24) {
+      wfx.Format.wBitsPerSample = 24;
+      wfx.Format.nBlockAlign = 3 * playback->channels;
+      wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Samples.wValidBitsPerSample = 24;
+      wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+      hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      if (SUCCEEDED(hr)) {
+        playback->bits_per_sample = 24;
+        playback->valid_bits = 24;
+        playback->is_float = false;
+        format_found = true;
+      } else {
+        wfx.Format.wBitsPerSample = 32;
+        wfx.Format.nBlockAlign = 4 * playback->channels;
+        wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+        wfx.Samples.wValidBitsPerSample = 24;
+        wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+        hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+        if (SUCCEEDED(hr)) {
+          playback->bits_per_sample = 32;
+          playback->valid_bits = 24;
+          playback->is_float = false;
+          format_found = true;
+        }
+      }
+    }
+  }
+
+  if (!format_found) {
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Unsupported sample format");
+    goto error_cleanup;
+  }
 
   REFERENCE_TIME duration = 10000000;
-  AUDCLNT_SHAREMODE mode = playback->exclusive ? AUDCLNT_SHAREMODE_EXCLUSIVE
-                                               : AUDCLNT_SHAREMODE_SHARED;
-
   DWORD flags = 0;
   if (!playback->polling) {
     flags |= AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
@@ -764,38 +933,27 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
       playback->client, mode, flags, duration,
       playback->exclusive ? duration : 0, (WAVEFORMATEX*)&wfx, NULL);
   if (FAILED(hr)) {
-    SAFE_RELEASE(playback->client);
-    SAFE_RELEASE(playback->mm_device);
-    SAFE_RELEASE(playback->enumerator);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to initialize IAudioClient");
-    return false;
+    goto error_cleanup;
   }
 
   if (!playback->polling) {
     playback->event = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (!playback->event) {
-      SAFE_RELEASE(playback->client);
-      SAFE_RELEASE(playback->mm_device);
-      SAFE_RELEASE(playback->enumerator);
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                            "Failed to create event handle");
-      return false;
+      goto error_cleanup;
     }
 
     hr = IAudioClient_SetEventHandle(playback->client, playback->event);
     if (FAILED(hr)) {
-      CloseHandle(playback->event);
-      playback->event = NULL;
-      SAFE_RELEASE(playback->client);
-      SAFE_RELEASE(playback->mm_device);
-      SAFE_RELEASE(playback->enumerator);
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                            "Failed to set event handle");
-      return false;
+      goto error_cleanup;
     }
   } else {
     playback->event = NULL;
@@ -806,13 +964,10 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
   hr = IAudioClient_GetService(playback->client, &IID_IAudioRenderClient,
                                (void**)&playback->render_client);
   if (FAILED(hr)) {
-    SAFE_RELEASE(playback->client);
-    SAFE_RELEASE(playback->mm_device);
-    SAFE_RELEASE(playback->enumerator);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to get IAudioRenderClient");
-    return false;
+    goto error_cleanup;
   }
 
   playback->paused = false;
@@ -829,6 +984,29 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
       log_arg_int((int64_t)playback->exclusive));
 
   return true;
+
+error_cleanup:
+  if (playback->render_client) {
+    SAFE_RELEASE(playback->render_client);
+  }
+  if (playback->client) {
+    SAFE_RELEASE(playback->client);
+  }
+  if (playback->mm_device) {
+    SAFE_RELEASE(playback->mm_device);
+  }
+  if (playback->enumerator) {
+    SAFE_RELEASE(playback->enumerator);
+  }
+  if (playback->event) {
+    CloseHandle(playback->event);
+    playback->event = NULL;
+  }
+  if (playback->com_initialized) {
+    CoUninitialize();
+    playback->com_initialized = false;
+  }
+  return false;
 }
 
 bool wasapi_playback_write(wasapi_playback_t* playback,
@@ -860,7 +1038,10 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
                                         &data);
       if (SUCCEEDED(hr) && data) {
         encode_samples_to_wasapi(data, chunk, frames_written, to_write,
-                                 playback->format, playback->channels);
+                                 playback->channels,
+                                 playback->bits_per_sample,
+                                 playback->valid_bits,
+                                 playback->is_float);
         IAudioRenderClient_ReleaseBuffer(playback->render_client, to_write, 0);
         frames_written += to_write;
       }
@@ -889,6 +1070,11 @@ void wasapi_playback_close(wasapi_playback_t* playback) {
   }
   SAFE_RELEASE(playback->mm_device);
   SAFE_RELEASE(playback->enumerator);
+
+  if (playback->com_initialized) {
+    CoUninitialize();
+    playback->com_initialized = false;
+  }
 }
 
 size_t wasapi_playback_get_buffer_level(wasapi_playback_t* playback) {
@@ -913,7 +1099,7 @@ bool wasapi_playback_prefill_silence(wasapi_playback_t* playback, size_t frames,
                                             (UINT32)frames, &data);
   if (SUCCEEDED(hr) && data) {
     memset(data, 0,
-           frames * playback->channels * get_sample_size(playback->format));
+           frames * playback->channels * (playback->bits_per_sample / 8));
     IAudioRenderClient_ReleaseBuffer(playback->render_client, (UINT32)frames,
                                      0);
     return true;

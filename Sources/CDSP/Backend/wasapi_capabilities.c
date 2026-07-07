@@ -23,20 +23,20 @@
 int wasapi_capabilities_available_device_names(bool is_capture,
                                                char out_names[][256],
                                                int max_names) {
-  CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  HRESULT init_hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  bool com_initialized = SUCCEEDED(init_hr);
 
   IMMDeviceEnumerator* enumerator = NULL;
   HRESULT hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
                                 &IID_IMMDeviceEnumerator, (void**)&enumerator);
-  if (FAILED(hr)) return 0;
+  if (FAILED(hr)) goto error_cleanup;
 
   IMMDeviceCollection* collection = NULL;
   hr = IMMDeviceEnumerator_EnumAudioEndpoints(enumerator,
                                               is_capture ? eCapture : eRender,
                                               DEVICE_STATE_ACTIVE, &collection);
   if (FAILED(hr)) {
-    SAFE_RELEASE(enumerator);
-    return 0;
+    goto error_cleanup;
   }
 
   UINT count = 0;
@@ -86,7 +86,22 @@ int wasapi_capabilities_available_device_names(bool is_capture,
 
   SAFE_RELEASE(collection);
   SAFE_RELEASE(enumerator);
+  if (com_initialized) {
+    CoUninitialize();
+  }
   return matched;
+
+error_cleanup:
+  if (collection) {
+    SAFE_RELEASE(collection);
+  }
+  if (enumerator) {
+    SAFE_RELEASE(enumerator);
+  }
+  if (com_initialized) {
+    CoUninitialize();
+  }
+  return 0;
 }
 
 bool wasapi_capabilities_default_device_name(bool is_capture, char* out_name,
@@ -105,14 +120,18 @@ int wasapi_capabilities_channel_count(const char* device_name,
 
 audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
                                                         bool is_capture) {
-  CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  HRESULT init_hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  bool com_initialized = SUCCEEDED(init_hr);
 
   IMMDeviceEnumerator* enumerator = NULL;
+  IMMDevice* device = NULL;
+  IAudioClient* client = NULL;
+  audio_device_descriptor_t* desc = NULL;
+
   HRESULT hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
                                 &IID_IMMDeviceEnumerator, (void**)&enumerator);
-  if (FAILED(hr)) return NULL;
+  if (FAILED(hr)) goto error_cleanup;
 
-  IMMDevice* device = NULL;
   if (device_name[0] == '\0' || strcmp(device_name, "default") == 0) {
     hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
         enumerator, is_capture ? eCapture : eRender, eConsole, &device);
@@ -129,7 +148,6 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
         IMMDeviceCollection_Item(collection, i, &dev);
         bool matched = false;
 
-        // 1. Try friendly name matching first
         IPropertyStore* properties = NULL;
         HRESULT hr_prop =
             IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
@@ -149,7 +167,6 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
           SAFE_RELEASE(properties);
         }
 
-        // 2. Fallback to ID matching
         if (!matched) {
           LPWSTR id = NULL;
           IMMDevice_GetId(dev, &id);
@@ -174,26 +191,19 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
   }
 
   if (!device) {
-    SAFE_RELEASE(enumerator);
-    return NULL;
+    goto error_cleanup;
   }
 
-  IAudioClient* client = NULL;
   hr = IMMDevice_Activate(device, &IID_IAudioClient, CLSCTX_ALL, NULL,
                           (void**)&client);
   if (FAILED(hr)) {
-    SAFE_RELEASE(device);
-    SAFE_RELEASE(enumerator);
-    return NULL;
+    goto error_cleanup;
   }
 
-  audio_device_descriptor_t* desc =
+  desc =
       (audio_device_descriptor_t*)calloc(1, sizeof(audio_device_descriptor_t));
   if (!desc) {
-    SAFE_RELEASE(client);
-    SAFE_RELEASE(device);
-    SAFE_RELEASE(enumerator);
-    return NULL;
+    goto error_cleanup;
   }
 
   snprintf(desc->name, sizeof(desc->name), "%s", device_name);
@@ -300,7 +310,25 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
   SAFE_RELEASE(client);
   SAFE_RELEASE(device);
   SAFE_RELEASE(enumerator);
+  if (com_initialized) {
+    CoUninitialize();
+  }
   return desc;
+
+error_cleanup:
+  if (client) {
+    SAFE_RELEASE(client);
+  }
+  if (device) {
+    SAFE_RELEASE(device);
+  }
+  if (enumerator) {
+    SAFE_RELEASE(enumerator);
+  }
+  if (com_initialized) {
+    CoUninitialize();
+  }
+  return NULL;
 }
 
 void wasapi_capabilities_free_descriptor(audio_device_descriptor_t* desc) {

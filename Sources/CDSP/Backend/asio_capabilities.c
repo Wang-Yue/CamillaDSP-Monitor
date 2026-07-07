@@ -12,11 +12,6 @@
 
 #include "Logging/app_logger.h"
 
-// IASIO Interface GUID
-// {3F12C5C4-4850-11d1-89E2-0000E819C656}
-DEFINE_GUID(IID_IASIO_CAPS, 0x3f12c5c4, 0x4850, 0x11d1, 0x89, 0xe2, 0x00, 0x00,
-            0xe8, 0x19, 0xc6, 0x56);
-
 // COM Release helper
 #define SAFE_RELEASE(punk)         \
   if ((punk) != NULL) {            \
@@ -30,6 +25,7 @@ typedef int32_t ASIOBool;
 #define ASIOTrue 1
 
 typedef double ASIOSampleRate;
+typedef long ASIOError;
 
 typedef enum {
   ASIOSTInt16MSB = 0,
@@ -37,11 +33,19 @@ typedef enum {
   ASIOSTInt32MSB = 2,
   ASIOSTFloat32MSB = 3,
   ASIOSTFloat64MSB = 4,
+  ASIOSTInt32MSB16 = 8,
+  ASIOSTInt32MSB18 = 9,
+  ASIOSTInt32MSB20 = 10,
+  ASIOSTInt32MSB24 = 11,
   ASIOSTInt16LSB = 16,
   ASIOSTInt24LSB = 17,
   ASIOSTInt32LSB = 18,
   ASIOSTFloat32LSB = 19,
   ASIOSTFloat64LSB = 20,
+  ASIOSTInt32LSB16 = 24,
+  ASIOSTInt32LSB18 = 25,
+  ASIOSTInt32LSB20 = 26,
+  ASIOSTInt32LSB24 = 27,
 } ASIOSampleType;
 
 typedef struct {
@@ -61,34 +65,34 @@ typedef struct IASIOVtbl {
   ULONG(STDMETHODCALLTYPE* AddRef)(IASIO* This);
   ULONG(STDMETHODCALLTYPE* Release)(IASIO* This);
   ASIOBool(STDMETHODCALLTYPE* init)(IASIO* This, void* sysHandle);
-  HRESULT(STDMETHODCALLTYPE* getDriverName)(IASIO* This, char* name);
+  void(STDMETHODCALLTYPE* getDriverName)(IASIO* This, char* name);
   long(STDMETHODCALLTYPE* getDriverVersion)(IASIO* This);
-  HRESULT(STDMETHODCALLTYPE* getErrorMessage)(IASIO* This, char* string);
-  HRESULT(STDMETHODCALLTYPE* start)(IASIO* This);
-  HRESULT(STDMETHODCALLTYPE* stop)(IASIO* This);
-  HRESULT(STDMETHODCALLTYPE* getChannels)(IASIO* This, long* numInputChannels,
-                                          long* numOutputChannels);
-  HRESULT(STDMETHODCALLTYPE* getLatencies)(IASIO* This, long* inputLatency,
-                                           long* outputLatency);
-  HRESULT(STDMETHODCALLTYPE* getBufferSize)(IASIO* This, long* minSize,
-                                            long* maxSize, long* preferredSize,
-                                            long* granularity);
-  HRESULT(STDMETHODCALLTYPE* canSampleRate)(IASIO* This, double sampleRate);
-  HRESULT(STDMETHODCALLTYPE* getSampleRate)(IASIO* This, double* sampleRate);
-  HRESULT(STDMETHODCALLTYPE* setSampleRate)(IASIO* This, double sampleRate);
-  HRESULT(STDMETHODCALLTYPE* getClockSources)(IASIO* This, void* clocks,
-                                              long* numSources);
-  HRESULT(STDMETHODCALLTYPE* setClockSource)(IASIO* This, long reference);
-  HRESULT(STDMETHODCALLTYPE* getSamplePosition)(IASIO* This, int64_t* sPos,
-                                                int64_t* tStamp);
-  HRESULT(STDMETHODCALLTYPE* getChannelInfo)(IASIO* This, void* info);
-  HRESULT(STDMETHODCALLTYPE* createBuffers)(IASIO* This, void* bufferInfos,
-                                            long numChannels, long bufferSize,
-                                            void* callbacks);
-  HRESULT(STDMETHODCALLTYPE* disposeBuffers)(IASIO* This);
-  HRESULT(STDMETHODCALLTYPE* controlPanel)(IASIO* This);
-  HRESULT(STDMETHODCALLTYPE* future)(IASIO* This, long selector, void* opt);
-  HRESULT(STDMETHODCALLTYPE* outputReady)(IASIO* This);
+  void(STDMETHODCALLTYPE* getErrorMessage)(IASIO* This, char* string);
+  ASIOError(STDMETHODCALLTYPE* start)(IASIO* This);
+  ASIOError(STDMETHODCALLTYPE* stop)(IASIO* This);
+  ASIOError(STDMETHODCALLTYPE* getChannels)(IASIO* This, long* numInputChannels,
+                                            long* numOutputChannels);
+  ASIOError(STDMETHODCALLTYPE* getLatencies)(IASIO* This, long* inputLatency,
+                                             long* outputLatency);
+  ASIOError(STDMETHODCALLTYPE* getBufferSize)(IASIO* This, long* minSize,
+                                              long* maxSize, long* preferredSize,
+                                              long* granularity);
+  ASIOError(STDMETHODCALLTYPE* canSampleRate)(IASIO* This, double sampleRate);
+  ASIOError(STDMETHODCALLTYPE* getSampleRate)(IASIO* This, double* sampleRate);
+  ASIOError(STDMETHODCALLTYPE* setSampleRate)(IASIO* This, double sampleRate);
+  ASIOError(STDMETHODCALLTYPE* getClockSources)(IASIO* This, void* clocks,
+                                                long* numSources);
+  ASIOError(STDMETHODCALLTYPE* setClockSource)(IASIO* This, long reference);
+  ASIOError(STDMETHODCALLTYPE* getSamplePosition)(IASIO* This, int64_t* sPos,
+                                                  int64_t* tStamp);
+  ASIOError(STDMETHODCALLTYPE* getChannelInfo)(IASIO* This, void* info);
+  ASIOError(STDMETHODCALLTYPE* createBuffers)(IASIO* This, void* bufferInfos,
+                                              long numChannels, long bufferSize,
+                                              void* callbacks);
+  ASIOError(STDMETHODCALLTYPE* disposeBuffers)(IASIO* This);
+  ASIOError(STDMETHODCALLTYPE* controlPanel)(IASIO* This);
+  ASIOError(STDMETHODCALLTYPE* future)(IASIO* This, long selector, void* opt);
+  ASIOError(STDMETHODCALLTYPE* outputReady)(IASIO* This);
 } IASIOVtbl;
 
 struct IASIO {
@@ -142,6 +146,7 @@ int asio_capabilities_available_device_names(bool is_capture,
   HKEY hk;
   if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "Software\\ASIO", 0, KEY_READ, &hk) !=
       ERROR_SUCCESS) {
+    CoUninitialize();
     return 0;
   }
 
@@ -155,6 +160,7 @@ int asio_capabilities_available_device_names(bool is_capture,
     snprintf(out_names[matched++], 256, "%s", subkey_name);
   }
   RegCloseKey(hk);
+  CoUninitialize();
   return matched;
 }
 
@@ -177,17 +183,17 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
 
   CLSID clsid;
   if (!find_asio_driver_caps_clsid(device_name, &clsid)) {
-    return NULL;
+    goto error_cleanup;
   }
 
   IASIO* iasio = NULL;
   HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER,
-                                &IID_IASIO_CAPS, (void**)&iasio);
-  if (FAILED(hr)) return NULL;
+                                &clsid, (void**)&iasio);
+  if (FAILED(hr)) goto error_cleanup;
 
   if (!iasio->lpVtbl->init(iasio, GetDesktopWindow())) {
     SAFE_RELEASE(iasio);
-    return NULL;
+    goto error_cleanup;
   }
 
   long num_inputs = 0, num_outputs = 0;
@@ -195,14 +201,14 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
   long target_channels = is_capture ? num_inputs : num_outputs;
   if (target_channels <= 0) {
     SAFE_RELEASE(iasio);
-    return NULL;
+    goto error_cleanup;
   }
 
   audio_device_descriptor_t* desc =
       (audio_device_descriptor_t*)calloc(1, sizeof(audio_device_descriptor_t));
   if (!desc) {
     SAFE_RELEASE(iasio);
-    return NULL;
+    goto error_cleanup;
   }
   snprintf(desc->name, sizeof(desc->name), "%s", device_name);
 
@@ -241,8 +247,13 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
     native_fmt_name = "S16_LE";
   else if (chan_info.type == ASIOSTInt24LSB)
     native_fmt_name = "S24_3_LE";
-  else if (chan_info.type == ASIOSTInt32LSB)
+  else if (chan_info.type == ASIOSTInt32LSB ||
+           chan_info.type == ASIOSTInt32LSB16 ||
+           chan_info.type == ASIOSTInt32LSB18 ||
+           chan_info.type == ASIOSTInt32LSB20)
     native_fmt_name = "S32_LE";
+  else if (chan_info.type == ASIOSTInt32LSB24)
+    native_fmt_name = "S24_4_LE";
   else if (chan_info.type == ASIOSTFloat32LSB)
     native_fmt_name = "F32_LE";
   else if (chan_info.type == ASIOSTFloat64LSB)
@@ -270,7 +281,12 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
   }
 
   SAFE_RELEASE(iasio);
+  CoUninitialize();
   return desc;
+
+error_cleanup:
+  CoUninitialize();
+  return NULL;
 }
 
 void asio_capabilities_free_descriptor(audio_device_descriptor_t* desc) {
