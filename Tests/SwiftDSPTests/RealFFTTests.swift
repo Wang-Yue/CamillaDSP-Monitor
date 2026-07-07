@@ -1,16 +1,16 @@
-// Unit tests for `BluesteinFFT`. `MixedRadixFFT` covers every length whose
-// prime factors are ≤ 7, so the production resampler never falls back to
-// `BluesteinFFT` for the rate ratios in the matrix. These tests exercise it
-// directly so a regression in the chirp-z fallback can't slip in
-// unnoticed — they verify the algorithm against a direct O(N²) DFT for
-// sizes covering both supported and "exotic" prime factorisations.
+// Unit tests for `RealFFT`, including the `BluesteinFFT` fallback and vDSP paths.
+// MixedRadixFFT covers every length whose prime factors are ≤ 7, so the
+// production resampler never falls back to BluesteinFFT for the rate ratios in
+// the matrix. These tests exercise it directly so a regression in the chirp-z
+// fallback can't slip in unnoticed — they verify the algorithm against a
+// direct O(N²) DFT for sizes covering both supported and "exotic" prime factorisations.
 
 import Foundation
 import Testing
 
 @testable import SwiftDSP
 
-@Suite struct BluesteinFFTTests {
+@Suite struct RealFFTTests {
 
   // MARK: - Reference DFT
 
