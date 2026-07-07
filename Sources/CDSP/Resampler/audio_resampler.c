@@ -186,7 +186,7 @@ audio_resampler_t* audio_resampler_wrap_async_poly(
   return wrap;
 }
 
-#ifdef __APPLE__
+#ifdef ENABLE_COREAUDIO
 static resampler_error_t apple_process(audio_resampler_t* self,
                                        const audio_chunk_t* input,
                                        audio_chunk_t* output) {
@@ -275,7 +275,7 @@ audio_resampler_t* audio_resampler_create_from_config(
           channels, input_rate, output_rate, interp, chunk_size, 1.1);
       return audio_resampler_wrap_async_poly(res);
     }
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
     case RESAMPLER_TYPE_APPLE: {
       apple_resampler_quality_t qual = config->has_apple_quality
                                            ? config->apple_quality

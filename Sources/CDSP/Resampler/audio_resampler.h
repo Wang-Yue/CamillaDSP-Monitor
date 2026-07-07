@@ -17,7 +17,7 @@
 #include "async_sinc_resampler.h"
 #include "resampler_error.h"
 #include "synchronous_resampler.h"
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 #include "apple_resampler.h"
 #endif
 
@@ -25,7 +25,7 @@ typedef enum {
   RESAMPLER_IMPL_SYNCHRONOUS = 0,
   RESAMPLER_IMPL_ASYNC_SINC,
   RESAMPLER_IMPL_ASYNC_POLY,
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
   RESAMPLER_IMPL_APPLE
 #endif
 } resampler_impl_type_t;
@@ -64,7 +64,7 @@ audio_resampler_t* audio_resampler_wrap_synchronous(
     synchronous_resampler_t* res);
 audio_resampler_t* audio_resampler_wrap_async_sinc(async_sinc_resampler_t* res);
 audio_resampler_t* audio_resampler_wrap_async_poly(async_poly_resampler_t* res);
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 audio_resampler_t* audio_resampler_wrap_apple(apple_resampler_t* res);
 #endif
 

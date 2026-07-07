@@ -8,7 +8,7 @@
 #include "Config/config_error.h"
 #include "Config/filter_config_types.h"
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -44,7 +44,7 @@ double biquad_coefficients_phase_rad(const biquad_coefficients_t* coeffs,
 typedef struct {
   char name[64];
   biquad_coefficients_t coeffs;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   vDSP_biquadm_SetupD setup;
   double coeffs_array[5];
 #else

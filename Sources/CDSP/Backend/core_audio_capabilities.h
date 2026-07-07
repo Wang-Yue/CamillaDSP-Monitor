@@ -3,7 +3,7 @@
 #ifndef CLIB_BACKEND_CORE_AUDIO_CAPABILITIES_H
 #define CLIB_BACKEND_CORE_AUDIO_CAPABILITIES_H
 
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -67,6 +67,6 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
 /// Free the audio device descriptor and its internal capability sets.
 void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 
-#endif  // __APPLE__
+#endif  // ENABLE_COREAUDIO
 
 #endif  // CLIB_BACKEND_CORE_AUDIO_CAPABILITIES_H

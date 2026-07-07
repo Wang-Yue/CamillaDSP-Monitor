@@ -5,7 +5,7 @@
 // backends don't carry near-identical copies of every enumeration helper.
 
 #include "core_audio_device.h"
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 #include <CoreFoundation/CoreFoundation.h>
 #include <math.h>
 #include <stdatomic.h>
@@ -477,4 +477,4 @@ void rate_change_watcher_free(rate_change_watcher_t* watcher) {
   rate_change_watcher_dispose(watcher);
   free(watcher);
 }
-#endif  // __APPLE__
+#endif  // ENABLE_COREAUDIO

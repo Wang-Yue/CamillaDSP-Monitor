@@ -46,7 +46,7 @@
 /// divide by `N` themselves — both directions are returned scale-free,
 /// and the caller (e.g. the synchronous resampler) folds the 1/N
 /// normalisation into its filter prefactor.
-#ifdef __APPLE__
+#if defined(ENABLE_ACCELERATE)
 typedef struct bluestein_fft bluestein_fft_t;
 
 bluestein_fft_t* bluestein_fft_create(size_t n);
@@ -70,6 +70,6 @@ static inline arbitrary_complex_fft_t* bluestein_fft_as_arbitrary(
     bluestein_fft_t* fft) {
   return (arbitrary_complex_fft_t*)fft;
 }
-#endif
+#endif  // ENABLE_ACCELERATE
 
 #endif  // CLIB_FFT_BLUESTEINFFT_H

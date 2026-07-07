@@ -1,6 +1,3 @@
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -55,16 +52,46 @@ static void print_usage(void) {
       "  -n, --channels    Override number of channels of capture device in "
       "config.\n\n"
       "Supported device types:\n"
-#if defined(__APPLE__)
-      "  Capture: CoreAudio, File, Stdin, Generator\n"
-      "  Playback: CoreAudio, File, Stdout\n"
-#elif defined(__linux__)
-      "  Capture: ALSA, Pulse, PipeWire, File, Stdin, Generator\n"
-      "  Playback: ALSA, Pulse, PipeWire, File, Stdout\n"
-#else
-      "  Capture: File, Stdin, Generator\n"
-      "  Playback: File, Stdout\n"
+      "  Capture: "
+#if defined(ENABLE_COREAUDIO)
+      "CoreAudio, "
 #endif
+#if defined(ENABLE_ALSA)
+      "ALSA, "
+#endif
+#if defined(ENABLE_PULSE)
+      "Pulse, "
+#endif
+#if defined(ENABLE_PIPEWIRE)
+      "PipeWire, "
+#endif
+#if defined(ENABLE_WASAPI)
+      "WASAPI, "
+#endif
+#if defined(ENABLE_ASIO)
+      "ASIO, "
+#endif
+      "File, Stdin, Generator\n"
+      "  Playback: "
+#if defined(ENABLE_COREAUDIO)
+      "CoreAudio, "
+#endif
+#if defined(ENABLE_ALSA)
+      "ALSA, "
+#endif
+#if defined(ENABLE_PULSE)
+      "Pulse, "
+#endif
+#if defined(ENABLE_PIPEWIRE)
+      "PipeWire, "
+#endif
+#if defined(ENABLE_WASAPI)
+      "WASAPI, "
+#endif
+#if defined(ENABLE_ASIO)
+      "ASIO, "
+#endif
+      "File, Stdout\n"
   );
 }
 

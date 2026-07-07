@@ -1,6 +1,4 @@
-#if defined(__linux__)
-#define _GNU_SOURCE
-
+#if defined(ENABLE_ALSA)
 #include "alsa_capabilities.h"
 #include "alsa_device.h"
 
@@ -243,4 +241,4 @@ void alsa_capabilities_free_descriptor(audio_device_descriptor_t* desc) {
   free(desc);
 }
 
-#endif  // defined(__linux__)
+#endif  // defined(ENABLE_ALSA)

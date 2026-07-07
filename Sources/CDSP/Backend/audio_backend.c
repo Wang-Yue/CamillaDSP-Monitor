@@ -4,17 +4,24 @@
 // engine internals and the public actor — live in `Engine/DSPEngine.swift`.
 
 #include "audio_backend.h"
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 #include "core_audio_capture.h"
 #include "core_audio_playback.h"
-#elif defined(__linux__)
+#endif
+#if defined(ENABLE_ALSA)
 #include "alsa_capture.h"
 #include "alsa_playback.h"
+#endif
+#if defined(ENABLE_PIPEWIRE)
 #include "pipewire_backend.h"
+#endif
+#if defined(ENABLE_PULSE)
 #include "pulse_backend.h"
 #endif
-#if defined(_WIN32)
+#if defined(ENABLE_ASIO)
 #include "asio_backend.h"
+#endif
+#if defined(ENABLE_WASAPI)
 #include "wasapi_backend.h"
 #endif
 #include <stdlib.h>
@@ -27,6 +34,9 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
                                           bool full_duplex,
                                           processing_parameters_t* params,
                                           backend_error_t* err) {
+#if !defined(ENABLE_ASIO)
+  (void)full_duplex;
+#endif
   if (!config) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
@@ -34,21 +44,29 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
     return NULL;
   }
   switch (config->type) {
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
       return core_audio_capture_create(config, sample_rate, chunk_size, err);
-#elif defined(__linux__)
+#endif
+#if defined(ENABLE_ALSA)
     case AUDIO_BACKEND_TYPE_ALSA:
       return alsa_capture_create(config, sample_rate, chunk_size, params, err);
+#endif
+#if defined(ENABLE_PULSE)
     case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
       return pulse_capture_create(config, sample_rate, chunk_size, params, err);
+#endif
+#if defined(ENABLE_PIPEWIRE)
     case AUDIO_BACKEND_TYPE_PIPEWIRE:
       return pipewire_capture_create(config, sample_rate, chunk_size, params,
                                      err);
-#elif defined(_WIN32)
+#endif
+#if defined(ENABLE_WASAPI)
     case AUDIO_BACKEND_TYPE_WASAPI:
       return wasapi_capture_create(config, sample_rate, chunk_size, params,
                                    err);
+#endif
+#if defined(ENABLE_ASIO)
     case AUDIO_BACKEND_TYPE_ASIO:
       return asio_capture_new(config, sample_rate, chunk_size, full_duplex,
                               err);
@@ -70,6 +88,9 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
 playback_backend_t* create_playback_backend(
     const playback_device_config_t* config, int sample_rate, int chunk_size,
     bool full_duplex, processing_parameters_t* params, backend_error_t* err) {
+#if !defined(ENABLE_ASIO)
+  (void)full_duplex;
+#endif
   if (!config) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
@@ -77,22 +98,30 @@ playback_backend_t* create_playback_backend(
     return NULL;
   }
   switch (config->type) {
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
       return core_audio_playback_create(config, sample_rate, chunk_size, err);
-#elif defined(__linux__)
+#endif
+#if defined(ENABLE_ALSA)
     case AUDIO_BACKEND_TYPE_ALSA:
       return alsa_playback_create(config, sample_rate, chunk_size, params, err);
+#endif
+#if defined(ENABLE_PULSE)
     case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
       return pulse_playback_create(config, sample_rate, chunk_size, params,
                                    err);
+#endif
+#if defined(ENABLE_PIPEWIRE)
     case AUDIO_BACKEND_TYPE_PIPEWIRE:
       return pipewire_playback_create(config, sample_rate, chunk_size, params,
                                       err);
-#elif defined(_WIN32)
+#endif
+#if defined(ENABLE_WASAPI)
     case AUDIO_BACKEND_TYPE_WASAPI:
       return wasapi_playback_create(config, sample_rate, chunk_size, params,
                                     err);
+#endif
+#if defined(ENABLE_ASIO)
     case AUDIO_BACKEND_TYPE_ASIO:
       return asio_playback_new(config, sample_rate, chunk_size, full_duplex,
                                err);

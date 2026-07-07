@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -136,7 +136,7 @@ audio_history_buffer_status_t audio_history_buffer_read_latest(
     ok = spsc_audio_ring_buffer_read_latest_at(
         history->buffers[ch], history->averaging_scratch, count, min_written);
     if (!ok) return AUDIO_HISTORY_BUFFER_OK;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
     // dest += scratch (vectorised, no allocation).
     vDSP_vadd(dest, 1, history->averaging_scratch, 1, dest, 1, count);
 #else
@@ -147,7 +147,7 @@ audio_history_buffer_status_t audio_history_buffer_read_latest(
   }
 
   float scale = 1.0f / (float)history->channels;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   vDSP_vsmul(dest, 1, &scale, dest, 1, count);
 #else
   for (size_t i = 0; i < count; i++) {

@@ -1,4 +1,4 @@
-#ifdef __APPLE__
+#if defined(ENABLE_ACCELERATE)
 // vDSP `fft_zrip` backend for power-of-two real-FFT lengths.
 //
 // Selected by `RealFFT.init` when `length` is a power of two
@@ -137,4 +137,4 @@ void vdsp_real_fft_free(vdsp_real_fft_t* fft) {
   if (fft->scratch_im) free(fft->scratch_im);
   free(fft);
 }
-#endif
+#endif  // ENABLE_ACCELERATE

@@ -1,8 +1,4 @@
-#if defined(__linux__)
-
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
+#if defined(ENABLE_PIPEWIRE)
 
 #include "pipewire_backend.h"
 
@@ -689,4 +685,4 @@ void pipewire_playback_destroy(pipewire_playback_t* playback) {
   free(playback);
 }
 
-#endif  // __linux__
+#endif  // ENABLE_PIPEWIRE

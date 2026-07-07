@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_ALSA_CAPABILITIES_H
 #define CLIB_BACKEND_ALSA_CAPABILITIES_H
 
-#ifndef __APPLE__
+#if defined(ENABLE_ALSA)
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -19,6 +19,6 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
                                                       bool is_capture);
 void alsa_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 
-#endif  // !__APPLE__
+#endif  // ENABLE_ALSA
 
 #endif  // CLIB_BACKEND_ALSA_CAPABILITIES_H

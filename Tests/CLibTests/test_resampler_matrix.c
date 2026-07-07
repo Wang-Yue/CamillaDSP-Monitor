@@ -371,7 +371,7 @@ static double* run_process(int impl_id, const double* input, size_t input_count,
       strncpy(cfg.profile, "Accurate", sizeof(cfg.profile) - 1);
       cfg.has_profile = true;
       break;
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
     case 3:
       resampler_config_init(&cfg, RESAMPLER_TYPE_APPLE);
       cfg.apple_quality = APPLE_RESAMPLER_QUALITY_MAX;
@@ -525,7 +525,7 @@ static bool measure_swift_perf(int in_rate, int out_rate, int impl_id,
       strncpy(cfg.profile, "Accurate", sizeof(cfg.profile) - 1);
       cfg.has_profile = true;
       break;
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
     case 3:
       resampler_config_init(&cfg, RESAMPLER_TYPE_APPLE);
       cfg.apple_quality = APPLE_RESAMPLER_QUALITY_MAX;

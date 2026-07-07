@@ -356,7 +356,7 @@ int dsp_engine_get_available_devices(const char* backend, bool input,
                                      int max_devices) {
   if (!backend) return 0;
   if (strcasecmp(backend, "coreaudio") == 0) {
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
     char names[32][256];
     int count =
         core_audio_capabilities_available_device_names(input, names, 32);
@@ -372,7 +372,7 @@ int dsp_engine_get_available_devices(const char* backend, bool input,
     return 0;
 #endif
   } else if (strcasecmp(backend, "alsa") == 0) {
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
     char names[32][256];
     int count = alsa_capabilities_available_device_names(input, names, 32);
     if (count > max_devices) count = max_devices;
@@ -387,7 +387,7 @@ int dsp_engine_get_available_devices(const char* backend, bool input,
     return 0;
 #endif
   } else if (strcasecmp(backend, "wasapi") == 0) {
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
     char names[32][256];
     int count = wasapi_capabilities_available_device_names(input, names, 32);
     if (count > max_devices) count = max_devices;
@@ -402,7 +402,7 @@ int dsp_engine_get_available_devices(const char* backend, bool input,
     return 0;
 #endif
   } else if (strcasecmp(backend, "asio") == 0) {
-#if defined(_WIN32)
+#if defined(ENABLE_ASIO)
     char names[32][256];
     int count = asio_capabilities_available_device_names(input, names, 32);
     if (count > max_devices) count = max_devices;
@@ -424,25 +424,25 @@ audio_device_descriptor_t* dsp_engine_get_device_capabilities(
     const char* backend, const char* device, bool is_capture) {
   if (!backend || !device) return NULL;
   if (strcasecmp(backend, "coreaudio") == 0) {
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
     return core_audio_capabilities_describe(device, is_capture);
 #else
     return NULL;
 #endif
   } else if (strcasecmp(backend, "alsa") == 0) {
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
     return alsa_capabilities_describe(device, is_capture);
 #else
     return NULL;
 #endif
   } else if (strcasecmp(backend, "wasapi") == 0) {
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
     return wasapi_capabilities_describe(device, is_capture);
 #else
     return NULL;
 #endif
   } else if (strcasecmp(backend, "asio") == 0) {
-#if defined(_WIN32)
+#if defined(ENABLE_ASIO)
     return asio_capabilities_describe(device, is_capture);
 #else
     return NULL;
@@ -453,20 +453,13 @@ audio_device_descriptor_t* dsp_engine_get_device_capabilities(
 
 void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc) {
   if (!desc) return;
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
   core_audio_capabilities_free_descriptor(desc);
-#elif defined(__linux__)
+#elif defined(ENABLE_ALSA)
   alsa_capabilities_free_descriptor(desc);
-#elif defined(_WIN32)
-  // We can check the description's name or we can free both cleanly,
-  // but calling the correct free function is safer.
-  // Let's check name matching or just check if it was allocated by WASAPI /
-  // ASIO. Both WASAPI and ASIO capability descriptors use identical nested
-  // structure allocations, so wasapi_capabilities_free_descriptor and
-  // asio_capabilities_free_descriptor do exactly the same nested free loop. We
-  // can call either one! But let's call the correct one based on name/driver if
-  // possible, or just call wasapi's or asio's. Let's call
-  // asio_capabilities_free_descriptor as it is fully equivalent.
+#elif defined(ENABLE_WASAPI)
+  wasapi_capabilities_free_descriptor(desc);
+#elif defined(ENABLE_ASIO)
   asio_capabilities_free_descriptor(desc);
 #endif
 }

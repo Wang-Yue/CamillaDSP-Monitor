@@ -21,7 +21,7 @@
 /// Output convention: unscaled DFT in both directions (round-trip
 /// scales the input by `n`), matching `MixedRadixFFT` and
 /// `BluesteinFFT` — drop-in for `ComplexInnerRealFFT.inner`.
-#ifdef __APPLE__
+#if defined(ENABLE_ACCELERATE)
 typedef struct vdsp_complex_dft vdsp_complex_dft_t;
 
 vdsp_complex_dft_t* vdsp_complex_dft_create(size_t n);
@@ -34,6 +34,6 @@ static inline arbitrary_complex_fft_t* vdsp_complex_dft_as_arbitrary(
     vdsp_complex_dft_t* dft) {
   return (arbitrary_complex_fft_t*)dft;
 }
-#endif
+#endif  // ENABLE_ACCELERATE
 
 #endif  // CLIB_FFT_VDSPCOMPLEXDFT_H

@@ -1,4 +1,4 @@
-#ifdef __APPLE__
+#if defined(ENABLE_ACCELERATE)
 // vDSP `DFT_zopD` backend for complex DFTs at sizes `f·2ᵐ`,
 // `f ∈ {1, 3, 5, 15}`, `m ≥ 3`. Used by `ComplexInnerRealFFT` as its
 // inner transform when the size qualifies — Apple's tuned mixed-radix
@@ -67,4 +67,4 @@ void vdsp_complex_dft_free(vdsp_complex_dft_t* dft) {
   if (dft->setup_forward) vDSP_DFT_DestroySetupD(dft->setup_forward);
   free(dft);
 }
-#endif
+#endif  // ENABLE_ACCELERATE

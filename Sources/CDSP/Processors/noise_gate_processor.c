@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -120,7 +120,7 @@ void noise_gate_processor_process(noise_gate_processor_t* processor,
     int ch = processor->monitor_channels[ch_idx];
     const double* src_base = audio_chunk_get_channel(chunk, ch);
     if (!src_base) continue;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
     vDSP_vaddD(processor->scratch, 1, src_base, 1, processor->scratch, 1,
                count);
 #else
@@ -164,7 +164,7 @@ void noise_gate_processor_process(noise_gate_processor_t* processor,
     int ch = processor->process_channels[ch_idx];
     double* wave = audio_chunk_get_channel(chunk, ch);
     if (!wave) continue;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
     vDSP_vmulD(wave, 1, processor->scratch, 1, wave, 1, count);
 #else
     for (size_t i = 0; i < count; i++) {

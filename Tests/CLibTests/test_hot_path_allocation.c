@@ -183,7 +183,7 @@ static void run_resampler_hot_path(audio_resampler_t* resampler, int channels,
   audio_chunk_free(output);
 }
 
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 TEST(AppleResampler_AllocationFree_Stereo) {
   resampler_config_t cfg;
   memset(&cfg, 0, sizeof(cfg));
@@ -199,7 +199,7 @@ TEST(AppleResampler_AllocationFree_Stereo) {
   run_resampler_hot_path(res, 2, "AppleResampler stereo");
   audio_resampler_free(res);
 }
-#endif
+#endif  // ENABLE_COREAUDIO
 
 TEST(Synchronous_Stereo) {
   resampler_config_t cfg;

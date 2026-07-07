@@ -1,8 +1,4 @@
-#if defined(__linux__)
-
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
+#if defined(ENABLE_PULSE)
 
 #include "pulse_backend.h"
 
@@ -438,4 +434,4 @@ void pulse_playback_set_is_paused(pulse_playback_t* playback, bool paused) {
 
 void pulse_playback_destroy(pulse_playback_t* playback) { free(playback); }
 
-#endif  // __linux__
+#endif  // ENABLE_PULSE

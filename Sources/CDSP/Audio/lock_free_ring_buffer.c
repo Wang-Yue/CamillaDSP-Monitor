@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -59,7 +59,7 @@ void spsc_audio_ring_buffer_write(spsc_audio_ring_buffer_t* ring,
              (cnt - first_chunk) * sizeof(float));
     }
   } else {
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
     // Strided copy: extract every `stride`-th element of `source`
     // into the contiguous ring slot. `vDSP_vsadd` with a zero
     // scalar is a stride-aware copy — there's no dedicated
@@ -100,7 +100,7 @@ void spsc_audio_ring_buffer_append_converting_double_to_float(
   size_t first_chunk = ring->capacity - write_offset;
   if (first_chunk > cnt) first_chunk = cnt;
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   // vDSP_vdpsp: convert and store Double->Float, no allocation.
   vDSP_vdpsp(src, 1, ring->storage + write_offset, 1, first_chunk);
   if (first_chunk < cnt) {

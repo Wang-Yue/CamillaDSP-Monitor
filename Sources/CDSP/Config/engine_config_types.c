@@ -94,7 +94,7 @@ void audio_backend_error_description(const audio_backend_error_t* err,
 }
 
 // MARK: - Capability data model
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 const char* coreaudio_sample_format_to_string(coreaudio_sample_format_t fmt) {
   switch (fmt) {
     case COREAUDIO_SAMPLE_FORMAT_S16:
@@ -118,9 +118,9 @@ coreaudio_sample_format_t coreaudio_sample_format_from_string(const char* str) {
   if (strcmp(str, "F32") == 0) return COREAUDIO_SAMPLE_FORMAT_F32;
   return COREAUDIO_SAMPLE_FORMAT_INVALID;
 }
-#endif
+#endif  // ENABLE_COREAUDIO
 
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
 const char* alsa_sample_format_to_string(alsa_sample_format_t fmt) {
   switch (fmt) {
     case ALSA_SAMPLE_FORMAT_S16_LE:
@@ -156,19 +156,27 @@ alsa_sample_format_t alsa_sample_format_from_string(const char* str) {
 
 const char* audio_backend_type_to_string(audio_backend_type_t type) {
   switch (type) {
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
       return "CoreAudio";
-#elif defined(__linux__)
+#endif
+#if defined(ENABLE_ALSA)
     case AUDIO_BACKEND_TYPE_ALSA:
       return "Alsa";
+#endif
+#if defined(ENABLE_PULSE)
     case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
       return "Pulse";
+#endif
+#if defined(ENABLE_PIPEWIRE)
     case AUDIO_BACKEND_TYPE_PIPEWIRE:
       return "Pipewire";
-#elif defined(_WIN32)
+#endif
+#if defined(ENABLE_WASAPI)
     case AUDIO_BACKEND_TYPE_WASAPI:
       return "Wasapi";
+#endif
+#if defined(ENABLE_ASIO)
     case AUDIO_BACKEND_TYPE_ASIO:
       return "Asio";
 #endif
@@ -185,19 +193,27 @@ const char* audio_backend_type_to_string(audio_backend_type_t type) {
 
 audio_backend_type_t audio_backend_type_from_string(const char* str) {
   if (!str) return AUDIO_BACKEND_TYPE_INVALID;
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
   if (strcasecmp(str, "CoreAudio") == 0 || strcasecmp(str, "Core Audio") == 0)
     return AUDIO_BACKEND_TYPE_CORE_AUDIO;
-#elif defined(__linux__)
+#endif
+#if defined(ENABLE_ALSA)
   if (strcasecmp(str, "Alsa") == 0 || strcasecmp(str, "ALSA") == 0)
     return AUDIO_BACKEND_TYPE_ALSA;
+#endif
+#if defined(ENABLE_PULSE)
   if (strcasecmp(str, "Pulse") == 0 || strcasecmp(str, "PulseAudio") == 0)
     return AUDIO_BACKEND_TYPE_PULSE_AUDIO;
+#endif
+#if defined(ENABLE_PIPEWIRE)
   if (strcasecmp(str, "Pipewire") == 0 || strcasecmp(str, "PipeWire") == 0)
     return AUDIO_BACKEND_TYPE_PIPEWIRE;
-#elif defined(_WIN32)
+#endif
+#if defined(ENABLE_WASAPI)
   if (strcasecmp(str, "Wasapi") == 0 || strcasecmp(str, "WASAPI") == 0)
     return AUDIO_BACKEND_TYPE_WASAPI;
+#endif
+#if defined(ENABLE_ASIO)
   if (strcasecmp(str, "Asio") == 0 || strcasecmp(str, "ASIO") == 0)
     return AUDIO_BACKEND_TYPE_ASIO;
 #endif
@@ -310,7 +326,7 @@ binary_sample_format_t binary_sample_format_from_string(const char* str) {
   return BINARY_SAMPLE_FORMAT_INVALID;
 }
 
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
 const char* wasapi_sample_format_to_string(wasapi_sample_format_t fmt) {
   switch (fmt) {
     case WASAPI_SAMPLE_FORMAT_S16:
@@ -334,7 +350,9 @@ wasapi_sample_format_t wasapi_sample_format_from_string(const char* str) {
   if (strcmp(str, "F32") == 0) return WASAPI_SAMPLE_FORMAT_F32;
   return WASAPI_SAMPLE_FORMAT_INVALID;
 }
+#endif
 
+#if defined(ENABLE_ASIO)
 const char* asio_sample_format_to_string(asio_sample_format_t fmt) {
   switch (fmt) {
     case ASIO_SAMPLE_FORMAT_S16_LE:

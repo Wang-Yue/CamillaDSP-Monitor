@@ -1,4 +1,4 @@
-#ifdef __APPLE__
+#if defined(ENABLE_ACCELERATE)
 // Arbitrary-N complex DFT via Bluestein's chirp-z transform.
 //
 // References:
@@ -272,5 +272,4 @@ void bluestein_fft_free(bluestein_fft_t* fft) {
   free(fft->c_im);
   free(fft);
 }
-
-#endif
+#endif  // ENABLE_ACCELERATE

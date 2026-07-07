@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_ALSA_CAPTURE_H
 #define CLIB_BACKEND_ALSA_CAPTURE_H
 
-#ifndef __APPLE__
+#if defined(ENABLE_ALSA)
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -27,6 +27,6 @@ void alsa_capture_set_pitch(alsa_capture_t* capture, double multiplier);
 bool alsa_capture_wait(alsa_capture_t* capture, uint32_t timeout_ms);
 void alsa_capture_destroy(alsa_capture_t* capture);
 
-#endif  // !__APPLE__
+#endif  // ENABLE_ALSA
 
 #endif  // CLIB_BACKEND_ALSA_CAPTURE_H

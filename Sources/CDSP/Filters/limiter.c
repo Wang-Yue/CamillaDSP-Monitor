@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -42,7 +42,7 @@ void limiter_filter_process(limiter_filter_t* filter,
   } else {
     double low_limit = -filter->clip_limit;
     double high_limit = filter->clip_limit;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
     vDSP_vclipD(waveform, 1, &low_limit, &high_limit, waveform, 1, count);
 #else
     for (size_t i = 0; i < count; i++) {

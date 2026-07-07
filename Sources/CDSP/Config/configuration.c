@@ -88,7 +88,7 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
   if (config->devices.has_target_level) {
     int qlimit = config->devices.has_queuelimit ? config->devices.queuelimit : 4;
     int target_limit = (2 + qlimit) * config->devices.chunksize;
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
     if (config->devices.playback.type == AUDIO_BACKEND_TYPE_ALSA) {
       target_limit = (4 + qlimit) * config->devices.chunksize;
     }

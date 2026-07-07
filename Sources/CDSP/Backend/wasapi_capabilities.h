@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_WASAPI_CAPABILITIES_H
 #define CLIB_BACKEND_WASAPI_CAPABILITIES_H
 
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -22,6 +22,6 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
 /// Free descriptor memory.
 void wasapi_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 
-#endif  // _WIN32
+#endif  // ENABLE_WASAPI
 
 #endif  // CLIB_BACKEND_WASAPI_CAPABILITIES_H

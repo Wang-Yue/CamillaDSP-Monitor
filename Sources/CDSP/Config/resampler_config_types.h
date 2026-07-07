@@ -9,14 +9,14 @@
 
 typedef enum {
   RESAMPLER_TYPE_SYNCHRONOUS = 0,
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
   RESAMPLER_TYPE_APPLE,
 #endif
   RESAMPLER_TYPE_ASYNC_SINC,
   RESAMPLER_TYPE_ASYNC_POLY
 } resampler_type_t;
 
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 /// Quality settings supported by Apple's AudioConverter.
 typedef enum {
   APPLE_RESAMPLER_QUALITY_MIN = 0,
@@ -48,7 +48,7 @@ typedef struct {
   bool has_profile;
   char interpolation[32];
   bool has_interpolation;
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
   apple_resampler_quality_t apple_quality;
   bool has_apple_quality;
   apple_resampler_complexity_t apple_complexity;
@@ -67,7 +67,7 @@ typedef struct {
 const char* resampler_type_to_string(resampler_type_t type);
 resampler_type_t resampler_type_from_string(const char* str);
 
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 const char* apple_resampler_quality_to_string(
     apple_resampler_quality_t quality);
 apple_resampler_quality_t apple_resampler_quality_from_string(const char* str);

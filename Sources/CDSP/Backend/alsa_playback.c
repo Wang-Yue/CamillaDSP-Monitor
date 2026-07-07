@@ -1,6 +1,4 @@
-#if defined(__linux__)
-#define _GNU_SOURCE
-
+#if defined(ENABLE_ALSA)
 #include "alsa_playback.h"
 #include "alsa_device.h"
 
@@ -456,4 +454,4 @@ void alsa_playback_destroy(alsa_playback_t* playback) {
   free(playback);
 }
 
-#endif  // defined(__linux__)
+#endif  // defined(ENABLE_ALSA)

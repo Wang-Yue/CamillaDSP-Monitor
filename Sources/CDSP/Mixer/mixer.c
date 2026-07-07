@@ -20,9 +20,6 @@
  *   4. Zero-allocation guarantee is strictly maintained on the audio processing
  * path.
  */
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
 #include "Mixer/mixer.h"
 
 #include <stdlib.h>

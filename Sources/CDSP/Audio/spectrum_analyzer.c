@@ -15,7 +15,7 @@ spectrum_analyzer_t* spectrum_analyzer_create(void) {
       (spectrum_analyzer_t*)calloc(1, sizeof(spectrum_analyzer_t));
   if (!analyzer) return NULL;
   analyzer->fft_n = 4096;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   analyzer->log2n = (vDSP_Length)log2(4096.0);
   analyzer->fft_setup = vDSP_create_fftsetup(analyzer->log2n, kFFTRadix2);
 #else
@@ -32,7 +32,7 @@ spectrum_analyzer_t* spectrum_analyzer_create(void) {
   analyzer->db_magnitudes =
       (float*)calloc(analyzer->fft_n / 2 + 1, sizeof(float));
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   if (analyzer->window) {
     vDSP_hann_window(analyzer->window, (vDSP_Length)analyzer->fft_n, 0);
   }
@@ -68,7 +68,7 @@ spectrum_analyzer_t* spectrum_analyzer_create(void) {
 
 void spectrum_analyzer_free(spectrum_analyzer_t* analyzer) {
   if (!analyzer) return;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   if (analyzer->fft_setup) vDSP_destroy_fftsetup(analyzer->fft_setup);
 #else
   if (analyzer->fft_setup) real_fft_free((real_fft_t*)analyzer->fft_setup);
@@ -115,7 +115,7 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   }
 
   // 1. Apply Hann window in-place
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   vDSP_vmul(analyzer->data, 1, analyzer->window, 1, analyzer->data, 1,
             analyzer->fft_n);
 #else
@@ -126,7 +126,7 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
 
   // 2. Perform FFT using reusable split-complex buffers
   size_t half_n = analyzer->fft_n / 2;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   DSPSplitComplex split_complex = {analyzer->realp, analyzer->imagp};
   vDSP_ctoz((const DSPComplex*)analyzer->data, 2, &split_complex, 1,
             (vDSP_Length)half_n);
@@ -144,7 +144,7 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   float scale = 2.0f / (float)analyzer->fft_n;
   float floor_val = 1e-10f;
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   // Calculate magnitudes of complex bins [1 .. half_n - 1] via vector absolute
   // value
   DSPSplitComplex split_complex1 = {analyzer->realp + 1, analyzer->imagp + 1};
@@ -250,7 +250,7 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
 
     if (len > 0) {
       float max_val = -200.0f;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
       vDSP_maxv(analyzer->db_magnitudes + start, 1, &max_val, (vDSP_Length)len);
 #else
       for (int k = start; k < end; k++) {

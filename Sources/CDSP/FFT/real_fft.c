@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__APPLE__)
+#if defined(ENABLE_ACCELERATE)
 
 // Real-input FFT of arbitrary even length. `RealFFT.init` is
 // the **single dispatch point** for the resampler's FFT subsystem — it
@@ -102,7 +102,7 @@ real_fft_t* real_fft_create(size_t length) {
   return fft;
 }
 
-#else  // !defined(__APPLE__)
+#elif defined(ENABLE_FFTW)
 
 #include <complex.h>
 #include <fftw3.h>
@@ -197,7 +197,9 @@ real_fft_t* real_fft_create(size_t length) {
   return fft;
 }
 
-#endif  // defined(__APPLE__)
+#else
+#error "No FFT backend enabled! Enable either ENABLE_ACCELERATE or ENABLE_FFTW."
+#endif
 
 // Public API implementation (shared across Apple and non-Apple backends)
 void real_fft_forward(real_fft_t* fft, waveform_t real_in,

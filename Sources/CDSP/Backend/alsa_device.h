@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_ALSA_DEVICE_H
 #define CLIB_BACKEND_ALSA_DEVICE_H
 
-#ifndef __APPLE__
+#if defined(ENABLE_ALSA)
 
 #include <alsa/asoundlib.h>
 #include <stdbool.h>
@@ -11,6 +11,6 @@
 
 extern pthread_mutex_t g_alsa_mutex;
 
-#endif  // !__APPLE__
+#endif  // ENABLE_ALSA
 
 #endif  // CLIB_BACKEND_ALSA_DEVICE_H

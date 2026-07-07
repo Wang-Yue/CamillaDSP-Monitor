@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_WASAPI_BACKEND_H
 #define CLIB_BACKEND_WASAPI_BACKEND_H
 
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -47,6 +47,6 @@ bool wasapi_playback_get_is_paused(wasapi_playback_t* playback);
 void wasapi_playback_set_is_paused(wasapi_playback_t* playback, bool paused);
 void wasapi_playback_destroy(wasapi_playback_t* playback);
 
-#endif  // _WIN32
+#endif  // ENABLE_WASAPI
 
 #endif  // CLIB_BACKEND_WASAPI_BACKEND_H

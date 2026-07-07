@@ -8,12 +8,16 @@
 #include "Config/engine_config_types.h"
 #include "Config/log_level.h"
 #include "dsp_engine_core.h"
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 #include "Backend/core_audio_capabilities.h"
-#elif defined(__linux__)
+#endif
+#if defined(ENABLE_ALSA)
 #include "Backend/alsa_capabilities.h"
-#elif defined(_WIN32)
+#endif
+#if defined(ENABLE_ASIO)
 #include "Backend/asio_capabilities.h"
+#endif
+#if defined(ENABLE_WASAPI)
 #include "Backend/wasapi_capabilities.h"
 #endif
 #include <stdbool.h>

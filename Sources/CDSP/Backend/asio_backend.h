@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_ASIO_BACKEND_H
 #define CLIB_BACKEND_ASIO_BACKEND_H
 
-#if defined(_WIN32)
+#if defined(ENABLE_ASIO)
 
 #include "audio_backend.h"
 
@@ -17,6 +17,6 @@ playback_backend_t* asio_playback_new(const playback_device_config_t* config,
                                       int sample_rate, int chunk_size,
                                       bool full_duplex, backend_error_t* err);
 
-#endif  // _WIN32
+#endif  // ENABLE_ASIO
 
 #endif  // CLIB_BACKEND_ASIO_BACKEND_H

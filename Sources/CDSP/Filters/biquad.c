@@ -281,7 +281,7 @@ biquad_filter_t* biquad_filter_create(const char* name,
     strcpy(filter->name, "biquad");
   }
   filter->coeffs = coeffs ? *coeffs : biquad_coefficients_passthrough();
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   filter->coeffs_array[0] = filter->coeffs.b0;
   filter->coeffs_array[1] = filter->coeffs.b1;
   filter->coeffs_array[2] = filter->coeffs.b2;
@@ -298,7 +298,7 @@ biquad_filter_t* biquad_filter_create(const char* name,
 void biquad_filter_process(biquad_filter_t* filter, mutable_waveform_t waveform,
                            size_t count) {
   if (!filter || !waveform || count == 0) return;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   if (!filter->setup) return;
   const double* signal_ptr = waveform;
   double* output_ptr = waveform;
@@ -325,7 +325,7 @@ void biquad_filter_process(biquad_filter_t* filter, mutable_waveform_t waveform,
 
 double biquad_filter_process_single(biquad_filter_t* filter, double sample) {
   if (!filter) return sample;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   if (!filter->setup) return sample;
   double in_val = sample;
   double out_val = 0.0;
@@ -355,7 +355,7 @@ void biquad_filter_update_parameters(biquad_filter_t* filter,
   if (biquad_coefficients_compute(&config->parameters.biquad, sample_rate,
                                   &new_coeffs)) {
     filter->coeffs = new_coeffs;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
     if (filter->setup) {
       filter->coeffs_array[0] = new_coeffs.b0;
       filter->coeffs_array[1] = new_coeffs.b1;
@@ -371,7 +371,7 @@ void biquad_filter_update_parameters(biquad_filter_t* filter,
 
 void biquad_filter_free(biquad_filter_t* filter) {
   if (!filter) return;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   if (filter->setup) {
     vDSP_biquadm_DestroySetupD(filter->setup);
   }

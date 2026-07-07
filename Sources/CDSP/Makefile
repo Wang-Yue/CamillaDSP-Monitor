@@ -5,15 +5,121 @@ CC ?= clang
 AR ?= ar
 CFLAGS ?= -O3 -ffp-contract=fast -fno-math-errno -funroll-loops -Wall -Wextra -std=c11 -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging
 UNAME_S := $(shell uname -s)
+
+# Setup Default Feature Flags
 ifeq ($(UNAME_S),Darwin)
-    LDFLAGS ?= -framework Accelerate -framework AudioToolbox -framework CoreAudio -framework CoreFoundation
+    ENABLE_COREAUDIO ?= 1
+    ENABLE_ACCELERATE ?= 1
+    ENABLE_ALSA ?= 0
+    ENABLE_PULSE ?= 0
+    ENABLE_PIPEWIRE ?= 0
+    ENABLE_FFTW ?= 0
+    ENABLE_BLAS ?= 0
+    ENABLE_WASAPI ?= 0
+    ENABLE_ASIO ?= 0
 else
-    LDFLAGS ?= -lm -lpthread -lasound -lrt -lfftw3 -lopenblas -lpulse-simple -lpulse -lpipewire-0.3
-    CFLAGS += -march=native $(shell pkg-config --cflags libpipewire-0.3)
+    # Linux (Default)
+    ENABLE_COREAUDIO ?= 0
+    ENABLE_ACCELERATE ?= 0
+    ENABLE_ALSA ?= 1
+    ENABLE_PULSE ?= 1
+    ENABLE_PIPEWIRE ?= 1
+    ENABLE_FFTW ?= 1
+    ENABLE_BLAS ?= 1
+    ENABLE_WASAPI ?= 0
+    ENABLE_ASIO ?= 0
+endif
+
+# Map Flags to CFLAGS preprocessor definitions
+ifeq ($(ENABLE_COREAUDIO),1)
+    CFLAGS += -DENABLE_COREAUDIO
+endif
+ifeq ($(ENABLE_ACCELERATE),1)
+    CFLAGS += -DENABLE_ACCELERATE
+endif
+ifeq ($(ENABLE_ALSA),1)
+    CFLAGS += -DENABLE_ALSA
+endif
+ifeq ($(ENABLE_PULSE),1)
+    CFLAGS += -DENABLE_PULSE
+endif
+ifeq ($(ENABLE_PIPEWIRE),1)
+    CFLAGS += -DENABLE_PIPEWIRE
+endif
+ifeq ($(ENABLE_FFTW),1)
+    CFLAGS += -DENABLE_FFTW
+endif
+ifeq ($(ENABLE_BLAS),1)
+    CFLAGS += -DENABLE_BLAS
+endif
+ifeq ($(ENABLE_WASAPI),1)
+    CFLAGS += -DENABLE_WASAPI
+endif
+ifeq ($(ENABLE_ASIO),1)
+    CFLAGS += -DENABLE_ASIO
+endif
+
+# Map Flags to link options (LDFLAGS)
+LDFLAGS := -lm -lpthread
+ifeq ($(UNAME_S),Darwin)
+    ifeq ($(ENABLE_COREAUDIO),1)
+        LDFLAGS += -framework CoreAudio -framework AudioToolbox
+    endif
+    ifeq ($(ENABLE_ACCELERATE),1)
+        LDFLAGS += -framework Accelerate
+    endif
+    LDFLAGS += -framework CoreFoundation
+else
+    # Linux
+    CFLAGS += -march=native -D_GNU_SOURCE
+    ifeq ($(ENABLE_ALSA),1)
+        LDFLAGS += -lasound
+    endif
+    ifeq ($(ENABLE_PULSE),1)
+        LDFLAGS += -lpulse-simple -lpulse
+    endif
+    ifeq ($(ENABLE_PIPEWIRE),1)
+        LDFLAGS += -lpipewire-0.3
+        CFLAGS += $(shell pkg-config --cflags libpipewire-0.3 2>/dev/null || echo "")
+    endif
+    ifeq ($(ENABLE_FFTW),1)
+        LDFLAGS += -lfftw3
+    endif
+    ifeq ($(ENABLE_BLAS),1)
+        LDFLAGS += -lopenblas
+    endif
+    LDFLAGS += -lrt
 endif
 
 # All library C source files across subdirectories of CDSP
-SRCS := $(wildcard $(ROOT_DIR)/Sources/CDSP/*/*.c)
+ALL_SRCS := $(wildcard $(ROOT_DIR)/Sources/CDSP/*/*.c)
+
+# Filter native source files based on enabled backends
+SRCS := $(ALL_SRCS)
+
+ifneq ($(ENABLE_ALSA),1)
+    SRCS := $(filter-out %/alsa_capture.c %/alsa_playback.c %/alsa_device.c %/alsa_capabilities.c, $(SRCS))
+endif
+
+ifneq ($(ENABLE_PULSE),1)
+    SRCS := $(filter-out %/pulse_backend.c, $(SRCS))
+endif
+
+ifneq ($(ENABLE_PIPEWIRE),1)
+    SRCS := $(filter-out %/pipewire_backend.c, $(SRCS))
+endif
+
+ifneq ($(ENABLE_COREAUDIO),1)
+    SRCS := $(filter-out %/core_audio_capture.c %/core_audio_playback.c %/core_audio_device.c %/core_audio_capabilities.c, $(SRCS))
+endif
+
+ifneq ($(ENABLE_WASAPI),1)
+    SRCS := $(filter-out %/wasapi_backend.c %/wasapi_capabilities.c, $(SRCS))
+endif
+
+ifneq ($(ENABLE_ASIO),1)
+    SRCS := $(filter-out %/asio_backend.c %/asio_capabilities.c, $(SRCS))
+endif
 
 # Map source files to object files in .build/obj/
 # e.g. ./Sources/CDSP/Audio/audio_buffers.c -> ./build/obj/Sources/CDSP/Audio/audio_buffers.o
@@ -78,12 +184,19 @@ $(CLI_BIN): $(CLI_SRC) $(LIB_TARGET)
 WIN_CC := x86_64-w64-mingw32-gcc
 WIN_AR := x86_64-w64-mingw32-ar
 WIN_OBJ_DIR := $(ROOT_DIR)/.build/win_obj
-WIN_OBJS := $(patsubst $(ROOT_DIR)/%.c, $(WIN_OBJ_DIR)/%.o, $(SRCS))
+
+# Filter Windows source files (exclude Linux/Apple specific backends)
+WIN_SRCS := $(filter-out %/alsa_capture.c %/alsa_playback.c %/alsa_device.c %/alsa_capabilities.c \
+                        %/pulse_backend.c \
+                        %/pipewire_backend.c \
+                        %/core_audio_capture.c %/core_audio_playback.c %/core_audio_device.c %/core_audio_capabilities.c, $(ALL_SRCS))
+
+WIN_OBJS := $(patsubst $(ROOT_DIR)/%.c, $(WIN_OBJ_DIR)/%.o, $(WIN_SRCS))
 WIN_LIB_TARGET := $(ROOT_DIR)/Sources/CDSP/libdsp_win.a
 
 $(WIN_OBJ_DIR)/%.o: $(ROOT_DIR)/%.c
 	@mkdir -p $(dir $@)
-	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging -c $< -o $@
+	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -DENABLE_WASAPI -DENABLE_ASIO -DENABLE_FFTW -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging -c $< -o $@
 
 WIN_CLI_BIN := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli.exe
 
@@ -96,7 +209,7 @@ windows-lib: $(WIN_OBJS)
 
 windows-cli: $(WIN_LIB_TARGET)
 	@mkdir -p $(dir $(WIN_CLI_BIN))
-	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging $(CLI_SRC) $(WIN_LIB_TARGET) /tmp/win_fftw/libfftw3-3.dll -pthread -lws2_32 -lwinmm -lole32 -luuid -lksuser -lksguid -o $(WIN_CLI_BIN)
+	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -DENABLE_WASAPI -DENABLE_ASIO -DENABLE_FFTW -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging $(CLI_SRC) $(WIN_LIB_TARGET) /tmp/win_fftw/libfftw3-3.dll -pthread -lws2_32 -lwinmm -lole32 -luuid -lksuser -lksguid -o $(WIN_CLI_BIN)
 
 clean:
 	rm -rf $(OBJ_DIR) $(WIN_OBJ_DIR) $(LIB_TARGET) $(WIN_LIB_TARGET) $(ROOT_DIR)/Tests/CLibTests/bin $(ROOT_DIR)/Sources/CDSP/bin

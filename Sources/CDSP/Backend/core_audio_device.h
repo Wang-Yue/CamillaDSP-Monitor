@@ -7,7 +7,7 @@
 #ifndef CLIB_BACKEND_CORE_AUDIO_DEVICE_H
 #define CLIB_BACKEND_CORE_AUDIO_DEVICE_H
 
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <CoreAudio/CoreAudio.h>
@@ -155,6 +155,6 @@ void rate_change_watcher_dispose(rate_change_watcher_t* watcher);
 /// Destroy and free the rate change watcher.
 void rate_change_watcher_free(rate_change_watcher_t* watcher);
 
-#endif  // __APPLE__
+#endif  // ENABLE_COREAUDIO
 
 #endif  // CLIB_BACKEND_CORE_AUDIO_DEVICE_H

@@ -13,7 +13,7 @@
 //     the render callback only fills the existing struct.
 
 #include "core_audio_capture.h"
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 #include <Accelerate/Accelerate.h>
 #include <dispatch/dispatch.h>
 #include <stdatomic.h>
@@ -626,4 +626,4 @@ void core_audio_capture_destroy(core_audio_capture_t* capture) {
   }
   free(capture);
 }
-#endif  // __APPLE__
+#endif  // ENABLE_COREAUDIO

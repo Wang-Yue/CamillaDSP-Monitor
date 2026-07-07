@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_PULSE_BACKEND_H
 #define CLIB_BACKEND_PULSE_BACKEND_H
 
-#if defined(__linux__)
+#if defined(ENABLE_PULSE)
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -47,6 +47,6 @@ bool pulse_playback_get_is_paused(pulse_playback_t* playback);
 void pulse_playback_set_is_paused(pulse_playback_t* playback, bool paused);
 void pulse_playback_destroy(pulse_playback_t* playback);
 
-#endif  // __linux__
+#endif  // ENABLE_PULSE
 
 #endif  // CLIB_BACKEND_PULSE_BACKEND_H

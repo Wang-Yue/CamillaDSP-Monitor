@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_PIPEWIRE_BACKEND_H
 #define CLIB_BACKEND_PIPEWIRE_BACKEND_H
 
-#if defined(__linux__)
+#if defined(ENABLE_PIPEWIRE)
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -48,6 +48,6 @@ void pipewire_playback_set_is_paused(pipewire_playback_t* playback,
                                      bool paused);
 void pipewire_playback_destroy(pipewire_playback_t* playback);
 
-#endif  // __linux__
+#endif  // ENABLE_PIPEWIRE
 
 #endif  // CLIB_BACKEND_PIPEWIRE_BACKEND_H

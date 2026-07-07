@@ -1,6 +1,4 @@
-#if defined(__linux__)
-#define _GNU_SOURCE
-
+#if defined(ENABLE_ALSA)
 #include "alsa_capture.h"
 #include "alsa_device.h"
 
@@ -109,13 +107,11 @@ capture_backend_t* alsa_capture_create(const capture_device_config_t* config,
   capture->has_format = config->has_format;
   capture->requested_format = config->format;
   capture->params = params;
-#if defined(__linux__)
   capture->stop_on_inactive = config->stop_on_inactive;
   snprintf(capture->link_volume_control, sizeof(capture->link_volume_control),
            "%s", config->link_volume_control);
   snprintf(capture->link_mute_control, sizeof(capture->link_mute_control), "%s",
            config->link_mute_control);
-#endif
 
   capture_backend_t* backend =
       (capture_backend_t*)calloc(1, sizeof(capture_backend_t));
@@ -611,4 +607,4 @@ void alsa_capture_destroy(alsa_capture_t* capture) {
   free(capture);
 }
 
-#endif  // defined(__linux__)
+#endif  // defined(ENABLE_ALSA)

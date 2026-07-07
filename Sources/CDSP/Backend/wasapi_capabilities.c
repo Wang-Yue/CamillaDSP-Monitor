@@ -1,4 +1,4 @@
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
 
 #define WIN32_LEAN_AND_MEAN
 #include "wasapi_capabilities.h"
@@ -360,4 +360,4 @@ void wasapi_capabilities_free_descriptor(audio_device_descriptor_t* desc) {
   free(desc);
 }
 
-#endif  // _WIN32
+#endif  // ENABLE_WASAPI

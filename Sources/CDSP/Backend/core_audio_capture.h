@@ -15,7 +15,7 @@
 #ifndef CLIB_BACKEND_CORE_AUDIO_CAPTURE_H
 #define CLIB_BACKEND_CORE_AUDIO_CAPTURE_H
 
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <CoreAudio/CoreAudio.h>
@@ -57,6 +57,6 @@ bool core_audio_capture_wait(core_audio_capture_t* capture,
 /// Destroy and free the CoreAudio capture backend.
 void core_audio_capture_destroy(core_audio_capture_t* capture);
 
-#endif  // __APPLE__
+#endif  // ENABLE_COREAUDIO
 
 #endif  // CLIB_BACKEND_CORE_AUDIO_CAPTURE_H

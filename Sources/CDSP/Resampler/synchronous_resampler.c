@@ -83,7 +83,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -327,7 +327,7 @@ resampler_error_t synchronous_resampler_process(
     // filter. Only the `sharedBins` matter since bins above are
     // dropped on the output side; doing the multiply in place over
     // that span avoids touching the upper half.
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
     DSPDoubleSplitComplex io_split = {resampler->working_spec_re,
                                       resampler->working_spec_im};
     DSPDoubleSplitComplex f_split = {resampler->filter_spec_re,
@@ -367,7 +367,7 @@ resampler_error_t synchronous_resampler_process(
     // Step 6. Overlap-add: write `result[0..P) + carry` as the chunk's
     // output samples, and save `result[P..2P)` for the next chunk's
     // overlap.
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
     vDSP_vaddD(resampler->working_time, 1, carry_ptr, 1, out_ptr, 1,
                resampler->output_block_len);
 #else

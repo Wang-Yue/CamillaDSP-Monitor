@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_ASIO_CAPABILITIES_H
 #define CLIB_BACKEND_ASIO_CAPABILITIES_H
 
-#if defined(_WIN32)
+#if defined(ENABLE_ASIO)
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -22,6 +22,6 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
 /// Free descriptor memory.
 void asio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 
-#endif  // _WIN32
+#endif  // ENABLE_ASIO
 
 #endif  // CLIB_BACKEND_ASIO_CAPABILITIES_H

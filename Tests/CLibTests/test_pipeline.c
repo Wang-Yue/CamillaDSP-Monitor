@@ -1,6 +1,4 @@
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,20 +16,24 @@ static void init_default_config(dsp_config_t* config) {
   config->devices.samplerate = 44100;
   config->devices.chunksize = 1024;
   config->devices.capture.channels = 2;
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
   config->devices.capture.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
-#elif defined(__linux__)
+#elif defined(ENABLE_ALSA)
   config->devices.capture.type = AUDIO_BACKEND_TYPE_ALSA;
-#elif defined(_WIN32)
+#elif defined(ENABLE_WASAPI)
   config->devices.capture.type = AUDIO_BACKEND_TYPE_WASAPI;
+#else
+  config->devices.capture.type = AUDIO_BACKEND_TYPE_FILE;
 #endif
   config->devices.playback.channels = 2;
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
   config->devices.playback.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
-#elif defined(__linux__)
+#elif defined(ENABLE_ALSA)
   config->devices.playback.type = AUDIO_BACKEND_TYPE_ALSA;
-#elif defined(_WIN32)
+#elif defined(ENABLE_WASAPI)
   config->devices.playback.type = AUDIO_BACKEND_TYPE_WASAPI;
+#else
+  config->devices.playback.type = AUDIO_BACKEND_TYPE_FILE;
 #endif
 }
 

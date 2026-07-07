@@ -89,7 +89,7 @@ typedef struct {
 } audio_samples_t;
 
 // MARK: - Capability data model
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 typedef enum {
   COREAUDIO_SAMPLE_FORMAT_S16 = 0,
   COREAUDIO_SAMPLE_FORMAT_S24,
@@ -100,7 +100,7 @@ typedef enum {
 
 const char* coreaudio_sample_format_to_string(coreaudio_sample_format_t fmt);
 coreaudio_sample_format_t coreaudio_sample_format_from_string(const char* str);
-#endif
+#endif  // ENABLE_COREAUDIO
 
 typedef struct {
   int samplerate;
@@ -129,14 +129,22 @@ typedef struct {
 
 /// Audio I/O backend.
 typedef enum {
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
   AUDIO_BACKEND_TYPE_CORE_AUDIO = 0,
-#elif defined(__linux__)
+#endif
+#if defined(ENABLE_ALSA)
   AUDIO_BACKEND_TYPE_ALSA = 1,
+#endif
+#if defined(ENABLE_PULSE)
   AUDIO_BACKEND_TYPE_PULSE_AUDIO = 2,
+#endif
+#if defined(ENABLE_PIPEWIRE)
   AUDIO_BACKEND_TYPE_PIPEWIRE = 3,
-#elif defined(_WIN32)
+#endif
+#if defined(ENABLE_WASAPI)
   AUDIO_BACKEND_TYPE_WASAPI = 4,
+#endif
+#if defined(ENABLE_ASIO)
   AUDIO_BACKEND_TYPE_ASIO = 8,
 #endif
   AUDIO_BACKEND_TYPE_FILE = 5,
@@ -165,7 +173,7 @@ typedef enum {
 const char* sdm_filter_to_string(sdm_filter_t filter);
 sdm_filter_t sdm_filter_from_string(const char* str);
 
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
 typedef enum {
   ALSA_SAMPLE_FORMAT_S16_LE = 0,
   ALSA_SAMPLE_FORMAT_S24_3_LE,
@@ -180,7 +188,7 @@ const char* alsa_sample_format_to_string(alsa_sample_format_t fmt);
 alsa_sample_format_t alsa_sample_format_from_string(const char* str);
 #endif
 
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
 typedef enum {
   WASAPI_SAMPLE_FORMAT_S16 = 0,
   WASAPI_SAMPLE_FORMAT_S24,
@@ -191,7 +199,9 @@ typedef enum {
 
 const char* wasapi_sample_format_to_string(wasapi_sample_format_t fmt);
 wasapi_sample_format_t wasapi_sample_format_from_string(const char* str);
+#endif
 
+#if defined(ENABLE_ASIO)
 typedef enum {
   ASIO_SAMPLE_FORMAT_S16_LE = 0,
   ASIO_SAMPLE_FORMAT_S24_3_LE,
@@ -241,23 +251,27 @@ typedef struct {
   int channels;
   char device[256];
   bool has_device;
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
   alsa_sample_format_t format;
-#elif defined(__APPLE__)
+#endif
+#if defined(ENABLE_COREAUDIO)
   coreaudio_sample_format_t format;
-#elif defined(_WIN32)
+#endif
+#if defined(ENABLE_WASAPI)
   wasapi_sample_format_t format;
-  asio_sample_format_t asio_format;
-  bool has_asio_format;
   bool exclusive;
   bool has_exclusive;
   bool polling;
   bool has_polling;
 #endif
+#if defined(ENABLE_ASIO)
+  asio_sample_format_t asio_format;
+  bool has_asio_format;
+#endif
   bool has_format;
   bool loopback;
   bool has_loopback;
-#if defined(__linux__)
+#if defined(ENABLE_ALSA) || defined(ENABLE_PULSE) || defined(ENABLE_PIPEWIRE)
   bool stop_on_inactive;
   bool has_stop_on_inactive;
   char link_volume_control[256];
@@ -295,16 +309,20 @@ typedef struct {
   int channels;
   char device[256];
   bool has_device;
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
   alsa_sample_format_t format;
-#elif defined(__APPLE__)
+#endif
+#if defined(ENABLE_COREAUDIO)
   coreaudio_sample_format_t format;
-#elif defined(_WIN32)
+#endif
+#if defined(ENABLE_WASAPI)
   wasapi_sample_format_t format;
-  asio_sample_format_t asio_format;
-  bool has_asio_format;
   bool polling;
   bool has_polling;
+#endif
+#if defined(ENABLE_ASIO)
+  asio_sample_format_t asio_format;
+  bool has_asio_format;
 #endif
   bool has_format;
   bool exclusive;

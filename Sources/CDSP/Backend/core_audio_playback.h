@@ -14,7 +14,7 @@
 #ifndef CLIB_BACKEND_CORE_AUDIO_PLAYBACK_H
 #define CLIB_BACKEND_CORE_AUDIO_PLAYBACK_H
 
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <CoreAudio/CoreAudio.h>
@@ -57,6 +57,6 @@ void core_audio_playback_set_is_paused(core_audio_playback_t* playback,
 /// Destroy and free the CoreAudio playback backend.
 void core_audio_playback_destroy(core_audio_playback_t* playback);
 
-#endif  // __APPLE__
+#endif  // ENABLE_COREAUDIO
 
 #endif  // CLIB_BACKEND_CORE_AUDIO_PLAYBACK_H

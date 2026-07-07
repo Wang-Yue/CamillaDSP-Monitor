@@ -1,4 +1,4 @@
-#if defined(_WIN32)
+#if defined(ENABLE_ASIO)
 
 #define WIN32_LEAN_AND_MEAN
 #include "asio_backend.h"
@@ -1331,4 +1331,4 @@ playback_backend_t* asio_playback_new(const playback_device_config_t* config,
   return backend;
 }
 
-#endif  // _WIN32
+#endif  // ENABLE_ASIO

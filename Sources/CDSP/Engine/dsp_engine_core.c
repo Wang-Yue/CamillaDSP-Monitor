@@ -207,7 +207,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   }
 
   bool full_duplex = false;
-#if defined(_WIN32)
+#if defined(ENABLE_ASIO)
   if (core->current_config->devices.capture.type == AUDIO_BACKEND_TYPE_ASIO &&
       core->current_config->devices.playback.type == AUDIO_BACKEND_TYPE_ASIO &&
       strcmp(core->current_config->devices.capture.device,

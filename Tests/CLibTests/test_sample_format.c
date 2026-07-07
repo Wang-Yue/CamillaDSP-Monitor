@@ -1,7 +1,7 @@
 #include "../../Sources/CDSP/Config/engine_config_types.h"
 #include "test_support.h"
 
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
 
 TEST(CanonicalRawValues) {
   ASSERT_STR_EQ("S16",
@@ -47,7 +47,7 @@ TEST(AllCases) {
   ASSERT_EQ(4, count);
 }
 
-#elif defined(__linux__)
+#elif defined(ENABLE_ALSA)
 
 TEST(CanonicalRawValues) {
   ASSERT_STR_EQ("S16_LE",

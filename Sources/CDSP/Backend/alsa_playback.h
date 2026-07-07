@@ -1,7 +1,7 @@
 #ifndef CLIB_BACKEND_ALSA_PLAYBACK_H
 #define CLIB_BACKEND_ALSA_PLAYBACK_H
 
-#ifndef __APPLE__
+#if defined(ENABLE_ALSA)
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -29,6 +29,6 @@ bool alsa_playback_get_is_paused(alsa_playback_t* playback);
 void alsa_playback_set_is_paused(alsa_playback_t* playback, bool paused);
 void alsa_playback_destroy(alsa_playback_t* playback);
 
-#endif  // !__APPLE__
+#endif  // ENABLE_ALSA
 
 #endif  // CLIB_BACKEND_ALSA_PLAYBACK_H

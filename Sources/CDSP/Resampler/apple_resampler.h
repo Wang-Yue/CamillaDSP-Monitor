@@ -3,7 +3,7 @@
 #ifndef CLIB_RESAMPLER_APPLE_RESAMPLER_H
 #define CLIB_RESAMPLER_APPLE_RESAMPLER_H
 
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <stdbool.h>
@@ -47,6 +47,6 @@ size_t apple_resampler_get_max_output_frames(
 size_t apple_resampler_get_chunk_size(const apple_resampler_t* resampler);
 size_t apple_resampler_get_channels(const apple_resampler_t* resampler);
 
-#endif  // __APPLE__
+#endif  // ENABLE_COREAUDIO
 
 #endif  // CLIB_RESAMPLER_APPLE_RESAMPLER_H

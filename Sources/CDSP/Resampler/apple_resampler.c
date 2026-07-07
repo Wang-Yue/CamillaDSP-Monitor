@@ -1,12 +1,12 @@
 // Apple AudioConverter resampler.
 
 #include "apple_resampler.h"
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 static OSStatus input_data_proc(
     AudioConverterRef inAudioConverter, UInt32* ioNumberDataPackets,
     AudioBufferList* ioData,
@@ -91,7 +91,6 @@ apple_resampler_t* apple_resampler_create(
     return NULL;
   }
 
-#ifdef __APPLE__
   AudioStreamBasicDescription in_desc = {0};
   in_desc.mSampleRate = (double)input_rate;
   in_desc.mFormatID = kAudioFormatLinearPCM;
@@ -152,25 +151,15 @@ apple_resampler_t* apple_resampler_create(
   UInt32 complexity_val = apple_resampler_complexity_os_type(complexity);
   AudioConverterSetProperty(conv, kAudioConverterSampleRateConverterComplexity,
                             sizeof(UInt32), &complexity_val);
-#else
-  // Fallback on non-Apple platforms
-  free(resampler->abl_storage);
-  audio_buffers_free(resampler->fill_context->buffers);
-  free(resampler->fill_context);
-  free(resampler);
-  return NULL;
-#endif
 
   return resampler;
 }
 
 void apple_resampler_free(apple_resampler_t* resampler) {
   if (!resampler) return;
-#ifdef __APPLE__
   if (resampler->converter) {
     AudioConverterDispose(resampler->converter);
   }
-#endif
   if (resampler->abl_storage) free(resampler->abl_storage);
   if (resampler->fill_context) {
     if (resampler->fill_context->buffers)
@@ -226,7 +215,6 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
     return RESAMPLER_ERR_OUTPUT_BUFFER_TOO_SMALL;
   }
 
-#ifdef __APPLE__
   apple_resampler_fill_context_t* context = resampler->fill_context;
   // Check if we have space in ringBuffers
   size_t available_space = context->buffers->capacity - context->write_offset;
@@ -298,10 +286,7 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
     context->write_offset = remaining;
     context->read_offset = 0;
   }
-#else
-  output->valid_frames = 0;
-#endif
 
   return RESAMPLER_OK;
 }
-#endif  // __APPLE__
+#endif  // ENABLE_COREAUDIO

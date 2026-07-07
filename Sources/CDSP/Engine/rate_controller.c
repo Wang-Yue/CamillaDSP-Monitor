@@ -30,9 +30,6 @@
 // from which `Kp = 2ζωn / Fs` and `Ki = ωn² / Fs`. Picking `ωn` and
 // `ζ` directly is a more honest way to tune than groping for raw
 // gains, so the convenience initializer takes that route.
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
 #include "rate_controller.h"
 
 #include <math.h>

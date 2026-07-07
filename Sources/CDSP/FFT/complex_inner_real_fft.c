@@ -1,4 +1,4 @@
-#ifdef __APPLE__
+#if defined(ENABLE_ACCELERATE)
 // Real-FFT backend that builds a 2N-point real FFT from one N-point
 // complex FFT plus an O(N) "untwiddle" pass. Used for any even length
 // that doesn't qualify for `VDSPRealFFT` (i.e. non-power-of-two, or
@@ -19,7 +19,7 @@
 #include <math.h>
 #include <stdlib.h>
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -105,7 +105,7 @@ void complex_inner_real_fft_forward(complex_inner_real_fft_t* fft,
                                     mutable_waveform_t spec_im) {
   if (!fft) return;
   size_t n = fft->half_n;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   // Pack the 2N real samples into N complex: z[k] = x[2k] + i·x[2k+1].
   // Reinterpret `realIn` as interleaved complex pairs and let `vDSP_ctozD`
   // do the deinterleave in one pass.
@@ -201,7 +201,7 @@ void complex_inner_real_fft_inverse(complex_inner_real_fft_t* fft,
   arbitrary_complex_fft_execute(fft->inner, fft->z_re, fft->z_im, fft->z_f_re,
                                 fft->z_f_im, true);
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   // Scale by 2 in place, then re-interleave back into `realOut` via
   // `vDSP_ztocD`. Two vDSP calls beat the scalar 2N store loop on Apple
   // Silicon when n ≥ ~1k.
@@ -229,4 +229,4 @@ void complex_inner_real_fft_free(complex_inner_real_fft_t* fft) {
   if (fft->z_f_im) free(fft->z_f_im);
   free(fft);
 }
-#endif
+#endif  // ENABLE_ACCELERATE

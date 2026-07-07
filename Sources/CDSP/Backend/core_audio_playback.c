@@ -12,7 +12,7 @@
 //     provided by CoreAudio, consuming from the pre-allocated SPSC rings.
 
 #include "core_audio_playback.h"
-#ifdef __APPLE__
+#if defined(ENABLE_COREAUDIO)
 #include <Accelerate/Accelerate.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -517,4 +517,4 @@ void core_audio_playback_destroy(core_audio_playback_t* playback) {
   }
   free(playback);
 }
-#endif  // __APPLE__
+#endif  // ENABLE_COREAUDIO

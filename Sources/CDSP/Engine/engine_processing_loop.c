@@ -20,9 +20,6 @@
 //     and wakeups; the resampler ratio is an atomic Double.
 //   * The thread sets a real-time scheduling policy on entry so the
 //     OS prefers it over background work.
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
 #include "engine_processing_loop.h"
 
 #include <stdio.h>

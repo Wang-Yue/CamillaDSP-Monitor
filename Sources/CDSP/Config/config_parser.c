@@ -1,6 +1,3 @@
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
 #define JSMN_STATIC
 #include <ctype.h>
 #include <stdio.h>
@@ -132,7 +129,7 @@ static void parse_resampler(const char* js, const jsmntok_t* tokens, int count,
     res->has_interpolation = true;
   }
 
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
   int aq_idx = find_object_key(js, tokens, count, res_val_idx, "apple_quality");
   if (aq_idx != -1 && tokens[aq_idx].type == JSMN_STRING) {
     char aq_str[64];
@@ -148,7 +145,7 @@ static void parse_resampler(const char* js, const jsmntok_t* tokens, int count,
     res->apple_complexity = apple_resampler_complexity_from_string(ac_str);
     res->has_apple_complexity = true;
   }
-#endif
+#endif  // ENABLE_COREAUDIO
 
   int sl_idx = find_object_key(js, tokens, count, res_val_idx, "sinc_len");
   if (sl_idx != -1 && tokens[sl_idx].type == JSMN_PRIMITIVE) {
@@ -196,12 +193,14 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
       cap->has_is_wav = true;
     }
   } else {
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
     cap->type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
-#elif defined(__linux__)
+#elif defined(ENABLE_ALSA)
     cap->type = AUDIO_BACKEND_TYPE_ALSA;
-#elif defined(_WIN32)
+#elif defined(ENABLE_WASAPI)
     cap->type = AUDIO_BACKEND_TYPE_WASAPI;
+#else
+    cap->type = AUDIO_BACKEND_TYPE_FILE;
 #endif
   }
 
@@ -225,18 +224,20 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
         cap->type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
       cap->file_format = binary_sample_format_from_string(fmt_str);
       cap->has_file_format = true;
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
     } else if (cap->type == AUDIO_BACKEND_TYPE_WASAPI) {
       cap->format = wasapi_sample_format_from_string(fmt_str);
       cap->has_format = true;
+#endif
+#if defined(ENABLE_ASIO)
     } else if (cap->type == AUDIO_BACKEND_TYPE_ASIO) {
       cap->asio_format = asio_sample_format_from_string(fmt_str);
       cap->has_asio_format = true;
 #endif
     } else {
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
       cap->format = alsa_sample_format_from_string(fmt_str);
-#elif defined(__APPLE__)
+#elif defined(ENABLE_COREAUDIO)
       cap->format = coreaudio_sample_format_from_string(fmt_str);
 #endif
       cap->has_format = true;
@@ -279,7 +280,7 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
     cap->has_extra_samples = (cap->extra_samples > 0);
   }
 
-#if defined(__linux__)
+#if defined(ENABLE_ALSA) || defined(ENABLE_PULSE) || defined(ENABLE_PIPEWIRE)
   int soi_idx =
       find_object_key(js, tokens, count, cap_val_idx, "stop_on_inactive");
   if (soi_idx != -1 && tokens[soi_idx].type == JSMN_PRIMITIVE) {
@@ -357,12 +358,14 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
     get_tok_string(js, &tokens[type_idx], type_str, sizeof(type_str));
     play->type = audio_backend_type_from_string(type_str);
   } else {
-#if defined(__APPLE__)
+#if defined(ENABLE_COREAUDIO)
     play->type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
-#elif defined(__linux__)
+#elif defined(ENABLE_ALSA)
     play->type = AUDIO_BACKEND_TYPE_ALSA;
-#elif defined(_WIN32)
+#elif defined(ENABLE_WASAPI)
     play->type = AUDIO_BACKEND_TYPE_WASAPI;
+#else
+    play->type = AUDIO_BACKEND_TYPE_FILE;
 #endif
   }
 
@@ -386,18 +389,20 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
         play->type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
       play->file_format = binary_sample_format_from_string(fmt_str);
       play->has_file_format = true;
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
     } else if (play->type == AUDIO_BACKEND_TYPE_WASAPI) {
       play->format = wasapi_sample_format_from_string(fmt_str);
       play->has_format = true;
+#endif
+#if defined(ENABLE_ASIO)
     } else if (play->type == AUDIO_BACKEND_TYPE_ASIO) {
       play->asio_format = asio_sample_format_from_string(fmt_str);
       play->has_asio_format = true;
 #endif
     } else {
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
       play->format = alsa_sample_format_from_string(fmt_str);
-#elif defined(__APPLE__)
+#elif defined(ENABLE_COREAUDIO)
       play->format = coreaudio_sample_format_from_string(fmt_str);
 #endif
       play->has_format = true;

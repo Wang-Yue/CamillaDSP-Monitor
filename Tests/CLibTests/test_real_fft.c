@@ -65,7 +65,7 @@ static void random_complex(double* re, double* im, size_t n, uint64_t seed) {
   }
 }
 
-#ifdef __APPLE__
+#if defined(ENABLE_ACCELERATE)
 TEST(ForwardMatchesDirectDFT) {
   size_t sizes[] = {3, 7, 11, 13, 17, 19, 23, 29, 121, 169};
   for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
@@ -167,7 +167,7 @@ TEST(RoundTrip) {
     free(back_im);
   }
 }
-#endif
+#endif  // ENABLE_ACCELERATE
 
 TEST(RealFFTFallbackForPrimeFactors) {
   size_t length = 22;

@@ -1,4 +1,4 @@
-#if defined(_WIN32)
+#if defined(ENABLE_ASIO)
 
 #define WIN32_LEAN_AND_MEAN
 #include "asio_capabilities.h"
@@ -318,4 +318,4 @@ void asio_capabilities_free_descriptor(audio_device_descriptor_t* desc) {
   free(desc);
 }
 
-#endif  // _WIN32
+#endif  // ENABLE_ASIO

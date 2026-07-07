@@ -1,4 +1,3 @@
-#ifdef __APPLE__
 // Shared interface for any complex-input/output DFT engine. The
 // `ComplexInnerRealFFT` real-FFT backend takes one of these as its
 // inner transform; `RealFFT.init` does the priority-based
@@ -24,4 +23,3 @@ void arbitrary_complex_fft_free(arbitrary_complex_fft_t* fft) {
     }
   }
 }
-#endif

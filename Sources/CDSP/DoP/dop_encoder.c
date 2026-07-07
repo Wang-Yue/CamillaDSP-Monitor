@@ -20,9 +20,7 @@
 // SDM state per channel is carried by an embedded `SigmaDeltaModulator`;
 // the polyphase coefficient table is shared across channels and built
 // once at init.
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
+
 #include "dop_encoder.h"
 
 #include <math.h>
@@ -33,7 +31,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -195,7 +193,7 @@ static void encode_channel(dop_encoder_channel_state_t* state,
       const double* coeff_p = coeffs + p * 32;
       const double* fifo_p = fifo + base_idx;
       double acc = 0.0;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
       vDSP_dotprD(coeff_p, 1, fifo_p, 1, &acc, 32);
 #else
       for (int m = 0; m < 32; m++) {

@@ -6,7 +6,7 @@
 
 #include "Audio/audio_history_buffer.h"
 
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -50,7 +50,7 @@ typedef struct {
 /// Pure spectrum analyzer that operates on an `audio_history_buffer_t`.
 typedef struct {
   size_t fft_n;
-#ifdef __APPLE__
+#ifdef ENABLE_ACCELERATE
   vDSP_Length log2n;
   FFTSetup fft_setup;
 #else

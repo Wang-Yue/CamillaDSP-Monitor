@@ -16,7 +16,7 @@
 
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC push_options
-#pragma GCC optimize("ffp-contract=fast", "associative-math")
+#pragma GCC optimize("fp-contract=fast", "associative-math")
 #endif
 static inline double sinc_dot_product(const double* wave, const double* kernel,
                                       size_t count) {

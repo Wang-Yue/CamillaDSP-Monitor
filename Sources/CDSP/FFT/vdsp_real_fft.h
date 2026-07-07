@@ -26,7 +26,7 @@
 /// bins `1..N-1` in `realp[k] + i·imagp[k]`. Our public API exposes the
 /// `N+1` unique bins as flat `specRe`/`specIm` arrays with DC at index 0,
 /// Nyquist at index N — this backend repacks accordingly.
-#ifdef __APPLE__
+#if defined(ENABLE_ACCELERATE)
 typedef struct vdsp_real_fft vdsp_real_fft_t;
 
 /// Returns `nil` (or NULL in C) when `length` is not a power of two `≥ 8`,
@@ -44,6 +44,6 @@ static inline real_fft_backend_t* vdsp_real_fft_as_backend(
     vdsp_real_fft_t* fft) {
   return (real_fft_backend_t*)fft;
 }
-#endif
+#endif  // ENABLE_ACCELERATE
 
 #endif  // CLIB_FFT_VDSPREALFFT_H

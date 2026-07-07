@@ -1,14 +1,11 @@
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
 // WebSocket control server
 // Provides runtime control API compatible with the control protocol
 
 #define JSMN_STATIC
 #include "websocket_server.h"
 
-#include "Config/jsmn.h"
 #ifndef _WIN32
+#include "Config/jsmn.h"
 #include <sys/time.h>
 
 #include "Audio/processing_parameters.h"
@@ -1148,7 +1145,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       uint64_t clips =
           atomic_load_explicit(&params->clipped_samples, memory_order_relaxed);
       char val[32];
-      snprintf(val, sizeof(val), "%llu", clips);
+      snprintf(val, sizeof(val), "%llu", (unsigned long long)clips);
       json_reply("GetClippedSamples", "\"Ok\"", val, out_response, max_len);
     } else {
       json_reply("GetClippedSamples", "\"Ok\"", "0", out_response, max_len);
@@ -1243,17 +1240,17 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       json_reply("SubscribeVuLevels", "\"Ok\"", NULL, out_response, max_len);
     }
   } else if (strstr(command_text, "\"SubscribeSignalLevels\"")) {
-    char side[32] = "";
+    char side[16] = "";
     if (extract_json_string_value(command_text, "SubscribeSignalLevels", side,
                                   sizeof(side))) {
       if (strcmp(side, "playback") == 0 || strcmp(side, "capture") == 0 ||
           strcmp(side, "both") == 0) {
         if (server) {
           server->client_sessions[client_idx].signal_levels_subscribed = true;
-          strncpy(
-              server->client_sessions[client_idx].signal_levels_side, side,
-              sizeof(server->client_sessions[client_idx].signal_levels_side) -
-                  1);
+          snprintf(
+              server->client_sessions[client_idx].signal_levels_side,
+              sizeof(server->client_sessions[client_idx].signal_levels_side),
+              "%s", side);
         }
         json_reply("SubscribeSignalLevels", "\"Ok\"", NULL, out_response,
                    max_len);

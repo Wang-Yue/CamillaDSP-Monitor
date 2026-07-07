@@ -1,4 +1,4 @@
-#if defined(__linux__)
+#if defined(ENABLE_ALSA)
 #include "alsa_device.h"
 #include <pthread.h>
 

@@ -17,9 +17,6 @@
 //   * No `Date()` / `gettimeofday`. The watchdog uses
 //     `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (vDSO read on
 //     Darwin — no syscall).
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
 #include "engine_capture_loop.h"
 
 #include <stdio.h>

@@ -1,4 +1,4 @@
-#if defined(_WIN32)
+#if defined(ENABLE_WASAPI)
 
 #define WIN32_LEAN_AND_MEAN
 #include "wasapi_backend.h"
@@ -1120,4 +1120,4 @@ void wasapi_playback_set_is_paused(wasapi_playback_t* playback, bool paused) {
 
 void wasapi_playback_destroy(wasapi_playback_t* playback) { free(playback); }
 
-#endif  // _WIN32
+#endif  // ENABLE_WASAPI
