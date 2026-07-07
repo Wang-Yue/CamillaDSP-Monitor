@@ -64,7 +64,7 @@ public struct BiquadCoefficients: Sendable {
       let freqZ = parameters.freqNotch ?? 1000.0
       let freqP = parameters.freqPole ?? 1000.0
       let qP = parameters.qP ?? parameters.q ?? 0.5
-      let normalize = parameters.normalizeAtDc ?? true
+      let normalize = parameters.normalizeAtDc ?? false
       let tnZ = tan(.pi * freqZ / fs)
       let tnP = tan(.pi * freqP / fs)
       let alphaP = tnP / qP

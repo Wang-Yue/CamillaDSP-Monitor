@@ -49,9 +49,8 @@ final class CompressorProcessor: Processor {
   }
 
   private func sumMonitorChannels(
-    from chunk: AudioChunk, into destBase: UnsafeMutablePointer<Double>
+    from chunk: AudioChunk, into destBase: UnsafeMutablePointer<Double>, count: Int
   ) {
-    let count = chunk.validFrames
     let ch0 = monitorChannels[0]
     guard let src0Base = chunk[ch0].baseAddress else { return }
     destBase.update(from: src0Base, count: count)
@@ -106,22 +105,19 @@ final class CompressorProcessor: Processor {
 
   func process(chunk: inout AudioChunk) throws {
     let count = chunk.validFrames
-    guard count > 0 else { return }
-
-    if scratch.count < count {
-      scratch = [Double](repeating: 0.0, count: count)
-    }
+    let processCount = min(count, scratch.count)
+    guard processCount > 0 else { return }
 
     scratch.withUnsafeMutableBufferPointer { scratchBuf in
       guard let scratchBase = scratchBuf.baseAddress else { return }
-      sumMonitorChannels(from: chunk, into: scratchBase)
-      estimateLoudness(scratch: scratchBase, count: count)
-      calculateLinearGain(scratch: scratchBase, count: count)
+      sumMonitorChannels(from: chunk, into: scratchBase, count: processCount)
+      estimateLoudness(scratch: scratchBase, count: processCount)
+      calculateLinearGain(scratch: scratchBase, count: processCount)
 
       for ch in processChannels {
         let wave = chunk[ch]
-        applyGain(to: wave, from: scratchBase, count: count)
-        applyLimiter(to: wave, count: count)
+        applyGain(to: wave, from: scratchBase, count: processCount)
+        applyLimiter(to: wave, count: processCount)
       }
     }
   }

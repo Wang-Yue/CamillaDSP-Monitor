@@ -45,7 +45,6 @@ struct core_audio_playback {
   rate_change_watcher_t* rate_watcher;
   _Atomic bool is_device_alive;
   _Atomic bool is_paused;
-  bool is_interleaved;
 };
 
 static OSStatus playback_alive_listener_callback(
@@ -84,37 +83,19 @@ static OSStatus playback_callback(void* inRefCon,
 
   int frame_count = (int)inNumberFrames;
 
-  if (playback->is_interleaved) {
-    float* dst = (float*)ioData->mBuffers[0].mData;
-    if (dst) {
-      int channels = playback->channels;
-      memset(dst, 0, frame_count * channels * sizeof(float));
-
-      float* temp = (float*)alloca(frame_count * sizeof(float));
-
-      for (int c = 0; c < channels; c++) {
-        size_t copied = spsc_audio_ring_buffer_consume(
-            playback->playback_rings[c], temp, frame_count);
-        for (size_t f = 0; f < copied; f++) {
-          dst[f * channels + c] = temp[f];
-        }
-      }
-    }
-  } else {
-    for (UInt32 ch = 0; ch < ioData->mNumberBuffers; ch++) {
-      float* float_ptr = (float*)ioData->mBuffers[ch].mData;
-      if (!float_ptr) continue;
-      if ((int)ch < playback->channels) {
-        size_t copied = spsc_audio_ring_buffer_consume(
-            playback->playback_rings[ch], float_ptr, frame_count);
-        if ((int)copied < frame_count) {
-          float zero = 0.0f;
-          vDSP_vfill(&zero, float_ptr + copied, 1, frame_count - (int)copied);
-        }
-      } else {
+  for (UInt32 ch = 0; ch < ioData->mNumberBuffers; ch++) {
+    float* float_ptr = (float*)ioData->mBuffers[ch].mData;
+    if (!float_ptr) continue;
+    if ((int)ch < playback->channels) {
+      size_t copied = spsc_audio_ring_buffer_consume(
+          playback->playback_rings[ch], float_ptr, frame_count);
+      if ((int)copied < frame_count) {
         float zero = 0.0f;
-        vDSP_vfill(&zero, float_ptr, 1, frame_count);
+        vDSP_vfill(&zero, float_ptr + copied, 1, frame_count - (int)copied);
       }
+    } else {
+      float zero = 0.0f;
+      vDSP_vfill(&zero, float_ptr, 1, frame_count);
     }
   }
 
@@ -317,24 +298,14 @@ bool core_audio_playback_open(core_audio_playback_t* playback,
   AudioStreamBasicDescription stream_format =
       core_audio_device_float32_stream_format(playback->sample_rate,
                                               playback->channels, false);
-  playback->is_interleaved = false;
   status = AudioUnitSetProperty(
       playback->audio_unit, kAudioUnitProperty_StreamFormat,
       kAudioUnitScope_Input, 0, &stream_format, sizeof(stream_format));
   if (status != noErr) {
-    stream_format = core_audio_device_float32_stream_format(
-        playback->sample_rate, playback->channels, true);
-    playback->is_interleaved = true;
-    status = AudioUnitSetProperty(
-        playback->audio_unit, kAudioUnitProperty_StreamFormat,
-        kAudioUnitScope_Input, 0, &stream_format, sizeof(stream_format));
-    if (status != noErr) {
-      if (err)
-        backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                           "Failed to set playback stream format (both "
-                           "interleaved and non-interleaved formats rejected)");
-      goto cleanup;
-    }
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to set playback stream format");
+    goto cleanup;
   }
 
   AURenderCallbackStruct cb = {.inputProc = playback_callback,

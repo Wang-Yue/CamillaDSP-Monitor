@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <dispatch/dispatch.h>
 
 struct core_audio_capture {
   char device_name[256];
@@ -66,6 +67,7 @@ struct core_audio_capture {
   /// Sized to one chunk; reused on every read so the consumer thread
   /// doesn't churn the heap.
   float* read_scratch;
+  dispatch_semaphore_t semaphore;
 };
 
 static OSStatus capture_alive_listener_callback(
@@ -149,6 +151,10 @@ static OSStatus capture_callback(void* inRefCon,
       spsc_audio_ring_buffer_write(capture->capture_rings[ch], float_ptr,
                                    frames, 1);
     }
+  }
+
+  if (capture->semaphore) {
+    dispatch_semaphore_signal(capture->semaphore);
   }
 
   return noErr;
@@ -279,6 +285,14 @@ capture_backend_t* core_audio_capture_create(
                          "Out of memory");
     return NULL;
   }
+  capture->semaphore = dispatch_semaphore_create(0);
+  if (!capture->semaphore) {
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to create semaphore");
+    free(capture);
+    return NULL;
+  }
   if (config->device[0] != '\0') {
     strncpy(capture->device_name, config->device,
             sizeof(capture->device_name) - 1);
@@ -292,6 +306,7 @@ capture_backend_t* core_audio_capture_create(
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Out of memory");
+    if (capture->semaphore) dispatch_release(capture->semaphore);
     free(capture);
     return NULL;
   }
@@ -305,6 +320,7 @@ capture_backend_t* core_audio_capture_create(
         spsc_audio_ring_buffer_free(capture->capture_rings[j]);
       }
       free(capture->capture_rings);
+      if (capture->semaphore) dispatch_release(capture->semaphore);
       free(capture);
       return NULL;
     }
@@ -531,6 +547,9 @@ bool core_audio_capture_read(core_audio_capture_t* capture, size_t frames,
 /// Close the CoreAudio capture device and release HAL resources.
 void core_audio_capture_close(core_audio_capture_t* capture) {
   if (!capture) return;
+  if (capture->semaphore) {
+    dispatch_semaphore_signal(capture->semaphore);
+  }
   if (capture->rate_watcher) {
     rate_change_watcher_free(capture->rate_watcher);
     capture->rate_watcher = NULL;
@@ -580,21 +599,11 @@ void core_audio_capture_set_pitch(core_audio_capture_t* capture,
 
 bool core_audio_capture_wait(core_audio_capture_t* capture,
                              uint32_t timeout_ms) {
-  if (!capture || capture->channels <= 0 || !capture->capture_rings ||
-      !capture->capture_rings[0])
+  if (!capture || !capture->semaphore)
     return false;
-  size_t requested = capture->chunk_size;
-  uint32_t elapsed = 0;
-  while (spsc_audio_ring_buffer_get_available_to_read(
-             capture->capture_rings[0]) < requested) {
-    if (elapsed >= timeout_ms) {
-      return false;
-    }
-    struct timespec req = {.tv_sec = 0, .tv_nsec = 1000000L};  // 1ms
-    nanosleep(&req, NULL);
-    elapsed += 1;
-  }
-  return true;
+  dispatch_time_t timeout =
+      dispatch_time(DISPATCH_TIME_NOW, (int64_t)timeout_ms * 1000000LL);
+  return dispatch_semaphore_wait(capture->semaphore, timeout) == 0;
 }
 
 /// Destroy and free the CoreAudio capture backend.
@@ -611,6 +620,10 @@ void core_audio_capture_destroy(core_audio_capture_t* capture) {
         spsc_audio_ring_buffer_free(capture->capture_rings[i]);
     }
     free(capture->capture_rings);
+  }
+  if (capture->semaphore) {
+    dispatch_release(capture->semaphore);
+    capture->semaphore = NULL;
   }
   free(capture);
 }

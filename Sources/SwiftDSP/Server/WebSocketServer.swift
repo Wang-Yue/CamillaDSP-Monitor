@@ -105,7 +105,7 @@ private struct LevelHistory: Sendable {
   }
 
   func getRmsSince(timestampMs: UInt64) -> [Double] {
-    guard count > 0 && channels > 0 else { return Array(repeating: -100.0, count: channels) }
+    guard count > 0 && channels > 0 else { return [] }
     var sumAmps = Array(repeating: 0.0, count: channels)
     var matchCount = 0
 
@@ -127,13 +127,12 @@ private struct LevelHistory: Sendable {
       }
       return result
     } else {
-      let latestIdx = (head - 1 + 300) % 300
-      return samples[latestIdx].levels
+      return []
     }
   }
 
   func getMaxSince(timestampMs: UInt64) -> [Double] {
-    guard count > 0 && channels > 0 else { return Array(repeating: -100.0, count: channels) }
+    guard count > 0 && channels > 0 else { return [] }
     var maxAmps = Array(repeating: 0.0, count: channels)
     var matchCount = 0
 
@@ -157,8 +156,7 @@ private struct LevelHistory: Sendable {
       }
       return result
     } else {
-      let latestIdx = (head - 1 + 300) % 300
-      return samples[latestIdx].levels
+      return []
     }
   }
 }
@@ -173,10 +171,10 @@ public final class WebSocketServer: Sendable {
   private let stateLock = OSAllocatedUnfairLock(initialState: State())
 
   private struct ConnectionSubscription: Sendable {
-    var lastCapPeakTime: UInt64 = 0
-    var lastCapRmsTime: UInt64 = 0
-    var lastPbPeakTime: UInt64 = 0
-    var lastPbRmsTime: UInt64 = 0
+    var lastCapPeakTime: UInt64
+    var lastCapRmsTime: UInt64
+    var lastPbPeakTime: UInt64
+    var lastPbRmsTime: UInt64
 
     var stateSubscribed: Bool = false
     var vuSubscribed: Bool = false
@@ -195,6 +193,14 @@ public final class WebSocketServer: Sendable {
     var vuPbPeak: [Double] = []
     var vuCapRms: [Double] = []
     var vuCapPeak: [Double] = []
+
+    init() {
+      let now = UInt64(Date().timeIntervalSince1970 * 1000)
+      self.lastCapPeakTime = now
+      self.lastCapRmsTime = now
+      self.lastPbPeakTime = now
+      self.lastPbRmsTime = now
+    }
   }
 
   private struct State {
@@ -786,19 +792,6 @@ public final class WebSocketServer: Sendable {
         state.subscriptions[id] = sub
       }
       return jsonReply("SubscribeState", result: .ok)
-
-    case "SubscribeVuLevels":
-      stateLock.withLock { state in
-        let id = ObjectIdentifier(connection)
-        var sub = state.subscriptions[id] ?? ConnectionSubscription()
-        sub.vuSubscribed = true
-        sub.vuMaxRate = 0.0
-        sub.vuAttack = 0.0
-        sub.vuRelease = 0.0
-        sub.lastVuPushTime = 0
-        state.subscriptions[id] = sub
-      }
-      return jsonReply("SubscribeVuLevels", result: .ok)
 
     case "StopSubscription":
       let found = stateLock.withLock { state in

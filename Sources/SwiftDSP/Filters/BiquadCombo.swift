@@ -213,10 +213,10 @@ final class BiquadComboFilter: Filter {
     var sections: [BiquadFilter] = []
 
     // Low shelf
-    if let gLow = params.gls, abs(gLow) > 0.01, let fLow = params.fls, let qLow = params.qls {
+    if let qLow = params.qls, abs(qLow) > 0.001, let fLow = params.fls {
       var p = BiquadParameters()
       p.freq = fLow
-      p.gain = gLow
+      p.gain = params.gls ?? 0.0
       p.q = qLow
       p.type = .lowshelf
       sections.append(
@@ -230,10 +230,10 @@ final class BiquadComboFilter: Filter {
       (params.fp3, params.gp3, params.qp3),
     ]
     for mid in mids {
-      if let g = mid.g, abs(g) > 0.01, let f = mid.f, let q = mid.q {
+      if let q = mid.q, abs(q) > 0.001, let f = mid.f {
         var p = BiquadParameters()
         p.freq = f
-        p.gain = g
+        p.gain = mid.g ?? 0.0
         p.q = q
         p.type = .peaking
         sections.append(
@@ -243,10 +243,10 @@ final class BiquadComboFilter: Filter {
     }
 
     // High shelf
-    if let gHigh = params.ghs, abs(gHigh) > 0.01, let fHigh = params.fhs, let qHigh = params.qhs {
+    if let qHigh = params.qhs, abs(qHigh) > 0.001, let fHigh = params.fhs {
       var p = BiquadParameters()
       p.freq = fHigh
-      p.gain = gHigh
+      p.gain = params.ghs ?? 0.0
       p.q = qHigh
       p.type = .highshelf
       sections.append(

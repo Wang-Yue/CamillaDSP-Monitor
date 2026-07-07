@@ -966,7 +966,7 @@ import Testing
       clipLimit: clipLimit
     )
     let compressor = CompressorProcessor(
-      parameters: params, sampleRate: Self.sampleRate, chunkSize: Self.chunkSize)
+      parameters: params, sampleRate: Self.sampleRate, chunkSize: input.count)
 
     var chunk = AudioChunk(frames: input.count, channels: 1)
     for i in 0..<input.count {
@@ -1018,7 +1018,7 @@ import Testing
       attenuation: attenuation
     )
     let gate = NoiseGateProcessor(
-      parameters: params, sampleRate: Self.sampleRate, chunkSize: Self.chunkSize)
+      parameters: params, sampleRate: Self.sampleRate, chunkSize: input.count)
 
     var chunk = AudioChunk(frames: input.count, channels: 1)
     for i in 0..<input.count {

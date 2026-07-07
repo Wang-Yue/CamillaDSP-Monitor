@@ -670,6 +670,15 @@ static int parse_mixers(const char* js, const jsmntok_t* tokens, int count,
       if (out_idx != -1 && tokens[out_idx].type == JSMN_PRIMITIVE) {
         m_conf->channels_out = get_tok_int(js, &tokens[out_idx]);
       }
+    } else {
+      int in_idx = find_object_key(js, tokens, count, mixer_val_idx, "channels_in");
+      if (in_idx != -1 && tokens[in_idx].type == JSMN_PRIMITIVE) {
+        m_conf->channels_in = get_tok_int(js, &tokens[in_idx]);
+      }
+      int out_idx = find_object_key(js, tokens, count, mixer_val_idx, "channels_out");
+      if (out_idx != -1 && tokens[out_idx].type == JSMN_PRIMITIVE) {
+        m_conf->channels_out = get_tok_int(js, &tokens[out_idx]);
+      }
     }
 
     int mapping_idx =
@@ -904,7 +913,7 @@ static int parse_filters(const char* js, const jsmntok_t* tokens, int count,
         case FILTER_TYPE_BIQUAD: {
           biquad_parameters_t* bp = &f_conf->parameters.biquad;
           int btype_idx =
-              find_object_key(js, tokens, count, filter_val_idx, "type");
+              find_object_key(js, tokens, count, params_idx, "type");
           if (btype_idx != -1 && tokens[btype_idx].type == JSMN_STRING) {
             char bt_str[64];
             get_tok_string(js, &tokens[btype_idx], bt_str, sizeof(bt_str));
@@ -973,11 +982,11 @@ static int parse_filters(const char* js, const jsmntok_t* tokens, int count,
           if (b2_idx != -1 && tokens[b2_idx].type == JSMN_PRIMITIVE)
             bp->b2 = get_tok_double(js, &tokens[b2_idx]);
           int fn_idx =
-              find_object_key(js, tokens, count, params_idx, "freq_notch");
+              find_object_key(js, tokens, count, params_idx, "freq_z");
           if (fn_idx != -1 && tokens[fn_idx].type == JSMN_PRIMITIVE)
             bp->freq_notch = get_tok_double(js, &tokens[fn_idx]);
           int fp_idx =
-              find_object_key(js, tokens, count, params_idx, "freq_pole");
+              find_object_key(js, tokens, count, params_idx, "freq_p");
           if (fp_idx != -1 && tokens[fp_idx].type == JSMN_PRIMITIVE)
             bp->freq_pole = get_tok_double(js, &tokens[fp_idx]);
           int qp_idx = find_object_key(js, tokens, count, params_idx, "q_p");
@@ -1078,6 +1087,21 @@ static int parse_filters(const char* js, const jsmntok_t* tokens, int count,
           if (chan_idx != -1 && tokens[chan_idx].type == JSMN_PRIMITIVE) {
             cp->channel = get_tok_int(js, &tokens[chan_idx]);
           }
+          int len_idx =
+              find_object_key(js, tokens, count, params_idx, "length");
+          if (len_idx != -1 && tokens[len_idx].type == JSMN_PRIMITIVE) {
+            cp->length = get_tok_int(js, &tokens[len_idx]);
+          }
+          int skip_idx =
+              find_object_key(js, tokens, count, params_idx, "skip_bytes_lines");
+          if (skip_idx != -1 && tokens[skip_idx].type == JSMN_PRIMITIVE) {
+            cp->skip_bytes_lines = get_tok_int(js, &tokens[skip_idx]);
+          }
+          int read_idx =
+              find_object_key(js, tokens, count, params_idx, "read_bytes_lines");
+          if (read_idx != -1 && tokens[read_idx].type == JSMN_PRIMITIVE) {
+            cp->read_bytes_lines = get_tok_int(js, &tokens[read_idx]);
+          }
           break;
         }
         case FILTER_TYPE_BIQUAD_COMBO: {
@@ -1107,17 +1131,54 @@ static int parse_filters(const char* js, const jsmntok_t* tokens, int count,
             bcp->freq = get_tok_double(js, &tokens[f_idx]);
             bcp->has_freq = true;
           }
+          int fmin_idx = find_object_key(js, tokens, count, params_idx, "freq_min");
+          if (fmin_idx != -1 && tokens[fmin_idx].type == JSMN_PRIMITIVE) {
+            bcp->freq_min = get_tok_double(js, &tokens[fmin_idx]);
+            bcp->has_freq_min = true;
+          }
+          int fmax_idx = find_object_key(js, tokens, count, params_idx, "freq_max");
+          if (fmax_idx != -1 && tokens[fmax_idx].type == JSMN_PRIMITIVE) {
+            bcp->freq_max = get_tok_double(js, &tokens[fmax_idx]);
+            bcp->has_freq_max = true;
+          }
           int order_idx =
               find_object_key(js, tokens, count, params_idx, "order");
           if (order_idx != -1 && tokens[order_idx].type == JSMN_PRIMITIVE) {
             bcp->order = get_tok_int(js, &tokens[order_idx]);
             bcp->has_order = true;
           }
-          int gain_idx = find_object_key(js, tokens, count, params_idx, "gain");
+           int gain_idx = find_object_key(js, tokens, count, params_idx, "gain");
           if (gain_idx != -1 && tokens[gain_idx].type == JSMN_PRIMITIVE) {
             bcp->gain = get_tok_double(js, &tokens[gain_idx]);
             bcp->has_gain = true;
           }
+#define PARSE_COMBO_DOUBLE(name, field) \
+          int name##_idx = find_object_key(js, tokens, count, params_idx, #name); \
+          if (name##_idx != -1 && tokens[name##_idx].type == JSMN_PRIMITIVE) { \
+            bcp->field = get_tok_double(js, &tokens[name##_idx]); \
+            bcp->has_##field = true; \
+          }
+
+          PARSE_COMBO_DOUBLE(fls, fls)
+          PARSE_COMBO_DOUBLE(qls, qls)
+          PARSE_COMBO_DOUBLE(gls, gls)
+
+          PARSE_COMBO_DOUBLE(fp1, fp1)
+          PARSE_COMBO_DOUBLE(qp1, qp1)
+          PARSE_COMBO_DOUBLE(gp1, gp1)
+
+          PARSE_COMBO_DOUBLE(fp2, fp2)
+          PARSE_COMBO_DOUBLE(qp2, qp2)
+          PARSE_COMBO_DOUBLE(gp2, gp2)
+
+          PARSE_COMBO_DOUBLE(fp3, fp3)
+          PARSE_COMBO_DOUBLE(qp3, qp3)
+          PARSE_COMBO_DOUBLE(gp3, gp3)
+
+          PARSE_COMBO_DOUBLE(fhs, fhs)
+          PARSE_COMBO_DOUBLE(qhs, qhs)
+          PARSE_COMBO_DOUBLE(ghs, ghs)
+#undef PARSE_COMBO_DOUBLE
           int gains_idx =
               find_object_key(js, tokens, count, params_idx, "gains");
           if (gains_idx != -1 && tokens[gains_idx].type == JSMN_ARRAY) {
@@ -1130,6 +1191,113 @@ static int parse_filters(const char* js, const jsmntok_t* tokens, int count,
                 bcp->gains[g] = get_tok_double(js, &tokens[el_idx]);
               }
             }
+          }
+          break;
+        }
+        case FILTER_TYPE_DIFF_EQ: {
+          diff_eq_parameters_t* dep = &f_conf->parameters.diff_eq;
+          int a_idx = find_object_key(js, tokens, count, params_idx, "a");
+          if (a_idx != -1 && tokens[a_idx].type == JSMN_ARRAY) {
+            int a_size = tokens[a_idx].size;
+            dep->a = (double*)calloc(a_size, sizeof(double));
+            dep->a_count = a_size;
+            for (int i = 0; i < a_size; i++) {
+              int el_idx = get_array_element(tokens, count, a_idx, i);
+              if (el_idx != -1 && tokens[el_idx].type == JSMN_PRIMITIVE) {
+                dep->a[i] = get_tok_double(js, &tokens[el_idx]);
+              }
+            }
+          }
+          int b_idx = find_object_key(js, tokens, count, params_idx, "b");
+          if (b_idx != -1 && tokens[b_idx].type == JSMN_ARRAY) {
+            int b_size = tokens[b_idx].size;
+            dep->b = (double*)calloc(b_size, sizeof(double));
+            dep->b_count = b_size;
+            for (int i = 0; i < b_size; i++) {
+              int el_idx = get_array_element(tokens, count, b_idx, i);
+              if (el_idx != -1 && tokens[el_idx].type == JSMN_PRIMITIVE) {
+                dep->b[i] = get_tok_double(js, &tokens[el_idx]);
+              }
+            }
+          }
+          break;
+        }
+        case FILTER_TYPE_DITHER: {
+          dither_parameters_t* dp = &f_conf->parameters.dither;
+          int dtype_idx = find_object_key(js, tokens, count, params_idx, "type");
+          if (dtype_idx != -1 && tokens[dtype_idx].type == JSMN_STRING) {
+            char dt_str[64];
+            get_tok_string(js, &tokens[dtype_idx], dt_str, sizeof(dt_str));
+            if (strcmp(dt_str, "None") == 0) dp->type = DITHER_TYPE_NONE;
+            else if (strcmp(dt_str, "Flat") == 0) dp->type = DITHER_TYPE_FLAT;
+            else if (strcmp(dt_str, "Highpass") == 0) dp->type = DITHER_TYPE_HIGHPASS;
+            else if (strcmp(dt_str, "Fweighted441") == 0) dp->type = DITHER_TYPE_FWEIGHTED_441;
+            else if (strcmp(dt_str, "FweightedLong441") == 0) dp->type = DITHER_TYPE_FWEIGHTED_LONG_441;
+            else if (strcmp(dt_str, "FweightedShort441") == 0) dp->type = DITHER_TYPE_FWEIGHTED_SHORT_441;
+            else if (strcmp(dt_str, "Gesemann441") == 0) dp->type = DITHER_TYPE_GESEMANN_441;
+            else if (strcmp(dt_str, "Gesemann48") == 0) dp->type = DITHER_TYPE_GESEMANN_48;
+            else if (strcmp(dt_str, "Lipshitz441") == 0) dp->type = DITHER_TYPE_LIPSHITZ_441;
+            else if (strcmp(dt_str, "LipshitzLong441") == 0) dp->type = DITHER_TYPE_LIPSHITZ_LONG_441;
+            else if (strcmp(dt_str, "Shibata441") == 0) dp->type = DITHER_TYPE_SHIBATA_441;
+            else if (strcmp(dt_str, "ShibataHigh441") == 0) dp->type = DITHER_TYPE_SHIBATA_HIGH_441;
+            else if (strcmp(dt_str, "ShibataLow441") == 0) dp->type = DITHER_TYPE_SHIBATA_LOW_441;
+            else if (strcmp(dt_str, "Shibata48") == 0) dp->type = DITHER_TYPE_SHIBATA_48;
+            else if (strcmp(dt_str, "ShibataHigh48") == 0) dp->type = DITHER_TYPE_SHIBATA_HIGH_48;
+            else if (strcmp(dt_str, "ShibataLow48") == 0) dp->type = DITHER_TYPE_SHIBATA_LOW_48;
+            else if (strcmp(dt_str, "Shibata882") == 0) dp->type = DITHER_TYPE_SHIBATA_882;
+            else if (strcmp(dt_str, "ShibataLow882") == 0) dp->type = DITHER_TYPE_SHIBATA_LOW_882;
+            else if (strcmp(dt_str, "Shibata96") == 0) dp->type = DITHER_TYPE_SHIBATA_96;
+            else if (strcmp(dt_str, "ShibataLow96") == 0) dp->type = DITHER_TYPE_SHIBATA_LOW_96;
+            else if (strcmp(dt_str, "Shibata192") == 0) dp->type = DITHER_TYPE_SHIBATA_192;
+            else if (strcmp(dt_str, "ShibataLow192") == 0) dp->type = DITHER_TYPE_SHIBATA_LOW_192;
+          }
+          int bits_idx = find_object_key(js, tokens, count, params_idx, "bits");
+          if (bits_idx != -1 && tokens[bits_idx].type == JSMN_PRIMITIVE) {
+            dp->bits = get_tok_int(js, &tokens[bits_idx]);
+          }
+          int amp_idx = find_object_key(js, tokens, count, params_idx, "amplitude");
+          if (amp_idx != -1 && tokens[amp_idx].type == JSMN_PRIMITIVE) {
+            dp->amplitude = get_tok_double(js, &tokens[amp_idx]);
+            dp->has_amplitude = true;
+          }
+          break;
+        }
+        case FILTER_TYPE_LIMITER: {
+          limiter_parameters_t* lp = &f_conf->parameters.limiter;
+          int cl_idx = find_object_key(js, tokens, count, params_idx, "clip_limit");
+          if (cl_idx != -1 && tokens[cl_idx].type == JSMN_PRIMITIVE) {
+            lp->clip_limit = get_tok_double(js, &tokens[cl_idx]);
+          }
+          int sc_idx = find_object_key(js, tokens, count, params_idx, "soft_clip");
+          if (sc_idx != -1 && tokens[sc_idx].type == JSMN_PRIMITIVE) {
+            lp->soft_clip = get_tok_bool(js, &tokens[sc_idx]);
+          }
+          break;
+        }
+        case FILTER_TYPE_LOOKAHEAD_LIMITER: {
+          lookahead_limiter_parameters_t* llp = &f_conf->parameters.lookahead_limiter;
+          int lim_idx = find_object_key(js, tokens, count, params_idx, "limit");
+          if (lim_idx != -1 && tokens[lim_idx].type == JSMN_PRIMITIVE) {
+            llp->limit = get_tok_double(js, &tokens[lim_idx]);
+          }
+          int att_idx = find_object_key(js, tokens, count, params_idx, "attack");
+          if (att_idx != -1 && tokens[att_idx].type == JSMN_PRIMITIVE) {
+            llp->attack = get_tok_double(js, &tokens[att_idx]);
+          }
+          int rel_idx = find_object_key(js, tokens, count, params_idx, "release");
+          if (rel_idx != -1 && tokens[rel_idx].type == JSMN_PRIMITIVE) {
+            llp->release = get_tok_double(js, &tokens[rel_idx]);
+          }
+          int unit_idx = find_object_key(js, tokens, count, params_idx, "unit");
+          if (unit_idx != -1 && tokens[unit_idx].type == JSMN_STRING) {
+            char u_str[32];
+            get_tok_string(js, &tokens[unit_idx], u_str, sizeof(u_str));
+            if (strcmp(u_str, "ms") == 0) llp->unit = DELAY_UNIT_MS;
+            else if (strcmp(u_str, "us") == 0) llp->unit = DELAY_UNIT_US;
+            else if (strcmp(u_str, "samples") == 0) llp->unit = DELAY_UNIT_SAMPLES;
+            else if (strcmp(u_str, "mm") == 0) llp->unit = DELAY_UNIT_MM;
+          } else {
+            llp->unit = DELAY_UNIT_MS;
           }
           break;
         }

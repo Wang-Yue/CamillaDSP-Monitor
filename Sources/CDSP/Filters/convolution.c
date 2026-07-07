@@ -131,11 +131,9 @@ static void process_chunk(convolution_filter_t* filter,
   size_t widx = filter->write_idx;
 
   // 1. Stage the new block in the first `chunkSize` samples of
-  //    `inputBuf` (`time_buf`); zero the second half (the FFT zero-pad) and any
-  //    short tail of the first half (when `count < chunkSize`).
-  memcpy(filter->time_buf, filter->overlap_buffer, cs * sizeof(double));
-  memcpy(filter->time_buf + cs, waveform, cs * sizeof(double));
-  memcpy(filter->overlap_buffer, waveform, cs * sizeof(double));
+  //    `inputBuf` (`time_buf`); zero the second half (the FFT zero-pad).
+  memcpy(filter->time_buf, waveform, cs * sizeof(double));
+  memset(filter->time_buf + cs, 0, cs * sizeof(double));
 
   // 2. Advance the history index and FFT the new block into that
   //    slot. The slot now holds the spectrum of `inputBuf` (`time_buf`).
@@ -173,9 +171,12 @@ static void process_chunk(convolution_filter_t* filter,
   real_fft_inverse(filter->fft, filter->spec_accum_re, filter->spec_accum_im,
                    filter->time_buf);
 
-  // 5. Overlap-save output: out[i] = ifft[i] + overlap_prev[i] for
+  // 5. Overlap-add output: out[i] = ifft[i] + overlap_prev[i] for
   //    i in 0..<N; overlap_next = ifft[N..2N].
-  memcpy(waveform, filter->time_buf + cs, cs * sizeof(double));
+  for (size_t i = 0; i < cs; i++) {
+    waveform[i] = filter->time_buf[i] + filter->overlap_buffer[i];
+  }
+  memcpy(filter->overlap_buffer, filter->time_buf + cs, cs * sizeof(double));
 
   filter->write_idx = (widx + 1) % num_seg;
 }

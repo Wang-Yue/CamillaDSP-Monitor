@@ -151,7 +151,7 @@ static void format_log_message(char* out, size_t out_cap, const char* msg,
     }
 
     log_argument_t arg = args[arg_idx++];
-    char tmp[512];
+    char tmp[32768];
     tmp[0] = '\0';
 
     if (strchr("diouxXcp", conv)) {
@@ -236,7 +236,7 @@ static void format_log_message(char* out, size_t out_cap, const char* msg,
   // Append any unconsumed arguments
   for (; arg_idx < 4; arg_idx++) {
     if (args[arg_idx].type == LOG_ARG_NONE) break;
-    char tmp[512];
+    char tmp[32768];
     tmp[0] = '\0';
     switch (args[arg_idx].type) {
       case LOG_ARG_NONE:
@@ -301,7 +301,7 @@ static void* worker_thread_func(void* arg) {
           lvl_str = "TRACE";
           break;
       }
-      char formatted_msg[2048];
+      char formatted_msg[32768];
       log_argument_t args[4] = {rec.arg1, rec.arg2, rec.arg3, rec.arg4};
       format_log_message(formatted_msg, sizeof(formatted_msg), rec.message,
                          args);

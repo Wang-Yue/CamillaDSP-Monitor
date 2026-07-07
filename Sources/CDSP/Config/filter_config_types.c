@@ -428,10 +428,37 @@ int biquad_parameters_validate(const biquad_parameters_t* params,
   if (!params) return -1;
   double nyquist = (double)sample_rate / 2.0;
   if (params->type != BIQUAD_TYPE_FREE &&
-      params->type != BIQUAD_TYPE_LINKWITZ_TRANSFORM) {
+      params->type != BIQUAD_TYPE_LINKWITZ_TRANSFORM &&
+      params->type != BIQUAD_TYPE_GENERAL_NOTCH) {
     if (params->freq <= 0.0 || params->freq >= nyquist) {
       if (err)
         config_error_set(err, CONFIG_ERR_INVALID_FILTER, "freq out of range");
+      return -1;
+    }
+  }
+  if (params->type == BIQUAD_TYPE_GENERAL_NOTCH) {
+    if (params->freq_notch <= 0.0 || params->freq_notch >= nyquist ||
+        params->freq_pole <= 0.0 || params->freq_pole >= nyquist) {
+      if (err)
+        config_error_set(err, CONFIG_ERR_INVALID_FILTER, "freq out of range");
+      return -1;
+    }
+    if (params->q_p <= 0.0) {
+      if (err)
+        config_error_set(err, CONFIG_ERR_INVALID_FILTER, "q out of range");
+      return -1;
+    }
+  }
+  if (params->type == BIQUAD_TYPE_LINKWITZ_TRANSFORM) {
+    if (params->freq_act <= 0.0 || params->freq_act >= nyquist ||
+        params->freq_target <= 0.0 || params->freq_target >= nyquist) {
+      if (err)
+        config_error_set(err, CONFIG_ERR_INVALID_FILTER, "freq out of range");
+      return -1;
+    }
+    if (params->q_act <= 0.0 || params->q_target <= 0.0) {
+      if (err)
+        config_error_set(err, CONFIG_ERR_INVALID_FILTER, "q out of range");
       return -1;
     }
   }
