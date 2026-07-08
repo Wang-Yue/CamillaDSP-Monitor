@@ -1,6 +1,24 @@
 // Apple AudioConverter resampler.
 
 #include "apple_resampler.h"
+
+struct apple_resampler_fill_context {
+  audio_buffers_t* buffers;
+  size_t read_offset;
+  size_t write_offset;
+};
+
+struct apple_resampler {
+  size_t channels;
+  size_t chunk_size;
+  double base_ratio;
+  double current_ratio;
+  AudioConverterRef converter;
+  apple_resampler_fill_context_t* fill_context;
+  void* abl_storage;
+  size_t max_output_frames;
+};
+
 #if defined(ENABLE_COREAUDIO)
 #include <math.h>
 #include <stdlib.h>
@@ -30,7 +48,7 @@ static OSStatus input_data_proc(
   size_t frames_to_provide = needed < available ? needed : available;
   *ioNumberDataPackets = (UInt32)frames_to_provide;
 
-  size_t chans = context->buffers->channels;
+  size_t chans = audio_chunk_get_channels(context);
   for (size_t ch = 0; ch < ioData->mNumberBuffers && ch < chans; ch++) {
     double* base = audio_buffers_get_channel(context->buffers, ch);
     if (!base) return -1;
@@ -203,7 +221,7 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
                                           const audio_chunk_t* input,
                                           audio_chunk_t* output) {
   if (!resampler || !input || !output) return RESAMPLER_ERR_INVALID_PARAMETER;
-  if (input->valid_frames != resampler->chunk_size) {
+  if (audio_chunk_get_valid_frames(input) != resampler->chunk_size) {
     return RESAMPLER_ERR_INPUT_SIZE_MISMATCH;
   }
   if (audio_chunk_get_channels(output) != resampler->channels) {
@@ -217,7 +235,7 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
 
   apple_resampler_fill_context_t* context = resampler->fill_context;
   // Check if we have space in ringBuffers
-  size_t available_space = context->buffers->capacity - context->write_offset;
+  size_t available_space = audio_chunk_get_frames(context) - context->write_offset;
   if (available_space < resampler->chunk_size) {
     // Shift data to front if needed
     if (context->read_offset > 0) {
@@ -231,7 +249,7 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
       context->read_offset = 0;
     }
     // If still not enough space, we fail.
-    if (context->buffers->capacity - context->write_offset <
+    if (audio_chunk_get_frames(context) - context->write_offset <
         resampler->chunk_size) {
       return RESAMPLER_ERR_INVALID_PARAMETER;  // Overflow
     }
@@ -251,7 +269,7 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
   // For 192->44.1, we need ~1270 frames + latency.
   // Let's use a threshold of 4096 frames.
   if (context->write_offset < 4096) {
-    output->valid_frames = 0;
+    audio_chunk_set_valid_frames(output, 0);
     return RESAMPLER_OK;
   }
 
@@ -271,7 +289,7 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
                                       context, &output_packet_count, abl, NULL);
 
   (void)status;
-  output->valid_frames = (size_t)output_packet_count;
+  audio_chunk_set_valid_frames(output, (size_t)output_packet_count);
 
   // Shift remaining data to front after processing
   if (context->read_offset > 0) {

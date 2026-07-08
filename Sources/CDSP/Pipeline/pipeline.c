@@ -4,6 +4,63 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "Audio/audio_buffers.h"
+#include "Audio/double_helpers.h"
+#include "Filters/filter.h"
+#include "Filters/volume.h"
+#include "Mixer/mixer.h"
+#include "Processors/processor.h"
+
+/// A single step in the processing pipeline
+typedef enum {
+  /// Filter chain applied to a single channel
+  EXEC_STEP_FILTER = 0,
+  /// Mixer that changes channel routing.
+  EXEC_STEP_MIXER,
+  /// Audio processor applied to the chunk in-place.
+  EXEC_STEP_PROCESSOR
+} exec_step_type_t;
+
+/// A single step in the processing pipeline
+typedef struct {
+  exec_step_type_t type;
+  bool bypassed;
+  // For EXEC_STEP_FILTER:
+  int channel;
+  filter_t** filters;
+  size_t filters_count;
+  // For EXEC_STEP_MIXER:
+  audio_mixer_t* mixer;
+  // For EXEC_STEP_PROCESSOR:
+  dsp_processor_t* processor;
+} pipeline_exec_step_t;
+
+/// The main audio processing pipeline.
+struct pipeline_s {
+  pipeline_exec_step_t* steps;
+  size_t steps_count;
+  /// Implicit main volume filter with smooth ramping
+  volume_filter_t* master_volume;
+  /// Working scratch the pipeline copies the caller's input into at the start
+  /// of each `process(...)`. With class-owned `AudioBuffers`, we can no
+  /// longer rely on CoW to isolate mutations from the caller's `input`
+  /// chunk — so we copy explicitly into this pre-allocated buffer.
+  audio_chunk_t* capture_scratch;
+  /// Pre-allocated scratch chunks mapped by the sequential step index in
+  /// `steps` array to prevent Copy-On-Write allocations on the hot path.
+  audio_chunk_t** scratches_for_mixers;
+  size_t scratches_for_mixers_count;
+
+  size_t frames_per_chunk;
+  int rate;
+  size_t expected_in_channels;
+  size_t expected_out_channels;
+
+  // For test inspection on error:
+  size_t last_error_needed;
+  size_t last_error_got;
+};
+
 static bool string_list_contains(const char* const* list, size_t count,
                                  const char* name) {
   if (!list || !name) return false;
@@ -335,7 +392,7 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
                                   const audio_chunk_t* input,
                                   audio_chunk_t* output) {
   if (!pipeline || !input || !output) return PIPELINE_ERR_INPUT_SIZE_MISMATCH;
-  size_t valid_frames = input->valid_frames;
+  size_t valid_frames = audio_chunk_get_valid_frames(input);
 
   // 1. Validate input and output buffer shapes/capacities against pipeline
   // configurations.
@@ -371,7 +428,7 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
       memcpy(dst, src, valid_frames * sizeof(double));
     }
   }
-  pipeline->capture_scratch->valid_frames = valid_frames;
+  audio_chunk_set_valid_frames(pipeline->capture_scratch, valid_frames);
 
   audio_chunk_t* current_chunk = pipeline->capture_scratch;
   // 3. Implicit main volume with smooth ramp.
@@ -419,7 +476,7 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
             pipeline->last_error_got = audio_chunk_get_frames(scratch);
             return PIPELINE_ERR_OUTPUT_BUFFER_TOO_SMALL;
           }
-          pipeline->last_error_needed = step->mixer->channels_in;
+          pipeline->last_error_needed = audio_mixer_get_channels_in(step->mixer);
           pipeline->last_error_got = audio_chunk_get_channels(current_chunk);
           return PIPELINE_ERR_CHANNEL_COUNT_MISMATCH;
         }
@@ -439,7 +496,7 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
 
   // 5. Copy the final computed samples from workingChunk to caller-supplied
   // output buffer.
-  output->valid_frames = valid_frames;
+  audio_chunk_set_valid_frames(output, valid_frames);
   for (size_t ch = 0; ch < pipeline->expected_out_channels; ch++) {
     if (ch >= audio_chunk_get_channels(current_chunk)) break;
     waveform_t src = audio_chunk_get_channel(current_chunk, ch);
@@ -474,16 +531,18 @@ void pipeline_update_parameters(pipeline_t* pipeline,
           }
         }
         break;
-      case EXEC_STEP_MIXER:
-        if (step->mixer && step->mixer->name &&
-            string_list_contains(mixers, mixers_count, step->mixer->name)) {
+      case EXEC_STEP_MIXER: {
+        const char* m_name = audio_mixer_get_name(step->mixer);
+        if (step->mixer && m_name &&
+            string_list_contains(mixers, mixers_count, m_name)) {
           mixer_config_t* m_cfg =
-              dsp_config_get_mixer(config, step->mixer->name);
+              dsp_config_get_mixer(config, m_name);
           if (m_cfg) {
             audio_mixer_update_parameters(step->mixer, m_cfg);
           }
         }
         break;
+      }
       case EXEC_STEP_PROCESSOR: {
         const char* p_name = dsp_processor_get_name(step->processor);
         if (step->processor && p_name &&
@@ -491,11 +550,19 @@ void pipeline_update_parameters(pipeline_t* pipeline,
           processor_config_t* p_cfg = dsp_config_get_processor(config, p_name);
           if (p_cfg) {
             dsp_processor_update_parameters(step->processor, p_cfg,
-                                            pipeline->rate);
+                                             pipeline->rate);
           }
         }
         break;
       }
     }
   }
+}
+
+size_t pipeline_get_last_error_needed(const pipeline_t* pipeline) {
+  return pipeline ? pipeline->last_error_needed : 0;
+}
+
+size_t pipeline_get_last_error_got(const pipeline_t* pipeline) {
+  return pipeline ? pipeline->last_error_got : 0;
 }

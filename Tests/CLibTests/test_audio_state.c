@@ -87,7 +87,7 @@ TEST(ProcessingParametersMultiChannelSetters) {
 TEST(ProcessingParametersUpdateLevels) {
   processing_parameters_t* params = processing_parameters_create(2, 2);
   audio_chunk_t* chunk = audio_chunk_create(1024, 2);
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   for (size_t ch = 0; ch < 2; ch++) {
     mutable_waveform_t buf = audio_chunk_get_channel(chunk, ch);

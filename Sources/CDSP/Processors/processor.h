@@ -29,24 +29,7 @@ typedef enum {
   PROCESSOR_IMPL_RACE             ///< RACE cross-talk cancellation processor.
 } processor_impl_type_t;
 
-/// Protocol for all multi-channel audio processors.
-typedef struct dsp_processor {
-  processor_impl_type_t type;  ///< Concrete implementation type identifier.
-  void* impl;                  ///< Pointer to underlying processor structure.
-
-  /// Apply the processor to all channels of `chunk` in place.
-  void (*process)(struct dsp_processor* self, audio_chunk_t* chunk);
-
-  /// Update the processor parameters dynamically.
-  void (*update_parameters)(struct dsp_processor* self,
-                            const processor_config_t* config, int sample_rate);
-
-  /// The unique name of this processor instance.
-  const char* (*get_name)(const struct dsp_processor* self);
-
-  /// Destructor function to free the processor and its wrapper.
-  void (*free)(struct dsp_processor* self);
-} dsp_processor_t;
+typedef struct dsp_processor dsp_processor_t;
 
 /**
  * @brief Factory function to create a processor instance based on
@@ -91,35 +74,19 @@ dsp_processor_t* dsp_processor_wrap_noise_gate(noise_gate_processor_t* p);
 dsp_processor_t* dsp_processor_wrap_race(race_processor_t* p);
 
 /// Apply the processor to all channels of `chunk` in place.
-static inline void dsp_processor_process(dsp_processor_t* proc,
-                                         audio_chunk_t* chunk) {
-  if (proc && proc->process) {
-    proc->process(proc, chunk);
-  }
-}
+void dsp_processor_process(dsp_processor_t* proc, audio_chunk_t* chunk);
 
 /// Update the processor parameters dynamically.
-static inline void dsp_processor_update_parameters(
-    dsp_processor_t* proc, const processor_config_t* config, int sample_rate) {
-  if (proc && proc->update_parameters) {
-    proc->update_parameters(proc, config, sample_rate);
-  }
-}
+void dsp_processor_update_parameters(dsp_processor_t* proc, const processor_config_t* config, int sample_rate);
 
 /// The unique name of this processor instance.
-static inline const char* dsp_processor_get_name(const dsp_processor_t* proc) {
-  return (proc && proc->get_name) ? proc->get_name(proc) : "";
-}
+const char* dsp_processor_get_name(const dsp_processor_t* proc);
 
 /**
  * @brief Frees the processor wrapper and its underlying implementation.
  *
  * @param proc Pointer to generic processor wrapper.
  */
-static inline void dsp_processor_free(dsp_processor_t* proc) {
-  if (proc && proc->free) {
-    proc->free(proc);
-  }
-}
+void dsp_processor_free(dsp_processor_t* proc);
 
 #endif  // CLIB_PROCESSORS_PROCESSOR_H

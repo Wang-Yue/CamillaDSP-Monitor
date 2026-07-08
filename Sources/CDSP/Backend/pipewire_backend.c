@@ -369,7 +369,7 @@ bool pipewire_capture_read(pipewire_capture_t* capture, size_t frames,
     }
   }
 
-  chunk->valid_frames = frames;
+  audio_chunk_set_valid_frames(chunk, frames);
   return true;
 }
 
@@ -668,7 +668,7 @@ bool pipewire_playback_write(pipewire_playback_t* playback,
   if (playback->paused) return true;
   (void)err;
 
-  size_t frames = chunk->valid_frames;
+  size_t frames = audio_chunk_get_valid_frames(chunk);
   size_t requested = frames * playback->channels;
   if (requested > playback->encode_buf_size) {
     playback->encode_buf =
@@ -688,7 +688,7 @@ bool pipewire_playback_write(pipewire_playback_t* playback,
   int retries = 100;
   while (spsc_audio_ring_buffer_get_available_to_read(playback->ring) +
              requested >
-         playback->ring->capacity) {
+         spsc_audio_ring_buffer_get_capacity(playback->ring)) {
     if (retries-- <= 0) {
       return false;
     }

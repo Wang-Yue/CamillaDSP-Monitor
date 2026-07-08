@@ -1,5 +1,16 @@
 #include "config_diff.h"
 
+struct config_change {
+  config_change_type_t type;
+  char** filters;
+  size_t filters_count;
+  char** mixers;
+  size_t mixers_count;
+  char** processors;
+  size_t processors_count;
+};
+
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -462,7 +473,7 @@ static bool pipeline_step_equal(const pipeline_step_t* a,
 config_change_type_t config_diff(const dsp_config_t* current,
                                  const dsp_config_t* new_conf,
                                  config_change_t* out_change) {
-  memset(out_change, 0, sizeof(config_change_t));
+  if (!out_change) return CONFIG_CHANGE_DEVICES;
   if (!current || !new_conf) {
     out_change->type = CONFIG_CHANGE_DEVICES;
     return CONFIG_CHANGE_DEVICES;
@@ -561,6 +572,14 @@ config_change_type_t config_diff(const dsp_config_t* current,
   return out_change->type;
 }
 
+config_change_t* config_change_create(void) {
+  config_change_t* change = malloc(sizeof(struct config_change));
+  if (change) {
+    memset(change, 0, sizeof(struct config_change));
+  }
+  return change;
+}
+
 void config_change_free(config_change_t* change) {
   if (!change) return;
   if (change->filters) {
@@ -576,5 +595,32 @@ void config_change_free(config_change_t* change) {
       free(change->processors[i]);
     free(change->processors);
   }
-  memset(change, 0, sizeof(config_change_t));
+  free(change);
+}
+
+char** config_change_take_filters(config_change_t* change, size_t* out_count) {
+  if (!change || !out_count) return NULL;
+  char** res = change->filters;
+  *out_count = change->filters_count;
+  change->filters = NULL;
+  change->filters_count = 0;
+  return res;
+}
+
+char** config_change_take_mixers(config_change_t* change, size_t* out_count) {
+  if (!change || !out_count) return NULL;
+  char** res = change->mixers;
+  *out_count = change->mixers_count;
+  change->mixers = NULL;
+  change->mixers_count = 0;
+  return res;
+}
+
+char** config_change_take_processors(config_change_t* change, size_t* out_count) {
+  if (!change || !out_count) return NULL;
+  char** res = change->processors;
+  *out_count = change->processors_count;
+  change->processors = NULL;
+  change->processors_count = 0;
+  return res;
 }

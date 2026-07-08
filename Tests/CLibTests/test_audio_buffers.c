@@ -4,8 +4,8 @@
 TEST(allocates_zeroed_storage) {
   audio_buffers_t* buffers = audio_buffers_create(4, 32);
   ASSERT_TRUE(buffers != NULL);
-  ASSERT_EQ(4, buffers->channels);
-  ASSERT_EQ(32, buffers->capacity);
+  ASSERT_EQ(4, audio_buffers_get_channels(buffers));
+  ASSERT_EQ(32, audio_buffers_get_capacity(buffers));
   for (size_t ch = 0; ch < 4; ch++) {
     mutable_waveform_t buf = audio_buffers_get_channel(buffers, ch);
     ASSERT_TRUE(buf != NULL);
@@ -53,8 +53,8 @@ TEST(copying_init_matches_source) {
 
   audio_buffers_t* buffers = audio_buffers_copy_from(waveforms, lengths, 2);
   ASSERT_TRUE(buffers != NULL);
-  ASSERT_EQ(2, buffers->channels);
-  ASSERT_TRUE(buffers->capacity >= 4);
+  ASSERT_EQ(2, audio_buffers_get_channels(buffers));
+  ASSERT_TRUE(audio_buffers_get_capacity(buffers) >= 4);
 
   for (size_t ch = 0; ch < 2; ch++) {
     mutable_waveform_t buf = audio_buffers_get_channel(buffers, ch);
@@ -73,7 +73,7 @@ TEST(copying_init_zero_pads_shorter_channels) {
 
   audio_buffers_t* buffers = audio_buffers_copy_from(waveforms, lengths, 2);
   ASSERT_TRUE(buffers != NULL);
-  ASSERT_EQ(4, buffers->capacity);
+  ASSERT_EQ(4, audio_buffers_get_capacity(buffers));
 
   mutable_waveform_t b0 = audio_buffers_get_channel(buffers, 0);
   ASSERT_DOUBLE_EQ(1.0, b0[0]);

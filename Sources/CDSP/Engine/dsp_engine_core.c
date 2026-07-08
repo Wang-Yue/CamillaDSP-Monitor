@@ -280,11 +280,11 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
                       : capture_chunk_size,
       capture_device_config_get_channels(
           &core->current_config->devices.capture));
-  core->resampler_scratch->valid_frames = 0;
+  audio_chunk_set_valid_frames(core->resampler_scratch, 0);
   core->pipeline_scratch = audio_chunk_create(
       playback_chunk_size, playback_device_config_get_channels(
                                &core->current_config->devices.playback));
-  core->pipeline_scratch->valid_frames = 0;
+  audio_chunk_set_valid_frames(core->pipeline_scratch, 0);
 
   config_error_t cerr;
   memset(&cerr, 0, sizeof(cerr));
@@ -466,33 +466,34 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
   }
 
   // 1. Perform configuration diffing
-  config_change_t change;
-  config_change_type_t change_type = config_diff(old_config, new_config, &change);
+  config_change_t* change = config_change_create();
+  if (!change) return false;
+  config_change_type_t change_type = config_diff(old_config, new_config, change);
 
   if (change_type == CONFIG_CHANGE_NONE) {
     logger_info(&logger, "No changes in config.", log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
     dsp_config_free(new_config); // new config is identical, discard it
-    config_change_free(&change);
+    config_change_free(change);
     return true;
   }
 
   if (change_type == CONFIG_CHANGE_FILTER_PARAMETERS || change_type == CONFIG_CHANGE_MIXER_PARAMETERS) {
     // 2. Perform in-place parameter update
     if (core->processing_loop) {
-      pending_update_t* update = malloc(sizeof(pending_update_t));
-      update->config = new_config;
-      update->filters = change.filters;
-      update->filters_count = change.filters_count;
-      update->mixers = change.mixers;
-      update->mixers_count = change.mixers_count;
-      update->processors = change.processors;
-      update->processors_count = change.processors_count;
+      size_t filters_count = 0;
+      char** filters = config_change_take_filters(change, &filters_count);
+      size_t mixers_count = 0;
+      char** mixers = config_change_take_mixers(change, &mixers_count);
+      size_t processors_count = 0;
+      char** processors = config_change_take_processors(change, &processors_count);
 
-      // Transfer ownership of name arrays to the update object
-      change.filters = NULL;
-      change.mixers = NULL;
-      change.processors = NULL;
-      config_change_free(&change);
+      pending_update_t* update = pending_update_create(
+          new_config,
+          filters, filters_count,
+          mixers, mixers_count,
+          processors, processors_count);
+
+      config_change_free(change);
 
       engine_processing_loop_enqueue_update(core->processing_loop, update);
 
@@ -509,7 +510,7 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
   }
 
   // 3. Fall back to structural change (rebuilding pipeline)
-  config_change_free(&change);
+  config_change_free(change);
 
   config_error_t cerr;
   memset(&cerr, 0, sizeof(cerr));

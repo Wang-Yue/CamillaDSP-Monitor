@@ -12,6 +12,29 @@
 
 #include "async_poly_resampler.h"
 
+struct async_poly_resampler {
+  size_t channels;
+  size_t chunk_size;
+  poly_interpolation_t interpolation;
+  size_t interpolator_len;  // = nbr_points
+  // Ratio bookkeeping.
+  double base_ratio;
+  double resample_ratio;
+  double target_ratio;
+  double last_index;  // tracking index
+  // Per-channel input buffer. Layout:
+  //   [0 .. 2*nbr_points)            — history padding zone
+  //   [2*nbr_points .. 2*nbr_points+chunkSize) — current chunk
+  audio_buffers_t* input_buffer;
+  // Pre-allocated per-frame scratch. `start_idx_scratch` holds the integer
+  // floor of `idx`, computed once when `frac_scratch` is built — saving the
+  // inner loops a floor() + int cast per output frame.
+  int* start_idx_scratch;
+  double* frac_scratch;
+  size_t max_output_frames;
+};
+
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -265,7 +288,7 @@ resampler_error_t async_poly_resampler_process(
     async_poly_resampler_t* resampler, const audio_chunk_t* input,
     audio_chunk_t* output) {
   if (!resampler || !input || !output) return RESAMPLER_ERR_INVALID_PARAMETER;
-  if (input->valid_frames != resampler->chunk_size) {
+  if (audio_chunk_get_valid_frames(input) != resampler->chunk_size) {
     return RESAMPLER_ERR_INPUT_SIZE_MISMATCH;
   }
   if (audio_chunk_get_channels(output) != resampler->channels) {
@@ -330,6 +353,6 @@ resampler_error_t async_poly_resampler_process(
 
   resampler->last_index = final_idx - (double)resampler->chunk_size;
   resampler->resample_ratio = resampler->target_ratio;
-  output->valid_frames = output_frames;
+  audio_chunk_set_valid_frames(output, output_frames);
   return RESAMPLER_OK;
 }

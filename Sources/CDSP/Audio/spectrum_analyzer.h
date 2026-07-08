@@ -31,48 +31,7 @@ typedef enum {
   SPECTRUM_ERROR_OUT_OF_RANGE = -3
 } spectrum_status_t;
 
-typedef struct {
-  int low_k;
-  int high_k;
-  int nearest_k;
-} bin_range_t;
-
-typedef struct {
-  double min_freq;
-  double max_freq;
-  size_t n_bins;
-  size_t samplerate;
-  float* frequencies;
-  bin_range_t* ranges;
-  size_t capacity;
-} binning_plan_t;
-
-/// Pure spectrum analyzer that operates on an `audio_history_buffer_t`.
-typedef struct {
-  size_t fft_n;
-#ifdef ENABLE_ACCELERATE
-  vDSP_Length log2n;
-  FFTSetup fft_setup;
-#else
-  void* fft_setup;
-  double* fft_in_d;
-  double* fft_re_d;
-  double* fft_im_d;
-#endif
-  float* window;
-  // Preallocated reusable scratch buffers to eliminate frame-by-frame
-  // allocations
-  float* data;
-  float* realp;
-  float* imagp;
-  float* magnitudes;
-  float* db_magnitudes;
-
-  // Cached plan for geometric binning to eliminate transcendental operations
-  binning_plan_t plan;
-  float* out_magnitudes;
-  size_t out_capacity;
-} spectrum_analyzer_t;
+typedef struct spectrum_analyzer spectrum_analyzer_t;
 
 spectrum_analyzer_t* spectrum_analyzer_create(void);
 void spectrum_analyzer_free(spectrum_analyzer_t* analyzer);

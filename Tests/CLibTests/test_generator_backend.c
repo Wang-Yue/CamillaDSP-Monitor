@@ -32,7 +32,7 @@ TEST(GeneratorSineCorrectness) {
 
   audio_chunk_t* chunk = audio_chunk_create(1024, 2);
   ASSERT_TRUE(capture_backend_read(backend, 1024, chunk, &err));
-  ASSERT_EQ(1024, chunk->valid_frames);
+  ASSERT_EQ(1024, audio_chunk_get_valid_frames(chunk));
 
   double expected_phase = 0.0;
   double freq_delta = 1000.0 / 44100.0;

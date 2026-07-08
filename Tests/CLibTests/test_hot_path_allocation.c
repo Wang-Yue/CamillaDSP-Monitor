@@ -136,7 +136,7 @@ static audio_chunk_t** make_random_chunks(int count, int channels, int frames,
         wv[f] = ((double)rand() / RAND_MAX) * 2.0 * scale - scale;
       }
     }
-    chunks[i]->valid_frames = frames;
+    audio_chunk_set_valid_frames(chunks[i], frames);
   }
   return chunks;
 }
@@ -536,7 +536,7 @@ TEST(Compressor_AllocationFree) {
     audio_chunk_get_channel(chunk, 0)[f] = 0.5;
     audio_chunk_get_channel(chunk, 1)[f] = 0.5;
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
   proc_test_ctx_t ctx = {proc, comp_proc_wrap, chunk};
   assert_allocation_free("Compressor", 0, 30, proc_iter, &ctx);
   audio_chunk_free(chunk);
@@ -563,7 +563,7 @@ TEST(NoiseGate_AllocationFree) {
     audio_chunk_get_channel(chunk, 0)[f] = 0.5;
     audio_chunk_get_channel(chunk, 1)[f] = 0.5;
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
   proc_test_ctx_t ctx = {proc, gate_proc_wrap, chunk};
   assert_allocation_free("NoiseGate", 0, 30, proc_iter, &ctx);
   audio_chunk_free(chunk);
@@ -587,7 +587,7 @@ TEST(RACE_AllocationFree) {
     audio_chunk_get_channel(chunk, 0)[f] = 0.5;
     audio_chunk_get_channel(chunk, 1)[f] = 0.5;
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
   proc_test_ctx_t ctx = {proc, race_proc_wrap, chunk};
   assert_allocation_free("RACE", 0, 30, proc_iter, &ctx);
   audio_chunk_free(chunk);
@@ -691,7 +691,7 @@ TEST(DoPDecoder_AllocationFree) {
       audio_chunk_get_channel(chunks[i], 1)[t] = f;
       global_frame_idx++;
     }
-    chunks[i]->valid_frames = 1024;
+    audio_chunk_set_valid_frames(chunks[i], 1024);
   }
   dop_dec_test_ctx_t ctx = {decoder, chunks, total_chunks};
   assert_allocation_free("DoP decoder", 0, 30, dop_dec_iter, &ctx);

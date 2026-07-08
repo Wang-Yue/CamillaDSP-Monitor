@@ -30,19 +30,7 @@
 #include "double_helpers.h"
 
 /// Contiguous, per-channel audio storage backed by a single heap allocation.
-typedef struct {
-  /// Number of channels.
-  size_t channels;
-  /// Per-channel capacity in `double` samples.
-  size_t capacity;
-  /// One contiguous `channels * capacity` block. Channel `ch` lives at `[ch *
-  /// capacity ..< (ch + 1) * capacity]`.
-  double* storage;
-  /// Pre-built per-channel views — sized to `capacity`, pointing into
-  /// `storage`. Built once at init and never resized; the pointers stay valid
-  /// for the entire lifetime of this `audio_buffers_t`.
-  mutable_waveform_t* channel_buffers;
-} audio_buffers_t;
+typedef struct audio_buffers audio_buffers_t;
 
 /// Allocate a fresh buffer pool, zero-initialised.
 audio_buffers_t* audio_buffers_create(size_t channels, size_t capacity);
@@ -52,11 +40,14 @@ audio_buffers_t* audio_buffers_copy_from(const double* const* waveforms,
                                          size_t channels);
 void audio_buffers_free(audio_buffers_t* buffers);
 
+/// Number of channels in the buffer.
+size_t audio_buffers_get_channels(const audio_buffers_t* buffers);
+/// Capacity in samples per channel.
+size_t audio_buffers_get_capacity(const audio_buffers_t* buffers);
+
 /// Mutable per-channel pointer. The pointer is stable for the lifetime of the
 /// `audio_buffers_t`; callers may cache it.
-static inline mutable_waveform_t audio_buffers_get_channel(
-    const audio_buffers_t* buffers, size_t ch) {
-  return buffers->channel_buffers[ch];
-}
+mutable_waveform_t audio_buffers_get_channel(const audio_buffers_t* buffers,
+                                             size_t ch);
 
 #endif  // CLIB_AUDIO_AUDIO_BUFFERS_H

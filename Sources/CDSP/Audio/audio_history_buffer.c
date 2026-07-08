@@ -3,6 +3,18 @@
 #include "Audio/audio_history_buffer.h"
 
 #include <stdlib.h>
+
+struct audio_history_buffer {
+  size_t channels;
+  spsc_audio_ring_buffer_t** buffers;
+  /// Preallocated scratch used by the consumer to average channels
+  /// without per-call heap traffic. Sized to the ring's capacity.
+  float* averaging_scratch;
+};
+
+size_t audio_history_buffer_get_channels(const audio_history_buffer_t* history) {
+  return history ? history->channels : 0;
+}
 #include <string.h>
 
 #ifdef ENABLE_ACCELERATE
@@ -71,7 +83,7 @@ void audio_history_buffer_append(audio_history_buffer_t* history,
   if (!history || !chunk || !history->buffers) return;
   size_t chunk_channels = audio_chunk_get_channels(chunk);
   if (chunk_channels != history->channels || history->channels == 0) return;
-  size_t valid = chunk->valid_frames;
+  size_t valid = audio_chunk_get_valid_frames(chunk);
   if (valid == 0) return;
   for (size_t ch = 0; ch < history->channels; ch++) {
     mutable_waveform_t src_ptr = audio_chunk_get_channel(chunk, ch);

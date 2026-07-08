@@ -31,13 +31,7 @@ typedef enum {
 /// audio thread is running. Read by consumers via `read_latest(...)`
 /// (snapshot semantics — same window can be re-read for FFTs at
 /// different lengths), optionally averaging across channels.
-typedef struct {
-  size_t channels;
-  spsc_audio_ring_buffer_t** buffers;
-  /// Preallocated scratch used by the consumer to average channels
-  /// without per-call heap traffic. Sized to the ring's capacity.
-  float* averaging_scratch;
-} audio_history_buffer_t;
+typedef struct audio_history_buffer audio_history_buffer_t;
 
 audio_history_buffer_t* audio_history_buffer_create(void);
 /// Re-allocate buffers for a new channel layout. Must only be called
@@ -45,6 +39,9 @@ audio_history_buffer_t* audio_history_buffer_create(void);
 void audio_history_buffer_reset(audio_history_buffer_t* history,
                                 size_t channels);
 void audio_history_buffer_free(audio_history_buffer_t* history);
+
+/// Get the number of channels.
+size_t audio_history_buffer_get_channels(const audio_history_buffer_t* history);
 
 /// Whether any sample has been written on this side yet.
 bool audio_history_buffer_has_data(const audio_history_buffer_t* history);

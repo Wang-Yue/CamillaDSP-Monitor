@@ -38,7 +38,7 @@ TEST(PulsePlaybackBasic) {
   // Write silence
   memset(audio_chunk_get_channel(chunk, 0), 0, 1024 * sizeof(double));
   memset(audio_chunk_get_channel(chunk, 1), 0, 1024 * sizeof(double));
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   ASSERT_TRUE(playback_backend_write(playback, chunk, &err));
 
@@ -77,7 +77,7 @@ TEST(PulseCaptureBasic) {
   // Pulse Simple API blocks until requested frames are available.
   // To avoid blocking too long in unit tests, we'll read a small chunk.
   ASSERT_TRUE(capture_backend_read(capture, 128, chunk, &err));
-  ASSERT_EQ(128, chunk->valid_frames);
+  ASSERT_EQ(128, audio_chunk_get_valid_frames(chunk));
 
   audio_chunk_free(chunk);
   capture_backend_close(capture);

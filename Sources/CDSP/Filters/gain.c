@@ -1,5 +1,11 @@
 #include "gain.h"
 
+struct gain_filter {
+  char name[64];
+  double linear_gain;
+  bool muted;
+};
+
 #include <stdlib.h>
 #include <string.h>
 

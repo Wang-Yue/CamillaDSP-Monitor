@@ -137,7 +137,7 @@ bool generator_capture_read(generator_capture_t* capture, size_t frames,
                             audio_chunk_t* chunk, backend_error_t* err) {
   (void)err;
   if (capture->is_paused) {
-    chunk->valid_frames = 0;
+    audio_chunk_set_valid_frames(chunk, 0);
     return false;
   }
 
@@ -173,7 +173,7 @@ bool generator_capture_read(generator_capture_t* capture, size_t frames,
     }
   }
 
-  chunk->valid_frames = frames;
+  audio_chunk_set_valid_frames(chunk, frames);
   return true;
 }
 

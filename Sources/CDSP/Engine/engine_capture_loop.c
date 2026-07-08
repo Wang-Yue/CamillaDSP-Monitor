@@ -20,6 +20,30 @@
 #include "engine_capture_loop.h"
 
 #include <stdio.h>
+#include "Audio/silence_counter.h"
+
+struct engine_capture_loop {
+  engine_shared_state_t* shared;
+  engine_state_machine_t* state_machine;
+  capture_backend_t* capture;
+  playback_backend_t* playback;
+  processing_parameters_t* processing_params;
+  dop_decoder_t* dop_decoder;
+
+  size_t chunk_size;
+  size_t channels;
+  size_t samplerate;
+  double last_observed_pending_rate;
+  bool has_last_observed_pending_rate;
+  double last_observed_playback_pending_rate;
+  bool has_last_observed_playback_pending_rate;
+
+  silence_counter_t* silence_counter;
+
+  uint64_t watchdog_last_success_ns;
+  bool watchdog_triggered;
+  double watchdog_timeout_seconds;
+};
 #include <stdlib.h>
 #include <time.h>
 
@@ -55,8 +79,8 @@ engine_capture_loop_t* engine_capture_loop_create(
   loop->channels = channels;
   loop->samplerate = samplerate;
 
-  silence_counter_init(&loop->silence_counter, silence_threshold_db,
-                       silence_timeout_seconds, samplerate, chunk_size);
+  loop->silence_counter = silence_counter_create(silence_threshold_db,
+                                                 silence_timeout_seconds, samplerate, chunk_size);
   loop->watchdog_timeout_seconds = 0.5;
   loop->watchdog_last_success_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
   loop->watchdog_triggered = false;
@@ -66,6 +90,9 @@ engine_capture_loop_t* engine_capture_loop_create(
 
 void engine_capture_loop_free(engine_capture_loop_t* loop) {
   if (!loop) return;
+  if (loop->silence_counter) {
+    silence_counter_free(loop->silence_counter);
+  }
   free(loop);
 }
 
@@ -77,7 +104,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
 
   set_realtime_thread_priority("Capture", loop->chunk_size, loop->samplerate);
 
-  size_t pool_cap = loop->shared->captured_queue->capacity + 4;
+  size_t pool_cap = spsc_queue_get_capacity(loop->shared->captured_queue) + 4;
   round_robin_chunk_pool_t* chunk_pool =
       round_robin_chunk_pool_create(pool_cap, loop->chunk_size, loop->channels);
 
@@ -193,7 +220,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
     // We only flip when the value actually changes to avoid
     // hammering the atomic from the audio thread.
     processing_state_t desired =
-        silence_counter_update(&loop->silence_counter, loudest_peak);
+        silence_counter_update(loop->silence_counter, loudest_peak);
     processing_state_t current =
         engine_state_machine_get_state(loop->state_machine);
     if (desired != current) {

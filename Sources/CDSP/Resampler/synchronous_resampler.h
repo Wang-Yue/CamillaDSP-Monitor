@@ -88,47 +88,8 @@
 #include "resampler_error.h"
 #include "sinc_window_function.h"
 
-typedef struct {
-  /// Number of channels processed per call.
-  size_t channels;
-  /// Input frames the resampler expects on every `process` call —
-  /// `K·L` for some integer `K ≥ 1`, where `L = Fᵢ / gcd(Fᵢ, Fₒ)`.
-  size_t chunk_size;
-  /// Output frames produced per `process` call — `K·M`, where
-  /// `M = Fₒ / gcd(Fᵢ, Fₒ)`.
-  size_t output_chunk_size;
-  double ratio;
-  /// Length of the working FFT block on the input side (`= chunkSize`).
-  size_t input_block_len;
-  /// Length of the working FFT block on the output side (`= outputChunkSize`).
-  size_t output_block_len;
-  /// Number of unique-bin frequencies common to the input and output
-  /// spectra: `min(inputBlockLen, outputBlockLen) + 1`. Bins above
-  /// this in the output spectrum are zeroed (band-limiting for
-  /// downsampling, spectral zero-pad for upsampling).
-  size_t shared_bins;
-  // Anti-aliasing filter, pre-FFT'd at init. `inputBlockLen + 1`
-  // unique bins. Stored as raw pointer to bypass overhead.
-  double* filter_spec_re;
-  double* filter_spec_im;
-  // Real-input FFT engines. The forward engine handles the zero-padded
-  // input block (length `2 · inputBlockLen`); the inverse engine
-  // reconstructs the output block (length `2 · outputBlockLen`).
-  real_fft_t* input_fft;
-  real_fft_t* output_fft;
-  // Per-channel time-domain overlap-add carry. Each entry holds the
-  // tail of the previous chunk's IFFT result, length `outputBlockLen`.
-  double** carries;
-  // Hot-path scratch buffers reused across channels. Unified to minimize
-  // cache footprint and avoid intermediate allocations.
-  //   `workingTime`: holds the 2N zero-padded input block for forward FFT,
-  //                  and the 2P overlap-add output block from inverse FFT.
-  //   `workingSpecRe`/`Im`: holds the shared low-frequency bins during
-  //   filtering.
-  double* working_time;
-  double* working_spec_re;
-  double* working_spec_im;
-} synchronous_resampler_t;
+struct synchronous_resampler;
+typedef struct synchronous_resampler synchronous_resampler_t;
 
 synchronous_resampler_t* synchronous_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,

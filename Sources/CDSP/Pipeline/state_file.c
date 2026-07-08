@@ -5,6 +5,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct dsp_state_s {
+  char config_path[1024];
+  bool has_config_path;
+  bool mute[5];
+  double volume[5];
+};
+
+dsp_state_t* dsp_state_create(void) {
+  dsp_state_t* state = (dsp_state_t*)calloc(1, sizeof(dsp_state_t));
+  return state;
+}
+
+void dsp_state_free(dsp_state_t* state) {
+  free(state);
+}
+
 static void trim_trailing(char* str) {
   size_t len = strlen(str);
   while (len > 0 && (str[len - 1] == '\r' || str[len - 1] == '\n' ||
@@ -133,4 +149,54 @@ bool dsp_state_save(const char* filename, const dsp_state_t* state) {
   }
 
   return true;
+}
+
+const char* dsp_state_get_config_path(const dsp_state_t* state) {
+  return state ? state->config_path : NULL;
+}
+
+void dsp_state_set_config_path(dsp_state_t* state, const char* path) {
+  if (!state) return;
+  if (path) {
+    strncpy(state->config_path, path, sizeof(state->config_path) - 1);
+    state->config_path[sizeof(state->config_path) - 1] = '\0';
+    state->has_config_path = true;
+  } else {
+    state->config_path[0] = '\0';
+    state->has_config_path = false;
+  }
+}
+
+bool dsp_state_has_config_path(const dsp_state_t* state) {
+  return state ? state->has_config_path : false;
+}
+
+void dsp_state_set_has_config_path(dsp_state_t* state, bool has_path) {
+  if (state) state->has_config_path = has_path;
+}
+
+bool dsp_state_get_mute(const dsp_state_t* state, int index) {
+  if (state && index >= 0 && index < 5) {
+    return state->mute[index];
+  }
+  return false;
+}
+
+void dsp_state_set_mute(dsp_state_t* state, int index, bool mute) {
+  if (state && index >= 0 && index < 5) {
+    state->mute[index] = mute;
+  }
+}
+
+double dsp_state_get_volume(const dsp_state_t* state, int index) {
+  if (state && index >= 0 && index < 5) {
+    return state->volume[index];
+  }
+  return 0.0;
+}
+
+void dsp_state_set_volume(dsp_state_t* state, int index, double volume) {
+  if (state && index >= 0 && index < 5) {
+    state->volume[index] = volume;
+  }
 }

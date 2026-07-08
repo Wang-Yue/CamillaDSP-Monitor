@@ -26,34 +26,8 @@ typedef enum {
   SINC_INTERPOLATION_CUBIC
 } sinc_interpolation_type_t;
 
-typedef struct {
-  size_t channels;
-  size_t chunk_size;
-  // Filter geometry.
-  size_t sinc_len;
-  size_t oversampling_factor;
-  sinc_interpolation_type_t interpolation;
-  // ramp toward the target ratio.
-  double base_ratio;
-  double resample_ratio;
-  double target_ratio;
-  double last_index;  // tracking index
-  // in the interpolator.
-  double* sinc_table;
-  // Per-channel input buffer. Layout:
-  //   [0 .. 2*sincLen)            — history (last 2*sincLen samples of the
-  //                                  previous chunk, or zeros initially)
-  //   [2*sincLen .. 2*sincLen+chunkSize) — current chunk's data
-  audio_buffers_t* input_buffer;
-  // Pre-allocated scratch for per-frame `idx` values. Pre-computed once per
-  // chunk so the per-channel loops can iterate without repeating the idx
-  // accumulation.
-  double* idx_scratch;
-  double* frac_scratch;
-  // Maximum output frames the resampler can ever produce in one call. The
-  // caller uses this to size the output AudioChunk once at startup.
-  size_t max_output_frames;
-} async_sinc_resampler_t;
+struct async_sinc_resampler;
+typedef struct async_sinc_resampler async_sinc_resampler_t;
 
 async_sinc_resampler_t* async_sinc_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate, size_t sinc_len,

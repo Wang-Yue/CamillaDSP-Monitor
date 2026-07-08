@@ -335,7 +335,7 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
     }
   }
 
-  chunk->valid_frames = frames;
+  audio_chunk_set_valid_frames(chunk, frames);
   return true;
 }
 

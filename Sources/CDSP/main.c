@@ -329,29 +329,33 @@ int main(int argc, char** argv) {
 
   // Load state file if present
   char* allocated_config_path = NULL;
-  dsp_state_t loaded_state;
+  dsp_state_t* loaded_state = dsp_state_create();
   bool has_loaded_state = false;
-  if (state_file_path) {
-    if (dsp_state_load(state_file_path, &loaded_state)) {
+  if (state_file_path && loaded_state) {
+    if (dsp_state_load(state_file_path, loaded_state)) {
       has_loaded_state = true;
-      if (!config_path && !no_config && loaded_state.has_config_path) {
-        allocated_config_path = strdup(loaded_state.config_path);
+      if (!config_path && !no_config && dsp_state_has_config_path(loaded_state)) {
+        allocated_config_path = strdup(dsp_state_get_config_path(loaded_state));
         config_path = allocated_config_path;
       }
     }
   }
 
-  if (has_loaded_state) {
+  if (has_loaded_state && loaded_state) {
     for (int i = 0; i < FADER_COUNT; i++) {
       if (!has_initial_gains[i]) {
-        initial_gains[i] = loaded_state.volume[i];
+        initial_gains[i] = dsp_state_get_volume(loaded_state, i);
         has_initial_gains[i] = true;
       }
       if (!has_initial_mutes[i]) {
-        initial_mutes[i] = loaded_state.mute[i];
+        initial_mutes[i] = dsp_state_get_mute(loaded_state, i);
         has_initial_mutes[i] = true;
       }
     }
+  }
+
+  if (loaded_state) {
+    dsp_state_free(loaded_state);
   }
 
   char* config_json = NULL;

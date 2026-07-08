@@ -8,11 +8,11 @@
 TEST(Reset) {
   audio_history_buffer_t* buffer = audio_history_buffer_create();
   ASSERT_TRUE(buffer != NULL);
-  ASSERT_EQ(0, buffer->channels);
+  ASSERT_EQ(0, audio_history_buffer_get_channels(buffer));
   ASSERT_FALSE(audio_history_buffer_has_data(buffer));
 
   audio_history_buffer_reset(buffer, 2);
-  ASSERT_EQ(2, buffer->channels);
+  ASSERT_EQ(2, audio_history_buffer_get_channels(buffer));
   ASSERT_FALSE(audio_history_buffer_has_data(buffer));
   audio_history_buffer_free(buffer);
 }
@@ -26,7 +26,7 @@ TEST(AppendAndRead) {
     audio_chunk_get_channel(chunk, 0)[t] = (double)t;
     audio_chunk_get_channel(chunk, 1)[t] = (double)(t * 2);
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_history_buffer_append(buffer, chunk);
   ASSERT_TRUE(audio_history_buffer_has_data(buffer));
@@ -64,7 +64,7 @@ TEST(ReadLatestAverageChannels) {
     audio_chunk_get_channel(chunk, 0)[t] = 1.0;
     audio_chunk_get_channel(chunk, 1)[t] = 3.0;
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_history_buffer_append(buffer, chunk);
 
@@ -115,7 +115,7 @@ TEST(AppendMismatchedChannels) {
   audio_history_buffer_reset(buffer, 2);
 
   audio_chunk_t* chunk = audio_chunk_create(1024, 1);
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
   audio_history_buffer_append(buffer, chunk);
   ASSERT_FALSE(audio_history_buffer_has_data(buffer));
 

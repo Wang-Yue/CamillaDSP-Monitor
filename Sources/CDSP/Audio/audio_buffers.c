@@ -6,6 +6,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct audio_buffers {
+  size_t channels;
+  size_t capacity;
+  double* storage;
+  mutable_waveform_t* channel_buffers;
+};
+
+size_t audio_buffers_get_channels(const audio_buffers_t* buffers) {
+  return buffers ? buffers->channels : 0;
+}
+
+size_t audio_buffers_get_capacity(const audio_buffers_t* buffers) {
+  return buffers ? buffers->capacity : 0;
+}
+
+mutable_waveform_t audio_buffers_get_channel(const audio_buffers_t* buffers,
+                                             size_t ch) {
+  return buffers->channel_buffers[ch];
+}
+
 /// Allocate a fresh buffer pool, zero-initialised.
 audio_buffers_t* audio_buffers_create(size_t channels, size_t capacity) {
   if (channels == 0 || capacity == 0) return NULL;

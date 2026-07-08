@@ -50,12 +50,17 @@ TEST(ConfigDiffEqual) {
   ASSERT_EQ(0, r1);
   ASSERT_EQ(0, r2);
 
-  config_change_t change;
-  config_change_type_t res = config_diff(c1, c2, &change);
+  config_change_t* change = config_change_create();
+  ASSERT_TRUE(change != NULL);
+  config_change_type_t res = config_diff(c1, c2, change);
   ASSERT_EQ(CONFIG_CHANGE_NONE, res);
-  ASSERT_EQ(0, change.filters_count);
 
-  config_change_free(&change);
+  size_t filters_count = 0;
+  char** filters = config_change_take_filters(change, &filters_count);
+  ASSERT_EQ(0, filters_count);
+  ASSERT_TRUE(filters == NULL);
+
+  config_change_free(change);
   dsp_config_free(c1);
   dsp_config_free(c2);
 }
@@ -87,11 +92,12 @@ TEST(ConfigDiffDevices) {
   ASSERT_EQ(0, r1);
   ASSERT_EQ(0, r2);
 
-  config_change_t change;
-  config_change_type_t res = config_diff(c1, c2, &change);
+  config_change_t* change = config_change_create();
+  ASSERT_TRUE(change != NULL);
+  config_change_type_t res = config_diff(c1, c2, change);
   ASSERT_EQ(CONFIG_CHANGE_DEVICES, res);
 
-  config_change_free(&change);
+  config_change_free(change);
   dsp_config_free(c1);
   dsp_config_free(c2);
 }
@@ -138,13 +144,23 @@ TEST(ConfigDiffFilterParams) {
   ASSERT_EQ(0, r1);
   ASSERT_EQ(0, r2);
 
-  config_change_t change;
-  config_change_type_t res = config_diff(c1, c2, &change);
+  config_change_t* change = config_change_create();
+  ASSERT_TRUE(change != NULL);
+  config_change_type_t res = config_diff(c1, c2, change);
   ASSERT_EQ(CONFIG_CHANGE_FILTER_PARAMETERS, res);
-  ASSERT_EQ(1, change.filters_count);
-  ASSERT_STR_EQ("my_gain", change.filters[0]);
 
-  config_change_free(&change);
+  size_t filters_count = 0;
+  char** filters = config_change_take_filters(change, &filters_count);
+  ASSERT_EQ(1, filters_count);
+  ASSERT_STR_EQ("my_gain", filters[0]);
+
+  // Clean up returned name list since ownership was transferred to us
+  for (size_t i = 0; i < filters_count; i++) {
+    free(filters[i]);
+  }
+  free(filters);
+
+  config_change_free(change);
   dsp_config_free(c1);
   dsp_config_free(c2);
 }

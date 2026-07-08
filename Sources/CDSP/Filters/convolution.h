@@ -6,7 +6,7 @@
 
 #include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
-#include "FFT/real_fft.h"
+
 
 // Uniform-partitioned overlap-save FIR convolution.
 // Stockham-style segmented overlap-save with one 2N-point real FFT per
@@ -36,32 +36,7 @@
 ///
 /// Coefficient file readers. Off the audio thread — straightforward
 /// `Data`-based parsers, no streaming or memory-mapping.
-typedef struct {
-  char name[64];
-  /// Block length `N` (one input chunk per `process` call).
-  size_t chunk_size;
-  /// Number of `chunkSize`-long IR segments.
-  size_t num_segments;
-  /// Unique-bin count `N + 1` / FFT length `2N`.
-  real_fft_t* fft;
-  /// Pre-FFT'd IR segments and rolling input-spectrum history. Each is a
-  /// flat `nsegments * bins` block of `PrcFmt`; the per-segment slice for
-  /// segment `s` lives at `[s * bins ..< (s + 1) * bins]`.
-  double** spec_re;
-  double** spec_im;
-  double** hist_re;
-  double** hist_im;
-  /// Index of the input-history slot most recently filled (mod `nsegments`).
-  size_t write_idx;
-  /// Overlap-save state, length `N` — the second half of the previous
-  /// IFFT result, summed into the next block's first half.
-  double* overlap_buffer;
-  // Time-domain scratch buffers, both `2N` long.
-  double* time_buf;
-  /// Per-call accumulator for `Σ_seg input_F[hist] · coeffs_F[seg]`.
-  double* spec_accum_re;
-  double* spec_accum_im;
-} convolution_filter_t;
+typedef struct convolution_filter convolution_filter_t;
 
 /// Build a convolution filter from raw IR samples.
 ///

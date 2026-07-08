@@ -568,7 +568,7 @@ bool core_audio_capture_read(core_audio_capture_t* capture, size_t frames,
       vDSP_vspdp(capture->read_scratch, 1, dst_ptr, 1, n);
     }
   }
-  chunk->valid_frames = frames;
+  audio_chunk_set_valid_frames(chunk, frames);
   return true;
 }
 

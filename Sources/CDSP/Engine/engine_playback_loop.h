@@ -42,18 +42,7 @@
 /// after `run()` is invoked. The rate-adjust controller, averager,
 /// and stopwatch are all loop-local state with no synchronisation
 /// and are *not* safe to use from multiple threads concurrently.
-typedef struct {
-  engine_shared_state_t* shared;
-  capture_backend_t* capture;
-  playback_backend_t* playback;
-  processing_parameters_t* processing_params;
-  size_t pipeline_rate;
-  size_t chunk_size;
-  bool pitch_supported;
-  bool rate_adjust_enabled;
-  double adjust_period;
-  int target_level;
-} engine_playback_loop_t;
+typedef struct engine_playback_loop engine_playback_loop_t;
 
 engine_playback_loop_t* engine_playback_loop_create(
     engine_shared_state_t* shared, capture_backend_t* capture,

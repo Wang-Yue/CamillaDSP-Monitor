@@ -33,6 +33,19 @@
 #include "Logging/app_logger.h"
 #include "thread_priority.h"
 
+struct engine_playback_loop {
+  engine_shared_state_t* shared;
+  capture_backend_t* capture;
+  playback_backend_t* playback;
+  processing_parameters_t* processing_params;
+  size_t pipeline_rate;
+  size_t chunk_size;
+  bool pitch_supported;
+  bool rate_adjust_enabled;
+  double adjust_period;
+  int target_level;
+};
+
 /// Apply a rate-adjust output. Skip if the speed change is
 /// negligible (< 1 ppm) so we don't churn the resampler ratio
 /// pointlessly.

@@ -1,4 +1,13 @@
 #include "delay.h"
+#include "biquad.h"
+
+struct delay_filter {
+  char name[64];
+  double* queue;
+  size_t queue_count;
+  size_t read_index;
+  biquad_filter_t* biquad;
+};
 
 #include <math.h>
 #include <stdlib.h>

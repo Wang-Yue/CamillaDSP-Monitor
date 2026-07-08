@@ -1,5 +1,19 @@
 #include "lookahead_limiter.h"
 
+struct lookahead_limiter_filter {
+  char name[64];
+  double limit;
+  int attack_samples;
+  double release_coeff;
+  double* lookahead_data;
+  size_t lookahead_capacity;
+  size_t lookahead_read_index;
+  size_t lookahead_write_index;
+  double release_gain;
+  double* output_buffer;
+  size_t output_buffer_capacity;
+};
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

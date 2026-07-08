@@ -74,9 +74,9 @@ static void assert_stereo_matches_mono(resampler_type_t type,
       ml_ch0[i] = left[idx + i];
       mr_ch0[i] = right[idx + i];
     }
-    st_in->valid_frames = actual_cs;
-    ml_in->valid_frames = actual_cs;
-    mr_in->valid_frames = actual_cs;
+    audio_chunk_set_valid_frames(st_in, actual_cs);
+    audio_chunk_set_valid_frames(ml_in, actual_cs);
+    audio_chunk_set_valid_frames(mr_in, actual_cs);
 
     resampler_error_t err_st = audio_resampler_process(stereo, st_in, st_out);
     resampler_error_t err_ml = audio_resampler_process(mono_l, ml_in, ml_out);
@@ -85,15 +85,15 @@ static void assert_stereo_matches_mono(resampler_type_t type,
     ASSERT_EQ(RESAMPLER_OK, err_st);
     ASSERT_EQ(RESAMPLER_OK, err_ml);
     ASSERT_EQ(RESAMPLER_OK, err_mr);
-    ASSERT_EQ(st_out->valid_frames, ml_out->valid_frames);
-    ASSERT_EQ(st_out->valid_frames, mr_out->valid_frames);
+    ASSERT_EQ(audio_chunk_get_valid_frames(st_out), audio_chunk_get_valid_frames(ml_out));
+    ASSERT_EQ(audio_chunk_get_valid_frames(st_out), audio_chunk_get_valid_frames(mr_out));
 
     const double* st_o0 = audio_chunk_get_channel(st_out, 0);
     const double* st_o1 = audio_chunk_get_channel(st_out, 1);
     const double* ml_o0 = audio_chunk_get_channel(ml_out, 0);
     const double* mr_o0 = audio_chunk_get_channel(mr_out, 0);
 
-    for (size_t i = 0; i < st_out->valid_frames; i++) {
+    for (size_t i = 0; i < audio_chunk_get_valid_frames(st_out); i++) {
       ASSERT_NEAR(st_o0[i], ml_o0[i], 1e-12);
       ASSERT_NEAR(st_o1[i], mr_o0[i], 1e-12);
     }
@@ -148,16 +148,16 @@ static void assert_inout_matches(resampler_type_t type,
       ch0[i] = sin(0.1 * (double)(c * actual_cs + i));
       ch1[i] = cos(0.15 * (double)(c * actual_cs + i));
     }
-    in_chunk->valid_frames = actual_cs;
+    audio_chunk_set_valid_frames(in_chunk, actual_cs);
 
     ASSERT_EQ(RESAMPLER_OK, audio_resampler_process(res_a, in_chunk, out_a));
     ASSERT_EQ(RESAMPLER_OK, audio_resampler_process(res_b, in_chunk, out_b));
-    ASSERT_EQ(out_a->valid_frames, out_b->valid_frames);
+    ASSERT_EQ(audio_chunk_get_valid_frames(out_a), audio_chunk_get_valid_frames(out_b));
 
     for (size_t ch = 0; ch < 2; ch++) {
       const double* o_a = audio_chunk_get_channel(out_a, ch);
       const double* o_b = audio_chunk_get_channel(out_b, ch);
-      for (size_t i = 0; i < out_a->valid_frames; i++) {
+      for (size_t i = 0; i < audio_chunk_get_valid_frames(out_a); i++) {
         ASSERT_NEAR(o_a[i], o_b[i], 1e-12);
       }
     }
@@ -190,7 +190,7 @@ static void assert_rejects_too_small(resampler_type_t type,
 
   size_t actual_cs = audio_resampler_get_chunk_size(res);
   audio_chunk_t* in_chunk = audio_chunk_create(actual_cs, 2);
-  in_chunk->valid_frames = actual_cs;
+  audio_chunk_set_valid_frames(in_chunk, actual_cs);
   audio_chunk_t* too_small = audio_chunk_create(64, 2);
 
   resampler_error_t err = audio_resampler_process(res, in_chunk, too_small);

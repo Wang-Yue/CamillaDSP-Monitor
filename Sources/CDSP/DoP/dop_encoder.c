@@ -224,8 +224,8 @@ static void encode_channel(dop_encoder_channel_state_t* state,
 
 void dop_encoder_encode(dop_encoder_t* encoder, audio_chunk_t* chunk) {
   if (!encoder || !encoder->enabled || !chunk) return;
-  size_t n = chunk->valid_frames;
-  if (n == 0 || (int)chunk->buffers->channels != encoder->channels) return;
+  size_t n = audio_chunk_get_valid_frames(chunk);
+  if (n == 0 || (int)audio_chunk_get_channels(chunk) != encoder->channels) return;
   for (int ch = 0; ch < encoder->channels; ch++) {
     encode_channel(&encoder->channel_states[ch],
                    audio_chunk_get_channel(chunk, ch), n, encoder->coeffs);

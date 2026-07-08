@@ -1,5 +1,23 @@
 #include "convolution.h"
 
+#include "FFT/real_fft.h"
+
+struct convolution_filter {
+  char name[64];
+  size_t chunk_size;
+  size_t num_segments;
+  real_fft_t* fft;
+  double** spec_re;
+  double** spec_im;
+  double** hist_re;
+  double** hist_im;
+  size_t write_idx;
+  double* overlap_buffer;
+  double* time_buf;
+  double* spec_accum_re;
+  double* spec_accum_im;
+};
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

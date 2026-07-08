@@ -7,13 +7,9 @@
 #include "Audio/double_helpers.h"
 #include "Config/config_error.h"
 #include "Config/filter_config_types.h"
-#include "biquad.h"
 
-typedef struct {
-  char name[64];
-  biquad_filter_t** sections;
-  size_t num_sections;
-} biquad_combo_filter_t;
+
+typedef struct biquad_combo_filter biquad_combo_filter_t;
 
 int biquad_combo_parameters_validate(const biquad_combo_parameters_t* params,
                                      int sample_rate, config_error_t* err);

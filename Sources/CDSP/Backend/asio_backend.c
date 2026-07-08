@@ -964,7 +964,7 @@ static bool asio_capture_read_internal(void* ctx, size_t frames,
     }
   }
 
-  chunk->valid_frames = frames;
+  audio_chunk_set_valid_frames(chunk, frames);
   return true;
 }
 
@@ -1221,14 +1221,14 @@ static bool asio_playback_write_internal(void* ctx, const audio_chunk_t* chunk,
   (void)err;
   asio_playback_t* playback = (asio_playback_t*)ctx;
 
-  size_t requested = chunk->valid_frames * playback->channels;
+  size_t requested = audio_chunk_get_valid_frames(chunk) * playback->channels;
   if (requested > playback->encode_buf_size) {
     playback->encode_buf =
         (float*)realloc(playback->encode_buf, requested * sizeof(float));
     playback->encode_buf_size = requested;
   }
 
-  for (size_t f = 0; f < chunk->valid_frames; f++) {
+  for (size_t f = 0; f < audio_chunk_get_valid_frames(chunk); f++) {
     for (int c = 0; c < playback->channels; c++) {
       playback->encode_buf[f * playback->channels + c] =
           (float)audio_chunk_get_channel(chunk, c)[f];
@@ -1239,7 +1239,7 @@ static bool asio_playback_write_internal(void* ctx, const audio_chunk_t* chunk,
   while (written < requested) {
     // Since ring buffer holds flat interleaved float array, stride = 1
     size_t available_space =
-        playback->ring_buffer->capacity -
+        spsc_audio_ring_buffer_get_capacity(playback->ring_buffer) -
         spsc_audio_ring_buffer_get_available_to_read(playback->ring_buffer);
     size_t to_write = requested - written;
     if (to_write > available_space) to_write = available_space;

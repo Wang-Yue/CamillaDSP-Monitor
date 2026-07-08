@@ -351,7 +351,7 @@ audio_samples_t* dsp_engine_get_samples(dsp_engine_t* engine, bool is_capture,
 
   size_t n = n_frames;
   if (n > AUDIO_HISTORY_BUFFER_CAPACITY) n = AUDIO_HISTORY_BUFFER_CAPACITY;
-  size_t ch_count = buf->channels;
+  size_t ch_count = audio_history_buffer_get_channels(buf);
   if (ch_count == 0) {
     if (err) {
       err->type = AUDIO_BACKEND_ERR_BUFFER_EMPTY;
@@ -751,28 +751,28 @@ void dsp_engine_poll(dsp_engine_t* engine) {
   pthread_mutex_unlock(&engine->state_mutex);
 
   if (has_state && dirty) {
-    dsp_state_t state_to_save;
-    memset(&state_to_save, 0, sizeof(state_to_save));
-
-    char* current_path = dsp_engine_get_config_path(engine);
-    if (current_path) {
-      if (current_path[0]) {
-        strncpy(state_to_save.config_path, current_path,
-                sizeof(state_to_save.config_path) - 1);
-        state_to_save.has_config_path = true;
+    dsp_state_t* state_to_save = dsp_state_create();
+    if (state_to_save) {
+      char* current_path = dsp_engine_get_config_path(engine);
+      if (current_path) {
+        if (current_path[0]) {
+          dsp_state_set_config_path(state_to_save, current_path);
+        }
+        free(current_path);
       }
-      free(current_path);
-    }
 
-    for (int i = 0; i < FADER_COUNT; i++) {
-      state_to_save.volume[i] =
-          dsp_engine_get_fader_volume(engine, (fader_t)i);
-      state_to_save.mute[i] = dsp_engine_is_fader_muted(engine, (fader_t)i);
-    }
+      for (int i = 0; i < FADER_COUNT; i++) {
+        dsp_state_set_volume(state_to_save, i,
+                             dsp_engine_get_fader_volume(engine, (fader_t)i));
+        dsp_state_set_mute(state_to_save, i,
+                           dsp_engine_is_fader_muted(engine, (fader_t)i));
+      }
 
-    const char* s_path = dsp_engine_get_state_file(engine);
-    if (s_path && dsp_state_save(s_path, &state_to_save)) {
-      dsp_engine_set_state_dirty(engine, false);
+      const char* s_path = dsp_engine_get_state_file(engine);
+      if (s_path && dsp_state_save(s_path, state_to_save)) {
+        dsp_engine_set_state_dirty(engine, false);
+      }
+      dsp_state_free(state_to_save);
     }
   }
 }

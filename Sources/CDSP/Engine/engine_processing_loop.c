@@ -24,6 +24,52 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+struct pending_update {
+  dsp_config_t* config;
+  char** filters;
+  size_t filters_count;
+  char** mixers;
+  size_t mixers_count;
+  char** processors;
+  size_t processors_count;
+};
+
+struct engine_processing_loop {
+  engine_shared_state_t* shared;
+  engine_state_machine_t* state_machine;
+  processing_parameters_t* processing_params;
+  size_t pipeline_rate;
+  audio_resampler_t* resampler;
+  pipeline_t* active_pipeline;
+  dop_encoder_t* dop_encoder;
+  spsc_queue_t* pipeline_queue;
+  spsc_queue_t* update_queue;
+  audio_chunk_t* resampler_scratch;
+  audio_chunk_t* pipeline_scratch;
+
+  chunk_callback_t on_chunk_captured;
+  void* on_chunk_captured_ctx;
+  chunk_callback_t on_chunk_processed;
+  void* on_chunk_processed_ctx;
+};
+
+pending_update_t* pending_update_create(
+    dsp_config_t* config,
+    char** filters, size_t filters_count,
+    char** mixers, size_t mixers_count,
+    char** processors, size_t processors_count) {
+  pending_update_t* update = (pending_update_t*)malloc(sizeof(pending_update_t));
+  if (!update) return NULL;
+  update->config = config;
+  update->filters = filters;
+  update->filters_count = filters_count;
+  update->mixers = mixers;
+  update->mixers_count = mixers_count;
+  update->processors = processors;
+  update->processors_count = processors_count;
+  return update;
+}
 #include <string.h>
 #include <time.h>
 
@@ -140,7 +186,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
                                audio_chunk_get_frames(loop->pipeline_scratch),
                                loop->pipeline_rate);
 
-  size_t pool_cap = loop->shared->processed_queue->capacity + 4;
+  size_t pool_cap = spsc_queue_get_capacity(loop->shared->processed_queue) + 4;
   round_robin_chunk_pool_t* scratch_pool = round_robin_chunk_pool_create(
       pool_cap, audio_chunk_get_frames(loop->pipeline_scratch),
       audio_chunk_get_channels(loop->pipeline_scratch));
@@ -254,7 +300,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       chunk = current_scratch;
 
       if (loop->processing_params) {
-        size_t frames = chunk->valid_frames;
+        size_t frames = audio_chunk_get_valid_frames(chunk);
         if (frames > 0) {
           uint64_t chunk_duration_ns =
               (uint64_t)frames * 1000000000ULL / loop->pipeline_rate;
@@ -277,7 +323,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
 
         // Check for clipped samples on the output chunk
         size_t channels = audio_chunk_get_channels(chunk);
-        size_t c_frames = chunk->valid_frames;
+        size_t c_frames = audio_chunk_get_valid_frames(chunk);
         uint64_t clipped = 0;
         for (size_t c = 0; c < channels; c++) {
           mutable_waveform_t data = audio_chunk_get_channel(chunk, c);

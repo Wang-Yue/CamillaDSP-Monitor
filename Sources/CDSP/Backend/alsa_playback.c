@@ -329,7 +329,7 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
                          backend_error_t* err) {
   if (!playback->pcm) return false;
 
-  size_t frames = chunk->valid_frames;
+  size_t frames = audio_chunk_get_valid_frames(chunk);
   if (frames == 0) return true;
 
   if (playback->format == SND_PCM_FORMAT_FLOAT_LE) {

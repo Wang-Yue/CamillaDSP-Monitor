@@ -17,6 +17,28 @@
 
 #include "noise_gate_processor.h"
 
+struct noise_gate_processor {
+  char name[64];          ///< Unique name of the noise gate instance.
+  int* monitor_channels;  ///< Array of channel indices monitored for level
+                          ///< detection.
+  size_t monitor_channels_count;  ///< Number of monitored channels.
+  int* process_channels;  ///< Array of channel indices to apply gating to.
+  size_t process_channels_count;  ///< Number of processed channels.
+  double attack;     ///< Exponential smoothing coefficient for attack phase.
+  double release;    ///< Exponential smoothing coefficient for release phase.
+  double threshold;  ///< Gating threshold in dB.
+  double factor;     ///< Linear attenuation gain applied when gate is closed.
+  double* scratch;   ///< Pre-allocated scratch buffer for level detection.
+  size_t scratch_capacity;  ///< Capacity of scratch buffer in frames.
+  double prev_loudness;  ///< State variable tracking previous sample envelope
+                         ///< loudness.
+};
+
+const char* noise_gate_processor_get_name(const noise_gate_processor_t* processor) {
+  return processor ? processor->name : "";
+}
+
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -104,7 +126,7 @@ void noise_gate_processor_free(noise_gate_processor_t* processor) {
 void noise_gate_processor_process(noise_gate_processor_t* processor,
                                   audio_chunk_t* chunk) {
   if (!processor || !chunk || !processor->scratch) return;
-  size_t count = chunk->valid_frames;
+  size_t count = audio_chunk_get_valid_frames(chunk);
   if (count > processor->scratch_capacity) count = processor->scratch_capacity;
   if (count == 0 || processor->monitor_channels_count == 0) return;
 

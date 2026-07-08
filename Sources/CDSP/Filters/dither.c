@@ -1,5 +1,22 @@
 #include "dither.h"
 
+struct noise_shaper {
+  double* filter;
+  double* buffer;
+  size_t filter_count;
+  size_t write_index;
+};
+
+struct dither_filter {
+  char name[64];
+  dither_type_t type;
+  double scalefact;
+  double amplitude;
+  noise_shaper_t* shaper;
+  double previous_sample;
+  uint32_t rng_state;
+};
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

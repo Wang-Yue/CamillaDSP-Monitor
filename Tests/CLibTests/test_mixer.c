@@ -19,7 +19,7 @@ static audio_chunk_t* make_constant_chunk(size_t frames, size_t channels,
 static void assert_all_samples_ch(const audio_chunk_t* chunk, size_t ch,
                                   double expected, double accuracy) {
   waveform_t buf = audio_chunk_get_channel(chunk, ch);
-  for (size_t i = 0; i < chunk->valid_frames; i++) {
+  for (size_t i = 0; i < audio_chunk_get_valid_frames(chunk); i++) {
     double diff = fabs(buf[i] - expected);
     if (diff > accuracy) {
       printf(
@@ -47,14 +47,14 @@ TEST(MixerConstruction2to4) {
       .channels_in = 2, .channels_out = 4, .mapping_count = 4, .mapping = maps};
   audio_mixer_t* mixer = audio_mixer_create("mixer", &config, 2048);
   ASSERT_TRUE(mixer != NULL);
-  ASSERT_EQ(2, mixer->channels_in);
-  ASSERT_EQ(4, mixer->channels_out);
+  ASSERT_EQ(2, audio_mixer_get_channels_in(mixer));
+  ASSERT_EQ(4, audio_mixer_get_channels_out(mixer));
 
   audio_chunk_t* input = make_constant_chunk(8, 2, 1.0);
   audio_chunk_t* output = audio_mixer_process_chunk(mixer, input);
   ASSERT_TRUE(output != NULL);
   ASSERT_EQ(4, audio_chunk_get_channels(output));
-  ASSERT_EQ(input->valid_frames, output->valid_frames);
+  ASSERT_EQ(audio_chunk_get_valid_frames(input), audio_chunk_get_valid_frames(output));
 
   double expected_linear = double_from_db(0.0);
   for (size_t ch = 0; ch < 4; ch++) {
@@ -129,7 +129,7 @@ TEST(MixerStereoToMono) {
   audio_chunk_t* input = make_constant_chunk(4, 2, 1.0);
   audio_chunk_t* output = audio_mixer_process_chunk(mixer, input);
   ASSERT_EQ(1, audio_chunk_get_channels(output));
-  ASSERT_EQ(4, output->valid_frames);
+  ASSERT_EQ(4, audio_chunk_get_valid_frames(output));
 
   double expected = double_from_db(-6.0) * 2.0;
   assert_all_samples_ch(output, 0, expected, 1e-6);
@@ -154,7 +154,7 @@ TEST(MixerMonoToStereo) {
 
   audio_chunk_t* output = audio_mixer_process_chunk(mixer, input);
   ASSERT_EQ(2, audio_chunk_get_channels(output));
-  ASSERT_EQ(4, output->valid_frames);
+  ASSERT_EQ(4, audio_chunk_get_valid_frames(output));
 
   waveform_t o0 = audio_chunk_get_channel(output, 0);
   waveform_t o1 = audio_chunk_get_channel(output, 1);
@@ -344,8 +344,8 @@ TEST(CheckMakeMixer) {
   mixer_config_t config = {
       .channels_in = 2, .channels_out = 4, .mapping_count = 4, .mapping = maps};
   audio_mixer_t* mixer = audio_mixer_create("mixer", &config, 2048);
-  ASSERT_EQ(2, mixer->channels_in);
-  ASSERT_EQ(4, mixer->channels_out);
+  ASSERT_EQ(2, audio_mixer_get_channels_in(mixer));
+  ASSERT_EQ(4, audio_mixer_get_channels_out(mixer));
 
   audio_chunk_t* input = audio_chunk_create(4, 2);
   mutable_waveform_t b0 = audio_chunk_get_channel(input, 0);
@@ -361,7 +361,7 @@ TEST(CheckMakeMixer) {
 
   audio_chunk_t* output = audio_mixer_process_chunk(mixer, input);
   ASSERT_EQ(4, audio_chunk_get_channels(output));
-  ASSERT_EQ(4, output->valid_frames);
+  ASSERT_EQ(4, audio_chunk_get_valid_frames(output));
 
   waveform_t o0 = audio_chunk_get_channel(output, 0);
   waveform_t o1 = audio_chunk_get_channel(output, 1);
@@ -422,9 +422,9 @@ TEST(MixerValidFramesPropagation) {
   audio_mixer_t* mixer = audio_mixer_create("mixer", &config, 2048);
 
   audio_chunk_t* input = audio_chunk_create(16, 1);
-  input->valid_frames = 10;
+  audio_chunk_set_valid_frames(input, 10);
   audio_chunk_t* output = audio_mixer_process_chunk(mixer, input);
-  ASSERT_EQ(10, output->valid_frames);
+  ASSERT_EQ(10, audio_chunk_get_valid_frames(output));
 
   audio_chunk_free(input);
   audio_chunk_free(output);
@@ -473,10 +473,10 @@ TEST(MixerInoutAPI_MatchesAllocatingAPI) {
 
   audio_chunk_t* out_alloc = audio_mixer_process_chunk(mixerA, input);
   audio_chunk_t* preallocated = audio_chunk_create(1024, 3);
-  preallocated->valid_frames = 0;
+  audio_chunk_set_valid_frames(preallocated, 0);
   mixer_error_t err = audio_mixer_process(mixerB, input, preallocated);
   ASSERT_EQ(MIXER_OK, err);
-  ASSERT_EQ(out_alloc->valid_frames, preallocated->valid_frames);
+  ASSERT_EQ(audio_chunk_get_valid_frames(out_alloc), audio_chunk_get_valid_frames(preallocated));
 
   for (size_t ch = 0; ch < 3; ch++) {
     waveform_t oA = audio_chunk_get_channel(out_alloc, ch);
@@ -500,7 +500,7 @@ TEST(MixerInoutAPI_OverwritesPriorData) {
   audio_mixer_t* mixer = audio_mixer_create("mixer", &config, 2048);
 
   audio_chunk_t* output = make_constant_chunk(16, 1, 99.0);
-  output->valid_frames = 0;
+  audio_chunk_set_valid_frames(output, 0);
 
   audio_chunk_t* input = audio_chunk_create(4, 1);
   mutable_waveform_t b0 = audio_chunk_get_channel(input, 0);
@@ -511,7 +511,7 @@ TEST(MixerInoutAPI_OverwritesPriorData) {
 
   mixer_error_t err = audio_mixer_process(mixer, input, output);
   ASSERT_EQ(MIXER_OK, err);
-  ASSERT_EQ(4, output->valid_frames);
+  ASSERT_EQ(4, audio_chunk_get_valid_frames(output));
   waveform_t o0 = audio_chunk_get_channel(output, 0);
   ASSERT_NEAR(1.0, o0[0], 1e-12);
   ASSERT_NEAR(2.0, o0[1], 1e-12);
@@ -532,7 +532,7 @@ TEST(MixerInoutAPI_RejectsTooSmallOutputBuffer) {
 
   audio_chunk_t* input = make_constant_chunk(256, 1, 1.0);
   audio_chunk_t* output = make_constant_chunk(16, 1, 0.0);
-  output->valid_frames = 0;
+  audio_chunk_set_valid_frames(output, 0);
 
   mixer_error_t err = audio_mixer_process(mixer, input, output);
   ASSERT_EQ(MIXER_ERR_OUTPUT_BUFFER_TOO_SMALL, err);

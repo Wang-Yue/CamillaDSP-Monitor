@@ -13,13 +13,8 @@
 /// values that share an `audio_buffers_t` see the same samples — this is a
 /// deliberate trade against value semantics, made to
 /// remove allocations on the hot path.
-typedef struct {
-  /// Heap-owned, contiguous per-channel sample storage.
-  audio_buffers_t* buffers;
-  /// Number of valid frames (may be < `frames` at end-of-stream).
-  size_t valid_frames;
-  bool owns_buffers;
-} audio_chunk_t;
+typedef struct audio_chunk audio_chunk_t;
+typedef struct round_robin_chunk_pool round_robin_chunk_pool_t;
 
 /// Create a new silent audio chunk with freshly allocated storage.
 audio_chunk_t* audio_chunk_create(size_t frames, size_t channels);
@@ -28,31 +23,23 @@ audio_chunk_t* audio_chunk_from_buffers(audio_buffers_t* buffers,
                                         size_t valid_frames);
 void audio_chunk_free(audio_chunk_t* chunk);
 
-/// Per-channel sample capacity (== `buffers->capacity`).
-static inline size_t audio_chunk_get_frames(const audio_chunk_t* chunk) {
-  return chunk->buffers->capacity;
-}
+/// Per-channel sample capacity.
+size_t audio_chunk_get_frames(const audio_chunk_t* chunk);
 
 /// Number of channels.
-static inline size_t audio_chunk_get_channels(const audio_chunk_t* chunk) {
-  return chunk->buffers->channels;
-}
+size_t audio_chunk_get_channels(const audio_chunk_t* chunk);
 
 /// Direct mutable per-channel pointer. The pointer is stable for the
 /// lifetime of the underlying `audio_buffers_t` and aliases across struct
 /// copies — no CoW.
-static inline mutable_waveform_t audio_chunk_get_channel(
-    const audio_chunk_t* chunk, size_t ch) {
-  return audio_buffers_get_channel(chunk->buffers, ch);
-}
+mutable_waveform_t audio_chunk_get_channel(const audio_chunk_t* chunk, size_t ch);
 
-/// A preallocated round-robin pool of unique `audio_chunk_t` instances.
-/// Guarantees zero-allocation rotation tailored to real-time thread loops.
-typedef struct {
-  audio_chunk_t** pool;
-  size_t capacity;
-  size_t current_index;
-} round_robin_chunk_pool_t;
+/// Number of valid frames (may be < `frames` at end-of-stream).
+size_t audio_chunk_get_valid_frames(const audio_chunk_t* chunk);
+void audio_chunk_set_valid_frames(audio_chunk_t* chunk, size_t valid_frames);
+
+/// Get the underlying audio buffers.
+audio_buffers_t* audio_chunk_get_buffers(audio_chunk_t* chunk);
 
 round_robin_chunk_pool_t* round_robin_chunk_pool_create(size_t capacity,
                                                         size_t frames,

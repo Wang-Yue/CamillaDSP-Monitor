@@ -487,7 +487,7 @@ bool alsa_capture_read(alsa_capture_t* capture, size_t frames,
   }
 
   size_t read_frames = rc;
-  chunk->valid_frames = read_frames;
+  audio_chunk_set_valid_frames(chunk, read_frames);
 
   if (capture->format == SND_PCM_FORMAT_FLOAT_LE) {
     float* src = (float*)capture->interleaved_buf;

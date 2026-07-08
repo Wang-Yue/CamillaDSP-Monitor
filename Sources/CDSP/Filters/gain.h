@@ -7,11 +7,7 @@
 #include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 
-typedef struct {
-  char name[64];
-  double linear_gain;
-  bool muted;
-} gain_filter_t;
+typedef struct gain_filter gain_filter_t;
 
 gain_filter_t* gain_filter_create(const char* name,
                                   const gain_parameters_t* params);

@@ -12,7 +12,7 @@
 static audio_chunk_t* sine_chunk(double freq, int samplerate, size_t frames,
                                  size_t start_frame, size_t channels) {
   audio_chunk_t* chunk = audio_chunk_create(frames, channels);
-  chunk->valid_frames = frames;
+  audio_chunk_set_valid_frames(chunk, frames);
   double dt = 2.0 * M_PI * freq / (double)samplerate;
   for (size_t ch = 0; ch < channels; ch++) {
     mutable_waveform_t buf = audio_chunk_get_channel(chunk, ch);
@@ -106,7 +106,7 @@ TEST(LogBinFrequenciesAreGeometric) {
   audio_history_buffer_reset(buffer, 1);
 
   audio_chunk_t* chunk = audio_chunk_create(4096, 1);
-  chunk->valid_frames = 4096;
+  audio_chunk_set_valid_frames(chunk, 4096);
   audio_history_buffer_append(buffer, chunk);
   audio_chunk_free(chunk);
 

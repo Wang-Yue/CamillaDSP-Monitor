@@ -25,7 +25,7 @@
 #include <stddef.h>
 
 #include "Audio/processing_parameters.h"
-#include "Audio/silence_counter.h"
+
 #include "Backend/audio_backend.h"
 #include "DoP/dop_decoder.h"
 #include "engine_shared_state.h"
@@ -38,48 +38,7 @@
 /// `AudioChunk`, the silence counter, the stall watchdog — has no
 /// internal synchronisation and is *not* safe to use from multiple
 /// threads concurrently.
-typedef struct {
-  engine_shared_state_t* shared;
-  engine_state_machine_t* state_machine;
-  capture_backend_t* capture;
-  playback_backend_t* playback;
-  processing_parameters_t* processing_params;
-  dop_decoder_t* dop_decoder;
-
-  size_t chunk_size;
-  size_t channels;
-  size_t samplerate;
-  double last_observed_pending_rate;
-  bool has_last_observed_pending_rate;
-  double last_observed_playback_pending_rate;
-  bool has_last_observed_playback_pending_rate;
-
-  // Loop-private state.
-
-  // MARK: - SilenceCounter
-  /// Counts consecutive silent chunks against a dB threshold and
-  /// reports back the desired engine state. `update(signalPeakDb:)`
-  /// returns `.paused` once silence has persisted for at least the
-  /// configured timeout, `.running` otherwise.
-  ///
-  /// Disabled when `timeoutSeconds <= 0` — in that case `update`
-  /// always returns `.running`.
-  silence_counter_t silence_counter;
-
-  // MARK: - StallWatchdog
-  /// Detects a hung capture device — `read` returning no data for
-  /// longer than `timeoutSeconds` consecutively. The watchdog records
-  /// the monotonic time of the most recent successful read and reports
-  /// `true` exactly once per stall (subsequent ticks return `false`
-  /// until the next successful read clears the flag).
-  ///
-  /// Backed by `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` — a vDSO
-  /// read on Darwin, no syscall, suitable for invocation on every
-  /// audio-thread iteration.
-  uint64_t watchdog_last_success_ns;
-  bool watchdog_triggered;
-  double watchdog_timeout_seconds;
-} engine_capture_loop_t;
+typedef struct engine_capture_loop engine_capture_loop_t;
 
 engine_capture_loop_t* engine_capture_loop_create(
     engine_shared_state_t* shared, engine_state_machine_t* state_machine,

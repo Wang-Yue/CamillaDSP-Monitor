@@ -51,28 +51,9 @@
 /**
  * @brief Dynamic range compressor processor state structure.
  */
-typedef struct {
-  char name[64];          ///< Unique name of the compressor instance.
-  int* monitor_channels;  ///< Array of channel indices to monitor for level
-                          ///< detection.
-  size_t monitor_channels_count;  ///< Number of monitored channels.
-  int* process_channels;  ///< Array of channel indices to apply gain reduction
-                          ///< to.
-  size_t process_channels_count;  ///< Number of processed channels.
-  double attack;       ///< Exponential smoothing coefficient for attack phase.
-  double release;      ///< Exponential smoothing coefficient for release phase.
-  double threshold;    ///< Compression threshold in dB.
-  double factor;       ///< Compression ratio factor (e.g., 4.0 for 4:1).
-  double makeup_gain;  ///< Post-compression makeup gain in dB.
-  limiter_filter_t*
-      limiter;  ///< Optional peak/soft limiter applied after compression.
-  double*
-      scratch;  ///< Pre-allocated scratch buffer for envelope/gain calculation.
-  size_t scratch_capacity;  ///< Capacity of scratch buffer in frames (matches
-                            ///< chunk_size).
-  double prev_loudness;     ///< State variable storing envelope loudness from
-                            ///< previous sample.
-} compressor_processor_t;
+typedef struct compressor_processor compressor_processor_t;
+
+const char* compressor_processor_get_name(const compressor_processor_t* processor);
 
 /**
  * @brief Creates a new dynamic range compressor processor.

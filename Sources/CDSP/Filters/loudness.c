@@ -1,4 +1,17 @@
 #include "loudness.h"
+#include "biquad.h"
+
+struct loudness_filter {
+  char name[64];
+  int sample_rate;
+  loudness_parameters_t params;
+  biquad_filter_t* low_shelf_filter;
+  biquad_filter_t* high_shelf_filter;
+  double last_volume;
+  bool is_processing_active;
+  double midband_attenuation_db;
+  processing_parameters_t* processing_parameters;
+};
 
 #include <math.h>
 #include <stdlib.h>

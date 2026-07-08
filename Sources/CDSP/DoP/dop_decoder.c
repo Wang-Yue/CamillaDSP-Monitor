@@ -281,8 +281,8 @@ bool dop_decoder_detect_and_process(dop_decoder_t* decoder,
     return false;
   }
 
-  size_t valid_frames = chunk->valid_frames;
-  if (valid_frames == 0 || (int)chunk->buffers->channels != decoder->channels)
+  size_t valid_frames = audio_chunk_get_valid_frames(chunk);
+  if (valid_frames == 0 || (int)audio_chunk_get_channels(chunk) != decoder->channels)
     return false;
 
   for (int ch = 0; ch < decoder->channels; ch++) {

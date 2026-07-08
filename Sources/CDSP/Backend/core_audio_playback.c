@@ -404,12 +404,12 @@ bool core_audio_playback_write(core_audio_playback_t* playback,
                          "Playback device disconnected");
     return false;
   }
-  size_t frames = chunk->valid_frames;
+  size_t frames = audio_chunk_get_valid_frames(chunk);
   if (frames == 0) return true;
 
-  int usable_channels = playback->channels < (int)chunk->buffers->channels
+  int usable_channels = playback->channels < (int)audio_chunk_get_channels(chunk)
                             ? playback->channels
-                            : (int)chunk->buffers->channels;
+                            : (int)audio_chunk_get_channels(chunk);
 
   uint32_t elapsed_ms = 0;
   while (true) {

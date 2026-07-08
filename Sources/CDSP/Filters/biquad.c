@@ -1,5 +1,20 @@
 #include "biquad.h"
 
+#ifdef ENABLE_ACCELERATE
+#include <Accelerate/Accelerate.h>
+#endif
+
+struct biquad_filter {
+  char name[64];
+  biquad_coefficients_t coeffs;
+#ifdef ENABLE_ACCELERATE
+  vDSP_biquadm_SetupD setup;
+  double coeffs_array[5];
+#else
+  double z1, z2;
+#endif
+};
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

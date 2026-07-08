@@ -3,6 +3,42 @@
 
 #include <stdlib.h>
 
+struct audio_chunk {
+  audio_buffers_t* buffers;
+  size_t valid_frames;
+  bool owns_buffers;
+};
+
+struct round_robin_chunk_pool {
+  audio_chunk_t** pool;
+  size_t capacity;
+  size_t current_index;
+};
+
+size_t audio_chunk_get_frames(const audio_chunk_t* chunk) {
+  return chunk ? audio_buffers_get_capacity(chunk->buffers) : 0;
+}
+
+size_t audio_chunk_get_channels(const audio_chunk_t* chunk) {
+  return chunk ? audio_buffers_get_channels(chunk->buffers) : 0;
+}
+
+mutable_waveform_t audio_chunk_get_channel(const audio_chunk_t* chunk, size_t ch) {
+  return chunk ? audio_buffers_get_channel(chunk->buffers, ch) : NULL;
+}
+
+size_t audio_chunk_get_valid_frames(const audio_chunk_t* chunk) {
+  return chunk ? chunk->valid_frames : 0;
+}
+
+void audio_chunk_set_valid_frames(audio_chunk_t* chunk, size_t valid_frames) {
+  if (chunk) chunk->valid_frames = valid_frames;
+}
+
+audio_buffers_t* audio_chunk_get_buffers(audio_chunk_t* chunk) {
+  return chunk ? chunk->buffers : NULL;
+}
+
 /// Create a new silent audio chunk with freshly allocated storage.
 audio_chunk_t* audio_chunk_create(size_t frames, size_t channels) {
   audio_chunk_t* chunk = (audio_chunk_t*)malloc(sizeof(audio_chunk_t));

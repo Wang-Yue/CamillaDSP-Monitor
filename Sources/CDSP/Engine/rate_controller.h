@@ -56,18 +56,7 @@
 /// clamped to the same band — this is the standard
 /// conditional-integration form of anti-windup, which prevents the
 /// integrator from accumulating during sustained saturation.
-typedef struct {
-  double target_level;
-  double interval;
-  double kp;
-  double ki;
-  double frames_per_interval;
-  double accumulated;
-  int ramp_steps;
-  double ramp_trigger_limit;
-  double ramp_start;
-  int ramp_step;
-} pi_rate_controller_t;
+typedef struct pi_rate_controller pi_rate_controller_t;
 
 pi_rate_controller_t* pi_rate_controller_create_default(int samplerate,
                                                         double interval,

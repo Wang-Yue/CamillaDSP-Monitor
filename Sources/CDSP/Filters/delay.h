@@ -6,17 +6,11 @@
 
 #include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
-#include "biquad.h"
+
 
 // Delay filter with optional subsample interpolation using Thiran allpass
 // biquads.
-typedef struct {
-  char name[64];
-  double* queue;
-  size_t queue_count;
-  size_t read_index;
-  biquad_filter_t* biquad;
-} delay_filter_t;
+typedef struct delay_filter delay_filter_t;
 
 /// Builds the subsample biquad allpass and returns (integerDelaySamples,
 /// optionalBiquad). 1st order Thiran allpass: coeffs a1 = coeff, b0 = coeff, b1

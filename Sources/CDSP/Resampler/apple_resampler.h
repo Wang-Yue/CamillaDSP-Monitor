@@ -13,22 +13,11 @@
 #include "Config/resampler_config_types.h"
 #include "resampler_error.h"
 
-typedef struct {
-  audio_buffers_t* buffers;
-  size_t read_offset;
-  size_t write_offset;
-} apple_resampler_fill_context_t;
+struct apple_resampler_fill_context;
+typedef struct apple_resampler_fill_context apple_resampler_fill_context_t;
 
-typedef struct {
-  size_t channels;
-  size_t chunk_size;
-  double base_ratio;
-  double current_ratio;
-  AudioConverterRef converter;
-  apple_resampler_fill_context_t* fill_context;
-  void* abl_storage;
-  size_t max_output_frames;
-} apple_resampler_t;
+struct apple_resampler;
+typedef struct apple_resampler apple_resampler_t;
 
 apple_resampler_t* apple_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,

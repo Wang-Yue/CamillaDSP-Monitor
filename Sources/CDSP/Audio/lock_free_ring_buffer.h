@@ -61,60 +61,28 @@
 ///     most-recent `count` samples without advancing any cursor.
 ///     The same samples can be re-read across calls. Used by
 ///     `spectrum_analyzer_t` to feed FFTs at different lengths.
-typedef struct {
-  /// Capacity in samples (always a power of two).
-  size_t capacity;
-  size_t mask;
-  float* storage;
-  /// Monotonically increasing count of samples written since
-  /// allocation. The release-store synchronises with consumers'
-  /// acquire-loads, so any reader that observes the new count is
-  /// guaranteed to see the corresponding sample writes.
-  _Atomic uint64_t write_index;
-  /// Monotonic samples drained by the consumer in `consume(...)`.
-  /// Only used by the consume-style API; snapshot readers ignore
-  /// this entirely.
-  _Atomic uint64_t read_index;
-} spsc_audio_ring_buffer_t;
+typedef struct spsc_audio_ring_buffer spsc_audio_ring_buffer_t;
 
 spsc_audio_ring_buffer_t* spsc_audio_ring_buffer_create(
     size_t minimum_capacity);
 void spsc_audio_ring_buffer_free(spsc_audio_ring_buffer_t* ring);
 
-/// Total samples written since allocation. Observed with
-/// `memory_order_relaxed`; callers that need happens-before with the
-/// payload should use `consume` or `read_latest` instead.
-static inline uint64_t spsc_audio_ring_buffer_get_total_samples_written(
-    const spsc_audio_ring_buffer_t* ring) {
-  return atomic_load_explicit((_Atomic uint64_t*)&ring->write_index,
-                              memory_order_relaxed);
-}
+/// Total samples written since allocation.
+uint64_t spsc_audio_ring_buffer_get_total_samples_written(
+    const spsc_audio_ring_buffer_t* ring);
 
 /// Number of samples currently waiting to be consumed (for
 /// consume-style use). Always non-negative.
-static inline size_t spsc_audio_ring_buffer_get_available_to_read(
-    const spsc_audio_ring_buffer_t* ring) {
-  uint64_t w = atomic_load_explicit((_Atomic uint64_t*)&ring->write_index,
-                                    memory_order_acquire);
-  uint64_t r = atomic_load_explicit((_Atomic uint64_t*)&ring->read_index,
-                                    memory_order_relaxed);
-  return (size_t)(w - r);
-}
+size_t spsc_audio_ring_buffer_get_available_to_read(
+    const spsc_audio_ring_buffer_t* ring);
 
 /// Number of samples that can be written to the buffer without
 /// overwriting unread data.
-static inline size_t spsc_audio_ring_buffer_get_available_to_write(
-    const spsc_audio_ring_buffer_t* ring) {
-  uint64_t w = atomic_load_explicit((_Atomic uint64_t*)&ring->write_index,
-                                    memory_order_relaxed);
-  uint64_t r = atomic_load_explicit((_Atomic uint64_t*)&ring->read_index,
-                                    memory_order_acquire);
-  size_t occupied = (size_t)(w - r);
-  if (occupied >= ring->capacity) {
-    return 0;
-  }
-  return ring->capacity - occupied;
-}
+size_t spsc_audio_ring_buffer_get_available_to_write(
+    const spsc_audio_ring_buffer_t* ring);
+
+/// Capacity of the ring buffer.
+size_t spsc_audio_ring_buffer_get_capacity(const spsc_audio_ring_buffer_t* ring);
 
 // MARK: Producer
 
@@ -191,32 +159,17 @@ static inline size_t spsc_audio_ring_buffer_round_up_to_power_of_two(size_t n) {
 /// arbitrary type (`void*` pointers). Used to pass audio chunk values between
 /// the capture, processing, and playback threads inside the DSP engine without
 /// taking mutexes or locks.
-///
-/// Power-of-two capacity. Slots store `void*` pointers (NULL when empty) so the
-/// consumer can clear back to NULL on dequeue.
-typedef struct {
-  size_t capacity;
-  size_t mask;
-  /// Slot storage. Each slot holds NULL when empty; the producer
-  /// fills it on enqueue and the consumer clears it back to NULL on
-  /// dequeue.
-  void** storage;
-  _Atomic uint64_t write_index;
-  _Atomic uint64_t read_index;
-} spsc_queue_t;
+typedef struct spsc_queue spsc_queue_t;
 
 spsc_queue_t* spsc_queue_create(size_t minimum_capacity);
 void spsc_queue_free(spsc_queue_t* queue);
 
 /// Number of currently-queued items. Approximate when read from a
 /// thread that is neither the producer nor the consumer.
-static inline size_t spsc_queue_get_count(const spsc_queue_t* queue) {
-  uint64_t w = atomic_load_explicit((_Atomic uint64_t*)&queue->write_index,
-                                    memory_order_acquire);
-  uint64_t r = atomic_load_explicit((_Atomic uint64_t*)&queue->read_index,
-                                    memory_order_relaxed);
-  return (size_t)(w - r);
-}
+size_t spsc_queue_get_count(const spsc_queue_t* queue);
+
+/// Capacity of the SPSC queue.
+size_t spsc_queue_get_capacity(const spsc_queue_t* queue);
 
 /// **Producer-only.** Append `value`; returns `false` (without
 /// storing it) when the queue is at capacity. The caller decides

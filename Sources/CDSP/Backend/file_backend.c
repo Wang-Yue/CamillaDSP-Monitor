@@ -487,7 +487,7 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
                        audio_chunk_t* chunk, backend_error_t* err) {
   (void)err;
   if (capture->is_paused) {
-    chunk->valid_frames = 0;
+    audio_chunk_set_valid_frames(chunk, 0);
     return false;
   }
 
@@ -500,13 +500,13 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
   int poll_ret = poll(&pfd, 1, 50);
   if (poll_ret == 0) {
     // Timeout
-    chunk->valid_frames = 0;
+    audio_chunk_set_valid_frames(chunk, 0);
     return false;
   } else if (poll_ret < 0) {
     if (err) {
       backend_error_init(err, BACKEND_ERROR_READ_ERROR, "Poll error");
     }
-    chunk->valid_frames = 0;
+    audio_chunk_set_valid_frames(chunk, 0);
     return false;
   }
 #endif
@@ -558,7 +558,7 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
     }
   }
 
-  chunk->valid_frames = frames_read;
+  audio_chunk_set_valid_frames(chunk, frames_read);
 
   return (frames_read > 0);
 }
@@ -729,7 +729,7 @@ bool file_playback_open(file_playback_t* playback, backend_error_t* err) {
 bool file_playback_write(file_playback_t* playback, const audio_chunk_t* chunk,
                          backend_error_t* err) {
   (void)err;
-  size_t frames = chunk->valid_frames;
+  size_t frames = audio_chunk_get_valid_frames(chunk);
   size_t sample_size = get_sample_size(playback->format);
 
   // Allocate larger buffer if chunk size exceeds chunk_size

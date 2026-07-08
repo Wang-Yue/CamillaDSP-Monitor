@@ -1,4 +1,11 @@
 #include "biquad_combo.h"
+#include "biquad.h"
+
+struct biquad_combo_filter {
+  char name[64];
+  biquad_filter_t** sections;
+  size_t num_sections;
+};
 
 #include <math.h>
 #include <stdlib.h>

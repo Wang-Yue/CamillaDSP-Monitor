@@ -26,6 +26,34 @@
 #include <string.h>
 
 /**
+ * @brief Represents a prepared source channel contribution to a destination
+ * channel.
+ */
+typedef struct {
+  size_t in_channel;  ///< Input channel index.
+  double gain;        ///< Linear gain multiplier (negative if inverted).
+} prepared_source_t;
+
+/**
+ * @brief List of prepared source contributions for a single destination
+ * channel.
+ */
+typedef struct {
+  size_t count;                ///< Number of active contributing sources.
+  prepared_source_t* sources;  ///< Array of prepared source contributions.
+} prepared_source_list_t;
+
+/// Mixer that changes channel count and routes/sums audio between channels.
+struct audio_mixer_t {
+  size_t chunk_size;    ///< Maximum number of frames per processing chunk.
+  char* name;           ///< Unique name of the mixer instance.
+  size_t channels_in;   ///< Expected number of input channels.
+  size_t channels_out;  ///< Number of output channels produced.
+  prepared_source_list_t*
+      mapping;  ///< Array of length channels_out defining source routing.
+};
+
+/**
  * @brief Populates the internal routing matrix mapping from a mixer
  * configuration.
  *
@@ -111,7 +139,7 @@ mixer_error_t audio_mixer_process(audio_mixer_t* mixer,
                                   const audio_chunk_t* input,
                                   audio_chunk_t* output) {
   if (!mixer || !input || !output) return MIXER_ERR_INPUT_SIZE_MISMATCH;
-  size_t frames = input->valid_frames;
+  size_t frames = audio_chunk_get_valid_frames(input);
   if (frames > mixer->chunk_size) {
     return MIXER_ERR_INPUT_SIZE_MISMATCH;
   }
@@ -142,7 +170,7 @@ mixer_error_t audio_mixer_process(audio_mixer_t* mixer,
       }
     }
   }
-  output->valid_frames = frames;
+  audio_chunk_set_valid_frames(output, frames);
   return MIXER_OK;
 }
 
@@ -150,7 +178,7 @@ audio_chunk_t* audio_mixer_process_chunk(audio_mixer_t* mixer,
                                          const audio_chunk_t* input) {
   if (!mixer || !input) return NULL;
   audio_chunk_t* output =
-      audio_chunk_create(input->valid_frames, mixer->channels_out);
+      audio_chunk_create(audio_chunk_get_valid_frames(input), mixer->channels_out);
   if (!output) return NULL;
   if (audio_mixer_process(mixer, input, output) != MIXER_OK) {
     audio_chunk_free(output);
@@ -185,4 +213,16 @@ void audio_mixer_free(audio_mixer_t* mixer) {
     free(mixer->mapping);
   }
   free(mixer);
+}
+
+size_t audio_mixer_get_channels_in(const audio_mixer_t* mixer) {
+  return mixer ? mixer->channels_in : 0;
+}
+
+size_t audio_mixer_get_channels_out(const audio_mixer_t* mixer) {
+  return mixer ? mixer->channels_out : 0;
+}
+
+const char* audio_mixer_get_name(const audio_mixer_t* mixer) {
+  return mixer ? mixer->name : NULL;
 }

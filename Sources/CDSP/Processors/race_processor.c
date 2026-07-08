@@ -20,6 +20,26 @@
 
 #include "race_processor.h"
 
+struct race_processor {
+  char name[64];  ///< Unique name of the RACE processor instance.
+  int channel_a;  ///< Index of primary channel A (e.g., Left).
+  int channel_b;  ///< Index of primary channel B (e.g., Right).
+  delay_filter_t*
+      delay_a;  ///< Contralateral delay line filter for channel A path.
+  delay_filter_t*
+      delay_b;          ///< Contralateral delay line filter for channel B path.
+  gain_filter_t* gain;  ///< Attenuation and phase-inversion gain filter.
+  double feedback_a;    ///< Recursive feedback sample from channel A delay/gain
+                        ///< path.
+  double feedback_b;    ///< Recursive feedback sample from channel B delay/gain
+                        ///< path.
+};
+
+const char* race_processor_get_name(const race_processor_t* processor) {
+  return processor ? processor->name : "";
+}
+
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -110,7 +130,7 @@ void race_processor_free(race_processor_t* processor) {
 
 void race_processor_process(race_processor_t* processor, audio_chunk_t* chunk) {
   if (!processor || !chunk) return;
-  size_t count = chunk->valid_frames;
+  size_t count = audio_chunk_get_valid_frames(chunk);
   if (count == 0 || !processor->delay_a || !processor->delay_b ||
       !processor->gain)
     return;

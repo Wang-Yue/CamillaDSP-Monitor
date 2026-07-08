@@ -41,7 +41,7 @@ TEST(compressor_basic_compression) {
     ch0[i] = 1.0;
     ch1[i] = 0.5;
   }
-  chunk->valid_frames = 1000;
+  audio_chunk_set_valid_frames(chunk, 1000);
 
   compressor_processor_process(comp, chunk);
 
@@ -80,7 +80,7 @@ TEST(noisegate_basic_gate) {
       ch0[i] = 0.001;
     }
   }
-  chunk->valid_frames = 100;
+  audio_chunk_set_valid_frames(chunk, 100);
 
   noise_gate_processor_process(gate, chunk);
 
@@ -115,7 +115,7 @@ TEST(race_basic) {
     ch0[i] = 0.0;
     ch1[i] = 0.0;
   }
-  chunk->valid_frames = 10;
+  audio_chunk_set_valid_frames(chunk, 10);
 
   race_processor_process(race, chunk);
 

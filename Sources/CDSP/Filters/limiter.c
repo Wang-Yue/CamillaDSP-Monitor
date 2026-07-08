@@ -1,5 +1,11 @@
 #include "limiter.h"
 
+struct limiter_filter {
+  char name[64];
+  double clip_limit;
+  bool soft_clip;
+};
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

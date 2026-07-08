@@ -1,6 +1,48 @@
 #include "Audio/spectrum_analyzer.h"
 
 #include <math.h>
+
+typedef struct {
+  int low_k;
+  int high_k;
+  int nearest_k;
+} bin_range_t;
+
+typedef struct {
+  double min_freq;
+  double max_freq;
+  size_t n_bins;
+  size_t samplerate;
+  float* frequencies;
+  bin_range_t* ranges;
+  size_t capacity;
+} binning_plan_t;
+
+struct spectrum_analyzer {
+  size_t fft_n;
+#ifdef ENABLE_ACCELERATE
+  vDSP_Length log2n;
+  FFTSetup fft_setup;
+#else
+  void* fft_setup;
+  double* fft_in_d;
+  double* fft_re_d;
+  double* fft_im_d;
+#endif
+  float* window;
+  // Preallocated reusable scratch buffers to eliminate frame-by-frame
+  // allocations
+  float* data;
+  float* realp;
+  float* imagp;
+  float* magnitudes;
+  float* db_magnitudes;
+
+  // Cached plan for geometric binning to eliminate transcendental operations
+  binning_plan_t plan;
+  float* out_magnitudes;
+  size_t out_capacity;
+};
 #include <stdlib.h>
 #include <string.h>
 

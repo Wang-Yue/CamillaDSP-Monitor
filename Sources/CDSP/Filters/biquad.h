@@ -8,9 +8,6 @@
 #include "Config/config_error.h"
 #include "Config/filter_config_types.h"
 
-#ifdef ENABLE_ACCELERATE
-#include <Accelerate/Accelerate.h>
-#endif
 
 typedef struct {
   double b0;
@@ -41,16 +38,7 @@ double biquad_coefficients_gain_db(const biquad_coefficients_t* coeffs,
 double biquad_coefficients_phase_rad(const biquad_coefficients_t* coeffs,
                                      double f, int sample_rate);
 
-typedef struct {
-  char name[64];
-  biquad_coefficients_t coeffs;
-#ifdef ENABLE_ACCELERATE
-  vDSP_biquadm_SetupD setup;
-  double coeffs_array[5];
-#else
-  double z1, z2;
-#endif
-} biquad_filter_t;
+typedef struct biquad_filter biquad_filter_t;
 
 biquad_filter_t* biquad_filter_create(const char* name,
                                       const biquad_coefficients_t* coeffs);

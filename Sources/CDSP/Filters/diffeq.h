@@ -8,17 +8,7 @@
 
 // Difference equation filter (Direct Form I / II IIR/FIR filter
 // implementation). Normalize by a[0]
-typedef struct {
-  char name[64];
-  double* x;
-  double* y;
-  double* a;
-  double* b;
-  size_t a_count;
-  size_t b_count;
-  size_t idx_x;
-  size_t idx_y;
-} diffeq_filter_t;
+typedef struct diffeq_filter diffeq_filter_t;
 
 diffeq_filter_t* diffeq_filter_create(const char* name,
                                       const diff_eq_parameters_t* params);

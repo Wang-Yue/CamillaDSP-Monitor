@@ -506,7 +506,7 @@ TEST(Mixer_Vs_AnalyticalReference_StereoToMono) {
   double* ch1 = audio_chunk_get_channel(chunk, 1);
   memcpy(ch0, l, 1024 * sizeof(double));
   memcpy(ch1, r, 1024 * sizeof(double));
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* out = audio_mixer_process_chunk(mixer, chunk);
   ASSERT_TRUE(out != NULL);
@@ -551,7 +551,7 @@ TEST(Mixer_Vs_AnalyticalReference_LinearScale) {
   double* ch1 = audio_chunk_get_channel(chunk, 1);
   memcpy(ch0, l, 128 * sizeof(double));
   memcpy(ch1, r, 128 * sizeof(double));
-  chunk->valid_frames = 128;
+  audio_chunk_set_valid_frames(chunk, 128);
 
   audio_chunk_t* out = audio_mixer_process_chunk(mixer, chunk);
   ASSERT_TRUE(out != NULL);
@@ -595,7 +595,7 @@ TEST(Mixer_MutedSource_ProducesSilenceFromThatSource) {
   double* ch1 = audio_chunk_get_channel(chunk, 1);
   memcpy(ch0, l, 64 * sizeof(double));
   memcpy(ch1, r, 64 * sizeof(double));
-  chunk->valid_frames = 64;
+  audio_chunk_set_valid_frames(chunk, 64);
 
   audio_chunk_t* out = audio_mixer_process_chunk(mixer, chunk);
   ASSERT_TRUE(out != NULL);
@@ -1375,11 +1375,11 @@ TEST(Compressor_Vs_RustReference) {
   audio_chunk_t* chunk = audio_chunk_create(NBR_FRAMES, 1);
   double* ch0 = audio_chunk_get_channel(chunk, 0);
   memcpy(ch0, input, NBR_FRAMES * sizeof(double));
-  chunk->valid_frames = NBR_FRAMES;
+  audio_chunk_set_valid_frames(chunk, NBR_FRAMES);
 
   compressor_processor_process(comp, chunk);
 
-  ASSERT_EQ(ref_count, chunk->valid_frames);
+  ASSERT_EQ(ref_count, audio_chunk_get_valid_frames(chunk));
   double max_abs_diff = 0.0;
   for (size_t i = 0; i < ref_count; i++) {
     double d = fabs(ch0[i] - ref[i]);
@@ -1436,11 +1436,11 @@ TEST(NoiseGate_Vs_RustReference) {
   audio_chunk_t* chunk = audio_chunk_create(NBR_FRAMES, 1);
   double* ch0 = audio_chunk_get_channel(chunk, 0);
   memcpy(ch0, input, NBR_FRAMES * sizeof(double));
-  chunk->valid_frames = NBR_FRAMES;
+  audio_chunk_set_valid_frames(chunk, NBR_FRAMES);
 
   noise_gate_processor_process(gate, chunk);
 
-  ASSERT_EQ(ref_count, chunk->valid_frames);
+  ASSERT_EQ(ref_count, audio_chunk_get_valid_frames(chunk));
   double max_abs_diff = 0.0;
   for (size_t i = 0; i < ref_count; i++) {
     double d = fabs(ch0[i] - ref[i]);
@@ -1514,11 +1514,11 @@ TEST(RACE_Vs_RustReference) {
   double* ch1 = audio_chunk_get_channel(chunk, 1);
   memcpy(ch0, input0, NBR_FRAMES * sizeof(double));
   memcpy(ch1, input1, NBR_FRAMES * sizeof(double));
-  chunk->valid_frames = NBR_FRAMES;
+  audio_chunk_set_valid_frames(chunk, NBR_FRAMES);
 
   race_processor_process(race, chunk);
 
-  ASSERT_EQ(ref_count0, chunk->valid_frames);
+  ASSERT_EQ(ref_count0, audio_chunk_get_valid_frames(chunk));
   double max_abs_diff0 = 0.0, max_abs_diff1 = 0.0;
   for (size_t i = 0; i < ref_count0; i++) {
     double d0 = fabs(ch0[i] - ref0[i]);

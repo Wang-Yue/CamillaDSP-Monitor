@@ -10,12 +10,7 @@
 // MARK: - Ditherers
 
 // MARK: - NoiseShaper
-typedef struct {
-  double* filter;
-  double* buffer;
-  size_t filter_count;
-  size_t write_index;
-} noise_shaper_t;
+typedef struct noise_shaper noise_shaper_t;
 
 noise_shaper_t* noise_shaper_create(const double* filter_coeffs, size_t count);
 double noise_shaper_process(noise_shaper_t* shaper, double scaled,
@@ -26,15 +21,7 @@ void noise_shaper_free(noise_shaper_t* shaper);
 noise_shaper_t* noise_shaper_create_for_type(dither_type_t type);
 
 // MARK: - DitherFilter
-typedef struct {
-  char name[64];
-  dither_type_t type;
-  double scalefact;
-  double amplitude;
-  noise_shaper_t* shaper;
-  double previous_sample;
-  uint32_t rng_state;
-} dither_filter_t;
+typedef struct dither_filter dither_filter_t;
 
 dither_filter_t* dither_filter_create(const char* name,
                                       const dither_parameters_t* params);

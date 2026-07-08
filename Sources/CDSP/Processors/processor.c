@@ -10,6 +10,47 @@
 
 #include "processor.h"
 
+struct dsp_processor {
+  processor_impl_type_t type;  ///< Concrete implementation type identifier.
+  void* impl;                  ///< Pointer to underlying processor structure.
+
+  /// Apply the processor to all channels of `chunk` in place.
+  void (*process)(struct dsp_processor* self, audio_chunk_t* chunk);
+
+  /// Update the processor parameters dynamically.
+  void (*update_parameters)(struct dsp_processor* self,
+                            const processor_config_t* config, int sample_rate);
+
+  /// The unique name of this processor instance.
+  const char* (*get_name)(const struct dsp_processor* self);
+
+  /// Destructor function to free the processor and its wrapper.
+  void (*free)(struct dsp_processor* self);
+};
+
+void dsp_processor_process(dsp_processor_t* proc, audio_chunk_t* chunk) {
+  if (proc && proc->process) {
+    proc->process(proc, chunk);
+  }
+}
+
+void dsp_processor_update_parameters(dsp_processor_t* proc, const processor_config_t* config, int sample_rate) {
+  if (proc && proc->update_parameters) {
+    proc->update_parameters(proc, config, sample_rate);
+  }
+}
+
+const char* dsp_processor_get_name(const dsp_processor_t* proc) {
+  return (proc && proc->get_name) ? proc->get_name(proc) : "";
+}
+
+void dsp_processor_free(dsp_processor_t* proc) {
+  if (proc && proc->free) {
+    proc->free(proc);
+  }
+}
+
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,7 +63,7 @@ static void comp_update(dsp_processor_t* self, const processor_config_t* config,
                                          config, sample_rate);
 }
 static const char* comp_get_name(const dsp_processor_t* self) {
-  return self->impl ? ((compressor_processor_t*)self->impl)->name : "";
+  return self->impl ? compressor_processor_get_name((compressor_processor_t*)self->impl) : "";
 }
 static void comp_free(dsp_processor_t* self) {
   if (self->impl)
@@ -55,7 +96,7 @@ static void gate_update(dsp_processor_t* self, const processor_config_t* config,
                                          config, sample_rate);
 }
 static const char* gate_get_name(const dsp_processor_t* self) {
-  return self->impl ? ((noise_gate_processor_t*)self->impl)->name : "";
+  return self->impl ? noise_gate_processor_get_name((noise_gate_processor_t*)self->impl) : "";
 }
 static void gate_free(dsp_processor_t* self) {
   if (self->impl)
@@ -88,7 +129,7 @@ static void race_update(dsp_processor_t* self, const processor_config_t* config,
                                    sample_rate);
 }
 static const char* race_get_name(const dsp_processor_t* self) {
-  return self->impl ? ((race_processor_t*)self->impl)->name : "";
+  return self->impl ? race_processor_get_name((race_processor_t*)self->impl) : "";
 }
 static void race_free_fn(dsp_processor_t* self) {
   if (self->impl) race_processor_free((race_processor_t*)self->impl);

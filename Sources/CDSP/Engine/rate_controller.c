@@ -42,6 +42,19 @@
 
 // MARK: - PI rate controller
 
+struct pi_rate_controller {
+  double target_level;
+  double interval;
+  double kp;
+  double ki;
+  double frames_per_interval;
+  double accumulated;
+  int ramp_steps;
+  double ramp_trigger_limit;
+  double ramp_start;
+  int ramp_step;
+};
+
 /// Discrete-time proportional-integral controller that produces a
 /// speed multiplier `≈ 1.0` from a measured buffer-level sample. The
 /// output is intended to be applied multiplicatively to the capture

@@ -8,25 +8,7 @@
 #include "Audio/processing_parameters.h"
 #include "Config/filter_config_types.h"
 
-typedef struct {
-  char name[64];
-  fader_t fader;
-  double volume_limit;
-  size_t chunk_size;
-  // Ramp state (tracks fader ramping)
-  int ramptime_in_chunks;
-  uint64_t stale_ramp_threshold_ns;
-  double current_volume;
-  double target_volume;
-  double target_linear_gain;
-  bool mute;
-  double ramp_start;
-  int ramp_step;
-  // Pre-allocated ramp gains for the current chunk to avoid heap allocation on
-  // the hot path
-  double* current_ramp_gains;
-  processing_parameters_t* processing_parameters;
-} volume_filter_t;
+typedef struct volume_filter volume_filter_t;
 
 volume_filter_t* volume_filter_create(const char* name,
                                       const volume_parameters_t* params,

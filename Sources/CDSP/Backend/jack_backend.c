@@ -254,7 +254,7 @@ bool jack_capture_read(jack_capture_t* capture, size_t frames,
   }
   free(temp);
 
-  chunk->valid_frames = frames;
+  audio_chunk_set_valid_frames(chunk, frames);
   return true;
 }
 
@@ -560,7 +560,7 @@ bool jack_playback_write(jack_playback_t* playback, const audio_chunk_t* chunk,
     return false;
   }
 
-  size_t frames = chunk->valid_frames;
+  size_t frames = audio_chunk_get_valid_frames(chunk);
 
   while (spsc_audio_ring_buffer_get_available_to_write(playback->buffers[0]) <
          frames) {

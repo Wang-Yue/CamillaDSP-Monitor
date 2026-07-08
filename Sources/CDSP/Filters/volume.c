@@ -1,5 +1,22 @@
 #include "volume.h"
 
+struct volume_filter {
+  char name[64];
+  fader_t fader;
+  double volume_limit;
+  size_t chunk_size;
+  int ramptime_in_chunks;
+  uint64_t stale_ramp_threshold_ns;
+  double current_volume;
+  double target_volume;
+  double target_linear_gain;
+  bool mute;
+  double ramp_start;
+  int ramp_step;
+  double* current_ramp_gains;
+  processing_parameters_t* processing_parameters;
+};
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

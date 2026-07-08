@@ -1,5 +1,17 @@
 #include "diffeq.h"
 
+struct diffeq_filter {
+  char name[64];
+  double* x;
+  double* y;
+  double* a;
+  double* b;
+  size_t a_count;
+  size_t b_count;
+  size_t idx_x;
+  size_t idx_y;
+};
+
 #include <stdlib.h>
 #include <string.h>
 

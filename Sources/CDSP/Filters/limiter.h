@@ -7,11 +7,7 @@
 #include "Audio/double_helpers.h"
 #include "Config/filter_config_types.h"
 
-typedef struct {
-  char name[64];
-  double clip_limit;
-  bool soft_clip;
-} limiter_filter_t;
+typedef struct limiter_filter limiter_filter_t;
 
 limiter_filter_t* limiter_filter_create(const char* name,
                                         const limiter_parameters_t* params);

@@ -9,6 +9,36 @@
 
 #include "async_sinc_resampler.h"
 
+struct async_sinc_resampler {
+  size_t channels;
+  size_t chunk_size;
+  // Filter geometry.
+  size_t sinc_len;
+  size_t oversampling_factor;
+  sinc_interpolation_type_t interpolation;
+  // ramp toward the target ratio.
+  double base_ratio;
+  double resample_ratio;
+  double target_ratio;
+  double last_index;  // tracking index
+  // in the interpolator.
+  double* sinc_table;
+  // Per-channel input buffer. Layout:
+  //   [0 .. 2*sincLen)            — history (last 2*sincLen samples of the
+  //                                  previous chunk, or zeros initially)
+  //   [2*sincLen .. 2*sincLen+chunkSize) — current chunk's data
+  audio_buffers_t* input_buffer;
+  // Pre-allocated scratch for per-frame `idx` values. Pre-computed once per
+  // chunk so the per-channel loops can iterate without repeating the idx
+  // accumulation.
+  double* idx_scratch;
+  double* frac_scratch;
+  // Maximum output frames the resampler can ever produce in one call. The
+  // caller uses this to size the output AudioChunk once at startup.
+  size_t max_output_frames;
+};
+
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -366,7 +396,7 @@ resampler_error_t async_sinc_resampler_process(
     async_sinc_resampler_t* resampler, const audio_chunk_t* input,
     audio_chunk_t* output) {
   if (!resampler || !input || !output) return RESAMPLER_ERR_INVALID_PARAMETER;
-  if (input->valid_frames != resampler->chunk_size) {
+  if (audio_chunk_get_valid_frames(input) != resampler->chunk_size) {
     return RESAMPLER_ERR_INPUT_SIZE_MISMATCH;
   }
   if (audio_chunk_get_channels(output) != resampler->channels) {
@@ -440,6 +470,6 @@ resampler_error_t async_sinc_resampler_process(
   // Update state for next chunk.
   resampler->last_index = final_idx - (double)resampler->chunk_size;
   resampler->resample_ratio = resampler->target_ratio;
-  output->valid_frames = output_frames;
+  audio_chunk_set_valid_frames(output, output_frames);
   return RESAMPLER_OK;
 }

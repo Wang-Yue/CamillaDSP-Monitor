@@ -616,7 +616,7 @@ bool wasapi_capture_read(wasapi_capture_t* capture, size_t frames,
     }
   }
 
-  chunk->valid_frames = frames;
+  audio_chunk_set_valid_frames(chunk, frames);
   return true;
 }
 
@@ -1036,7 +1036,7 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
   if (playback->paused) return true;
 
   size_t frames_written = 0;
-  size_t total_frames = chunk->valid_frames;
+  size_t total_frames = audio_chunk_get_valid_frames(chunk);
 
   while (frames_written < total_frames) {
     UINT32 padding = 0;

@@ -14,11 +14,13 @@
 ///
 /// Disabled when `timeout_seconds <= 0` — in that case `update`
 /// always returns `PROCESSING_STATE_RUNNING`.
-typedef struct {
-  size_t limit_chunks;
-  double threshold_db;
-  size_t silent_chunks;
-} silence_counter_t;
+typedef struct silence_counter silence_counter_t;
+
+silence_counter_t* silence_counter_create(double threshold_db,
+                                          double timeout_seconds,
+                                          size_t samplerate,
+                                          size_t chunksize);
+void silence_counter_free(silence_counter_t* counter);
 
 void silence_counter_init(silence_counter_t* counter, double threshold_db,
                           double timeout_seconds, size_t samplerate,
@@ -28,5 +30,8 @@ void silence_counter_init(silence_counter_t* counter, double threshold_db,
 /// engine state the capture loop should drive to.
 processing_state_t silence_counter_update(silence_counter_t* counter,
                                           double signal_peak_db);
+
+size_t silence_counter_get_limit_chunks(const silence_counter_t* counter);
+size_t silence_counter_get_silent_chunks(const silence_counter_t* counter);
 
 #endif  // CLIB_AUDIO_SILENCE_COUNTER_H

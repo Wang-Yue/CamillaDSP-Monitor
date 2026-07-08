@@ -2,6 +2,35 @@
 #include "Audio/silence_counter.h"
 
 #include <math.h>
+#include <stdlib.h>
+
+struct silence_counter {
+  size_t limit_chunks;
+  double threshold_db;
+  size_t silent_chunks;
+};
+
+silence_counter_t* silence_counter_create(double threshold_db,
+                                          double timeout_seconds,
+                                          size_t samplerate,
+                                          size_t chunksize) {
+  silence_counter_t* counter = (silence_counter_t*)malloc(sizeof(silence_counter_t));
+  if (!counter) return NULL;
+  silence_counter_init(counter, threshold_db, timeout_seconds, samplerate, chunksize);
+  return counter;
+}
+
+void silence_counter_free(silence_counter_t* counter) {
+  if (counter) free(counter);
+}
+
+size_t silence_counter_get_limit_chunks(const silence_counter_t* counter) {
+  return counter ? counter->limit_chunks : 0;
+}
+
+size_t silence_counter_get_silent_chunks(const silence_counter_t* counter) {
+  return counter ? counter->silent_chunks : 0;
+}
 
 void silence_counter_init(silence_counter_t* counter, double threshold_db,
                           double timeout_seconds, size_t samplerate,

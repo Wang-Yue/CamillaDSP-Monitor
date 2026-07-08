@@ -62,20 +62,9 @@
 /**
  * @brief RACE cross-talk cancellation processor state structure.
  */
-typedef struct {
-  char name[64];  ///< Unique name of the RACE processor instance.
-  int channel_a;  ///< Index of primary channel A (e.g., Left).
-  int channel_b;  ///< Index of primary channel B (e.g., Right).
-  delay_filter_t*
-      delay_a;  ///< Contralateral delay line filter for channel A path.
-  delay_filter_t*
-      delay_b;          ///< Contralateral delay line filter for channel B path.
-  gain_filter_t* gain;  ///< Attenuation and phase-inversion gain filter.
-  double feedback_a;    ///< Recursive feedback sample from channel A delay/gain
-                        ///< path.
-  double feedback_b;    ///< Recursive feedback sample from channel B delay/gain
-                        ///< path.
-} race_processor_t;
+typedef struct race_processor race_processor_t;
+
+const char* race_processor_get_name(const race_processor_t* processor);
 
 /**
  * @brief Creates a new RACE cross-talk cancellation processor.

@@ -7,19 +7,19 @@
 
 TEST(CapacityRoundsUpToPowerOfTwo) {
   spsc_audio_ring_buffer_t* r1 = spsc_audio_ring_buffer_create(1);
-  ASSERT_EQ(2, r1->capacity);
+  ASSERT_EQ(2, spsc_audio_ring_buffer_get_capacity(r1));
   spsc_audio_ring_buffer_free(r1);
 
   spsc_audio_ring_buffer_t* r100 = spsc_audio_ring_buffer_create(100);
-  ASSERT_EQ(128, r100->capacity);
+  ASSERT_EQ(128, spsc_audio_ring_buffer_get_capacity(r100));
   spsc_audio_ring_buffer_free(r100);
 
   spsc_audio_ring_buffer_t* r1024 = spsc_audio_ring_buffer_create(1024);
-  ASSERT_EQ(1024, r1024->capacity);
+  ASSERT_EQ(1024, spsc_audio_ring_buffer_get_capacity(r1024));
   spsc_audio_ring_buffer_free(r1024);
 
   spsc_audio_ring_buffer_t* r1025 = spsc_audio_ring_buffer_create(1025);
-  ASSERT_EQ(2048, r1025->capacity);
+  ASSERT_EQ(2048, spsc_audio_ring_buffer_get_capacity(r1025));
   spsc_audio_ring_buffer_free(r1025);
 }
 
@@ -53,7 +53,7 @@ TEST(RoundTripRespectsOrder) {
 
 TEST(ReadLatestReturnsMostRecentAfterWrap) {
   spsc_audio_ring_buffer_t* ring = spsc_audio_ring_buffer_create(8);
-  ASSERT_EQ(8, ring->capacity);
+  ASSERT_EQ(8, spsc_audio_ring_buffer_get_capacity(ring));
   double src[12];
   for (int i = 0; i < 12; i++) src[i] = (double)i;
   spsc_audio_ring_buffer_append_converting_double_to_float(ring, src, 12);
@@ -121,7 +121,7 @@ TEST(SpscConsumeReturnsLessThanRequestedOnUnderrun) {
 
 TEST(SpscWriteWrapsAroundCapacity) {
   spsc_audio_ring_buffer_t* ring = spsc_audio_ring_buffer_create(8);
-  ASSERT_EQ(8, ring->capacity);
+  ASSERT_EQ(8, spsc_audio_ring_buffer_get_capacity(ring));
   float first_batch[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
   spsc_audio_ring_buffer_write(ring, first_batch, 6, 1);
   float dest[4] = {0};
@@ -215,7 +215,7 @@ TEST(SpscConcurrentProducerConsumerNoDataLoss) {
 
 TEST(SpscQueueRoundTripFifo) {
   spsc_queue_t* queue = spsc_queue_create(8);
-  ASSERT_EQ(8, queue->capacity);
+  ASSERT_EQ(8, spsc_queue_get_capacity(queue));
   ASSERT_EQ(0, spsc_queue_get_count(queue));
   ASSERT_TRUE(spsc_queue_dequeue(queue) == NULL);
   for (intptr_t i = 1; i <= 5; i++) {

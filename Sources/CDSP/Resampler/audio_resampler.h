@@ -42,19 +42,8 @@ typedef enum {
 /// pre-allocate every internal buffer at init and never allocate on the hot
 /// path. The caller must supply pre-allocated output buffers via
 /// `process(input:into:)`.
-typedef struct audio_resampler {
-  resampler_impl_type_t type;
-  void* impl;
-  resampler_error_t (*process)(struct audio_resampler* self,
-                               const audio_chunk_t* input,
-                               audio_chunk_t* output);
-  void (*set_relative_ratio)(struct audio_resampler* self, double multiplier);
-  double (*get_ratio)(const struct audio_resampler* self);
-  size_t (*get_max_output_frames)(const struct audio_resampler* self);
-  size_t (*get_chunk_size)(const struct audio_resampler* self);
-  size_t (*get_channels)(const struct audio_resampler* self);
-  void (*free)(struct audio_resampler* self);
-} audio_resampler_t;
+struct audio_resampler;
+typedef struct audio_resampler audio_resampler_t;
 
 audio_resampler_t* audio_resampler_create_from_config(
     const resampler_config_t* config, size_t input_rate, size_t output_rate,
@@ -77,60 +66,27 @@ audio_resampler_t* audio_resampler_wrap_apple(apple_resampler_t* res);
 /// not equal `chunkSize`, `outputBufferTooSmall` if the per-channel buffers
 /// can't fit the output, or `channelCountMismatch` if the channel layout
 /// doesn't match.
-static inline resampler_error_t audio_resampler_process(
-    audio_resampler_t* resampler, const audio_chunk_t* input,
-    audio_chunk_t* output) {
-  if (!resampler || !resampler->process) return RESAMPLER_ERR_INVALID_PARAMETER;
-  return resampler->process(resampler, input, output);
-}
+resampler_error_t audio_resampler_process(audio_resampler_t* resampler, const audio_chunk_t* input, audio_chunk_t* output);
 
 /// Apply a multiplicative correction on top of the base ratio.
 /// `SynchronousResampler` ignores this (its ratio is fixed by
 /// construction).
-static inline void audio_resampler_set_relative_ratio(
-    audio_resampler_t* resampler, double multiplier) {
-  if (resampler && resampler->set_relative_ratio) {
-    resampler->set_relative_ratio(resampler, multiplier);
-  }
-}
+void audio_resampler_set_relative_ratio(audio_resampler_t* resampler, double multiplier);
 
 /// Current effective ratio (`base * relative`).
-static inline double audio_resampler_get_ratio(
-    const audio_resampler_t* resampler) {
-  return (resampler && resampler->get_ratio) ? resampler->get_ratio(resampler)
-                                             : 1.0;
-}
+double audio_resampler_get_ratio(const audio_resampler_t* resampler);
 
 /// Worst-case output frames across the resampler's allowed ratio range —
 /// use this to size the output `AudioChunk` once at startup.
-static inline size_t audio_resampler_get_max_output_frames(
-    const audio_resampler_t* resampler) {
-  return (resampler && resampler->get_max_output_frames)
-             ? resampler->get_max_output_frames(resampler)
-             : 0;
-}
+size_t audio_resampler_get_max_output_frames(const audio_resampler_t* resampler);
 
 /// Input frames the resampler expects on every `process` call.
-static inline size_t audio_resampler_get_chunk_size(
-    const audio_resampler_t* resampler) {
-  return (resampler && resampler->get_chunk_size)
-             ? resampler->get_chunk_size(resampler)
-             : 0;
-}
+size_t audio_resampler_get_chunk_size(const audio_resampler_t* resampler);
 
 /// Number of channels processed per call.
-static inline size_t audio_resampler_get_channels(
-    const audio_resampler_t* resampler) {
-  return (resampler && resampler->get_channels)
-             ? resampler->get_channels(resampler)
-             : 0;
-}
+size_t audio_resampler_get_channels(const audio_resampler_t* resampler);
 
-static inline void audio_resampler_free(audio_resampler_t* resampler) {
-  if (resampler && resampler->free) {
-    resampler->free(resampler);
-  }
-}
+void audio_resampler_free(audio_resampler_t* resampler);
 
 sinc_interpolation_type_t sinc_interpolation_type_from_string(const char* str);
 /// Polynomial degree exposed by `AsyncPolyResampler`.

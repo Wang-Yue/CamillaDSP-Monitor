@@ -21,6 +21,34 @@
 
 #include "compressor_processor.h"
 
+struct compressor_processor {
+  char name[64];          ///< Unique name of the compressor instance.
+  int* monitor_channels;  ///< Array of channel indices to monitor for level
+                          ///< detection.
+  size_t monitor_channels_count;  ///< Number of monitored channels.
+  int* process_channels;  ///< Array of channel indices to apply gain reduction
+                          ///< to.
+  size_t process_channels_count;  ///< Number of processed channels.
+  double attack;       ///< Exponential smoothing coefficient for attack phase.
+  double release;      ///< Exponential smoothing coefficient for release phase.
+  double threshold;    ///< Compression threshold in dB.
+  double factor;       ///< Compression ratio factor (e.g., 4.0 for 4:1).
+  double makeup_gain;  ///< Post-compression makeup gain in dB.
+  limiter_filter_t*
+      limiter;  ///< Optional peak/soft limiter applied after compression.
+  double*
+      scratch;  ///< Pre-allocated scratch buffer for envelope/gain calculation.
+  size_t scratch_capacity;  ///< Capacity of scratch buffer in frames (matches
+                            ///< chunk_size).
+  double prev_loudness;     ///< State variable storing envelope loudness from
+                            ///< previous sample.
+};
+
+const char* compressor_processor_get_name(const compressor_processor_t* processor) {
+  return processor ? processor->name : "";
+}
+
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -119,7 +147,7 @@ void compressor_processor_free(compressor_processor_t* processor) {
 void compressor_processor_process(compressor_processor_t* processor,
                                   audio_chunk_t* chunk) {
   if (!processor || !chunk || !processor->scratch) return;
-  size_t count = chunk->valid_frames;
+  size_t count = audio_chunk_get_valid_frames(chunk);
   if (count > processor->scratch_capacity) count = processor->scratch_capacity;
   if (count == 0 || processor->monitor_channels_count == 0) return;
 

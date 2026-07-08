@@ -303,10 +303,10 @@ static double* run_resampler_full(audio_resampler_t* res, const double* input,
   while (idx + cs <= input_count) {
     double* ch0 = audio_chunk_get_channel(in_chunk, 0);
     memcpy(ch0, input + idx, cs * sizeof(double));
-    in_chunk->valid_frames = cs;
+    audio_chunk_set_valid_frames(in_chunk, cs);
 
     if (audio_resampler_process(res, in_chunk, out_chunk) == RESAMPLER_OK) {
-      size_t produced = out_chunk->valid_frames;
+      size_t produced = audio_chunk_get_valid_frames(out_chunk);
       if (total_out + produced > estimated_out) {
         estimated_out = (total_out + produced) * 2 + 1024;
         double* new_out =
@@ -561,7 +561,7 @@ static bool measure_swift_perf(int in_rate, int out_rate, int impl_id,
     for (size_t i = 0; i < cs; i++) {
       ch0[i] = ((double)rand() / (double)RAND_MAX) * 2.0 - 1.0;
     }
-    chunks[c]->valid_frames = cs;
+    audio_chunk_set_valid_frames(chunks[c], cs);
   }
 
   size_t max_out = audio_resampler_get_max_output_frames(resampler);
@@ -586,7 +586,7 @@ static bool measure_swift_perf(int in_rate, int out_rate, int impl_id,
     for (size_t c = 0; c < chunk_count; c++) {
       if (audio_resampler_process(resampler, chunks[c], scratch) ==
           RESAMPLER_OK) {
-        out_frames += scratch->valid_frames;
+        out_frames += audio_chunk_get_valid_frames(scratch);
       }
     }
     iters++;

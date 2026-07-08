@@ -52,33 +52,7 @@ typedef enum {
   MIXER_ERR_CHANNEL_COUNT_MISMATCH = -3
 } mixer_error_t;
 
-/**
- * @brief Represents a prepared source channel contribution to a destination
- * channel.
- */
-typedef struct {
-  size_t in_channel;  ///< Input channel index.
-  double gain;        ///< Linear gain multiplier (negative if inverted).
-} prepared_source_t;
-
-/**
- * @brief List of prepared source contributions for a single destination
- * channel.
- */
-typedef struct {
-  size_t count;                ///< Number of active contributing sources.
-  prepared_source_t* sources;  ///< Array of prepared source contributions.
-} prepared_source_list_t;
-
-/// Mixer that changes channel count and routes/sums audio between channels.
-typedef struct {
-  size_t chunk_size;    ///< Maximum number of frames per processing chunk.
-  char* name;           ///< Unique name of the mixer instance.
-  size_t channels_in;   ///< Expected number of input channels.
-  size_t channels_out;  ///< Number of output channels produced.
-  prepared_source_list_t*
-      mapping;  ///< Array of length channels_out defining source routing.
-} audio_mixer_t;
+typedef struct audio_mixer_t audio_mixer_t;
 
 /**
  * @brief Creates a new audio mixer instance from a configuration.
@@ -136,5 +110,29 @@ void audio_mixer_update_parameters(audio_mixer_t* mixer,
  * @param mixer Pointer to audio mixer instance to free.
  */
 void audio_mixer_free(audio_mixer_t* mixer);
+
+/**
+ * @brief Gets the number of expected input channels.
+ *
+ * @param mixer Pointer to audio mixer instance.
+ * @return Number of input channels.
+ */
+size_t audio_mixer_get_channels_in(const audio_mixer_t* mixer);
+
+/**
+ * @brief Gets the number of output channels produced.
+ *
+ * @param mixer Pointer to audio mixer instance.
+ * @return Number of output channels.
+ */
+size_t audio_mixer_get_channels_out(const audio_mixer_t* mixer);
+
+/**
+ * @brief Gets the name of the mixer instance.
+ *
+ * @param mixer Pointer to audio mixer instance.
+ * @return Pointer to mixer name string.
+ */
+const char* audio_mixer_get_name(const audio_mixer_t* mixer);
 
 #endif  // CLIB_MIXER_MIXER_H

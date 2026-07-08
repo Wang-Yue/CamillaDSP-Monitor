@@ -66,12 +66,12 @@ TEST(PipelineProcessPassthrough) {
       buf[t] = sin(2.0 * M_PI * 1000.0 * (double)t / 44100.0);
     }
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* output = audio_chunk_create(1024, 2);
   pipeline_error_t err = pipeline_process(pipeline, chunk, output);
   ASSERT_EQ(PIPELINE_OK, err);
-  ASSERT_EQ(1024, output->valid_frames);
+  ASSERT_EQ(1024, audio_chunk_get_valid_frames(output));
   ASSERT_EQ(2, audio_chunk_get_channels(output));
 
   for (size_t ch = 0; ch < 2; ch++) {
@@ -124,7 +124,7 @@ TEST(PipelineWithFilter) {
       buf[t] = 1.0;
     }
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* output = audio_chunk_create(1024, 2);
   pipeline_error_t err = pipeline_process(pipeline, chunk, output);
@@ -190,7 +190,7 @@ TEST(PipelineWithMixer) {
     ch0[t] = 1.0;
     ch1[t] = 2.0;
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* output = audio_chunk_create(1024, 2);
   pipeline_error_t err = pipeline_process(pipeline, chunk, output);
@@ -244,7 +244,7 @@ TEST(PipelineBypassedFilter) {
       buf[t] = 1.0;
     }
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* output = audio_chunk_create(1024, 2);
   pipeline_error_t err = pipeline_process(pipeline, chunk, output);
@@ -296,7 +296,7 @@ TEST(PipelineFilterChannelOutOfBounds) {
       buf[t] = 1.0;
     }
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* output = audio_chunk_create(1024, 2);
   pipeline_error_t err = pipeline_process(pipeline, chunk, output);
@@ -333,7 +333,7 @@ TEST(PipelineVolumeChange) {
       buf[t] = 1.0;
     }
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* output = audio_chunk_create(1024, 2);
   pipeline_error_t err = pipeline_process(pipeline, chunk, output);
@@ -368,7 +368,7 @@ TEST(PipelineMute) {
       buf[t] = 1.0;
     }
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* output = audio_chunk_create(1024, 2);
   pipeline_error_t err = pipeline_process(pipeline, chunk, output);
@@ -401,7 +401,7 @@ TEST(PipelineVolumePresetBeforeBuild) {
       buf[t] = 1.0;
     }
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* output = audio_chunk_create(1024, 2);
   pipeline_error_t err = pipeline_process(pipeline, chunk, output);
@@ -651,7 +651,7 @@ TEST(PipelineSequentialMixersZeroAllocationRecovery) {
     ch0[t] = 1.0;
     ch1[t] = 2.0;
   }
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   audio_chunk_t* output1 = audio_chunk_create(1024, 2);
   pipeline_error_t err = pipeline_process(pipeline, chunk, output1);
@@ -669,7 +669,7 @@ TEST(PipelineSequentialMixersZeroAllocationRecovery) {
     ch2_0[t] = 3.0;
     ch2_1[t] = 4.0;
   }
-  chunk2->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk2, 1024);
 
   audio_chunk_t* output2 = audio_chunk_create(1024, 2);
   err = pipeline_process(pipeline, chunk2, output2);
@@ -694,12 +694,12 @@ TEST(PipelineProcessValidationThrows) {
   ASSERT_TRUE(pipeline != NULL);
 
   audio_chunk_t* input = audio_chunk_create(1024, 2);
-  input->valid_frames = 1024;
+  audio_chunk_set_valid_frames(input, 1024);
   audio_chunk_t* output = audio_chunk_create(1024, 2);
 
   // 1. inputSizeMismatch
   audio_chunk_t* tooLargeInput = audio_chunk_create(2048, 2);
-  tooLargeInput->valid_frames = 2048;
+  audio_chunk_set_valid_frames(tooLargeInput, 2048);
   pipeline_error_t err = pipeline_process(pipeline, tooLargeInput, output);
   ASSERT_EQ(PIPELINE_ERR_INPUT_SIZE_MISMATCH, err);
   ASSERT_EQ(1024, pipeline_get_last_error_needed(pipeline));
@@ -707,7 +707,7 @@ TEST(PipelineProcessValidationThrows) {
 
   // 2. input channel Count mismatch
   audio_chunk_t* wrongInputChannels = audio_chunk_create(1024, 1);
-  wrongInputChannels->valid_frames = 1024;
+  audio_chunk_set_valid_frames(wrongInputChannels, 1024);
   err = pipeline_process(pipeline, wrongInputChannels, output);
   ASSERT_EQ(PIPELINE_ERR_CHANNEL_COUNT_MISMATCH, err);
   ASSERT_EQ(2, pipeline_get_last_error_needed(pipeline));

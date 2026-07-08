@@ -173,7 +173,7 @@ bool pulse_capture_read(pulse_capture_t* capture, size_t frames,
     }
   }
 
-  chunk->valid_frames = frames;
+  audio_chunk_set_valid_frames(chunk, frames);
   return true;
 }
 
@@ -348,7 +348,7 @@ bool pulse_playback_write(pulse_playback_t* playback,
     return true;
   }
 
-  size_t frames = chunk->valid_frames;
+  size_t frames = audio_chunk_get_valid_frames(chunk);
   size_t required_bytes = frames * playback->channels * sizeof(float);
   if (required_bytes > playback->raw_buf_size) {
     playback->raw_buf = (uint8_t*)realloc(playback->raw_buf, required_bytes);

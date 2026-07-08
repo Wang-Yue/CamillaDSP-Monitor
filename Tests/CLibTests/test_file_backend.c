@@ -38,7 +38,7 @@ TEST(FileBackendRawRoundTrip) {
     audio_chunk_get_channel(write_chunk, 0)[f] = (double)f / 100.0;
     audio_chunk_get_channel(write_chunk, 1)[f] = -(double)f / 100.0;
   }
-  write_chunk->valid_frames = 100;
+  audio_chunk_set_valid_frames(write_chunk, 100);
 
   ASSERT_TRUE(playback_backend_write(playback, write_chunk, &err));
   playback_backend_close(playback);
@@ -63,7 +63,7 @@ TEST(FileBackendRawRoundTrip) {
 
   audio_chunk_t* read_chunk = audio_chunk_create(100, 2);
   ASSERT_TRUE(capture_backend_read(capture, 100, read_chunk, &err));
-  ASSERT_EQ(100, read_chunk->valid_frames);
+  ASSERT_EQ(100, audio_chunk_get_valid_frames(read_chunk));
 
   for (size_t f = 0; f < 100; f++) {
     ASSERT_NEAR((double)f / 100.0, audio_chunk_get_channel(read_chunk, 0)[f],
@@ -109,7 +109,7 @@ TEST(FileBackendWavRoundTrip) {
     // Values in [-1.0, 1.0]. S16 will quantize them.
     audio_chunk_get_channel(write_chunk, 0)[f] = (double)f / 128.0;
   }
-  write_chunk->valid_frames = 128;
+  audio_chunk_set_valid_frames(write_chunk, 128);
 
   ASSERT_TRUE(playback_backend_write(playback, write_chunk, &err));
   playback_backend_close(playback);
@@ -133,7 +133,7 @@ TEST(FileBackendWavRoundTrip) {
 
   audio_chunk_t* read_chunk = audio_chunk_create(128, 1);
   ASSERT_TRUE(capture_backend_read(capture, 128, read_chunk, &err));
-  ASSERT_EQ(128, read_chunk->valid_frames);
+  ASSERT_EQ(128, audio_chunk_get_valid_frames(read_chunk));
 
   for (size_t f = 0; f < 128; f++) {
     double expected = (double)f / 128.0;
@@ -177,7 +177,7 @@ TEST(FileBackendPauseThrottling) {
     audio_chunk_get_channel(write_chunk, 0)[f] = (double)f / 200.0;
     audio_chunk_get_channel(write_chunk, 1)[f] = -(double)f / 200.0;
   }
-  write_chunk->valid_frames = 200;
+  audio_chunk_set_valid_frames(write_chunk, 200);
 
   ASSERT_TRUE(playback_backend_write(playback, write_chunk, &err));
   playback_backend_close(playback);
@@ -203,7 +203,7 @@ TEST(FileBackendPauseThrottling) {
   // 3. Read first 50 frames
   audio_chunk_t* read_chunk = audio_chunk_create(50, 2);
   ASSERT_TRUE(capture_backend_read(capture, 50, read_chunk, &err));
-  ASSERT_EQ(50, read_chunk->valid_frames);
+  ASSERT_EQ(50, audio_chunk_get_valid_frames(read_chunk));
   for (size_t f = 0; f < 50; f++) {
     ASSERT_NEAR((double)f / 200.0, audio_chunk_get_channel(read_chunk, 0)[f], 1e-6);
   }
@@ -211,12 +211,12 @@ TEST(FileBackendPauseThrottling) {
   // 4. Pause capture and verify read returns false with 0 valid frames
   capture_backend_set_is_paused(capture, true);
   ASSERT_FALSE(capture_backend_read(capture, 50, read_chunk, &err));
-  ASSERT_EQ(0, read_chunk->valid_frames);
+  ASSERT_EQ(0, audio_chunk_get_valid_frames(read_chunk));
 
   // 5. Unpause capture and read next 50 frames (should be frames 50..99)
   capture_backend_set_is_paused(capture, false);
   ASSERT_TRUE(capture_backend_read(capture, 50, read_chunk, &err));
-  ASSERT_EQ(50, read_chunk->valid_frames);
+  ASSERT_EQ(50, audio_chunk_get_valid_frames(read_chunk));
   for (size_t f = 0; f < 50; f++) {
     ASSERT_NEAR((double)(f + 50) / 200.0, audio_chunk_get_channel(read_chunk, 0)[f], 1e-6);
   }
@@ -255,7 +255,7 @@ static void run_format_roundtrip_test(binary_sample_format_t format, double eps)
     audio_chunk_get_channel(write_chunk, 0)[f] = (double)f / 10.0;
     audio_chunk_get_channel(write_chunk, 1)[f] = -(double)f / 10.0;
   }
-  write_chunk->valid_frames = 10;
+  audio_chunk_set_valid_frames(write_chunk, 10);
 
   ASSERT_TRUE(playback_backend_write(playback, write_chunk, &err));
   playback_backend_close(playback);
@@ -279,7 +279,7 @@ static void run_format_roundtrip_test(binary_sample_format_t format, double eps)
 
   audio_chunk_t* read_chunk = audio_chunk_create(10, 2);
   ASSERT_TRUE(capture_backend_read(capture, 10, read_chunk, &err));
-  ASSERT_EQ(10, read_chunk->valid_frames);
+  ASSERT_EQ(10, audio_chunk_get_valid_frames(read_chunk));
 
   for (size_t f = 0; f < 10; f++) {
     ASSERT_NEAR((double)f / 10.0, audio_chunk_get_channel(read_chunk, 0)[f], eps);

@@ -214,7 +214,7 @@ static double update_levels_internal(const audio_chunk_t* chunk,
   size_t channel_count =
       chunk_channels < storage_count ? chunk_channels : storage_count;
   if (channel_count == 0) return -1000.0;
-  size_t frame_count = chunk->valid_frames;
+  size_t frame_count = audio_chunk_get_valid_frames(chunk);
   double max_peak = -1000.0;
 
   for (size_t i = 0; i < channel_count; i++) {

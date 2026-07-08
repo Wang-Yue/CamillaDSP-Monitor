@@ -41,27 +41,8 @@ static inline int poly_interpolation_nbr_points(poly_interpolation_t interp) {
   }
 }
 
-typedef struct {
-  size_t channels;
-  size_t chunk_size;
-  poly_interpolation_t interpolation;
-  size_t interpolator_len;  // = nbr_points
-  // Ratio bookkeeping.
-  double base_ratio;
-  double resample_ratio;
-  double target_ratio;
-  double last_index;  // tracking index
-  // Per-channel input buffer. Layout:
-  //   [0 .. 2*nbr_points)            — history padding zone
-  //   [2*nbr_points .. 2*nbr_points+chunkSize) — current chunk
-  audio_buffers_t* input_buffer;
-  // Pre-allocated per-frame scratch. `start_idx_scratch` holds the integer
-  // floor of `idx`, computed once when `frac_scratch` is built — saving the
-  // inner loops a floor() + int cast per output frame.
-  int* start_idx_scratch;
-  double* frac_scratch;
-  size_t max_output_frames;
-} async_poly_resampler_t;
+struct async_poly_resampler;
+typedef struct async_poly_resampler async_poly_resampler_t;
 
 async_poly_resampler_t* async_poly_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,

@@ -37,7 +37,7 @@ TEST(PipeWirePlaybackBasic) {
   audio_chunk_t* chunk = audio_chunk_create(1024, 2);
   memset(audio_chunk_get_channel(chunk, 0), 0, 1024 * sizeof(double));
   memset(audio_chunk_get_channel(chunk, 1), 0, 1024 * sizeof(double));
-  chunk->valid_frames = 1024;
+  audio_chunk_set_valid_frames(chunk, 1024);
 
   ASSERT_TRUE(playback_backend_write(playback, chunk, &err));
 
@@ -78,7 +78,7 @@ TEST(PipeWireCaptureBasic) {
   // source is active.
   if (capture_backend_wait(capture, 100)) {
     ASSERT_TRUE(capture_backend_read(capture, 128, chunk, &err));
-    ASSERT_EQ(128, chunk->valid_frames);
+    ASSERT_EQ(128, audio_chunk_get_valid_frames(chunk));
   } else {
     printf(
         "No capture data received from PipeWire within 100ms (skipping read "

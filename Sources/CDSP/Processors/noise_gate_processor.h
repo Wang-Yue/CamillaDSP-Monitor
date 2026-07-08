@@ -40,22 +40,9 @@
 /**
  * @brief Noise gate processor state structure.
  */
-typedef struct {
-  char name[64];          ///< Unique name of the noise gate instance.
-  int* monitor_channels;  ///< Array of channel indices monitored for level
-                          ///< detection.
-  size_t monitor_channels_count;  ///< Number of monitored channels.
-  int* process_channels;  ///< Array of channel indices to apply gating to.
-  size_t process_channels_count;  ///< Number of processed channels.
-  double attack;     ///< Exponential smoothing coefficient for attack phase.
-  double release;    ///< Exponential smoothing coefficient for release phase.
-  double threshold;  ///< Gating threshold in dB.
-  double factor;     ///< Linear attenuation gain applied when gate is closed.
-  double* scratch;   ///< Pre-allocated scratch buffer for level detection.
-  size_t scratch_capacity;  ///< Capacity of scratch buffer in frames.
-  double prev_loudness;  ///< State variable tracking previous sample envelope
-                         ///< loudness.
-} noise_gate_processor_t;
+typedef struct noise_gate_processor noise_gate_processor_t;
+
+const char* noise_gate_processor_get_name(const noise_gate_processor_t* processor);
 
 /**
  * @brief Creates a new noise gate processor.
