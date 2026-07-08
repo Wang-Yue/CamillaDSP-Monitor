@@ -19,8 +19,6 @@
 //   processedSemaphore  — processing signals, playback waits.
 //   resamplerRatio      — playback writes (rate-adjust controller),
 //                         processing reads (per chunk). 64-bit atomic.
-//   capturedDropCounter — capture writes (dropped enqueues),
-//                         actor reads (monitoring). Atomic<UInt64>.
 //
 // `DispatchSemaphore` is included to be transparent: a semaphore is a
 // kernel signaling primitive, not a lock. Producers signal after
@@ -47,7 +45,7 @@ engine_shared_state_t* engine_shared_state_create(
   engine_sem_init(&state->processed_semaphore);
   atomic_init(&state->should_stop, false);
   state->resampler_ratio = atomic_double_create(1.0);
-  atomic_init(&state->captured_drop_counter, 0);
+
 
   if (!state->captured_queue || !state->processed_queue ||
       !state->captured_semaphore || !state->processed_semaphore ||

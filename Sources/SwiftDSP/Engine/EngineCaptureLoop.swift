@@ -153,16 +153,13 @@ final class EngineCaptureLoop: @unchecked Sendable {
           playback.isPaused = (desired == .paused)
         }
 
-        // Enqueue for processing. The lock-free SPSC queue is
-        // bounded; on overflow we drop the chunk rather than
-        // allocate. We bump an atomic counter instead of calling
-        // the logger — formatting / locking inside the logger is
-        // a poor fit for the audio-priority capture thread, and
-        // particularly bad precisely when the system is already
-        // overloaded.
+        // Enqueue for processing. The lock-free SPSC queue is bounded.
+        // On overflow (processing loop is slow), we block the capture thread
+        // to yield CPU and propagate backpressure upstream.
         if stateMachine.state != .paused {
-          if !shared.capturedQueue.enqueue(chunk) {
-            shared.capturedDropCounter.wrappingAdd(1, ordering: .relaxed)
+          while !shared.capturedQueue.enqueue(chunk) {
+            if shared.shouldStop.load(ordering: .acquiring) { break }
+            Thread.sleep(forTimeInterval: 0.002)
           }
           shared.capturedSemaphore.signal()
         }

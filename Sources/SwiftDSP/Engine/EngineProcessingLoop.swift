@@ -188,9 +188,9 @@ final class EngineProcessingLoop: @unchecked Sendable {
           // Encode PCM to DoP in place if enabled
           dopEncoder.encode(chunk: &chunk)
 
-          if !shared.processedQueue.enqueue(chunk) {
-            logger.warning(
-              "Playback queue full, dropping processed chunk #%d", .int(processedCount))
+          while !shared.processedQueue.enqueue(chunk) {
+            if shared.shouldStop.load(ordering: .acquiring) { break }
+            Thread.sleep(forTimeInterval: 0.002)
           }
           shared.processedSemaphore.signal()
         } catch {

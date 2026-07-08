@@ -310,11 +310,12 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
         dop_encoder_encode(loop->dop_encoder, chunk);
       }
 
-      if (!spsc_queue_enqueue(loop->shared->processed_queue, chunk)) {
-        logger_warn(&logger,
-                    "Playback queue full, dropping processed chunk #%d",
-                    log_arg_int((int64_t)processed_count), log_arg_none(),
-                    log_arg_none(), log_arg_none());
+      while (!spsc_queue_enqueue(loop->shared->processed_queue, chunk)) {
+        if (atomic_load_explicit(&loop->shared->should_stop,
+                                 memory_order_acquire))
+          break;
+        struct timespec req = {.tv_sec = 0, .tv_nsec = 2000000L};
+        nanosleep(&req, NULL);
       }
       engine_sem_signal(loop->shared->processed_semaphore);
     }

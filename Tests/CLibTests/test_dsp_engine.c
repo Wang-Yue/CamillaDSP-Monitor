@@ -359,4 +359,60 @@ TEST(DSPEngineE2E_FileFile) {
   run_e2e_test_config(json, "File -> File");
 }
 
+TEST(DSPEngineE2E_GeneratorFile_SpeedTest) {
+  const char* out_filename = "/tmp/e2e_out_speed.raw";
+  remove(out_filename);
+
+  const char* json =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 512,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Generator\",\n"
+      "            \"channels\": 2,\n"
+      "            \"signal\": {\n"
+      "                \"type\": \"Sine\",\n"
+      "                \"freq\": 1000.0,\n"
+      "                \"level\": -6.0\n"
+      "            }\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"File\",\n"
+      "            \"filename\": \"/tmp/e2e_out_speed.raw\",\n"
+      "            \"format\": \"S16_LE\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    }\n"
+      "}";
+
+  dsp_engine_t* engine = dsp_engine_create();
+  ASSERT_TRUE(engine != NULL);
+
+  audio_backend_error_t err;
+  memset(&err, 0, sizeof(err));
+  ASSERT_TRUE(dsp_engine_set_config(engine, json, &err));
+
+  // Sleep for 50ms to let the engine stream at infinite speed
+  struct timespec ts = {.tv_sec = 0, .tv_nsec = 50000000};
+  nanosleep(&ts, NULL);
+
+  dsp_engine_stop(engine);
+  dsp_engine_free(engine);
+
+  // Check the size of the output file
+  FILE* f = fopen(out_filename, "rb");
+  ASSERT_TRUE(f != NULL);
+  fseek(f, 0, SEEK_END);
+  long size = ftell(f);
+  fclose(f);
+
+  // At real-time (44.1kHz stereo 16-bit = 176.4KB/sec), 50ms would be 8.8KB.
+  // Unthrottled generation should easily produce > 1MB of audio in 50ms.
+  ASSERT_TRUE(size > 1000000);
+
+  remove(out_filename);
+  printf("✅ [E2E Success] Generator -> File ran unthrottled (produced %ld bytes in 50ms)\n", size);
+}
+
 TEST_MAIN()

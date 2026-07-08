@@ -22,8 +22,6 @@
 //   processedSemaphore  — processing signals, playback waits.
 //   resamplerRatio      — playback writes (rate-adjust controller),
 //                         processing reads (per chunk). 64-bit atomic.
-//   capturedDropCounter — capture writes (dropped enqueues),
-//                         actor reads (monitoring). Atomic<UInt64>.
 //
 // `DispatchSemaphore` is included to be transparent: a semaphore is a
 // kernel signaling primitive, not a lock. Producers signal after
@@ -128,10 +126,7 @@ typedef struct {
   /// thread once per chunk via `setRelativeRatio`.
   atomic_double_t* resampler_ratio;
 
-  /// Monotonic count of chunks dropped at the capture→processing
-  /// boundary because `capturedQueue` was full. Bumped from the
-  /// audio thread without formatting; observed by the actor.
-  _Atomic uint64_t captured_drop_counter;
+
 } engine_shared_state_t;
 
 engine_shared_state_t* engine_shared_state_create(size_t captured_queue_depth,

@@ -147,23 +147,6 @@ bool generator_capture_read(generator_capture_t* capture, size_t frames,
     return false;
   }
 
-  uint64_t expected_duration_ns =
-      (uint64_t)(((double)frames / (double)capture->sample_rate) *
-                 1000000000.0);
-  uint64_t next_read_time_ns =
-      capture->last_read_time_ns + expected_duration_ns;
-  uint64_t now_ns = get_time_ns();
-
-  if (now_ns < next_read_time_ns) {
-    uint64_t sleep_ns = next_read_time_ns - now_ns;
-    struct timespec req = {.tv_sec = (time_t)(sleep_ns / 1000000000ULL),
-                           .tv_nsec = (long)(sleep_ns % 1000000000ULL)};
-    nanosleep(&req, NULL);
-    capture->last_read_time_ns = next_read_time_ns;
-  } else {
-    capture->last_read_time_ns = now_ns;
-  }
-
   double freq_delta = capture->frequency / (double)capture->sample_rate;
 
   for (size_t f = 0; f < frames; f++) {

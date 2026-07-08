@@ -533,28 +533,6 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
 
   chunk->valid_frames = frames_read;
 
-  // Real-time pacing (throttling): Sleep if we read faster than real-time.
-  // This prevents high CPU usage and data drops in SPSC queues when playing
-  // local files, and fixes the paused-state fast-forward bug.
-  if (frames_read > 0) {
-    uint64_t expected_duration_ns =
-        (uint64_t)(((double)frames_read / (double)capture->sample_rate) *
-                   1000000000.0);
-    uint64_t next_read_time_ns =
-        capture->last_read_time_ns + expected_duration_ns;
-    uint64_t now_ns = get_time_ns();
-
-    if (now_ns < next_read_time_ns) {
-      uint64_t sleep_ns = next_read_time_ns - now_ns;
-      struct timespec req = {.tv_sec = (time_t)(sleep_ns / 1000000000ULL),
-                             .tv_nsec = (long)(sleep_ns % 1000000000ULL)};
-      nanosleep(&req, NULL);
-      capture->last_read_time_ns = next_read_time_ns;
-    } else {
-      capture->last_read_time_ns = now_ns;
-    }
-  }
-
   return (frames_read > 0);
 }
 

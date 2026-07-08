@@ -85,7 +85,7 @@ TEST(GeneratorSquareCorrectness) {
   capture_backend_free(backend);
 }
 
-TEST(GeneratorThrottling) {
+TEST(GeneratorNoThrottling) {
   capture_device_config_t config;
   memset(&config, 0, sizeof(config));
   config.type = AUDIO_BACKEND_TYPE_GENERATOR;
@@ -115,8 +115,7 @@ TEST(GeneratorThrottling) {
   double elapsed_ms = (double)(end.tv_sec - start.tv_sec) * 1000.0 +
                       (double)(end.tv_nsec - start.tv_nsec) / 1000000.0;
 
-  ASSERT_TRUE(elapsed_ms >= 180.0);
-  ASSERT_TRUE(elapsed_ms < 350.0);
+  ASSERT_TRUE(elapsed_ms < 10.0);
 
   audio_chunk_free(chunk);
   capture_backend_close(backend);

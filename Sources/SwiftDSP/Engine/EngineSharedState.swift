@@ -19,8 +19,6 @@
 //   processedSemaphore  — processing signals, playback waits.
 //   resamplerRatio      — playback writes (rate-adjust controller),
 //                         processing reads (per chunk). 64-bit atomic.
-//   capturedDropCounter — capture writes (dropped enqueues),
-//                         actor reads (monitoring). Atomic<UInt64>.
 //
 // `DispatchSemaphore` is included to be transparent: a semaphore is a
 // kernel signaling primitive, not a lock. Producers signal after
@@ -64,10 +62,7 @@ final class EngineSharedState: Sendable {
   /// thread once per chunk via `setRelativeRatio`.
   let resamplerRatio = AtomicDouble(1.0)
 
-  /// Monotonic count of chunks dropped at the capture→processing
-  /// boundary because `capturedQueue` was full. Bumped from the
-  /// audio thread without formatting; observed by the actor.
-  let capturedDropCounter = Atomic<UInt64>(0)
+
 
   init(capturedQueueDepth: Int = 16, processedQueueDepth: Int = 16) {
     self.capturedQueue = SPSCQueue<AudioChunk>(minimumCapacity: capturedQueueDepth)

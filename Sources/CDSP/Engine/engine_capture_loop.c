@@ -206,18 +206,17 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
                                     (desired == PROCESSING_STATE_PAUSED));
     }
 
-    // Enqueue for processing. The lock-free SPSC queue is
-    // bounded; on overflow we drop the chunk rather than
-    // allocate. We bump an atomic counter instead of calling
-    // the logger — formatting / locking inside the logger is
-    // a poor fit for the audio-priority capture thread, and
-    // particularly bad precisely when the system is already
-    // overloaded.
+    // Enqueue for processing. The lock-free SPSC queue is bounded.
+    // On overflow (processing loop is slow), we block the capture thread
+    // to yield CPU and propagate backpressure upstream.
     if (engine_state_machine_get_state(loop->state_machine) !=
         PROCESSING_STATE_PAUSED) {
-      if (!spsc_queue_enqueue(loop->shared->captured_queue, chunk)) {
-        atomic_fetch_add_explicit(&loop->shared->captured_drop_counter, 1,
-                                  memory_order_relaxed);
+      while (!spsc_queue_enqueue(loop->shared->captured_queue, chunk)) {
+        if (atomic_load_explicit(&loop->shared->should_stop,
+                                 memory_order_acquire))
+          break;
+        struct timespec req = {.tv_sec = 0, .tv_nsec = 2000000L};
+        nanosleep(&req, NULL);
       }
       engine_sem_signal(loop->shared->captured_semaphore);
     }
