@@ -61,15 +61,23 @@ final class CoreAudioPlayback: PlaybackBackend {
     playbackRings.first?.availableToRead ?? 0
   }
 
-  init(config: PlaybackDeviceConfig, sampleRate: Int, chunkSize: Int) {
+  private let sampleFormat: SampleFormat?
+
+  init(config: CoreAudioPlaybackConfig, sampleRate: Int, chunkSize: Int) {
     self.deviceName = config.device
-    self.channels = config.channels
+    let channelsVal = config.channels
+    self.channels = channelsVal
+    if let fmtStr = config.format {
+      self.sampleFormat = SampleFormat(rawValue: fmtStr)
+    } else {
+      self.sampleFormat = nil
+    }
+    self.exclusive = config.exclusive ?? false
     self.sampleRate = Double(sampleRate)
     self.chunkSize = chunkSize
-    self.exclusive = config.exclusive ?? false
     // Eight chunks of headroom matches the original lock-based design.
     self.ringBufferSize = chunkSize * 8
-    self.playbackRings = (0..<config.channels).map { _ in
+    self.playbackRings = (0..<self.channels).map { _ in
       SPSCAudioRingBuffer(minimumCapacity: chunkSize * 8)
     }
   }
@@ -174,9 +182,25 @@ final class CoreAudioPlayback: PlaybackBackend {
     // rates align, but it leaves a latent timing mismatch when
     // capture and playback are the same physical device.
     if let deviceID = resolvedDeviceID {
-      if !CoreAudioDevice.setNominalSampleRate(deviceID, sampleRate) {
-        logger.warning(
-          "Playback device refused %f Hz; AudioUnit will sample-rate convert", .double(sampleRate))
+      var physicalFormatSet = false
+      if let format = sampleFormat {
+        if CoreAudioDevice.setMatchingPhysicalFormat(
+          deviceID,
+          scope: .output,
+          sampleRate: sampleRate,
+          formatString: format.rawValue,
+          requestedChannels: channels
+        ) {
+          physicalFormatSet = true
+        } else {
+          throw BackendError.initializationFailed("Failed to find matching physical playback format")
+        }
+      }
+      if !physicalFormatSet {
+        if !CoreAudioDevice.setNominalSampleRate(deviceID, sampleRate) {
+          logger.warning(
+            "Playback device refused %f Hz; AudioUnit will sample-rate convert", .double(sampleRate))
+        }
       }
 
       // Explicitly request the device's buffer size to match our chunkSize

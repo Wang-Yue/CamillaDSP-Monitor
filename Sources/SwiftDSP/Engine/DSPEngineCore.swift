@@ -83,12 +83,12 @@ internal final class DSPEngineCore {
     let queueLimit = config.devices.queuelimit ?? 4
     self.shared = EngineSharedState(capturedQueueDepth: queueLimit, processedQueueDepth: queueLimit)
     self.processingParams = ProcessingParameters(
-      captureChannels: config.devices.capture.channels,
+      captureChannels: config.devices.capture.channels ?? 0,
       playbackChannels: config.devices.playback.channels
     )
     let captureRate = Double(config.devices.captureSamplerate ?? config.devices.samplerate)
     self.dopDecoder = DoPDecoder(
-      channels: config.devices.capture.channels,
+      channels: config.devices.capture.channels ?? 0,
       sampleRate: captureRate,
       bypassDoP: config.devices.capture.bypassDoP ?? false,
       cutoffHz: config.devices.capture.dopCutoffHz ?? 20_000.0
@@ -206,7 +206,7 @@ internal final class DSPEngineCore {
     let captureRateForDoP = Double(
       newConfig.devices.captureSamplerate ?? newConfig.devices.samplerate)
     dopDecoder = DoPDecoder(
-      channels: newConfig.devices.capture.channels,
+      channels: newConfig.devices.capture.channels ?? 0,
       sampleRate: captureRateForDoP,
       bypassDoP: newConfig.devices.capture.bypassDoP ?? false,
       cutoffHz: newConfig.devices.capture.dopCutoffHz ?? 20_000.0
@@ -330,7 +330,7 @@ internal final class DSPEngineCore {
         config: resamplerConfig,
         inputRate: captureRate,
         outputRate: pipelineRate,
-        channels: currentConfig.devices.capture.channels,
+        channels: currentConfig.devices.capture.channels ?? 0,
         chunkSize: currentConfig.devices.chunksize)
     } else {
       resampler = nil
@@ -362,7 +362,7 @@ internal final class DSPEngineCore {
     // the configured rate-adjust range.
     var resamplerScratch = AudioChunk(
       frames: resampler?.maxOutputFrames ?? captureChunkSize,
-      channels: currentConfig.devices.capture.channels)
+      channels: currentConfig.devices.capture.channels ?? 0)
     resamplerScratch.validFrames = 0
 
     let pipeline = try Pipeline(
@@ -392,7 +392,7 @@ internal final class DSPEngineCore {
       processingParams: processingParams,
       dopDecoder: dopDecoder,
       chunkSize: runtime.captureChunkSize,
-      channels: currentConfig.devices.capture.channels,
+      channels: currentConfig.devices.capture.channels ?? 0,
       samplerate: runtime.captureRate,
       silenceThresholdDb: currentConfig.devices.silenceThreshold ?? 0,
       silenceTimeoutSeconds: currentConfig.devices.silenceTimeout ?? 0,

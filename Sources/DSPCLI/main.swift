@@ -266,7 +266,7 @@ struct DSPCLI {
           parsed.devices.samplerate = sr
         }
         if let ch = channelsOverride {
-          parsed.devices.capture.channels = ch
+          parsed.devices.capture.setChannels(ch)
         }
         config = parsed
       } catch {

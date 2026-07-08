@@ -88,85 +88,73 @@ final class DSPEngineController {
     var captureConfig: CaptureDeviceConfig
     switch devices.captureConfig.backend {
     case .coreAudio:
-      captureConfig = CaptureDeviceConfig(
-        type: .coreAudio,
+      var coreAudioCfg = CoreAudioCaptureConfig(
         channels: devices.captureConfig.channels,
         device: devices.captureConfig.deviceName
       )
       if !DSPEngine.isRustEngine {
-        captureConfig.bypassDoP = devices.captureConfig.bypassDoP
-        captureConfig.dopCutoffHz = devices.captureConfig.dopCutoffHz
+        coreAudioCfg.bypassDoP = devices.captureConfig.bypassDoP
+        coreAudioCfg.dopCutoffHz = devices.captureConfig.dopCutoffHz
       }
+      captureConfig = .coreAudio(coreAudioCfg)
     case .rawFile:
-      captureConfig = CaptureDeviceConfig(
-        type: .rawFile,
+      captureConfig = .rawFile(RawFileCaptureConfig(
         channels: devices.captureConfig.channels,
-        filename: devices.captureConfig.filename.isEmpty ? nil : devices.captureConfig.filename,
-        fileFormat: devices.captureConfig.fileFormat,
-        isWav: false,
+        filename: devices.captureConfig.filename.isEmpty ? "" : devices.captureConfig.filename,
+        format: devices.captureConfig.fileFormat,
         skipBytes: devices.captureConfig.skipBytes > 0 ? devices.captureConfig.skipBytes : nil,
         readBytes: devices.captureConfig.readBytes > 0 ? devices.captureConfig.readBytes : nil,
         extraSamples: devices.captureConfig.extraSamples > 0 ? devices.captureConfig.extraSamples : nil
-      )
+      ))
     case .wavFile:
-      captureConfig = CaptureDeviceConfig(
-        type: .wavFile,
-        channels: devices.captureConfig.channels,
-        filename: devices.captureConfig.filename.isEmpty ? nil : devices.captureConfig.filename,
-        fileFormat: nil,
-        isWav: nil,
-        skipBytes: nil,
-        readBytes: nil,
+      captureConfig = .wavFile(WavFileCaptureConfig(
+        filename: devices.captureConfig.filename.isEmpty ? "" : devices.captureConfig.filename,
         extraSamples: devices.captureConfig.extraSamples > 0 ? devices.captureConfig.extraSamples : nil
-      )
+      ))
     case .signalGenerator:
-      captureConfig = CaptureDeviceConfig(
-        type: .signalGenerator,
+      captureConfig = .signalGenerator(GeneratorCaptureConfig(
         channels: devices.captureConfig.channels,
         signal: GeneratorConfig(
           type: devices.captureConfig.generatorType,
           freq: devices.captureConfig.generatorType == "WhiteNoise" ? nil : devices.captureConfig.generatorFreq,
           level: devices.captureConfig.generatorLevel
         )
-      )
+      ))
     }
 
     var playbackConfig: PlaybackDeviceConfig
     switch devices.playbackConfig.backend {
     case .coreAudio:
-      playbackConfig = PlaybackDeviceConfig(
-        type: .coreAudio,
+      var coreAudioCfg = CoreAudioPlaybackConfig(
         channels: devices.playbackConfig.channels,
         device: devices.playbackConfig.deviceName,
         exclusive: devices.exclusiveMode
       )
       if !DSPEngine.isRustEngine {
-        playbackConfig.outputDoP = devices.playbackConfig.outputDoP
-        playbackConfig.dopEncoderFilter = devices.playbackConfig.dopEncoderFilter
+        coreAudioCfg.outputDoP = devices.playbackConfig.outputDoP
+        coreAudioCfg.dopEncoderFilter = devices.playbackConfig.dopEncoderFilter
       }
+      playbackConfig = .coreAudio(coreAudioCfg)
     case .rawFile:
-      playbackConfig = PlaybackDeviceConfig(
-        type: .rawFile,
+      playbackConfig = .rawFile(RawFilePlaybackConfig(
         channels: devices.playbackConfig.channels,
-        filename: devices.playbackConfig.filename.isEmpty ? nil : devices.playbackConfig.filename,
-        fileFormat: devices.playbackConfig.fileFormat,
-        isWav: false
-      )
+        filename: devices.playbackConfig.filename.isEmpty ? "" : devices.playbackConfig.filename,
+        format: devices.playbackConfig.fileFormat,
+        wavHeader: false
+      ))
     case .wavFile:
-      playbackConfig = PlaybackDeviceConfig(
-        type: .wavFile,
+      playbackConfig = .rawFile(RawFilePlaybackConfig(
         channels: devices.playbackConfig.channels,
-        filename: devices.playbackConfig.filename.isEmpty ? nil : devices.playbackConfig.filename,
-        fileFormat: devices.playbackConfig.fileFormat,
-        isWav: true
-      )
+        filename: devices.playbackConfig.filename.isEmpty ? "" : devices.playbackConfig.filename,
+        format: devices.playbackConfig.fileFormat,
+        wavHeader: true
+      ))
     case .signalGenerator:
-      playbackConfig = PlaybackDeviceConfig(
-        type: .coreAudio,
+      playbackConfig = .coreAudio(CoreAudioPlaybackConfig(
         channels: devices.playbackConfig.channels,
         device: devices.playbackConfig.deviceName,
         exclusive: devices.exclusiveMode
-      )
+      ))
     }
 
     var devicesConfig = DevicesConfig(

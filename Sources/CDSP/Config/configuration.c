@@ -52,12 +52,12 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     config_error_set(err, CONFIG_ERR_VALIDATION, "Chunk size must be positive");
     return -1;
   }
-  if (config->devices.capture.channels <= 0) {
+  if (!config->devices.capture.is_wav && capture_device_config_get_channels(&config->devices.capture) <= 0) {
     config_error_set(err, CONFIG_ERR_VALIDATION,
                      "Capture channels must be positive");
     return -1;
   }
-  if (config->devices.playback.channels <= 0) {
+  if (playback_device_config_get_channels(&config->devices.playback) <= 0) {
     config_error_set(err, CONFIG_ERR_VALIDATION,
                      "Playback channels must be positive");
     return -1;
@@ -137,7 +137,7 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
   }
 
   // Validate pipeline
-  int num_channels = config->devices.capture.channels;
+  int num_channels = capture_device_config_get_channels(&config->devices.capture);
   for (size_t i = 0; i < config->pipeline_count; i++) {
     const pipeline_step_t* step = &config->pipeline[i];
     if (step->bypassed) continue;
@@ -247,7 +247,7 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     }
   }
 
-  int playback_channels = config->devices.playback.channels;
+  int playback_channels = playback_device_config_get_channels(&config->devices.playback);
   if (num_channels != playback_channels) {
     config_error_set(
         err, CONFIG_ERR_INVALID_PIPELINE,

@@ -1012,15 +1012,15 @@ static void asio_capture_destroy_internal(void* ctx) {
 }
 
 static const capture_backend_vtable_t asio_capture_vtable = {
-    asio_capture_open_internal,
-    asio_capture_read_internal,
-    asio_capture_close_internal,
-    NULL,
-    NULL,
-    NULL,
-    asio_capture_wait_for_data,
-    NULL,
-    asio_capture_destroy_internal};
+    .open = asio_capture_open_internal,
+    .read = asio_capture_read_internal,
+    .close = asio_capture_close_internal,
+    .get_pending_rate_change = NULL,
+    .is_pitch_control_supported = NULL,
+    .set_pitch = NULL,
+    .wait_for_data = asio_capture_wait_for_data,
+    .set_is_paused = NULL,
+    .destroy = asio_capture_destroy_internal};
 
 capture_backend_t* asio_capture_new(const capture_device_config_t* config,
                                     int sample_rate, int chunk_size,
@@ -1029,11 +1029,11 @@ capture_backend_t* asio_capture_new(const capture_device_config_t* config,
   asio_capture_t* capture = (asio_capture_t*)calloc(1, sizeof(asio_capture_t));
   if (!capture) return NULL;
 
-  snprintf(capture->device, sizeof(capture->device), "%s", config->device);
-  capture->channels = config->channels;
+  snprintf(capture->device, sizeof(capture->device), "%s", config->cfg.asio.device);
+  capture->channels = config->cfg.asio.channels;
   capture->sample_rate = sample_rate;
   capture->chunk_size = chunk_size;
-  capture->format = config->asio_format;
+  capture->format = config->cfg.asio.format;
   capture->full_duplex = full_duplex;
 
   capture_backend_t* backend =
@@ -1295,15 +1295,17 @@ static void asio_playback_destroy_internal(void* ctx) {
 }
 
 static const playback_backend_vtable_t asio_playback_vtable = {
-    asio_playback_open_internal,
-    asio_playback_write_internal,
-    asio_playback_close_internal,
-    asio_playback_get_buffer_level,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    asio_playback_destroy_internal};
+    .open = asio_playback_open_internal,
+    .write = asio_playback_write_internal,
+    .close = asio_playback_close_internal,
+    .get_buffer_level = asio_playback_get_buffer_level,
+    .get_pending_rate_change = NULL,
+    .prefill_silence = NULL,
+    .get_is_paused = NULL,
+    .set_is_paused = NULL,
+    .pitch_control_supported = NULL,
+    .set_pitch = NULL,
+    .destroy = asio_playback_destroy_internal};
 
 playback_backend_t* asio_playback_new(const playback_device_config_t* config,
                                       int sample_rate, int chunk_size,
@@ -1313,11 +1315,11 @@ playback_backend_t* asio_playback_new(const playback_device_config_t* config,
       (asio_playback_t*)calloc(1, sizeof(asio_playback_t));
   if (!playback) return NULL;
 
-  snprintf(playback->device, sizeof(playback->device), "%s", config->device);
-  playback->channels = config->channels;
+  snprintf(playback->device, sizeof(playback->device), "%s", config->cfg.asio.device);
+  playback->channels = config->cfg.asio.channels;
   playback->sample_rate = sample_rate;
   playback->chunk_size = chunk_size;
-  playback->format = config->asio_format;
+  playback->format = config->cfg.asio.format;
   playback->full_duplex = full_duplex;
 
   playback_backend_t* backend =

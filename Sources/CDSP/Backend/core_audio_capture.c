@@ -27,6 +27,8 @@ struct core_audio_capture {
   int channels;
   double sample_rate;
   int chunk_size;
+  char sample_format[16];
+  bool has_sample_format;
 
   AudioUnit audio_unit;
   /// Per-channel SPSC ring buffer of `Float` samples. Render callback
@@ -293,15 +295,25 @@ capture_backend_t* core_audio_capture_create(
     free(capture);
     return NULL;
   }
-  if (config->device[0] != '\0') {
-    strncpy(capture->device_name, config->device,
+  const char* config_device = capture_device_config_get_device(config);
+  if (config_device && config_device[0] != '\0') {
+    strncpy(capture->device_name, config_device,
             sizeof(capture->device_name) - 1);
   }
-  capture->channels = config->channels;
+  int config_channels = capture_device_config_get_channels(config);
+  capture->channels = config_channels;
   capture->sample_rate = (double)sample_rate;
   capture->chunk_size = chunk_size;
+
+  coreaudio_sample_format_t fmt = capture_device_config_get_format(config);
+  if (fmt != COREAUDIO_SAMPLE_FORMAT_INVALID) {
+    const char* fmt_str = coreaudio_sample_format_to_string(fmt);
+    strncpy(capture->sample_format, fmt_str, sizeof(capture->sample_format) - 1);
+    capture->has_sample_format = true;
+  }
+
   capture->capture_rings = (spsc_audio_ring_buffer_t**)calloc(
-      config->channels, sizeof(spsc_audio_ring_buffer_t*));
+      config_channels, sizeof(spsc_audio_ring_buffer_t*));
   if (!capture->capture_rings) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
@@ -310,7 +322,7 @@ capture_backend_t* core_audio_capture_create(
     free(capture);
     return NULL;
   }
-  for (int i = 0; i < config->channels; i++) {
+  for (int i = 0; i < config_channels; i++) {
     capture->capture_rings[i] = spsc_audio_ring_buffer_create(chunk_size * 4);
     if (!capture->capture_rings[i]) {
       if (err)
@@ -404,7 +416,22 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
                          kAudioUnitScope_Global, 0, &dev_id, sizeof(dev_id));
   }
   if (dev_id != 0) {
-    core_audio_device_set_nominal_sample_rate(dev_id, capture->sample_rate);
+    bool physical_format_set = false;
+    if (capture->has_sample_format) {
+      if (core_audio_device_set_matching_physical_format(
+              dev_id, CORE_AUDIO_SCOPE_INPUT, capture->sample_rate,
+              capture->sample_format, capture->channels)) {
+        physical_format_set = true;
+      } else {
+        if (err)
+          backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                             "Failed to find matching physical capture format");
+        goto cleanup;
+      }
+    }
+    if (!physical_format_set) {
+      core_audio_device_set_nominal_sample_rate(dev_id, capture->sample_rate);
+    }
     core_audio_device_set_buffer_frame_size(
         dev_id, (uint32_t)capture->chunk_size, CORE_AUDIO_SCOPE_INPUT);
 

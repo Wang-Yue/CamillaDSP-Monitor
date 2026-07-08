@@ -18,11 +18,10 @@ TEST(GeneratorSineCorrectness) {
   capture_device_config_t config;
   memset(&config, 0, sizeof(config));
   config.type = AUDIO_BACKEND_TYPE_GENERATOR;
-  config.channels = 2;
-  config.generator.type = SIGNAL_TYPE_SINE;
-  config.generator.frequency = 1000.0;
-  config.generator.level = 0.0;
-  config.has_generator = true;
+  config.cfg.generator.channels = 2;
+  config.cfg.generator.signal.type = SIGNAL_TYPE_SINE;
+  config.cfg.generator.signal.frequency = 1000.0;
+  config.cfg.generator.signal.level = 0.0;
 
   backend_error_t err;
   capture_backend_t* backend =
@@ -54,11 +53,10 @@ TEST(GeneratorSquareCorrectness) {
   capture_device_config_t config;
   memset(&config, 0, sizeof(config));
   config.type = AUDIO_BACKEND_TYPE_GENERATOR;
-  config.channels = 1;
-  config.generator.type = SIGNAL_TYPE_SQUARE;
-  config.generator.frequency = 100.0;
-  config.generator.level = -6.020599913279624;
-  config.has_generator = true;
+  config.cfg.generator.channels = 1;
+  config.cfg.generator.signal.type = SIGNAL_TYPE_SQUARE;
+  config.cfg.generator.signal.frequency = 100.0;
+  config.cfg.generator.signal.level = -6.020599913279624;
 
   backend_error_t err;
   capture_backend_t* backend =
@@ -89,11 +87,10 @@ TEST(GeneratorNoThrottling) {
   capture_device_config_t config;
   memset(&config, 0, sizeof(config));
   config.type = AUDIO_BACKEND_TYPE_GENERATOR;
-  config.channels = 1;
-  config.generator.type = SIGNAL_TYPE_SINE;
-  config.generator.frequency = 1000.0;
-  config.generator.level = 0.0;
-  config.has_generator = true;
+  config.cfg.generator.channels = 1;
+  config.cfg.generator.signal.type = SIGNAL_TYPE_SINE;
+  config.cfg.generator.signal.frequency = 1000.0;
+  config.cfg.generator.signal.level = 0.0;
 
   backend_error_t err;
   capture_backend_t* backend =

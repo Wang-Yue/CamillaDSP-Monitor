@@ -101,9 +101,9 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
   }
 
   audio_history_buffer_reset(engine->capture_buffer,
-                             config->devices.capture.channels);
+                             capture_device_config_get_channels(&config->devices.capture));
   audio_history_buffer_reset(engine->playback_buffer,
-                             config->devices.playback.channels);
+                             playback_device_config_get_channels(&config->devices.playback));
 
   core->on_chunk_captured = engine_on_chunk_captured_callback;
   core->on_chunk_captured_ctx = engine->capture_buffer;

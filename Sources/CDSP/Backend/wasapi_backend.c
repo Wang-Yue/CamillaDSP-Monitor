@@ -256,19 +256,19 @@ capture_backend_t* wasapi_capture_create(const capture_device_config_t* config,
       (wasapi_capture_t*)calloc(1, sizeof(wasapi_capture_t));
   if (!capture) return NULL;
 
-  if (config->has_device && strcmp(config->device, "default") != 0) {
-    snprintf(capture->device, sizeof(capture->device), "%s", config->device);
+  if (config->cfg.wasapi.has_device && strcmp(config->cfg.wasapi.device, "default") != 0) {
+    snprintf(capture->device, sizeof(capture->device), "%s", config->cfg.wasapi.device);
   } else {
     capture->device[0] = '\0';
   }
 
   capture->sample_rate = sample_rate;
-  capture->channels = config->channels;
+  capture->channels = config->cfg.wasapi.channels;
   capture->chunk_size = chunk_size;
-  capture->format = config->format;
-  capture->loopback = config->loopback;
-  capture->exclusive = config->exclusive;
-  capture->polling = config->has_polling ? config->polling : false;
+  capture->format = config->cfg.wasapi.format;
+  capture->loopback = config->cfg.wasapi.loopback;
+  capture->exclusive = config->cfg.wasapi.exclusive;
+  capture->polling = config->cfg.wasapi.has_polling ? config->cfg.wasapi.polling : false;
 
   capture_backend_t* backend =
       (capture_backend_t*)calloc(1, sizeof(capture_backend_t));
@@ -711,18 +711,18 @@ playback_backend_t* wasapi_playback_create(
       (wasapi_playback_t*)calloc(1, sizeof(wasapi_playback_t));
   if (!playback) return NULL;
 
-  if (config->has_device && strcmp(config->device, "default") != 0) {
-    snprintf(playback->device, sizeof(playback->device), "%s", config->device);
+  if (config->cfg.wasapi.has_device && strcmp(config->cfg.wasapi.device, "default") != 0) {
+    snprintf(playback->device, sizeof(playback->device), "%s", config->cfg.wasapi.device);
   } else {
     playback->device[0] = '\0';
   }
 
   playback->sample_rate = sample_rate;
-  playback->channels = config->channels;
+  playback->channels = config->cfg.wasapi.channels;
   playback->chunk_size = chunk_size;
-  playback->format = config->format;
-  playback->exclusive = config->exclusive;
-  playback->polling = config->has_polling ? config->polling : false;
+  playback->format = config->cfg.wasapi.format;
+  playback->exclusive = config->cfg.wasapi.exclusive;
+  playback->polling = config->cfg.wasapi.has_polling ? config->cfg.wasapi.polling : false;
 
   playback_backend_t* backend =
       (playback_backend_t*)calloc(1, sizeof(playback_backend_t));

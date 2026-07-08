@@ -263,20 +263,20 @@ static inline void encode_sample(uint8_t* dst, double value,
     value = -1.0;
   switch (format) {
     case BINARY_SAMPLE_FORMAT_S16_LE: {
-      int16_t val = (int16_t)(value * 32767.0);
+      int16_t val = (int16_t)round(value * 32767.0);
       dst[0] = val & 0xFF;
       dst[1] = (val >> 8) & 0xFF;
       break;
     }
     case BINARY_SAMPLE_FORMAT_S24_3_LE: {
-      int32_t val = (int32_t)(value * 8388607.0);
+      int32_t val = (int32_t)round(value * 8388607.0);
       dst[0] = val & 0xFF;
       dst[1] = (val >> 8) & 0xFF;
       dst[2] = (val >> 16) & 0xFF;
       break;
     }
     case BINARY_SAMPLE_FORMAT_S24_4_RJ_LE: {
-      int32_t val = (int32_t)(value * 8388607.0);
+      int32_t val = (int32_t)round(value * 8388607.0);
       dst[0] = val & 0xFF;
       dst[1] = (val >> 8) & 0xFF;
       dst[2] = (val >> 16) & 0xFF;
@@ -284,7 +284,7 @@ static inline void encode_sample(uint8_t* dst, double value,
       break;
     }
     case BINARY_SAMPLE_FORMAT_S24_4_LJ_LE: {
-      int32_t val = (int32_t)(value * 8388607.0);
+      int32_t val = (int32_t)round(value * 8388607.0);
       dst[0] = 0x00;
       dst[1] = val & 0xFF;
       dst[2] = (val >> 8) & 0xFF;
@@ -292,7 +292,7 @@ static inline void encode_sample(uint8_t* dst, double value,
       break;
     }
     case BINARY_SAMPLE_FORMAT_S32_LE: {
-      int32_t val = (int32_t)(value * 2147483647.0);
+      int32_t val = (int32_t)round(value * 2147483647.0);
       dst[0] = val & 0xFF;
       dst[1] = (val >> 8) & 0xFF;
       dst[2] = (val >> 16) & 0xFF;
@@ -367,21 +367,34 @@ capture_backend_t* file_capture_create(const capture_device_config_t* config,
 
   if (config->type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
     capture->is_stdin = true;
-    capture->format = config->file_format;
+    capture->format = config->cfg.stdin_in.format;
+    capture->channels = config->cfg.stdin_in.channels;
+    capture->skip_bytes = config->cfg.stdin_in.has_skip_bytes ? (size_t)config->cfg.stdin_in.skip_bytes : 0;
+    capture->read_bytes = config->cfg.stdin_in.has_read_bytes ? (size_t)config->cfg.stdin_in.read_bytes : 0;
+    capture->extra_samples = config->cfg.stdin_in.has_extra_samples ? (size_t)config->cfg.stdin_in.extra_samples : 0;
   } else {
-    snprintf(capture->filename, sizeof(capture->filename), "%s",
-             config->filename);
-    capture->format = config->file_format;
     capture->is_wav = config->is_wav;
+    if (config->is_wav) {
+      snprintf(capture->filename, sizeof(capture->filename), "%s",
+               config->cfg.wav_file.filename);
+      capture->format = BINARY_SAMPLE_FORMAT_INVALID;
+      capture->channels = 0;
+      capture->skip_bytes = 0;
+      capture->read_bytes = 0;
+      capture->extra_samples = config->cfg.wav_file.has_extra_samples ? (size_t)config->cfg.wav_file.extra_samples : 0;
+    } else {
+      snprintf(capture->filename, sizeof(capture->filename), "%s",
+               config->cfg.raw_file.filename);
+      capture->format = config->cfg.raw_file.format;
+      capture->channels = config->cfg.raw_file.channels;
+      capture->skip_bytes = config->cfg.raw_file.has_skip_bytes ? (size_t)config->cfg.raw_file.skip_bytes : 0;
+      capture->read_bytes = config->cfg.raw_file.has_read_bytes ? (size_t)config->cfg.raw_file.read_bytes : 0;
+      capture->extra_samples = config->cfg.raw_file.has_extra_samples ? (size_t)config->cfg.raw_file.extra_samples : 0;
+    }
   }
 
   capture->sample_rate = sample_rate;
-  capture->channels = config->channels;
   capture->chunk_size = chunk_size;
-  capture->skip_bytes = config->has_skip_bytes ? (size_t)config->skip_bytes : 0;
-  capture->read_bytes = config->has_read_bytes ? (size_t)config->read_bytes : 0;
-  capture->extra_samples =
-      config->has_extra_samples ? (size_t)config->extra_samples : 0;
 
   capture_backend_t* backend =
       (capture_backend_t*)calloc(1, sizeof(capture_backend_t));
@@ -635,17 +648,16 @@ playback_backend_t* file_playback_create(const playback_device_config_t* config,
 
   if (config->type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
     playback->is_stdout = true;
-    playback->format = config->file_format;
-    playback->is_wav = config->is_wav;
+    playback->format = config->cfg.stdout_out.format;
+    playback->is_wav = config->cfg.stdout_out.wav_header;
+    playback->channels = config->cfg.stdout_out.channels;
   } else {
     snprintf(playback->filename, sizeof(playback->filename), "%s",
-             config->filename);
-    playback->format = config->file_format;
-    playback->is_wav = config->is_wav;
+             config->cfg.raw_file.filename);
+    playback->format = config->cfg.raw_file.format;
+    playback->is_wav = config->cfg.raw_file.wav_header;
+    playback->channels = config->cfg.raw_file.channels;
   }
-
-  playback->sample_rate = sample_rate;
-  playback->channels = config->channels;
   playback->chunk_size = chunk_size;
 
   playback_backend_t* backend =

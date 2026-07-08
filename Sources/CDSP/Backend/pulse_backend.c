@@ -80,14 +80,14 @@ capture_backend_t* pulse_capture_create(const capture_device_config_t* config,
       (pulse_capture_t*)calloc(1, sizeof(pulse_capture_t));
   if (!capture) return NULL;
 
-  if (config->has_device && strcmp(config->device, "default") != 0) {
-    snprintf(capture->device, sizeof(capture->device), "%s", config->device);
+  if (strlen(config->cfg.pulse.device) > 0 && strcmp(config->cfg.pulse.device, "default") != 0) {
+    snprintf(capture->device, sizeof(capture->device), "%s", config->cfg.pulse.device);
   } else {
     capture->device[0] = '\0';  // default device
   }
 
   capture->sample_rate = sample_rate;
-  capture->channels = config->channels;
+  capture->channels = config->cfg.pulse.channels;
   capture->chunk_size = chunk_size;
 
   capture_backend_t* backend =
@@ -267,14 +267,14 @@ playback_backend_t* pulse_playback_create(
       (pulse_playback_t*)calloc(1, sizeof(pulse_playback_t));
   if (!playback) return NULL;
 
-  if (config->has_device && strcmp(config->device, "default") != 0) {
-    snprintf(playback->device, sizeof(playback->device), "%s", config->device);
+  if (strlen(config->cfg.pulse.device) > 0 && strcmp(config->cfg.pulse.device, "default") != 0) {
+    snprintf(playback->device, sizeof(playback->device), "%s", config->cfg.pulse.device);
   } else {
     playback->device[0] = '\0';
   }
 
   playback->sample_rate = sample_rate;
-  playback->channels = config->channels;
+  playback->channels = config->cfg.pulse.channels;
   playback->chunk_size = chunk_size;
 
   playback_backend_t* backend =

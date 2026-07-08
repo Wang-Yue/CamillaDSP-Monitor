@@ -19,13 +19,13 @@ TEST(FileBackendRawRoundTrip) {
   playback_device_config_t play_cfg;
   memset(&play_cfg, 0, sizeof(play_cfg));
   play_cfg.type = AUDIO_BACKEND_TYPE_FILE;
-  play_cfg.channels = 2;
-  snprintf(play_cfg.filename, sizeof(play_cfg.filename), "%s", raw_filename);
-  play_cfg.file_format = BINARY_SAMPLE_FORMAT_F32_LE;
   play_cfg.is_wav = false;
-  play_cfg.has_filename = true;
-  play_cfg.has_file_format = true;
   play_cfg.has_is_wav = true;
+  play_cfg.cfg.raw_file.channels = 2;
+  snprintf(play_cfg.cfg.raw_file.filename, sizeof(play_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  play_cfg.cfg.raw_file.has_filename = true;
+  play_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_F32_LE;
+  play_cfg.cfg.raw_file.has_format = true;
 
   backend_error_t err;
   playback_backend_t* playback =
@@ -48,13 +48,13 @@ TEST(FileBackendRawRoundTrip) {
   capture_device_config_t cap_cfg;
   memset(&cap_cfg, 0, sizeof(cap_cfg));
   cap_cfg.type = AUDIO_BACKEND_TYPE_FILE;
-  cap_cfg.channels = 2;
-  snprintf(cap_cfg.filename, sizeof(cap_cfg.filename), "%s", raw_filename);
-  cap_cfg.file_format = BINARY_SAMPLE_FORMAT_F32_LE;
   cap_cfg.is_wav = false;
-  cap_cfg.has_filename = true;
-  cap_cfg.has_file_format = true;
   cap_cfg.has_is_wav = true;
+  cap_cfg.cfg.raw_file.channels = 2;
+  snprintf(cap_cfg.cfg.raw_file.filename, sizeof(cap_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  cap_cfg.cfg.raw_file.has_filename = true;
+  cap_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_F32_LE;
+  cap_cfg.cfg.raw_file.has_format = true;
 
   capture_backend_t* capture =
       file_capture_create(&cap_cfg, 44100, 1024, NULL, &err);
@@ -88,13 +88,15 @@ TEST(FileBackendWavRoundTrip) {
   playback_device_config_t play_cfg;
   memset(&play_cfg, 0, sizeof(play_cfg));
   play_cfg.type = AUDIO_BACKEND_TYPE_FILE;
-  play_cfg.channels = 1;
-  snprintf(play_cfg.filename, sizeof(play_cfg.filename), "%s", wav_filename);
-  play_cfg.file_format = BINARY_SAMPLE_FORMAT_S16_LE;
-  play_cfg.is_wav = true;  // Request WAV header!
-  play_cfg.has_filename = true;
-  play_cfg.has_file_format = true;
+  play_cfg.is_wav = true;
   play_cfg.has_is_wav = true;
+  play_cfg.cfg.raw_file.channels = 1;
+  snprintf(play_cfg.cfg.raw_file.filename, sizeof(play_cfg.cfg.raw_file.filename), "%s", wav_filename);
+  play_cfg.cfg.raw_file.has_filename = true;
+  play_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_S16_LE;
+  play_cfg.cfg.raw_file.has_format = true;
+  play_cfg.cfg.raw_file.wav_header = true;
+  play_cfg.cfg.raw_file.has_wav_header = true;
 
   backend_error_t err;
   playback_backend_t* playback =
@@ -117,11 +119,10 @@ TEST(FileBackendWavRoundTrip) {
   capture_device_config_t cap_cfg;
   memset(&cap_cfg, 0, sizeof(cap_cfg));
   cap_cfg.type = AUDIO_BACKEND_TYPE_FILE;
-  cap_cfg.channels = 1;
-  snprintf(cap_cfg.filename, sizeof(cap_cfg.filename), "%s", wav_filename);
   cap_cfg.is_wav = true;
-  cap_cfg.has_filename = true;
   cap_cfg.has_is_wav = true;
+  snprintf(cap_cfg.cfg.wav_file.filename, sizeof(cap_cfg.cfg.wav_file.filename), "%s", wav_filename);
+  cap_cfg.cfg.wav_file.has_filename = true;
 
   // Notice we pass sample_rate = 0, channels = 0 to verify that the
   // open routine updates them from the WAV header!
@@ -157,13 +158,13 @@ TEST(FileBackendPauseThrottling) {
   playback_device_config_t play_cfg;
   memset(&play_cfg, 0, sizeof(play_cfg));
   play_cfg.type = AUDIO_BACKEND_TYPE_FILE;
-  play_cfg.channels = 2;
-  snprintf(play_cfg.filename, sizeof(play_cfg.filename), "%s", raw_filename);
-  play_cfg.file_format = BINARY_SAMPLE_FORMAT_F32_LE;
   play_cfg.is_wav = false;
-  play_cfg.has_filename = true;
-  play_cfg.has_file_format = true;
   play_cfg.has_is_wav = true;
+  play_cfg.cfg.raw_file.channels = 2;
+  snprintf(play_cfg.cfg.raw_file.filename, sizeof(play_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  play_cfg.cfg.raw_file.has_filename = true;
+  play_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_F32_LE;
+  play_cfg.cfg.raw_file.has_format = true;
 
   backend_error_t err;
   playback_backend_t* playback =
@@ -186,13 +187,13 @@ TEST(FileBackendPauseThrottling) {
   capture_device_config_t cap_cfg;
   memset(&cap_cfg, 0, sizeof(cap_cfg));
   cap_cfg.type = AUDIO_BACKEND_TYPE_FILE;
-  cap_cfg.channels = 2;
-  snprintf(cap_cfg.filename, sizeof(cap_cfg.filename), "%s", raw_filename);
-  cap_cfg.file_format = BINARY_SAMPLE_FORMAT_F32_LE;
   cap_cfg.is_wav = false;
-  cap_cfg.has_filename = true;
-  cap_cfg.has_file_format = true;
   cap_cfg.has_is_wav = true;
+  cap_cfg.cfg.raw_file.channels = 2;
+  snprintf(cap_cfg.cfg.raw_file.filename, sizeof(cap_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  cap_cfg.cfg.raw_file.has_filename = true;
+  cap_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_F32_LE;
+  cap_cfg.cfg.raw_file.has_format = true;
 
   capture_backend_t* capture =
       file_capture_create(&cap_cfg, 44100, 1024, NULL, &err);
@@ -235,13 +236,13 @@ static void run_format_roundtrip_test(binary_sample_format_t format, double eps)
   playback_device_config_t play_cfg;
   memset(&play_cfg, 0, sizeof(play_cfg));
   play_cfg.type = AUDIO_BACKEND_TYPE_FILE;
-  play_cfg.channels = 2;
-  snprintf(play_cfg.filename, sizeof(play_cfg.filename), "%s", raw_filename);
-  play_cfg.file_format = format;
   play_cfg.is_wav = false;
-  play_cfg.has_filename = true;
-  play_cfg.has_file_format = true;
   play_cfg.has_is_wav = true;
+  play_cfg.cfg.raw_file.channels = 2;
+  snprintf(play_cfg.cfg.raw_file.filename, sizeof(play_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  play_cfg.cfg.raw_file.has_filename = true;
+  play_cfg.cfg.raw_file.format = format;
+  play_cfg.cfg.raw_file.has_format = true;
 
   backend_error_t err;
   playback_backend_t* playback =
@@ -263,13 +264,13 @@ static void run_format_roundtrip_test(binary_sample_format_t format, double eps)
   capture_device_config_t cap_cfg;
   memset(&cap_cfg, 0, sizeof(cap_cfg));
   cap_cfg.type = AUDIO_BACKEND_TYPE_FILE;
-  cap_cfg.channels = 2;
-  snprintf(cap_cfg.filename, sizeof(cap_cfg.filename), "%s", raw_filename);
-  cap_cfg.file_format = format;
   cap_cfg.is_wav = false;
-  cap_cfg.has_filename = true;
-  cap_cfg.has_file_format = true;
   cap_cfg.has_is_wav = true;
+  cap_cfg.cfg.raw_file.channels = 2;
+  snprintf(cap_cfg.cfg.raw_file.filename, sizeof(cap_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  cap_cfg.cfg.raw_file.has_filename = true;
+  cap_cfg.cfg.raw_file.format = format;
+  cap_cfg.cfg.raw_file.has_format = true;
 
   capture_backend_t* capture =
       file_capture_create(&cap_cfg, 44100, 64, NULL, &err);

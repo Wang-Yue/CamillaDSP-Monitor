@@ -415,7 +415,59 @@ void capture_device_config_init(capture_device_config_t* config,
   if (!config) return;
   memset(config, 0, sizeof(capture_device_config_t));
   config->type = type;
-  config->channels = channels;
+  switch (type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      config->cfg.coreaudio.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      config->cfg.alsa.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      config->cfg.pulse.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    case AUDIO_BACKEND_TYPE_PIPEWIRE:
+      config->cfg.pipewire.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      config->cfg.jack.channels = channels;
+      break;
+#endif
+    case AUDIO_BACKEND_TYPE_FILE:
+      config->cfg.raw_file.channels = channels;
+      break;
+    case AUDIO_BACKEND_TYPE_STDIN_OUT:
+      config->cfg.stdin_in.channels = channels;
+      break;
+    case AUDIO_BACKEND_TYPE_GENERATOR:
+      config->cfg.generator.channels = channels;
+      break;
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      config->cfg.wasapi.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      config->cfg.asio.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_BLUEZ)
+    case AUDIO_BACKEND_TYPE_BLUEZ:
+      config->cfg.bluez.channels = channels;
+      break;
+#endif
+    default:
+      break;
+  }
 }
 
 void playback_device_config_init(playback_device_config_t* config,
@@ -423,7 +475,51 @@ void playback_device_config_init(playback_device_config_t* config,
   if (!config) return;
   memset(config, 0, sizeof(playback_device_config_t));
   config->type = type;
-  config->channels = channels;
+  switch (type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      config->cfg.coreaudio.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      config->cfg.alsa.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      config->cfg.pulse.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    case AUDIO_BACKEND_TYPE_PIPEWIRE:
+      config->cfg.pipewire.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      config->cfg.jack.channels = channels;
+      break;
+#endif
+    case AUDIO_BACKEND_TYPE_FILE:
+      config->cfg.raw_file.channels = channels;
+      break;
+    case AUDIO_BACKEND_TYPE_STDIN_OUT:
+      config->cfg.stdout_out.channels = channels;
+      break;
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      config->cfg.wasapi.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      config->cfg.asio.channels = channels;
+      break;
+#endif
+    default:
+      break;
+  }
 }
 
 /// Capture sample rate when different from playback (requires resampler)
@@ -438,4 +534,427 @@ void devices_config_init(devices_config_t* config, size_t samplerate,
   config->chunksize = chunksize;
   config->capture = capture;
   config->playback = playback;
+}
+
+// Accessor helper functions
+int capture_device_config_get_channels(const capture_device_config_t* config) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.channels;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      return config->cfg.alsa.channels;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      return config->cfg.pulse.channels;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    case AUDIO_BACKEND_TYPE_PIPEWIRE:
+      return config->cfg.pipewire.channels;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      return config->cfg.jack.channels;
+#endif
+    case AUDIO_BACKEND_TYPE_FILE:
+      if (config->is_wav) {
+        FILE* f = fopen(config->cfg.wav_file.filename, "rb");
+        if (f) {
+          uint8_t header[44];
+          int wav_channels = 0;
+          if (fread(header, 1, 44, f) == 44) {
+            if (memcmp(header, "RIFF", 4) == 0 && memcmp(header + 8, "WAVE", 4) == 0) {
+              wav_channels = header[22] | (header[23] << 8);
+            }
+          }
+          fclose(f);
+          return wav_channels;
+        }
+        return 0; 
+      }
+      return config->cfg.raw_file.channels;
+    case AUDIO_BACKEND_TYPE_STDIN_OUT:
+      return config->cfg.stdin_in.channels;
+    case AUDIO_BACKEND_TYPE_GENERATOR:
+      return config->cfg.generator.channels;
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      return config->cfg.wasapi.channels;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      return config->cfg.asio.channels;
+#endif
+#if defined(ENABLE_BLUEZ)
+    case AUDIO_BACKEND_TYPE_BLUEZ:
+      return config->cfg.bluez.channels;
+#endif
+    default:
+      return 0;
+  }
+}
+
+const char* capture_device_config_get_device(const capture_device_config_t* config) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.device;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      return config->cfg.alsa.device;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      return config->cfg.pulse.device;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      return config->cfg.jack.device;
+#endif
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      return config->cfg.wasapi.device;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      return config->cfg.asio.device;
+#endif
+    default:
+      return "";
+  }
+}
+
+#if defined(ENABLE_COREAUDIO)
+coreaudio_sample_format_t capture_device_config_get_format(const capture_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.has_format ? config->cfg.coreaudio.format : COREAUDIO_SAMPLE_FORMAT_INVALID;
+    default:
+      return COREAUDIO_SAMPLE_FORMAT_INVALID;
+  }
+}
+#endif
+
+bool capture_device_config_get_bypass_dop(const capture_device_config_t* config) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.bypass_dop;
+#endif
+    default:
+      return false;
+  }
+}
+
+double capture_device_config_get_dop_cutoff_hz(const capture_device_config_t* config) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.dop_cutoff_hz;
+#endif
+    default:
+      return 20000.0;
+  }
+}
+
+const char* capture_device_config_get_filename(const capture_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_FILE:
+      if (config->is_wav) {
+        return config->cfg.wav_file.filename;
+      }
+      return config->cfg.raw_file.filename;
+    default:
+      return "";
+  }
+}
+
+binary_sample_format_t capture_device_config_get_file_format(const capture_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_FILE:
+      if (!config->is_wav) {
+        return config->cfg.raw_file.format;
+      }
+    default:
+      return BINARY_SAMPLE_FORMAT_INVALID;
+  }
+}
+
+int capture_device_config_get_extra_samples(const capture_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_FILE:
+      if (config->is_wav) {
+        return config->cfg.wav_file.extra_samples;
+      }
+      return config->cfg.raw_file.extra_samples;
+    default:
+      return 0;
+  }
+}
+
+int capture_device_config_get_skip_bytes(const capture_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_FILE:
+      if (!config->is_wav) {
+        return config->cfg.raw_file.skip_bytes;
+      }
+    default:
+      return 0;
+  }
+}
+
+int capture_device_config_get_read_bytes(const capture_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_FILE:
+      if (!config->is_wav) {
+        return config->cfg.raw_file.read_bytes;
+      }
+    default:
+      return 0;
+  }
+}
+
+generator_signal_t capture_device_config_get_generator(const capture_device_config_t* config) {
+  if (config->type == AUDIO_BACKEND_TYPE_GENERATOR) {
+    return config->cfg.generator.signal;
+  }
+  generator_signal_t sig = {0};
+  return sig;
+}
+
+int playback_device_config_get_channels(const playback_device_config_t* config) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.channels;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      return config->cfg.alsa.channels;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      return config->cfg.pulse.channels;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    case AUDIO_BACKEND_TYPE_PIPEWIRE:
+      return config->cfg.pipewire.channels;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      return config->cfg.jack.channels;
+#endif
+    case AUDIO_BACKEND_TYPE_FILE:
+      return config->cfg.raw_file.channels;
+    case AUDIO_BACKEND_TYPE_STDIN_OUT:
+      return config->cfg.stdout_out.channels;
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      return config->cfg.wasapi.channels;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      return config->cfg.asio.channels;
+#endif
+    default:
+      return 0;
+  }
+}
+
+const char* playback_device_config_get_device(const playback_device_config_t* config) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.device;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      return config->cfg.alsa.device;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      return config->cfg.pulse.device;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      return config->cfg.jack.device;
+#endif
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      return config->cfg.wasapi.device;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      return config->cfg.asio.device;
+#endif
+    default:
+      return "";
+  }
+}
+
+#if defined(ENABLE_COREAUDIO)
+coreaudio_sample_format_t playback_device_config_get_format(const playback_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.has_format ? config->cfg.coreaudio.format : COREAUDIO_SAMPLE_FORMAT_INVALID;
+    default:
+      return COREAUDIO_SAMPLE_FORMAT_INVALID;
+  }
+}
+#endif
+
+bool playback_device_config_get_exclusive(const playback_device_config_t* config) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.exclusive;
+#endif
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      return config->cfg.wasapi.exclusive;
+#endif
+    default:
+      return false;
+  }
+}
+
+bool playback_device_config_get_output_dop(const playback_device_config_t* config) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.output_dop;
+#endif
+    default:
+      return false;
+  }
+}
+
+sdm_filter_t playback_device_config_get_dop_encoder_filter(const playback_device_config_t* config) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      return config->cfg.coreaudio.dop_encoder_filter;
+#endif
+    default:
+      return SDM_FILTER_INVALID;
+  }
+}
+
+const char* playback_device_config_get_filename(const playback_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_FILE:
+      return config->cfg.raw_file.filename;
+    default:
+      return "";
+  }
+}
+
+binary_sample_format_t playback_device_config_get_file_format(const playback_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_FILE:
+      return config->cfg.raw_file.format;
+    default:
+      return BINARY_SAMPLE_FORMAT_INVALID;
+  }
+}
+
+bool playback_device_config_get_wav_header(const playback_device_config_t* config) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_FILE:
+      return config->cfg.raw_file.wav_header;
+    default:
+      return false;
+  }
+}
+
+void capture_device_config_set_channels(capture_device_config_t* config, int channels) {
+  switch (config->type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      config->cfg.coreaudio.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      config->cfg.alsa.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      config->cfg.pulse.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    case AUDIO_BACKEND_TYPE_PIPEWIRE:
+      config->cfg.pipewire.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      config->cfg.jack.channels = channels;
+      break;
+#endif
+    case AUDIO_BACKEND_TYPE_FILE:
+      config->cfg.raw_file.channels = channels;
+      break;
+    case AUDIO_BACKEND_TYPE_STDIN_OUT:
+      config->cfg.stdin_in.channels = channels;
+      break;
+    case AUDIO_BACKEND_TYPE_GENERATOR:
+      config->cfg.generator.channels = channels;
+      break;
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      config->cfg.wasapi.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      config->cfg.asio.channels = channels;
+      break;
+#endif
+#if defined(ENABLE_BLUEZ)
+    case AUDIO_BACKEND_TYPE_BLUEZ:
+      config->cfg.bluez.channels = channels;
+      break;
+#endif
+    default:
+      break;
+  }
+}
+
+void capture_device_config_set_extra_samples(capture_device_config_t* config, int extra_samples) {
+  switch (config->type) {
+    case AUDIO_BACKEND_TYPE_FILE:
+      if (config->is_wav) {
+        config->cfg.wav_file.extra_samples = extra_samples;
+        config->cfg.wav_file.has_extra_samples = true;
+      } else {
+        config->cfg.raw_file.extra_samples = extra_samples;
+        config->cfg.raw_file.has_extra_samples = true;
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+#if defined(ENABLE_COREAUDIO)
+void capture_device_config_set_format(capture_device_config_t* config, coreaudio_sample_format_t format) {
+  if (config->type == AUDIO_BACKEND_TYPE_CORE_AUDIO) {
+    config->cfg.coreaudio.format = format;
+    config->cfg.coreaudio.has_format = true;
+  }
+}
+#endif
+
+void capture_device_config_set_file_format(capture_device_config_t* config, binary_sample_format_t format) {
+  if (config->type == AUDIO_BACKEND_TYPE_FILE && !config->is_wav) {
+    config->cfg.raw_file.format = format;
+    config->cfg.raw_file.has_format = true;
+  }
 }

@@ -70,7 +70,7 @@ final class Pipeline {
       processingParameters: processingParams
     )
 
-    let inChannels = config.devices.capture.channels
+    let inChannels = config.devices.capture.channels ?? 0
     self.expectedInChannels = inChannels
     // Pre-allocate the input scratch sized for the capture-side channel count.
 

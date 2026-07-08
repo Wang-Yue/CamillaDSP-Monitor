@@ -254,105 +254,24 @@ typedef struct {
   double level;
 } generator_signal_t;
 
+#if defined(ENABLE_COREAUDIO)
 typedef struct {
-  audio_backend_type_t type;
   int channels;
   char device[256];
   bool has_device;
-#if defined(ENABLE_ALSA)
-  alsa_sample_format_t format;
-#endif
-#if defined(ENABLE_COREAUDIO)
   coreaudio_sample_format_t format;
-#endif
-#if defined(ENABLE_WASAPI)
-  wasapi_sample_format_t format;
-  bool exclusive;
-  bool has_exclusive;
-  bool polling;
-  bool has_polling;
-#endif
-#if defined(ENABLE_ASIO)
-  asio_sample_format_t asio_format;
-  bool has_asio_format;
-#endif
   bool has_format;
-  bool loopback;
-  bool has_loopback;
-#if defined(ENABLE_ALSA) || defined(ENABLE_PULSE) || defined(ENABLE_PIPEWIRE)
-  bool stop_on_inactive;
-  bool has_stop_on_inactive;
-  char link_volume_control[256];
-  bool has_link_volume_control;
-  char link_mute_control[256];
-  bool has_link_mute_control;
-#endif
-  char** labels;
-  size_t labels_count;
-  bool has_labels;
-#if defined(ENABLE_PIPEWIRE)
-  char node_name[256];
-  bool has_node_name;
-  char node_description[256];
-  bool has_node_description;
-  char node_group_name[256];
-  bool has_node_group_name;
-  char autoconnect_to[256];
-  bool has_autoconnect_to;
-#endif
-  /// If true, bypass DoP detection and handle signal strictly as PCM. Default
-  /// is false.
   bool bypass_dop;
   bool has_bypass_dop;
-  /// DoP decimator passband cutoff in Hz. Lower values give higher SINAD by
-  /// rejecting more DSD shaping noise; higher values widen the audible
-  /// passband (and let through more ultrasonic content). Default 20 kHz.
   double dop_cutoff_hz;
   bool has_dop_cutoff_hz;
-  generator_signal_t generator;
-  bool has_generator;
-  char filename[512];
-  bool has_filename;
-  binary_sample_format_t file_format;
-  bool has_file_format;
-  bool is_wav;
-  bool has_is_wav;
-  int skip_bytes;
-  bool has_skip_bytes;
-  int read_bytes;
-  bool has_read_bytes;
-  int extra_samples;
-  bool has_extra_samples;
-#if defined(ENABLE_BLUEZ)
-  char service[256];
-  bool has_service;
-  char dbus_path[512];
-  bool has_dbus_path;
-  binary_sample_format_t bluez_format;
-  bool has_bluez_format;
-#endif
-} capture_device_config_t;
+} coreaudio_capture_config_t;
 
 typedef struct {
-  audio_backend_type_t type;
   int channels;
   char device[256];
   bool has_device;
-#if defined(ENABLE_ALSA)
-  alsa_sample_format_t format;
-#endif
-#if defined(ENABLE_COREAUDIO)
   coreaudio_sample_format_t format;
-#endif
-#if defined(ENABLE_WASAPI)
-  wasapi_sample_format_t format;
-  bool polling;
-  bool has_polling;
-#endif
-#if defined(ENABLE_ASIO)
-  asio_sample_format_t asio_format;
-  bool has_asio_format;
-#endif
   bool has_format;
   bool exclusive;
   bool has_exclusive;
@@ -360,16 +279,48 @@ typedef struct {
   bool has_output_dop;
   sdm_filter_t dop_encoder_filter;
   bool has_dop_encoder_filter;
-  char filename[512];
-  bool has_filename;
-  binary_sample_format_t file_format;
-  bool has_file_format;
-  bool is_wav;
-  bool has_is_wav;
-  char** labels;
-  size_t labels_count;
-  bool has_labels;
+} coreaudio_playback_config_t;
+#endif
+
+#if defined(ENABLE_ALSA)
+typedef struct {
+  int channels;
+  char device[256];
+  alsa_sample_format_t format;
+  bool has_format;
+  bool stop_on_inactive;
+  bool has_stop_on_inactive;
+  char link_volume_control[256];
+  bool has_link_volume_control;
+  char link_mute_control[256];
+  bool has_link_mute_control;
+} alsa_capture_config_t;
+
+typedef struct {
+  int channels;
+  char device[256];
+  alsa_sample_format_t format;
+  bool has_format;
+} alsa_playback_config_t;
+#endif
+
+#if defined(ENABLE_PULSE)
+typedef struct {
+  int channels;
+  char device[256];
+} pulse_capture_config_t;
+
+typedef struct {
+  int channels;
+  char device[256];
+} pulse_playback_config_t;
+#endif
+
 #if defined(ENABLE_PIPEWIRE)
+typedef struct {
+  int channels;
+  char device[256];
+  bool has_device;
   char node_name[256];
   bool has_node_name;
   char node_description[256];
@@ -378,7 +329,215 @@ typedef struct {
   bool has_node_group_name;
   char autoconnect_to[256];
   bool has_autoconnect_to;
+} pipewire_capture_config_t;
+
+typedef struct {
+  int channels;
+  char device[256];
+  bool has_device;
+  char node_name[256];
+  bool has_node_name;
+  char node_description[256];
+  bool has_node_description;
+  char node_group_name[256];
+  bool has_node_group_name;
+  char autoconnect_to[256];
+  bool has_autoconnect_to;
+} pipewire_playback_config_t;
 #endif
+
+#if defined(ENABLE_JACK)
+typedef struct {
+  int channels;
+  char device[256];
+} jack_capture_config_t;
+
+typedef struct {
+  int channels;
+  char device[256];
+} jack_playback_config_t;
+#endif
+
+typedef struct {
+  int channels;
+  binary_sample_format_t format;
+  int extra_samples;
+  bool has_extra_samples;
+  int skip_bytes;
+  bool has_skip_bytes;
+  int read_bytes;
+  bool has_read_bytes;
+} stdin_capture_config_t;
+
+typedef struct {
+  int channels;
+  binary_sample_format_t format;
+  bool wav_header;
+  bool has_wav_header;
+} stdout_playback_config_t;
+
+#if defined(ENABLE_WASAPI)
+typedef struct {
+  int channels;
+  char device[256];
+  bool has_device;
+  wasapi_sample_format_t format;
+  bool has_format;
+  bool exclusive;
+  bool has_exclusive;
+  bool loopback;
+  bool has_loopback;
+  bool polling;
+  bool has_polling;
+} wasapi_capture_config_t;
+
+typedef struct {
+  int channels;
+  char device[256];
+  bool has_device;
+  wasapi_sample_format_t format;
+  bool has_format;
+  bool exclusive;
+  bool has_exclusive;
+  bool polling;
+  bool has_polling;
+} wasapi_playback_config_t;
+#endif
+
+#if defined(ENABLE_ASIO)
+typedef struct {
+  int channels;
+  char device[256];
+  asio_sample_format_t format;
+  bool has_format;
+} asio_capture_config_t;
+
+typedef struct {
+  int channels;
+  char device[256];
+  asio_sample_format_t format;
+  bool has_format;
+} asio_playback_config_t;
+#endif
+
+#if defined(ENABLE_BLUEZ)
+typedef struct {
+  char service[256];
+  bool has_service;
+  char dbus_path[256];
+  bool has_dbus_path;
+  binary_sample_format_t format;
+  int channels;
+} bluez_capture_config_t;
+#endif
+
+typedef struct {
+  char filename[512];
+  bool has_filename;
+  int extra_samples;
+  bool has_extra_samples;
+} wav_file_capture_config_t;
+
+typedef struct {
+  char filename[512];
+  bool has_filename;
+  binary_sample_format_t format;
+  bool has_format;
+  int channels;
+  int skip_bytes;
+  bool has_skip_bytes;
+  int read_bytes;
+  bool has_read_bytes;
+  int extra_samples;
+  bool has_extra_samples;
+} raw_file_capture_config_t;
+
+typedef struct {
+  char filename[512];
+  bool has_filename;
+  binary_sample_format_t format;
+  bool has_format;
+  int channels;
+  bool wav_header;
+  bool has_wav_header;
+} raw_file_playback_config_t;
+
+typedef struct {
+  int channels;
+  generator_signal_t signal;
+} generator_capture_config_t;
+
+typedef struct {
+  audio_backend_type_t type;
+  char** labels;
+  size_t labels_count;
+  bool has_labels;
+  bool is_wav;
+  bool has_is_wav;
+  union {
+#if defined(ENABLE_COREAUDIO)
+    coreaudio_capture_config_t coreaudio;
+#endif
+#if defined(ENABLE_ALSA)
+    alsa_capture_config_t alsa;
+#endif
+#if defined(ENABLE_PULSE)
+    pulse_capture_config_t pulse;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    pipewire_capture_config_t pipewire;
+#endif
+#if defined(ENABLE_JACK)
+    jack_capture_config_t jack;
+#endif
+    raw_file_capture_config_t raw_file;
+    wav_file_capture_config_t wav_file;
+    stdin_capture_config_t stdin_in;
+    generator_capture_config_t generator;
+#if defined(ENABLE_WASAPI)
+    wasapi_capture_config_t wasapi;
+#endif
+#if defined(ENABLE_ASIO)
+    asio_capture_config_t asio;
+#endif
+#if defined(ENABLE_BLUEZ)
+    bluez_capture_config_t bluez;
+#endif
+  } cfg;
+} capture_device_config_t;
+
+typedef struct {
+  audio_backend_type_t type;
+  char** labels;
+  size_t labels_count;
+  bool has_labels;
+  bool is_wav;
+  bool has_is_wav;
+  union {
+#if defined(ENABLE_COREAUDIO)
+    coreaudio_playback_config_t coreaudio;
+#endif
+#if defined(ENABLE_ALSA)
+    alsa_playback_config_t alsa;
+#endif
+#if defined(ENABLE_PULSE)
+    pulse_playback_config_t pulse;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    pipewire_playback_config_t pipewire;
+#endif
+#if defined(ENABLE_JACK)
+    jack_playback_config_t jack;
+#endif
+    raw_file_playback_config_t raw_file;
+    stdout_playback_config_t stdout_out;
+#if defined(ENABLE_WASAPI)
+    wasapi_playback_config_t wasapi;
+#endif
+#if defined(ENABLE_ASIO)
+    asio_playback_config_t asio;
+#endif
+  } cfg;
 } playback_device_config_t;
 
 typedef struct {
@@ -426,5 +585,39 @@ void playback_device_config_init(playback_device_config_t* config,
 void devices_config_init(devices_config_t* config, size_t samplerate,
                          size_t chunksize, capture_device_config_t capture,
                          playback_device_config_t playback);
+
+// Accessor helper functions
+int capture_device_config_get_channels(const capture_device_config_t* config);
+const char* capture_device_config_get_device(const capture_device_config_t* config);
+#if defined(ENABLE_COREAUDIO)
+coreaudio_sample_format_t capture_device_config_get_format(const capture_device_config_t* config);
+#endif
+bool capture_device_config_get_bypass_dop(const capture_device_config_t* config);
+double capture_device_config_get_dop_cutoff_hz(const capture_device_config_t* config);
+const char* capture_device_config_get_filename(const capture_device_config_t* config);
+binary_sample_format_t capture_device_config_get_file_format(const capture_device_config_t* config);
+int capture_device_config_get_extra_samples(const capture_device_config_t* config);
+int capture_device_config_get_skip_bytes(const capture_device_config_t* config);
+int capture_device_config_get_read_bytes(const capture_device_config_t* config);
+generator_signal_t capture_device_config_get_generator(const capture_device_config_t* config);
+
+int playback_device_config_get_channels(const playback_device_config_t* config);
+const char* playback_device_config_get_device(const playback_device_config_t* config);
+#if defined(ENABLE_COREAUDIO)
+coreaudio_sample_format_t playback_device_config_get_format(const playback_device_config_t* config);
+#endif
+bool playback_device_config_get_exclusive(const playback_device_config_t* config);
+bool playback_device_config_get_output_dop(const playback_device_config_t* config);
+sdm_filter_t playback_device_config_get_dop_encoder_filter(const playback_device_config_t* config);
+const char* playback_device_config_get_filename(const playback_device_config_t* config);
+binary_sample_format_t playback_device_config_get_file_format(const playback_device_config_t* config);
+bool playback_device_config_get_wav_header(const playback_device_config_t* config);
+
+void capture_device_config_set_channels(capture_device_config_t* config, int channels);
+void capture_device_config_set_extra_samples(capture_device_config_t* config, int extra_samples);
+#if defined(ENABLE_COREAUDIO)
+void capture_device_config_set_format(capture_device_config_t* config, coreaudio_sample_format_t format);
+#endif
+void capture_device_config_set_file_format(capture_device_config_t* config, binary_sample_format_t format);
 
 #endif  // CLIB_CONFIG_ENGINE_CONFIG_TYPES_H

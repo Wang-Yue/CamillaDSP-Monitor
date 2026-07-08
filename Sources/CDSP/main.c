@@ -377,18 +377,19 @@ int main(int argc, char** argv) {
     if (samplerate_override > 0)
       parsed->devices.samplerate = samplerate_override;
     if (channels_override > 0)
-      parsed->devices.capture.channels = channels_override;
+      capture_device_config_set_channels(&parsed->devices.capture, channels_override);
     if (extra_samples_override >= 0) {
-      parsed->devices.capture.extra_samples = extra_samples_override;
-      parsed->devices.capture.has_extra_samples = true;
+      capture_device_config_set_extra_samples(&parsed->devices.capture, extra_samples_override);
     }
     if (format_override) {
-      if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_ALSA) {
+      if (false) {
+        // dummy
 #if defined(ENABLE_ALSA)
+      } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_ALSA) {
         alsa_sample_format_t fmt = alsa_sample_format_from_string(format_override);
         if (fmt != ALSA_SAMPLE_FORMAT_INVALID) {
-          parsed->devices.capture.format = fmt;
-          parsed->devices.capture.has_format = true;
+          parsed->devices.capture.cfg.alsa.format = fmt;
+          parsed->devices.capture.cfg.alsa.has_format = true;
         } else {
           printf("Error: Invalid format '%s' for ALSA\n", format_override);
           dsp_config_free(parsed);
@@ -400,8 +401,7 @@ int main(int argc, char** argv) {
       } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_CORE_AUDIO) {
         coreaudio_sample_format_t fmt = coreaudio_sample_format_from_string(format_override);
         if (fmt != COREAUDIO_SAMPLE_FORMAT_INVALID) {
-          parsed->devices.capture.format = fmt;
-          parsed->devices.capture.has_format = true;
+          capture_device_config_set_format(&parsed->devices.capture, fmt);
         } else {
           printf("Error: Invalid format '%s' for CoreAudio\n", format_override);
           dsp_config_free(parsed);
@@ -413,8 +413,8 @@ int main(int argc, char** argv) {
       } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_WASAPI) {
         wasapi_sample_format_t fmt = wasapi_sample_format_from_string(format_override);
         if (fmt != WASAPI_SAMPLE_FORMAT_INVALID) {
-          parsed->devices.capture.format = fmt;
-          parsed->devices.capture.has_format = true;
+          parsed->devices.capture.cfg.wasapi.format = fmt;
+          parsed->devices.capture.cfg.wasapi.has_format = true;
         } else {
           printf("Error: Invalid format '%s' for WASAPI\n", format_override);
           dsp_config_free(parsed);
@@ -426,8 +426,8 @@ int main(int argc, char** argv) {
       } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_ASIO) {
         asio_sample_format_t fmt = asio_sample_format_from_string(format_override);
         if (fmt != ASIO_SAMPLE_FORMAT_INVALID) {
-          parsed->devices.capture.asio_format = fmt;
-          parsed->devices.capture.has_asio_format = true;
+          parsed->devices.capture.cfg.asio.format = fmt;
+          parsed->devices.capture.cfg.asio.has_format = true;
         } else {
           printf("Error: Invalid format '%s' for ASIO\n", format_override);
           dsp_config_free(parsed);
@@ -439,8 +439,7 @@ int main(int argc, char** argv) {
       } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_BLUEZ) {
         binary_sample_format_t fmt = binary_sample_format_from_string(format_override);
         if (fmt != BINARY_SAMPLE_FORMAT_INVALID) {
-          parsed->devices.capture.bluez_format = fmt;
-          parsed->devices.capture.has_bluez_format = true;
+          parsed->devices.capture.cfg.bluez.format = fmt;
         } else {
           printf("Error: Invalid format '%s' for Bluez\n", format_override);
           dsp_config_free(parsed);
@@ -452,8 +451,7 @@ int main(int argc, char** argv) {
                  parsed->devices.capture.type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
         binary_sample_format_t fmt = binary_sample_format_from_string(format_override);
         if (fmt != BINARY_SAMPLE_FORMAT_INVALID) {
-          parsed->devices.capture.file_format = fmt;
-          parsed->devices.capture.has_file_format = true;
+          capture_device_config_set_file_format(&parsed->devices.capture, fmt);
         } else {
           printf("Error: Invalid format '%s' for File\n", format_override);
           dsp_config_free(parsed);

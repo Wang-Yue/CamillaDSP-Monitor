@@ -97,18 +97,12 @@ capture_backend_t* generator_capture_create(
       (generator_capture_t*)calloc(1, sizeof(generator_capture_t));
   if (!capture) return NULL;
 
-  if (config->has_generator) {
-    capture->signal_type = config->generator.type;
-    capture->frequency = config->generator.frequency;
-    capture->amplitude = db_to_linear(config->generator.level);
-  } else {
-    capture->signal_type = SIGNAL_TYPE_SINE;
-    capture->frequency = 1000.0;
-    capture->amplitude = db_to_linear(0.0);
-  }
+  capture->signal_type = config->cfg.generator.signal.type;
+  capture->frequency = config->cfg.generator.signal.frequency;
+  capture->amplitude = db_to_linear(config->cfg.generator.signal.level);
 
   capture->sample_rate = sample_rate;
-  capture->channels = config->channels;
+  capture->channels = config->cfg.generator.channels;
   capture->chunk_size = chunk_size;
   capture->rand_seed = (unsigned int)(get_time_ns() & 0xFFFFFFFF);
 

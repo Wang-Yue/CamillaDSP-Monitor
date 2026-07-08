@@ -15,25 +15,26 @@ static void init_default_config(dsp_config_t* config) {
   memset(config, 0, sizeof(dsp_config_t));
   config->devices.samplerate = 44100;
   config->devices.chunksize = 1024;
-  config->devices.capture.channels = 2;
 #if defined(ENABLE_COREAUDIO)
   config->devices.capture.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
+  config->devices.capture.cfg.coreaudio.channels = 2;
+  config->devices.playback.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
+  config->devices.playback.cfg.coreaudio.channels = 2;
 #elif defined(ENABLE_ALSA)
   config->devices.capture.type = AUDIO_BACKEND_TYPE_ALSA;
+  config->devices.capture.cfg.alsa.channels = 2;
+  config->devices.playback.type = AUDIO_BACKEND_TYPE_ALSA;
+  config->devices.playback.cfg.alsa.channels = 2;
 #elif defined(ENABLE_WASAPI)
   config->devices.capture.type = AUDIO_BACKEND_TYPE_WASAPI;
+  config->devices.capture.cfg.wasapi.channels = 2;
+  config->devices.playback.type = AUDIO_BACKEND_TYPE_WASAPI;
+  config->devices.playback.cfg.wasapi.channels = 2;
 #else
   config->devices.capture.type = AUDIO_BACKEND_TYPE_FILE;
-#endif
-  config->devices.playback.channels = 2;
-#if defined(ENABLE_COREAUDIO)
-  config->devices.playback.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
-#elif defined(ENABLE_ALSA)
-  config->devices.playback.type = AUDIO_BACKEND_TYPE_ALSA;
-#elif defined(ENABLE_WASAPI)
-  config->devices.playback.type = AUDIO_BACKEND_TYPE_WASAPI;
-#else
+  config->devices.capture.cfg.raw_file.channels = 2;
   config->devices.playback.type = AUDIO_BACKEND_TYPE_FILE;
+  config->devices.playback.cfg.raw_file.channels = 2;
 #endif
 }
 
@@ -743,11 +744,11 @@ TEST(ConfigLoaderParseAndValidate) {
       "        \"samplerate\": 44100,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n"
       "        },\n"
       "        \"playback\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n"
       "        }\n"
       "    }\n"

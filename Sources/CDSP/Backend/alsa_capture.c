@@ -94,24 +94,24 @@ capture_backend_t* alsa_capture_create(const capture_device_config_t* config,
   // Clean up name
   char clean_name[256];
   snprintf(clean_name, sizeof(clean_name), "%s",
-           config->device[0] ? config->device : "default");
+           config->cfg.alsa.device[0] ? config->cfg.alsa.device : "default");
   char* space = strchr(clean_name, ' ');
   if (space) *space = '\0';
   snprintf(capture->device_name, sizeof(capture->device_name), "%s",
            clean_name);
 
   capture->sample_rate = sample_rate;
-  capture->channels = config->channels;
+  capture->channels = config->cfg.alsa.channels;
   capture->chunk_size = chunk_size;
 
-  capture->has_format = config->has_format;
-  capture->requested_format = config->format;
+  capture->has_format = config->cfg.alsa.has_format;
+  capture->requested_format = config->cfg.alsa.format;
   capture->params = params;
-  capture->stop_on_inactive = config->stop_on_inactive;
+  capture->stop_on_inactive = config->cfg.alsa.stop_on_inactive;
   snprintf(capture->link_volume_control, sizeof(capture->link_volume_control),
-           "%s", config->link_volume_control);
+           "%s", config->cfg.alsa.link_volume_control);
   snprintf(capture->link_mute_control, sizeof(capture->link_mute_control), "%s",
-           config->link_mute_control);
+           config->cfg.alsa.link_mute_control);
 
   capture_backend_t* backend =
       (capture_backend_t*)calloc(1, sizeof(capture_backend_t));

@@ -93,20 +93,21 @@ TEST(DSPEngineSetConfigAndReload) {
       "            \"channels\": 2\n"
       "        }\n"
       "    },\n"
-      "    \"mixers\": [{\n"
-      "        \"name\": \"mymixer\",\n"
-      "        \"channels_in\": 2,\n"
-      "        \"channels_out\": 2,\n"
-      "        \"mapping\": [{\n"
-      "            \"dest\": 0,\n"
-      "            \"sources\": [{\"channel\": 0, \"gain\": 0.0, \"inverted\": "
+      "    \"mixers\": {\n"
+      "        \"mymixer\": {\n"
+      "            \"channels_in\": 2,\n"
+      "            \"channels_out\": 2,\n"
+      "            \"mapping\": [{\n"
+      "                \"dest\": 0,\n"
+      "                \"sources\": [{\"channel\": 0, \"gain\": 0.0, \"inverted\": "
       "false, \"mute\": false}]\n"
-      "        }, {\n"
-      "            \"dest\": 1,\n"
-      "            \"sources\": [{\"channel\": 1, \"gain\": 0.0, \"inverted\": "
+      "            }, {\n"
+      "                \"dest\": 1,\n"
+      "                \"sources\": [{\"channel\": 1, \"gain\": 0.0, \"inverted\": "
       "false, \"mute\": false}]\n"
-      "        }]\n"
-      "    }],\n"
+      "            }]\n"
+      "        }\n"
+      "    },\n"
       "    \"pipeline\": [{\n"
       "        \"type\": \"Mixer\",\n"
       "        \"name\": \"mymixer\"\n"
@@ -143,20 +144,21 @@ TEST(DSPEngineSetConfigAndReload) {
       "            \"channels\": 2\n"
       "        }\n"
       "    },\n"
-      "    \"mixers\": [{\n"
-      "        \"name\": \"mymixer\",\n"
-      "        \"channels_in\": 2,\n"
-      "        \"channels_out\": 2,\n"
-      "        \"mapping\": [{\n"
-      "            \"dest\": 0,\n"
-      "            \"sources\": [{\"channel\": 0, \"gain\": 0.0, \"inverted\": "
+      "    \"mixers\": {\n"
+      "        \"mymixer\": {\n"
+      "            \"channels_in\": 2,\n"
+      "            \"channels_out\": 2,\n"
+      "            \"mapping\": [{\n"
+      "                \"dest\": 0,\n"
+      "                \"sources\": [{\"channel\": 0, \"gain\": 0.0, \"inverted\": "
       "false, \"mute\": false}]\n"
-      "        }, {\n"
-      "            \"dest\": 1,\n"
-      "            \"sources\": [{\"channel\": 1, \"gain\": 0.0, \"inverted\": "
+      "            }, {\n"
+      "                \"dest\": 1,\n"
+      "                \"sources\": [{\"channel\": 1, \"gain\": 0.0, \"inverted\": "
       "false, \"mute\": false}]\n"
-      "        }]\n"
-      "    }],\n"
+      "            }]\n"
+      "        }\n"
+      "    },\n"
       "    \"pipeline\": [{\n"
       "        \"type\": \"Mixer\",\n"
       "        \"name\": \"mymixer\"\n"
@@ -165,8 +167,24 @@ TEST(DSPEngineSetConfigAndReload) {
 #endif
 
   audio_backend_error_t err;
-  dsp_engine_set_config(engine, json1, &err);
-  dsp_engine_set_config(engine, json2, &err);
+  memset(&err, 0, sizeof(err));
+  bool success1 = dsp_engine_set_config(engine, json1, &err);
+  if (!success1) {
+    printf("ERROR: json1 set_config failed: %s\n", err.message);
+  }
+  ASSERT_TRUE(success1);
+
+  bool success2 = dsp_engine_set_config(engine, json2, &err);
+  if (!success2) {
+    printf("ERROR: json2 set_config failed: %s\n", err.message);
+  }
+  ASSERT_TRUE(success2);
+
+  const dsp_config_t* active = dsp_engine_get_active_config(engine);
+  ASSERT_TRUE(active != NULL);
+  ASSERT_EQ(1, active->mixers_count);
+  ASSERT_EQ(1, active->pipeline_count);
+
   dsp_engine_stop(engine);
   dsp_engine_free(engine);
 }
@@ -219,7 +237,7 @@ TEST(DSPEngineSetConfigStruct) {
 
   // Apply overrides
   parsed->devices.samplerate = 48000;
-  parsed->devices.capture.channels = 4;
+  capture_device_config_set_channels(&parsed->devices.capture, 4);
 
   audio_backend_error_t berr;
   bool ok = dsp_engine_set_config_struct(engine, parsed, &berr);
@@ -228,7 +246,7 @@ TEST(DSPEngineSetConfigStruct) {
   const dsp_config_t* active = dsp_engine_get_active_config(engine);
   ASSERT_TRUE(active != NULL);
   ASSERT_EQ(48000, active->devices.samplerate);
-  ASSERT_EQ(4, active->devices.capture.channels);
+  ASSERT_EQ(4, capture_device_config_get_channels(&active->devices.capture));
 
   dsp_engine_stop(engine);
   dsp_engine_free(engine);
@@ -303,6 +321,27 @@ TEST(DSPEngineE2E_PipeWire) {
 #endif
 }
 
+TEST(DSPEngineE2E_CoreAudio) {
+#if defined(__APPLE__)
+  const char* json =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 512,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    }\n"
+      "}";
+  run_e2e_test_config(json, "CoreAudio");
+#endif
+}
+
 TEST(DSPEngineE2E_GeneratorFile) {
   const char* json =
       "{\n"
@@ -330,12 +369,19 @@ TEST(DSPEngineE2E_GeneratorFile) {
 }
 
 TEST(DSPEngineE2E_FileFile) {
-  FILE* f = fopen("/tmp/e2e_in.raw", "wb");
-  if (f) {
-    char zeros[1024 * 4 * 2] = {0};
-    fwrite(zeros, 1, sizeof(zeros), f);
-    fclose(f);
+  const char* in_file = "/tmp/e2e_in.raw";
+  const char* out_file = "/tmp/e2e_out.raw";
+  remove(in_file);
+  remove(out_file);
+
+  FILE* f = fopen(in_file, "wb");
+  ASSERT_TRUE(f != NULL);
+  int16_t input_samples[1024 * 2];
+  for (int i = 0; i < 1024 * 2; i++) {
+    input_samples[i] = (int16_t)i;
   }
+  fwrite(input_samples, sizeof(int16_t), 1024 * 2, f);
+  fclose(f);
 
   const char* json =
       "{\n"
@@ -356,7 +402,34 @@ TEST(DSPEngineE2E_FileFile) {
       "        }\n"
       "    }\n"
       "}";
-  run_e2e_test_config(json, "File -> File");
+
+  dsp_engine_t* engine = dsp_engine_create();
+  ASSERT_TRUE(engine != NULL);
+
+  audio_backend_error_t err;
+  memset(&err, 0, sizeof(err));
+  bool success = dsp_engine_set_config(engine, json, &err);
+  ASSERT_TRUE(success);
+
+  struct timespec ts = {.tv_sec = 0, .tv_nsec = 50000000};
+  nanosleep(&ts, NULL);
+
+  dsp_engine_stop(engine);
+  dsp_engine_free(engine);
+
+  FILE* out_f = fopen(out_file, "rb");
+  ASSERT_TRUE(out_f != NULL);
+  int16_t output_samples[1024 * 2];
+  size_t read_count = fread(output_samples, sizeof(int16_t), 1024 * 2, out_f);
+  ASSERT_EQ(1024 * 2, read_count);
+  fclose(out_f);
+
+  for (int i = 0; i < 1024 * 2; i++) {
+    ASSERT_EQ(input_samples[i], output_samples[i]);
+  }
+
+  remove(in_file);
+  remove(out_file);
 }
 
 TEST(DSPEngineE2E_GeneratorFile_SpeedTest) {

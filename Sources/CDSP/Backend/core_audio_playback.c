@@ -26,6 +26,8 @@ struct core_audio_playback {
   double sample_rate;
   int chunk_size;
   bool exclusive;
+  char sample_format[16];
+  bool has_sample_format;
 
   AudioUnit audio_unit;
   /// Per-channel SPSC ring buffer of `Float` samples. `write(chunk:)`
@@ -162,17 +164,27 @@ playback_backend_t* core_audio_playback_create(
                          "Out of memory");
     return NULL;
   }
-  if (config->device[0] != '\0') {
-    strncpy(playback->device_name, config->device,
+  const char* config_device = playback_device_config_get_device(config);
+  if (config_device && config_device[0] != '\0') {
+    strncpy(playback->device_name, config_device,
             sizeof(playback->device_name) - 1);
   }
-  playback->channels = config->channels;
+  int config_channels = playback_device_config_get_channels(config);
+  playback->channels = config_channels;
   playback->sample_rate = (double)sample_rate;
   playback->chunk_size = chunk_size;
-  playback->exclusive = config->exclusive;
+  playback->exclusive = playback_device_config_get_exclusive(config);
+
+  coreaudio_sample_format_t fmt = playback_device_config_get_format(config);
+  if (fmt != COREAUDIO_SAMPLE_FORMAT_INVALID) {
+    const char* fmt_str = coreaudio_sample_format_to_string(fmt);
+    strncpy(playback->sample_format, fmt_str, sizeof(playback->sample_format) - 1);
+    playback->has_sample_format = true;
+  }
+
   playback->ring_buffer_size = chunk_size * 8;
   playback->playback_rings = (spsc_audio_ring_buffer_t**)calloc(
-      config->channels, sizeof(spsc_audio_ring_buffer_t*));
+      config_channels, sizeof(spsc_audio_ring_buffer_t*));
   if (!playback->playback_rings) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
@@ -180,7 +192,7 @@ playback_backend_t* core_audio_playback_create(
     free(playback);
     return NULL;
   }
-  for (int i = 0; i < config->channels; i++) {
+  for (int i = 0; i < config_channels; i++) {
     playback->playback_rings[i] =
         spsc_audio_ring_buffer_create(playback->ring_buffer_size);
     if (!playback->playback_rings[i]) {
@@ -283,7 +295,22 @@ bool core_audio_playback_open(core_audio_playback_t* playback,
         playback->did_acquire_hog_mode = true;
       }
     }
-    core_audio_device_set_nominal_sample_rate(dev_id, playback->sample_rate);
+    bool physical_format_set = false;
+    if (playback->has_sample_format) {
+      if (core_audio_device_set_matching_physical_format(
+              dev_id, CORE_AUDIO_SCOPE_OUTPUT, playback->sample_rate,
+              playback->sample_format, playback->channels)) {
+        physical_format_set = true;
+      } else {
+        if (err)
+          backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                             "Failed to find matching physical playback format");
+        goto cleanup;
+      }
+    }
+    if (!physical_format_set) {
+      core_audio_device_set_nominal_sample_rate(dev_id, playback->sample_rate);
+    }
     core_audio_device_set_buffer_frame_size(
         dev_id, (uint32_t)playback->chunk_size, CORE_AUDIO_SCOPE_OUTPUT);
 

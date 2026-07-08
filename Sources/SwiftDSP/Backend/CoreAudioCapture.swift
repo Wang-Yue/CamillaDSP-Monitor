@@ -74,14 +74,21 @@ final class CoreAudioCapture: CaptureBackend {
   /// Sized to one chunk; reused on every read so the consumer thread
   /// doesn't churn the heap.
   private var readScratch: UnsafeMutableBufferPointer<Float>?
+  private let sampleFormat: SampleFormat?
 
-  init(config: CaptureDeviceConfig, sampleRate: Int, chunkSize: Int) {
+  init(config: CoreAudioCaptureConfig, sampleRate: Int, chunkSize: Int) {
     self.deviceName = config.device
-    self.channels = config.channels
+    let channelsVal = config.channels
+    self.channels = channelsVal
+    if let fmtStr = config.format {
+      self.sampleFormat = SampleFormat(rawValue: fmtStr)
+    } else {
+      self.sampleFormat = nil
+    }
     self.sampleRate = Double(sampleRate)
     self.chunkSize = chunkSize
     // Four chunks of headroom matches the original lock-based design.
-    self.captureRings = (0..<config.channels).map { _ in
+    self.captureRings = (0..<self.channels).map { _ in
       SPSCAudioRingBuffer(minimumCapacity: chunkSize * 4)
     }
   }
@@ -171,9 +178,25 @@ final class CoreAudioCapture: CaptureBackend {
       )
     }
     if let deviceID = resolvedDeviceID {
-      if !CoreAudioDevice.setNominalSampleRate(deviceID, sampleRate) {
-        logger.warning(
-          "Capture device refused %f Hz; AudioUnit will sample-rate convert", .double(sampleRate))
+      var physicalFormatSet = false
+      if let format = sampleFormat {
+        if CoreAudioDevice.setMatchingPhysicalFormat(
+          deviceID,
+          scope: .input,
+          sampleRate: sampleRate,
+          formatString: format.rawValue,
+          requestedChannels: channels
+        ) {
+          physicalFormatSet = true
+        } else {
+          throw BackendError.initializationFailed("Failed to find matching physical capture format")
+        }
+      }
+      if !physicalFormatSet {
+        if !CoreAudioDevice.setNominalSampleRate(deviceID, sampleRate) {
+          logger.warning(
+            "Capture device refused %f Hz; AudioUnit will sample-rate convert", .double(sampleRate))
+        }
       }
 
       // Explicitly request the device's buffer size to match our chunkSize

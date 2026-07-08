@@ -14,9 +14,9 @@ TEST(PipeWirePlaybackBasic) {
   playback_device_config_t play_cfg;
   memset(&play_cfg, 0, sizeof(play_cfg));
   play_cfg.type = AUDIO_BACKEND_TYPE_PIPEWIRE;
-  play_cfg.channels = 2;
-  snprintf(play_cfg.device, sizeof(play_cfg.device), "default");
-  play_cfg.has_device = true;
+  play_cfg.cfg.pipewire.channels = 2;
+  snprintf(play_cfg.cfg.pipewire.device, sizeof(play_cfg.cfg.pipewire.device), "default");
+  play_cfg.cfg.pipewire.has_device = true;
 
   backend_error_t err;
   playback_backend_t* playback =
@@ -53,9 +53,9 @@ TEST(PipeWireCaptureBasic) {
   capture_device_config_t cap_cfg;
   memset(&cap_cfg, 0, sizeof(cap_cfg));
   cap_cfg.type = AUDIO_BACKEND_TYPE_PIPEWIRE;
-  cap_cfg.channels = 2;
-  snprintf(cap_cfg.device, sizeof(cap_cfg.device), "default");
-  cap_cfg.has_device = true;
+  cap_cfg.cfg.pipewire.channels = 2;
+  snprintf(cap_cfg.cfg.pipewire.device, sizeof(cap_cfg.cfg.pipewire.device), "default");
+  cap_cfg.cfg.pipewire.has_device = true;
 
   backend_error_t err;
   capture_backend_t* capture =

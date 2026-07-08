@@ -159,22 +159,22 @@ capture_backend_t* bluez_capture_create(
   }
 
   capture->logger = logger_create("dsp.capture.bluez");
-  capture->channels = config->channels;
-  capture->format = config->bluez_format;
+  capture->channels = config->cfg.bluez.channels;
+  capture->format = config->cfg.bluez.format;
   capture->sample_rate = sample_rate;
   capture->chunk_size = chunk_size;
   capture->pipe_fd = -1;
   capture->ctrl_fd = -1;
   capture->active = false;
 
-  if (config->has_service && strlen(config->service) > 0) {
-    snprintf(capture->service, sizeof(capture->service), "%s", config->service);
+  if (config->cfg.bluez.has_service && strlen(config->cfg.bluez.service) > 0) {
+    snprintf(capture->service, sizeof(capture->service), "%s", config->cfg.bluez.service);
   } else {
     snprintf(capture->service, sizeof(capture->service), "org.bluealsa");
   }
 
-  if (config->has_dbus_path && strlen(config->dbus_path) > 0) {
-    snprintf(capture->dbus_path, sizeof(capture->dbus_path), "%s", config->dbus_path);
+  if (config->cfg.bluez.has_dbus_path && strlen(config->cfg.bluez.dbus_path) > 0) {
+    snprintf(capture->dbus_path, sizeof(capture->dbus_path), "%s", config->cfg.bluez.dbus_path);
   } else {
     if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                                "Missing dbus_path for Bluez backend");

@@ -67,7 +67,7 @@ public actor SwiftDSPEngine {
       engine.processingParams.setMuted(mute, for: fader)
     }
 
-    captureBuffer.reset(channels: parsed.devices.capture.channels)
+    captureBuffer.reset(channels: parsed.devices.capture.channels ?? 0)
     playbackBuffer.reset(channels: parsed.devices.playback.channels)
 
     let capBuf = self.captureBuffer

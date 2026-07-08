@@ -381,6 +381,76 @@ enum CoreAudioDevice {
       mReserved: 0
     )
   }
+
+  static func setMatchingPhysicalFormat(
+    _ deviceID: AudioDeviceID,
+    scope: CoreAudioScope,
+    sampleRate: Double,
+    formatString: String,
+    requestedChannels: Int
+  ) -> Bool {
+    let streamsList = streams(of: deviceID, scope: scope)
+    var bestASBD: AudioStreamBasicDescription? = nil
+    var bestStreamID: AudioStreamID? = nil
+
+    for stream in streamsList {
+      var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioStreamPropertyAvailablePhysicalFormats,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+      )
+      var size: UInt32 = 0
+      guard AudioObjectGetPropertyDataSize(stream, &addr, 0, nil, &size) == noErr, size > 0 else {
+        continue
+      }
+      let count = Int(size) / MemoryLayout<AudioStreamRangedDescription>.size
+      var ranged = [AudioStreamRangedDescription](repeating: AudioStreamRangedDescription(), count: count)
+      guard AudioObjectGetPropertyData(stream, &addr, 0, nil, &size, &ranged) == noErr else {
+        continue
+      }
+
+      for entry in ranged {
+        let asbd = entry.mFormat
+        guard asbd.mFormatID == kAudioFormatLinearPCM else { continue }
+
+        // Match sample rate range
+        let lo = entry.mSampleRateRange.mMinimum
+        let hi = entry.mSampleRateRange.mMaximum
+        guard sampleRate >= lo, sampleRate <= hi else { continue }
+
+        // Match format string
+        let streamFmt = CoreAudioCapabilities.formatStringFor(asbd: asbd)
+        guard streamFmt == formatString else { continue }
+
+        // Match channels (mChannelsPerFrame >= requestedChannels)
+        let physChannels = Int(asbd.mChannelsPerFrame)
+        guard physChannels >= requestedChannels else { continue }
+
+        // Find smallest channels layout
+        if bestASBD == nil || physChannels < Int(bestASBD!.mChannelsPerFrame) {
+          var targetASBD = asbd
+          targetASBD.mSampleRate = sampleRate
+          bestASBD = targetASBD
+          bestStreamID = stream
+        }
+      }
+    }
+
+    if var asbd = bestASBD, let streamID = bestStreamID {
+      var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioStreamPropertyPhysicalFormat,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+      )
+      let status = AudioObjectSetPropertyData(
+        streamID, &addr, 0, nil,
+        UInt32(MemoryLayout<AudioStreamBasicDescription>.size), &asbd
+      )
+      return status == noErr
+    }
+
+    return false
+  }
 }
 
 /// Watches a CoreAudio device's `kAudioDevicePropertyNominalSampleRate`

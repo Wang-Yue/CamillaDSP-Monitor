@@ -183,64 +183,36 @@ public struct GeneratorConfig: Codable, Equatable, Sendable {
   }
 }
 
-public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
-  public var type: AudioBackendType
+public struct CoreAudioCaptureConfig: Codable, Equatable, Sendable {
   public var channels: Int
   public var device: String?
-  /// If true, bypass DoP detection and handle signal strictly as PCM. Default is false.
+  public var format: String?
   public var bypassDoP: Bool?
-  /// DoP decimator passband cutoff in Hz. Lower values give higher SINAD by
-  /// rejecting more DSD shaping noise; higher values widen the audible
-  /// passband (and let through more ultrasonic content). Default 20 kHz.
   public var dopCutoffHz: Double?
   public var channelLabels: [String]?
 
-  // File Backend fields:
-  public var filename: String?
-  public var fileFormat: String? // "S16_LE", "S32_LE", etc.
-  public var isWav: Bool?
-  public var skipBytes: Int?
-  public var readBytes: Int?
-  public var extraSamples: Int?
-
-  // Generator Backend fields:
-  public var signal: GeneratorConfig?
-
   enum CodingKeys: String, CodingKey {
-    case type, channels, device
+    case channels, device
+    case format
     case bypassDoP = "bypass_dop"
     case dopCutoffHz = "dop_cutoff_hz"
     case channelLabels = "channel_labels"
-    case filename
-    case fileFormat = "format"
-    case isWav = "is_wav"
-    case skipBytes = "skip_bytes"
-    case readBytes = "read_bytes"
-    case extraSamples = "extra_samples"
-    case signal = "signal"
   }
 
   public init(
-    type: AudioBackendType, channels: Int, device: String? = nil, format: String? = nil,
-    bypassDoP: Bool? = nil, dopCutoffHz: Double? = nil, channelLabels: [String]? = nil,
-    filename: String? = nil, fileFormat: String? = nil, isWav: Bool? = nil,
-    skipBytes: Int? = nil, readBytes: Int? = nil, extraSamples: Int? = nil,
-    signal: GeneratorConfig? = nil
+    channels: Int,
+    device: String? = nil,
+    format: String? = nil,
+    bypassDoP: Bool? = nil,
+    dopCutoffHz: Double? = nil,
+    channelLabels: [String]? = nil
   ) {
-    _ = format
-    self.type = type
     self.channels = channels
     self.device = device
+    self.format = format
     self.bypassDoP = bypassDoP
     self.dopCutoffHz = dopCutoffHz
     self.channelLabels = channelLabels
-    self.filename = filename
-    self.fileFormat = fileFormat
-    self.isWav = isWav
-    self.skipBytes = skipBytes
-    self.readBytes = readBytes
-    self.extraSamples = extraSamples
-    self.signal = signal
   }
 }
 
@@ -265,84 +237,380 @@ public enum SDMFilter: String, Codable, CaseIterable, Sendable, ExpressibleByStr
   }
 }
 
-public struct PlaybackDeviceConfig: Codable, Equatable, Sendable {
-  public var type: AudioBackendType
+public struct CoreAudioPlaybackConfig: Codable, Equatable, Sendable {
   public var channels: Int
   public var device: String?
+  public var format: String?
   public var exclusive: Bool?
   public var outputDoP: Bool?
   public var dopEncoderFilter: SDMFilter?
   public var channelLabels: [String]?
 
-  // File Backend fields:
-  public var filename: String?
-  public var fileFormat: String? // "S16_LE", "S32_LE", etc.
-  public var isWav: Bool?
-
   enum CodingKeys: String, CodingKey {
-    case type, channels, device, exclusive
+    case channels, device
+    case format
+    case exclusive
     case outputDoP = "output_dop"
     case dopEncoderFilter = "dop_encoder_filter"
     case channelLabels = "channel_labels"
-    case filename
-    case fileFormat = "format"
-    case isWav = "is_wav"
-    case wavHeader = "wav_header"
   }
+
   public init(
-    type: AudioBackendType, channels: Int, device: String? = nil,
-    exclusive: Bool? = nil, channelLabels: [String]? = nil,
-    filename: String? = nil, fileFormat: String? = nil, isWav: Bool? = nil
+    channels: Int,
+    device: String? = nil,
+    format: String? = nil,
+    exclusive: Bool? = nil,
+    outputDoP: Bool? = nil,
+    dopEncoderFilter: SDMFilter? = nil,
+    channelLabels: [String]? = nil
   ) {
-    self.type = type
     self.channels = channels
     self.device = device
+    self.format = format
     self.exclusive = exclusive
-    self.outputDoP = nil
-    self.dopEncoderFilter = nil
+    self.outputDoP = outputDoP
+    self.dopEncoderFilter = dopEncoderFilter
     self.channelLabels = channelLabels
+  }
+}
+
+public struct WavFileCaptureConfig: Codable, Equatable, Sendable {
+  public var filename: String
+  public var extraSamples: Int?
+  public var channelLabels: [String]?
+
+  enum CodingKeys: String, CodingKey {
+    case filename
+    case extraSamples = "extra_samples"
+    case channelLabels = "channel_labels"
+  }
+
+  public init(
+    filename: String,
+    extraSamples: Int? = nil,
+    channelLabels: [String]? = nil
+  ) {
     self.filename = filename
-    self.fileFormat = fileFormat
-    self.isWav = isWav
+    self.extraSamples = extraSamples
+    self.channelLabels = channelLabels
+  }
+}
+
+public struct RawFileCaptureConfig: Codable, Equatable, Sendable {
+  public var channels: Int
+  public var filename: String
+  public var format: String
+  public var skipBytes: Int?
+  public var readBytes: Int?
+  public var extraSamples: Int?
+  public var channelLabels: [String]?
+
+  enum CodingKeys: String, CodingKey {
+    case channels, filename, format
+    case skipBytes = "skip_bytes"
+    case readBytes = "read_bytes"
+    case extraSamples = "extra_samples"
+    case channelLabels = "channel_labels"
+  }
+
+  public init(
+    channels: Int,
+    filename: String,
+    format: String,
+    skipBytes: Int? = nil,
+    readBytes: Int? = nil,
+    extraSamples: Int? = nil,
+    channelLabels: [String]? = nil
+  ) {
+    self.channels = channels
+    self.filename = filename
+    self.format = format
+    self.skipBytes = skipBytes
+    self.readBytes = readBytes
+    self.extraSamples = extraSamples
+    self.channelLabels = channelLabels
+  }
+}
+
+public struct RawFilePlaybackConfig: Codable, Equatable, Sendable {
+  public var channels: Int
+  public var filename: String
+  public var format: String
+  public var wavHeader: Bool?
+  public var channelLabels: [String]?
+
+  enum CodingKeys: String, CodingKey {
+    case channels, filename, format
+    case wavHeader = "wav_header"
+    case channelLabels = "channel_labels"
+  }
+
+  public init(
+    channels: Int,
+    filename: String,
+    format: String,
+    wavHeader: Bool? = nil,
+    channelLabels: [String]? = nil
+  ) {
+    self.channels = channels
+    self.filename = filename
+    self.format = format
+    self.wavHeader = wavHeader
+    self.channelLabels = channelLabels
+  }
+}
+
+public struct GeneratorCaptureConfig: Codable, Equatable, Sendable {
+  public var channels: Int
+  public var signal: GeneratorConfig
+  public var channelLabels: [String]?
+
+  enum CodingKeys: String, CodingKey {
+    case channels, signal
+    case channelLabels = "channel_labels"
+  }
+
+  public init(
+    channels: Int,
+    signal: GeneratorConfig,
+    channelLabels: [String]? = nil
+  ) {
+    self.channels = channels
+    self.signal = signal
+    self.channelLabels = channelLabels
+  }
+}
+
+public enum CaptureDeviceConfig: Equatable, Sendable {
+  case coreAudio(CoreAudioCaptureConfig)
+  case wavFile(WavFileCaptureConfig)
+  case rawFile(RawFileCaptureConfig)
+  case signalGenerator(GeneratorCaptureConfig)
+}
+
+public enum PlaybackDeviceConfig: Equatable, Sendable {
+  case coreAudio(CoreAudioPlaybackConfig)
+  case rawFile(RawFilePlaybackConfig)
+}
+
+extension CaptureDeviceConfig {
+  public var type: AudioBackendType {
+    switch self {
+    case .coreAudio: return .coreAudio
+    case .wavFile: return .wavFile
+    case .rawFile: return .rawFile
+    case .signalGenerator: return .signalGenerator
+    }
+  }
+
+  public var channels: Int? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.channels
+    case .rawFile(let cfg): return cfg.channels
+    case .signalGenerator(let cfg): return cfg.channels
+    case .wavFile: return nil
+    }
+  }
+
+  public var deviceName: String? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.device
+    default: return nil
+    }
+  }
+
+  public var device: String? {
+    return deviceName
+  }
+
+  public var channelLabels: [String]? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.channelLabels
+    case .wavFile(let cfg): return cfg.channelLabels
+    case .rawFile(let cfg): return cfg.channelLabels
+    case .signalGenerator(let cfg): return cfg.channelLabels
+    }
+  }
+
+  public mutating func setChannels(_ count: Int) {
+    switch self {
+    case .coreAudio(var cfg):
+      cfg.channels = count
+      self = .coreAudio(cfg)
+    case .rawFile(var cfg):
+      cfg.channels = count
+      self = .rawFile(cfg)
+    case .signalGenerator(var cfg):
+      cfg.channels = count
+      self = .signalGenerator(cfg)
+    case .wavFile:
+      break
+    }
+  }
+
+  public init(type: AudioBackendType, channels: Int) {
+    switch type {
+    case .coreAudio:
+      self = .coreAudio(CoreAudioCaptureConfig(channels: channels))
+    case .rawFile:
+      self = .rawFile(RawFileCaptureConfig(channels: channels, filename: "", format: "S16_LE"))
+    case .wavFile:
+      self = .wavFile(WavFileCaptureConfig(filename: ""))
+    case .signalGenerator:
+      self = .signalGenerator(GeneratorCaptureConfig(channels: channels, signal: GeneratorConfig()))
+    }
+  }
+
+  public var bypassDoP: Bool? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.bypassDoP
+    default: return nil
+    }
+  }
+
+  public var dopCutoffHz: Double? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.dopCutoffHz
+    default: return nil
+    }
+  }
+}
+
+extension PlaybackDeviceConfig {
+  public var type: AudioBackendType {
+    switch self {
+    case .coreAudio: return .coreAudio
+    case .rawFile: return .rawFile
+    }
+  }
+
+  public var channels: Int {
+    switch self {
+    case .coreAudio(let cfg): return cfg.channels
+    case .rawFile(let cfg): return cfg.channels
+    }
+  }
+
+  public var deviceName: String? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.device
+    default: return nil
+    }
+  }
+
+  public var device: String? {
+    return deviceName
+  }
+
+  public var exclusive: Bool? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.exclusive
+    case .rawFile: return nil
+    }
+  }
+
+  public var channelLabels: [String]? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.channelLabels
+    case .rawFile(let cfg): return cfg.channelLabels
+    }
+  }
+
+  public var outputDoP: Bool? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.outputDoP
+    default: return nil
+    }
+  }
+
+  public var dopEncoderFilter: SDMFilter? {
+    switch self {
+    case .coreAudio(let cfg): return cfg.dopEncoderFilter
+    default: return nil
+    }
+  }
+
+  public init(type: AudioBackendType, channels: Int) {
+    switch type {
+    case .coreAudio:
+      self = .coreAudio(CoreAudioPlaybackConfig(channels: channels))
+    case .rawFile:
+      self = .rawFile(RawFilePlaybackConfig(channels: channels, filename: "", format: "S16_LE"))
+    case .wavFile, .signalGenerator:
+      fatalError("Unsupported playback backend: \(type)")
+    }
+  }
+}
+
+extension CaptureDeviceConfig: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case type
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let typeStr = try container.decode(String.self, forKey: .type)
+    guard let type = AudioBackendType(rawValue: typeStr) else {
+      throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unknown capture backend type: \(typeStr)")
+    }
+    switch type {
+    case .coreAudio:
+      self = .coreAudio(try CoreAudioCaptureConfig(from: decoder))
+    case .wavFile:
+      self = .wavFile(try WavFileCaptureConfig(from: decoder))
+    case .rawFile:
+      self = .rawFile(try RawFileCaptureConfig(from: decoder))
+    case .signalGenerator:
+      self = .signalGenerator(try GeneratorCaptureConfig(from: decoder))
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch self {
+    case .coreAudio(let cfg):
+      try container.encode(AudioBackendType.coreAudio.rawValue, forKey: .type)
+      try cfg.encode(to: encoder)
+    case .wavFile(let cfg):
+      try container.encode(AudioBackendType.wavFile.rawValue, forKey: .type)
+      try cfg.encode(to: encoder)
+    case .rawFile(let cfg):
+      try container.encode(AudioBackendType.rawFile.rawValue, forKey: .type)
+      try cfg.encode(to: encoder)
+    case .signalGenerator(let cfg):
+      try container.encode(AudioBackendType.signalGenerator.rawValue, forKey: .type)
+      try cfg.encode(to: encoder)
+    }
+  }
+}
+
+extension PlaybackDeviceConfig: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case type
   }
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let typeStr = try container.decode(String.self, forKey: .type)
     if typeStr == "File" {
-      let isWavVal = try container.decodeIfPresent(Bool.self, forKey: .wavHeader) ?? false
-      self.type = isWavVal ? .wavFile : .rawFile
-      self.isWav = isWavVal
+      self = .rawFile(try RawFilePlaybackConfig(from: decoder))
+    } else if typeStr == "CoreAudio" {
+      self = .coreAudio(try CoreAudioPlaybackConfig(from: decoder))
     } else {
-      self.type = AudioBackendType(rawValue: typeStr) ?? .coreAudio
-      self.isWav = nil
+      throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unsupported playback backend type: \(typeStr)")
     }
-    self.channels = try container.decode(Int.self, forKey: .channels)
-    self.device = try container.decodeIfPresent(String.self, forKey: .device)
-    self.exclusive = try container.decodeIfPresent(Bool.self, forKey: .exclusive)
-    self.outputDoP = try container.decodeIfPresent(Bool.self, forKey: .outputDoP)
-    self.dopEncoderFilter = try container.decodeIfPresent(SDMFilter.self, forKey: .dopEncoderFilter)
-    self.channelLabels = try container.decodeIfPresent([String].self, forKey: .channelLabels)
-    self.filename = try container.decodeIfPresent(String.self, forKey: .filename)
-    self.fileFormat = try container.decodeIfPresent(String.self, forKey: .fileFormat)
   }
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
-    if type == .rawFile || type == .wavFile {
+    switch self {
+    case .coreAudio(let cfg):
+      try container.encode(AudioBackendType.coreAudio.rawValue, forKey: .type)
+      try cfg.encode(to: encoder)
+    case .rawFile(let cfg):
       try container.encode("File", forKey: .type)
-      try container.encode(type == .wavFile, forKey: .wavHeader)
-    } else {
-      try container.encode(type.rawValue, forKey: .type)
+      try cfg.encode(to: encoder)
     }
-    try container.encode(channels, forKey: .channels)
-    try container.encodeIfPresent(device, forKey: .device)
-    try container.encodeIfPresent(exclusive, forKey: .exclusive)
-    try container.encodeIfPresent(outputDoP, forKey: .outputDoP)
-    try container.encodeIfPresent(dopEncoderFilter, forKey: .dopEncoderFilter)
-    try container.encodeIfPresent(channelLabels, forKey: .channelLabels)
-    try container.encodeIfPresent(filename, forKey: .filename)
-    try container.encodeIfPresent(fileFormat, forKey: .fileFormat)
   }
 }
 

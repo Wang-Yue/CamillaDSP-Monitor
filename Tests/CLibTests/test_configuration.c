@@ -7,6 +7,13 @@
 #include "../../Sources/CDSP/Config/configuration.h"
 #include "test_support.h"
 
+static void set_test_channels(dsp_config_t* config, int cap_chs, int play_chs) {
+  config->devices.capture.type = AUDIO_BACKEND_TYPE_FILE;
+  config->devices.capture.cfg.raw_file.channels = cap_chs;
+  config->devices.playback.type = AUDIO_BACKEND_TYPE_FILE;
+  config->devices.playback.cfg.raw_file.channels = play_chs;
+}
+
 TEST(ParseValidConfig) {
   const char* json =
       "{\n"
@@ -14,11 +21,11 @@ TEST(ParseValidConfig) {
       "        \"samplerate\": 44100,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n"
       "        },\n"
       "        \"playback\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n"
       "        }\n"
       "    }\n"
@@ -31,8 +38,8 @@ TEST(ParseValidConfig) {
   ASSERT_TRUE(config != NULL);
   ASSERT_EQ(44100, config->devices.samplerate);
   ASSERT_EQ(1024, config->devices.chunksize);
-  ASSERT_EQ(2, config->devices.capture.channels);
-  ASSERT_EQ(2, config->devices.playback.channels);
+  ASSERT_EQ(2, capture_device_config_get_channels(&config->devices.capture));
+  ASSERT_EQ(2, playback_device_config_get_channels(&config->devices.playback));
   dsp_config_free(config);
 }
 
@@ -53,11 +60,11 @@ TEST(ParseResamplerConfig) {
       "            \"f_cutoff\": 0.95\n"
       "        },\n"
       "        \"capture\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n"
       "        },\n"
       "        \"playback\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n"
       "        }\n"
       "    }\n"
@@ -91,7 +98,7 @@ TEST(ParseInvalidJSON) {
       "        \"samplerate\": 44100,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n";
   dsp_config_t* config = NULL;
   config_error_t err;
@@ -107,8 +114,7 @@ TEST(ValidateSampleRate) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 0;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
   config_error_t err;
   config_error_init(&err);
   int res = dsp_config_validate(&config, &err);
@@ -122,8 +128,7 @@ TEST(ValidateChunkSize) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 0;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
   config_error_t err;
   config_error_init(&err);
   int res = dsp_config_validate(&config, &err);
@@ -137,8 +142,7 @@ TEST(ValidateChannels) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 0;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 0, 2);
   config_error_t err;
   config_error_init(&err);
   int res = dsp_config_validate(&config, &err);
@@ -146,8 +150,7 @@ TEST(ValidateChannels) {
   ASSERT_EQ(CONFIG_ERR_VALIDATION, err.type);
   ASSERT_TRUE(strstr(err.message, "Capture channels must be positive") != NULL);
 
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 0;
+  set_test_channels(&config, 2, 0);
   res = dsp_config_validate(&config, &err);
   ASSERT_NE(0, res);
   ASSERT_EQ(CONFIG_ERR_VALIDATION, err.type);
@@ -160,8 +163,7 @@ TEST(ValidatePipelineFilterMissingNames) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
 
   pipeline_step_t step;
   memset(&step, 0, sizeof(step));
@@ -185,8 +187,7 @@ TEST(ValidatePipelineFilterMissingChannels) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
 
   char* name = strdup("myfilter");
   pipeline_step_t step;
@@ -212,8 +213,7 @@ TEST(ValidatePipelineFilterUndefined) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
 
   char* name = strdup("undefined_filter");
   pipeline_step_t step;
@@ -242,8 +242,7 @@ TEST(ValidatePipelineFilterChannelOutOfRange) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
 
   named_filter_config_t nf;
   memset(&nf, 0, sizeof(nf));
@@ -280,8 +279,7 @@ TEST(ValidatePipelineMixerMissingName) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
 
   pipeline_step_t step;
   memset(&step, 0, sizeof(step));
@@ -303,8 +301,7 @@ TEST(ValidatePipelineMixerUndefined) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
 
   pipeline_step_t step;
   memset(&step, 0, sizeof(step));
@@ -329,8 +326,7 @@ TEST(ValidatePipelineMixerInputMismatch) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
 
   named_mixer_config_t nm;
   memset(&nm, 0, sizeof(nm));
@@ -364,8 +360,7 @@ TEST(ValidatePipelineOutputMismatch) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
 
   named_mixer_config_t nm;
   memset(&nm, 0, sizeof(nm));
@@ -400,8 +395,7 @@ TEST(ValidatePipelineBypassedStep) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
 
   named_filter_config_t nf;
   memset(&nf, 0, sizeof(nf));
@@ -567,8 +561,7 @@ TEST(ValidateInvalidFilterConfig) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
   config.filters = &nf;
   config.filters_count = 1;
 
@@ -597,8 +590,7 @@ TEST(ValidateInvalidMixerConfig) {
   memset(&config, 0, sizeof(config));
   config.devices.samplerate = 44100;
   config.devices.chunksize = 1024;
-  config.devices.capture.channels = 2;
-  config.devices.playback.channels = 2;
+  set_test_channels(&config, 2, 2);
   config.mixers = &nm;
   config.mixers_count = 1;
 
@@ -617,11 +609,11 @@ TEST(ParseFullConfigWithMixerAndFilter) {
       "        \"samplerate\": 48000,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n"
       "        },\n"
       "        \"playback\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n"
       "        }\n"
       "    },\n"
@@ -679,7 +671,7 @@ TEST(ParseFullConfigWithMixerAndFilter) {
   // Validate devices
   ASSERT_EQ(48000, config->devices.samplerate);
   ASSERT_EQ(1024, config->devices.chunksize);
-  ASSERT_EQ(2, config->devices.capture.channels);
+  ASSERT_EQ(2, capture_device_config_get_channels(&config->devices.capture));
 
   // Validate filters
   ASSERT_EQ(1, config->filters_count);
@@ -719,12 +711,12 @@ TEST(ParseChannelLabels) {
       "        \"samplerate\": 44100,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 4,\n"
       "            \"labels\": [\"Left\", \"Right\", null, \"Center\"]\n"
       "        },\n"
       "        \"playback\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 4,\n"
       "            \"labels\": [\"OutputLeft\", null, \"OutputRight\", null]\n"
       "        }\n"
@@ -786,12 +778,12 @@ TEST(ParseJackConfig) {
   ASSERT_TRUE(config != NULL);
   
   ASSERT_EQ(AUDIO_BACKEND_TYPE_JACK, config->devices.capture.type);
-  ASSERT_EQ(2, config->devices.capture.channels);
-  ASSERT_STR_EQ("my_jack_capture", config->devices.capture.device);
+  ASSERT_EQ(2, config->devices.capture.cfg.jack.channels);
+  ASSERT_STR_EQ("my_jack_capture", config->devices.capture.cfg.jack.device);
 
   ASSERT_EQ(AUDIO_BACKEND_TYPE_JACK, config->devices.playback.type);
-  ASSERT_EQ(2, config->devices.playback.channels);
-  ASSERT_STR_EQ("my_jack_playback", config->devices.playback.device);
+  ASSERT_EQ(2, config->devices.playback.cfg.jack.channels);
+  ASSERT_STR_EQ("my_jack_playback", config->devices.playback.cfg.jack.device);
 
   dsp_config_free(config);
 }
@@ -812,7 +804,7 @@ TEST(ParseBluezConfig) {
       "            \"format\": \"S16_LE\"\n"
       "        },\n"
       "        \"playback\": {\n"
-      "            \"type\": \"CoreAudio\",\n"
+      "            \"type\": \"File\",\n"
       "            \"channels\": 2\n"
       "        }\n"
       "    }\n"
@@ -825,10 +817,10 @@ TEST(ParseBluezConfig) {
   ASSERT_TRUE(config != NULL);
   
   ASSERT_EQ(AUDIO_BACKEND_TYPE_BLUEZ, config->devices.capture.type);
-  ASSERT_EQ(2, config->devices.capture.channels);
-  ASSERT_STR_EQ("org.bluealsa.custom", config->devices.capture.service);
-  ASSERT_STR_EQ("/org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dp/source/profile", config->devices.capture.dbus_path);
-  ASSERT_EQ(BINARY_SAMPLE_FORMAT_S16_LE, config->devices.capture.bluez_format);
+  ASSERT_EQ(2, config->devices.capture.cfg.bluez.channels);
+  ASSERT_STR_EQ("org.bluealsa.custom", config->devices.capture.cfg.bluez.service);
+  ASSERT_STR_EQ("/org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dp/source/profile", config->devices.capture.cfg.bluez.dbus_path);
+  ASSERT_EQ(BINARY_SAMPLE_FORMAT_S16_LE, config->devices.capture.cfg.bluez.format);
 
   dsp_config_free(config);
 }

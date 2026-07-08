@@ -541,7 +541,7 @@ struct FileSelectionView: View {
       }
 
       if isCapture && isWav {
-        Text("Sample rate and format are parsed from the file header")
+        Text("Sample rate, format, and channel count are parsed from the file header")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else {
@@ -555,13 +555,13 @@ struct FileSelectionView: View {
           }
           .labelsHidden()
         }
-      }
 
-      HStack {
-        Text("Channels")
-          .frame(width: 100, alignment: .leading)
-        Stepper("\(channels)", value: $channels, in: 1...32)
-          .frame(width: 100)
+        HStack {
+          Text("Channels")
+            .frame(width: 100, alignment: .leading)
+          Stepper("\(channels)", value: $channels, in: 1...32)
+            .frame(width: 100)
+        }
       }
 
       if showExtras {

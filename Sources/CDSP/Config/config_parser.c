@@ -207,10 +207,92 @@ static void parse_resampler(const char* js, const jsmntok_t* tokens, int count,
   }
 }
 
+typedef struct {
+  audio_backend_type_t type;
+  int channels;
+  char device[256];
+  bool has_device;
+#if defined(ENABLE_COREAUDIO)
+  coreaudio_sample_format_t format;
+  bool has_format;
+#endif
+#if defined(ENABLE_ALSA)
+  alsa_sample_format_t alsa_format;
+  bool has_alsa_format;
+#endif
+  bool bypass_dop;
+  bool has_bypass_dop;
+  double dop_cutoff_hz;
+  bool has_dop_cutoff_hz;
+  generator_signal_t generator;
+
+  char filename[512];
+  bool has_filename;
+  binary_sample_format_t file_format;
+  bool has_file_format;
+  bool is_wav;
+  bool has_is_wav;
+  int skip_bytes;
+  bool has_skip_bytes;
+  int read_bytes;
+  bool has_read_bytes;
+  int extra_samples;
+  bool has_extra_samples;
+  char** labels;
+  size_t labels_count;
+  bool has_labels;
+
+  // Win32 / WASAPI / ASIO Capture fields
+  bool loopback;
+  bool has_loopback;
+  bool exclusive;
+  bool has_exclusive;
+  bool polling;
+  bool has_polling;
+#if defined(ENABLE_WASAPI)
+  wasapi_sample_format_t wasapi_format;
+  bool has_wasapi_format;
+#endif
+#if defined(ENABLE_ASIO)
+  asio_sample_format_t asio_format;
+  bool has_asio_format;
+#endif
+
+  // ALSA / Pulse / PipeWire Capture fields
+  bool stop_on_inactive;
+  bool has_stop_on_inactive;
+  char link_volume_control[256];
+  bool has_link_volume_control;
+  char link_mute_control[256];
+  bool has_link_mute_control;
+
+  // PipeWire Capture fields
+  char node_name[256];
+  bool has_node_name;
+  char node_description[256];
+  bool has_node_description;
+  char node_group_name[256];
+  bool has_node_group_name;
+  char autoconnect_to[256];
+  bool has_autoconnect_to;
+
+  // Bluez Capture fields
+  char service[256];
+  bool has_service;
+  char dbus_path[256];
+  bool has_dbus_path;
+#if defined(ENABLE_BLUEZ)
+  binary_sample_format_t bluez_format;
+#endif
+} flat_capture_device_config_t;
+
 static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
                           int cap_val_idx, devices_config_t* devices) {
   if (cap_val_idx == -1 || tokens[cap_val_idx].type != JSMN_OBJECT) return;
-  capture_device_config_t* cap = &devices->capture;
+
+  flat_capture_device_config_t temp;
+  memset(&temp, 0, sizeof(temp));
+  flat_capture_device_config_t* cap = &temp;
 
   int ch_idx = find_object_key(js, tokens, count, cap_val_idx, "channels");
   if (ch_idx != -1 && tokens[ch_idx].type == JSMN_PRIMITIVE) {
@@ -260,8 +342,8 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
       cap->has_file_format = true;
 #if defined(ENABLE_WASAPI)
     } else if (cap->type == AUDIO_BACKEND_TYPE_WASAPI) {
-      cap->format = wasapi_sample_format_from_string(fmt_str);
-      cap->has_format = true;
+      cap->wasapi_format = wasapi_sample_format_from_string(fmt_str);
+      cap->has_wasapi_format = true;
 #endif
 #if defined(ENABLE_ASIO)
     } else if (cap->type == AUDIO_BACKEND_TYPE_ASIO) {
@@ -271,15 +353,17 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
 #if defined(ENABLE_BLUEZ)
     } else if (cap->type == AUDIO_BACKEND_TYPE_BLUEZ) {
       cap->bluez_format = binary_sample_format_from_string(fmt_str);
-      cap->has_bluez_format = true;
 #endif
-    } else {
 #if defined(ENABLE_ALSA)
-      cap->format = alsa_sample_format_from_string(fmt_str);
-#elif defined(ENABLE_COREAUDIO)
-      cap->format = coreaudio_sample_format_from_string(fmt_str);
+    } else if (cap->type == AUDIO_BACKEND_TYPE_ALSA) {
+      cap->alsa_format = alsa_sample_format_from_string(fmt_str);
+      cap->has_alsa_format = true;
 #endif
+#if defined(ENABLE_COREAUDIO)
+    } else if (cap->type == AUDIO_BACKEND_TYPE_CORE_AUDIO) {
+      cap->format = coreaudio_sample_format_from_string(fmt_str);
       cap->has_format = true;
+#endif
     }
   }
 
@@ -416,14 +500,204 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
     } else {
       cap->generator.level = 0.0;
     }
-    cap->has_generator = true;
+
+  }
+
+  // Copy flat temp to union configuration
+  capture_device_config_t* final_cap = &devices->capture;
+  final_cap->type = temp.type;
+  final_cap->labels = temp.labels;
+  final_cap->labels_count = temp.labels_count;
+  final_cap->has_labels = temp.has_labels;
+  final_cap->is_wav = temp.is_wav;
+  final_cap->has_is_wav = temp.has_is_wav;
+
+  switch (temp.type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      final_cap->cfg.coreaudio.channels = temp.channels;
+      strncpy(final_cap->cfg.coreaudio.device, temp.device, sizeof(final_cap->cfg.coreaudio.device) - 1);
+      final_cap->cfg.coreaudio.has_device = temp.has_device;
+      final_cap->cfg.coreaudio.format = temp.format;
+      final_cap->cfg.coreaudio.has_format = temp.has_format;
+      final_cap->cfg.coreaudio.bypass_dop = temp.bypass_dop;
+      final_cap->cfg.coreaudio.has_bypass_dop = temp.has_bypass_dop;
+      final_cap->cfg.coreaudio.dop_cutoff_hz = temp.dop_cutoff_hz;
+      final_cap->cfg.coreaudio.has_dop_cutoff_hz = temp.has_dop_cutoff_hz;
+      break;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      final_cap->cfg.alsa.channels = temp.channels;
+      strncpy(final_cap->cfg.alsa.device, temp.device, sizeof(final_cap->cfg.alsa.device) - 1);
+      final_cap->cfg.alsa.format = temp.alsa_format;
+      final_cap->cfg.alsa.has_format = temp.has_alsa_format;
+      final_cap->cfg.alsa.stop_on_inactive = temp.stop_on_inactive;
+      final_cap->cfg.alsa.has_stop_on_inactive = temp.has_stop_on_inactive;
+      strncpy(final_cap->cfg.alsa.link_volume_control, temp.link_volume_control, sizeof(final_cap->cfg.alsa.link_volume_control) - 1);
+      final_cap->cfg.alsa.has_link_volume_control = temp.has_link_volume_control;
+      strncpy(final_cap->cfg.alsa.link_mute_control, temp.link_mute_control, sizeof(final_cap->cfg.alsa.link_mute_control) - 1);
+      final_cap->cfg.alsa.has_link_mute_control = temp.has_link_mute_control;
+      break;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      final_cap->cfg.pulse.channels = temp.channels;
+      strncpy(final_cap->cfg.pulse.device, temp.device, sizeof(final_cap->cfg.pulse.device) - 1);
+      break;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    case AUDIO_BACKEND_TYPE_PIPEWIRE:
+      final_cap->cfg.pipewire.channels = temp.channels;
+      strncpy(final_cap->cfg.pipewire.device, temp.device, sizeof(final_cap->cfg.pipewire.device) - 1);
+      final_cap->cfg.pipewire.has_device = temp.has_device;
+      strncpy(final_cap->cfg.pipewire.node_name, temp.node_name, sizeof(final_cap->cfg.pipewire.node_name) - 1);
+      final_cap->cfg.pipewire.has_node_name = temp.has_node_name;
+      strncpy(final_cap->cfg.pipewire.node_description, temp.node_description, sizeof(final_cap->cfg.pipewire.node_description) - 1);
+      final_cap->cfg.pipewire.has_node_description = temp.has_node_description;
+      strncpy(final_cap->cfg.pipewire.node_group_name, temp.node_group_name, sizeof(final_cap->cfg.pipewire.node_group_name) - 1);
+      final_cap->cfg.pipewire.has_node_group_name = temp.has_node_group_name;
+      strncpy(final_cap->cfg.pipewire.autoconnect_to, temp.autoconnect_to, sizeof(final_cap->cfg.pipewire.autoconnect_to) - 1);
+      final_cap->cfg.pipewire.has_autoconnect_to = temp.has_autoconnect_to;
+      break;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      final_cap->cfg.jack.channels = temp.channels;
+      strncpy(final_cap->cfg.jack.device, temp.device, sizeof(final_cap->cfg.jack.device) - 1);
+      break;
+#endif
+    case AUDIO_BACKEND_TYPE_FILE:
+      if (temp.is_wav) {
+        strncpy(final_cap->cfg.wav_file.filename, temp.filename, sizeof(final_cap->cfg.wav_file.filename) - 1);
+        final_cap->cfg.wav_file.has_filename = temp.has_filename;
+        final_cap->cfg.wav_file.extra_samples = temp.extra_samples;
+        final_cap->cfg.wav_file.has_extra_samples = temp.has_extra_samples;
+      } else {
+        strncpy(final_cap->cfg.raw_file.filename, temp.filename, sizeof(final_cap->cfg.raw_file.filename) - 1);
+        final_cap->cfg.raw_file.has_filename = temp.has_filename;
+        final_cap->cfg.raw_file.format = temp.file_format;
+        final_cap->cfg.raw_file.has_format = temp.has_file_format;
+        final_cap->cfg.raw_file.channels = temp.channels;
+        final_cap->cfg.raw_file.skip_bytes = temp.skip_bytes;
+        final_cap->cfg.raw_file.has_skip_bytes = temp.has_skip_bytes;
+        final_cap->cfg.raw_file.read_bytes = temp.read_bytes;
+        final_cap->cfg.raw_file.has_read_bytes = temp.has_read_bytes;
+        final_cap->cfg.raw_file.extra_samples = temp.extra_samples;
+        final_cap->cfg.raw_file.has_extra_samples = temp.has_extra_samples;
+      }
+      break;
+    case AUDIO_BACKEND_TYPE_STDIN_OUT:
+      final_cap->cfg.stdin_in.channels = temp.channels;
+      final_cap->cfg.stdin_in.format = temp.file_format;
+      final_cap->cfg.stdin_in.extra_samples = temp.extra_samples;
+      final_cap->cfg.stdin_in.has_extra_samples = temp.has_extra_samples;
+      final_cap->cfg.stdin_in.skip_bytes = temp.skip_bytes;
+      final_cap->cfg.stdin_in.has_skip_bytes = temp.has_skip_bytes;
+      final_cap->cfg.stdin_in.read_bytes = temp.read_bytes;
+      final_cap->cfg.stdin_in.has_read_bytes = temp.has_read_bytes;
+      break;
+    case AUDIO_BACKEND_TYPE_GENERATOR:
+      final_cap->cfg.generator.channels = temp.channels;
+      final_cap->cfg.generator.signal = temp.generator;
+      break;
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      final_cap->cfg.wasapi.channels = temp.channels;
+      strncpy(final_cap->cfg.wasapi.device, temp.device, sizeof(final_cap->cfg.wasapi.device) - 1);
+      final_cap->cfg.wasapi.has_device = temp.has_device;
+      final_cap->cfg.wasapi.format = temp.wasapi_format;
+      final_cap->cfg.wasapi.has_format = temp.has_wasapi_format;
+      final_cap->cfg.wasapi.exclusive = temp.exclusive;
+      final_cap->cfg.wasapi.has_exclusive = temp.has_exclusive;
+      final_cap->cfg.wasapi.loopback = temp.loopback;
+      final_cap->cfg.wasapi.has_loopback = temp.has_loopback;
+      final_cap->cfg.wasapi.polling = temp.polling;
+      final_cap->cfg.wasapi.has_polling = temp.has_polling;
+      break;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      final_cap->cfg.asio.channels = temp.channels;
+      strncpy(final_cap->cfg.asio.device, temp.device, sizeof(final_cap->cfg.asio.device) - 1);
+      final_cap->cfg.asio.format = temp.asio_format;
+      final_cap->cfg.asio.has_format = temp.has_asio_format;
+      break;
+#endif
+#if defined(ENABLE_BLUEZ)
+    case AUDIO_BACKEND_TYPE_BLUEZ:
+      strncpy(final_cap->cfg.bluez.service, temp.service, sizeof(final_cap->cfg.bluez.service) - 1);
+      final_cap->cfg.bluez.has_service = temp.has_service;
+      strncpy(final_cap->cfg.bluez.dbus_path, temp.dbus_path, sizeof(final_cap->cfg.bluez.dbus_path) - 1);
+      final_cap->cfg.bluez.has_dbus_path = temp.has_dbus_path;
+      final_cap->cfg.bluez.format = temp.bluez_format;
+      final_cap->cfg.bluez.channels = temp.channels;
+      break;
+#endif
+    default:
+      break;
   }
 }
+
+typedef struct {
+  audio_backend_type_t type;
+  int channels;
+  char device[256];
+  bool has_device;
+#if defined(ENABLE_COREAUDIO)
+  coreaudio_sample_format_t format;
+  bool has_format;
+#endif
+#if defined(ENABLE_ALSA)
+  alsa_sample_format_t alsa_format;
+  bool has_alsa_format;
+#endif
+  bool exclusive;
+  bool has_exclusive;
+  bool output_dop;
+  bool has_output_dop;
+  sdm_filter_t dop_encoder_filter;
+  bool has_dop_encoder_filter;
+  char filename[512];
+  bool has_filename;
+  binary_sample_format_t file_format;
+  bool has_file_format;
+  bool is_wav;
+  bool has_is_wav;
+  char** labels;
+  size_t labels_count;
+  bool has_labels;
+
+  // Win32 / WASAPI / ASIO fields
+  bool polling;
+  bool has_polling;
+#if defined(ENABLE_WASAPI)
+  wasapi_sample_format_t wasapi_format;
+  bool has_wasapi_format;
+#endif
+#if defined(ENABLE_ASIO)
+  asio_sample_format_t asio_format;
+  bool has_asio_format;
+#endif
+
+  // PipeWire fields
+  char node_name[256];
+  bool has_node_name;
+  char node_description[256];
+  bool has_node_description;
+  char node_group_name[256];
+  bool has_node_group_name;
+  char autoconnect_to[256];
+  bool has_autoconnect_to;
+} flat_playback_device_config_t;
 
 static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
                            int play_val_idx, devices_config_t* devices) {
   if (play_val_idx == -1 || tokens[play_val_idx].type != JSMN_OBJECT) return;
-  playback_device_config_t* play = &devices->playback;
+
+  flat_playback_device_config_t temp;
+  memset(&temp, 0, sizeof(temp));
+  flat_playback_device_config_t* play = &temp;
 
   int ch_idx = find_object_key(js, tokens, count, play_val_idx, "channels");
   if (ch_idx != -1 && tokens[ch_idx].type == JSMN_PRIMITIVE) {
@@ -469,21 +743,24 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
       play->has_file_format = true;
 #if defined(ENABLE_WASAPI)
     } else if (play->type == AUDIO_BACKEND_TYPE_WASAPI) {
-      play->format = wasapi_sample_format_from_string(fmt_str);
-      play->has_format = true;
+      play->wasapi_format = wasapi_sample_format_from_string(fmt_str);
+      play->has_wasapi_format = true;
 #endif
 #if defined(ENABLE_ASIO)
     } else if (play->type == AUDIO_BACKEND_TYPE_ASIO) {
       play->asio_format = asio_sample_format_from_string(fmt_str);
       play->has_asio_format = true;
 #endif
-    } else {
 #if defined(ENABLE_ALSA)
-      play->format = alsa_sample_format_from_string(fmt_str);
-#elif defined(ENABLE_COREAUDIO)
-      play->format = coreaudio_sample_format_from_string(fmt_str);
+    } else if (play->type == AUDIO_BACKEND_TYPE_ALSA) {
+      play->alsa_format = alsa_sample_format_from_string(fmt_str);
+      play->has_alsa_format = true;
 #endif
+#if defined(ENABLE_COREAUDIO)
+    } else if (play->type == AUDIO_BACKEND_TYPE_CORE_AUDIO) {
+      play->format = coreaudio_sample_format_from_string(fmt_str);
       play->has_format = true;
+#endif
     }
   }
 
@@ -512,6 +789,14 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
     play->output_dop = get_tok_bool(js, &tokens[od_idx]);
     play->has_output_dop = true;
   }
+
+  int def_idx = find_object_key(js, tokens, count, play_val_idx, "dop_encoder_filter");
+  if (def_idx != -1 && tokens[def_idx].type == JSMN_STRING) {
+    char filter_str[64];
+    get_tok_string(js, &tokens[def_idx], filter_str, sizeof(filter_str));
+    play->dop_encoder_filter = sdm_filter_from_string(filter_str);
+    play->has_dop_encoder_filter = (play->dop_encoder_filter != SDM_FILTER_INVALID);
+  }
 #if defined(ENABLE_PIPEWIRE)
   int nn_idx = find_object_key(js, tokens, count, play_val_idx, "node_name");
   if (nn_idx != -1 && tokens[nn_idx].type == JSMN_STRING) {
@@ -537,6 +822,106 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
   int labels_idx = find_object_key(js, tokens, count, play_val_idx, "labels");
   parse_labels_array(js, tokens, count, labels_idx, &play->labels,
                      &play->labels_count, &play->has_labels);
+
+  // Copy flat temp to union configuration
+  playback_device_config_t* final_play = &devices->playback;
+  final_play->type = temp.type;
+  final_play->labels = temp.labels;
+  final_play->labels_count = temp.labels_count;
+  final_play->has_labels = temp.has_labels;
+  final_play->is_wav = temp.is_wav;
+  final_play->has_is_wav = temp.has_is_wav;
+
+  switch (temp.type) {
+#if defined(ENABLE_COREAUDIO)
+    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
+      final_play->cfg.coreaudio.channels = temp.channels;
+      strncpy(final_play->cfg.coreaudio.device, temp.device, sizeof(final_play->cfg.coreaudio.device) - 1);
+      final_play->cfg.coreaudio.has_device = temp.has_device;
+      final_play->cfg.coreaudio.format = temp.format;
+      final_play->cfg.coreaudio.has_format = temp.has_format;
+      final_play->cfg.coreaudio.exclusive = temp.exclusive;
+      final_play->cfg.coreaudio.has_exclusive = temp.has_exclusive;
+      final_play->cfg.coreaudio.output_dop = temp.output_dop;
+      final_play->cfg.coreaudio.has_output_dop = temp.has_output_dop;
+      final_play->cfg.coreaudio.dop_encoder_filter = temp.dop_encoder_filter;
+      final_play->cfg.coreaudio.has_dop_encoder_filter = temp.has_dop_encoder_filter;
+      break;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      final_play->cfg.alsa.channels = temp.channels;
+      strncpy(final_play->cfg.alsa.device, temp.device, sizeof(final_play->cfg.alsa.device) - 1);
+      final_play->cfg.alsa.format = temp.alsa_format;
+      final_play->cfg.alsa.has_format = temp.has_alsa_format;
+      break;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      final_play->cfg.pulse.channels = temp.channels;
+      strncpy(final_play->cfg.pulse.device, temp.device, sizeof(final_play->cfg.pulse.device) - 1);
+      break;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    case AUDIO_BACKEND_TYPE_PIPEWIRE:
+      final_play->cfg.pipewire.channels = temp.channels;
+      strncpy(final_play->cfg.pipewire.device, temp.device, sizeof(final_play->cfg.pipewire.device) - 1);
+      final_play->cfg.pipewire.has_device = temp.has_device;
+      strncpy(final_play->cfg.pipewire.node_name, temp.node_name, sizeof(final_play->cfg.pipewire.node_name) - 1);
+      final_play->cfg.pipewire.has_node_name = temp.has_node_name;
+      strncpy(final_play->cfg.pipewire.node_description, temp.node_description, sizeof(final_play->cfg.pipewire.node_description) - 1);
+      final_play->cfg.pipewire.has_node_description = temp.has_node_description;
+      strncpy(final_play->cfg.pipewire.node_group_name, temp.node_group_name, sizeof(final_play->cfg.pipewire.node_group_name) - 1);
+      final_play->cfg.pipewire.has_node_group_name = temp.has_node_group_name;
+      strncpy(final_play->cfg.pipewire.autoconnect_to, temp.autoconnect_to, sizeof(final_play->cfg.pipewire.autoconnect_to) - 1);
+      final_play->cfg.pipewire.has_autoconnect_to = temp.has_autoconnect_to;
+      break;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      final_play->cfg.jack.channels = temp.channels;
+      strncpy(final_play->cfg.jack.device, temp.device, sizeof(final_play->cfg.jack.device) - 1);
+      break;
+#endif
+    case AUDIO_BACKEND_TYPE_FILE:
+      strncpy(final_play->cfg.raw_file.filename, temp.filename, sizeof(final_play->cfg.raw_file.filename) - 1);
+      final_play->cfg.raw_file.has_filename = temp.has_filename;
+      final_play->cfg.raw_file.format = temp.file_format;
+      final_play->cfg.raw_file.has_format = temp.has_file_format;
+      final_play->cfg.raw_file.channels = temp.channels;
+      final_play->cfg.raw_file.wav_header = temp.is_wav;
+      final_play->cfg.raw_file.has_wav_header = temp.has_is_wav;
+      break;
+    case AUDIO_BACKEND_TYPE_STDIN_OUT:
+      final_play->cfg.stdout_out.channels = temp.channels;
+      final_play->cfg.stdout_out.format = temp.file_format;
+      final_play->cfg.stdout_out.wav_header = temp.is_wav;
+      final_play->cfg.stdout_out.has_wav_header = temp.has_is_wav;
+      break;
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      final_play->cfg.wasapi.channels = temp.channels;
+      strncpy(final_play->cfg.wasapi.device, temp.device, sizeof(final_play->cfg.wasapi.device) - 1);
+      final_play->cfg.wasapi.has_device = temp.has_device;
+      final_play->cfg.wasapi.format = temp.wasapi_format;
+      final_play->cfg.wasapi.has_format = temp.has_wasapi_format;
+      final_play->cfg.wasapi.exclusive = temp.exclusive;
+      final_play->cfg.wasapi.has_exclusive = temp.has_exclusive;
+      final_play->cfg.wasapi.polling = temp.polling;
+      final_play->cfg.wasapi.has_polling = temp.has_polling;
+      break;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      final_play->cfg.asio.channels = temp.channels;
+      strncpy(final_play->cfg.asio.device, temp.device, sizeof(final_play->cfg.asio.device) - 1);
+      final_play->cfg.asio.format = temp.asio_format;
+      final_play->cfg.asio.has_format = temp.has_asio_format;
+      break;
+#endif
+    default:
+      break;
+  }
 }
 
 static int parse_devices(const char* js, const jsmntok_t* tokens, int count,

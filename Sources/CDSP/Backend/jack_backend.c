@@ -127,15 +127,15 @@ capture_backend_t* jack_capture_create(
   }
 
   capture->logger = logger_create("dsp.capture.jack");
-  capture->channels = config->channels;
+  capture->channels = config->cfg.jack.channels;
   capture->sample_rate = sample_rate;
   capture->chunk_size = chunk_size;
   capture->active = false;
   capture->rate_changed = false;
   capture->pending_rate = (double)sample_rate;
 
-  if (config->has_device && strlen(config->device) > 0) {
-    snprintf(capture->client_name, sizeof(capture->client_name), "%s", config->device);
+  if (strlen(config->cfg.jack.device) > 0) {
+    snprintf(capture->client_name, sizeof(capture->client_name), "%s", config->cfg.jack.device);
   } else {
     snprintf(capture->client_name, sizeof(capture->client_name), "camilladsp_capture");
   }
@@ -432,7 +432,7 @@ playback_backend_t* jack_playback_create(
   }
 
   playback->logger = logger_create("dsp.playback.jack");
-  playback->channels = config->channels;
+  playback->channels = config->cfg.jack.channels;
   playback->sample_rate = sample_rate;
   playback->chunk_size = chunk_size;
   playback->active = false;
@@ -440,8 +440,8 @@ playback_backend_t* jack_playback_create(
   playback->rate_changed = false;
   playback->pending_rate = (double)sample_rate;
 
-  if (config->has_device && strlen(config->device) > 0) {
-    snprintf(playback->client_name, sizeof(playback->client_name), "%s", config->device);
+  if (strlen(config->cfg.jack.device) > 0) {
+    snprintf(playback->client_name, sizeof(playback->client_name), "%s", config->cfg.jack.device);
   } else {
     snprintf(playback->client_name, sizeof(playback->client_name), "camilladsp_playback");
   }

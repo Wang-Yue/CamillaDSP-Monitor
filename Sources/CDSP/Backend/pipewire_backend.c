@@ -168,30 +168,30 @@ capture_backend_t* pipewire_capture_create(
       (pipewire_capture_t*)calloc(1, sizeof(pipewire_capture_t));
   if (!capture) return NULL;
 
-  if (config->has_device && strcmp(config->device, "default") != 0) {
-    snprintf(capture->device, sizeof(capture->device), "%s", config->device);
+  if (config->cfg.pipewire.has_device && strcmp(config->cfg.pipewire.device, "default") != 0) {
+    snprintf(capture->device, sizeof(capture->device), "%s", config->cfg.pipewire.device);
   } else {
     capture->device[0] = '\0';
   }
 
   capture->sample_rate = sample_rate;
-  capture->channels = config->channels;
+  capture->channels = config->cfg.pipewire.channels;
   capture->chunk_size = chunk_size;
 
-  if (config->has_node_name) {
-    strncpy(capture->node_name, config->node_name, sizeof(capture->node_name) - 1);
+  if (config->cfg.pipewire.has_node_name) {
+    strncpy(capture->node_name, config->cfg.pipewire.node_name, sizeof(capture->node_name) - 1);
     capture->has_node_name = true;
   }
-  if (config->has_node_description) {
-    strncpy(capture->node_description, config->node_description, sizeof(capture->node_description) - 1);
+  if (config->cfg.pipewire.has_node_description) {
+    strncpy(capture->node_description, config->cfg.pipewire.node_description, sizeof(capture->node_description) - 1);
     capture->has_node_description = true;
   }
-  if (config->has_node_group_name) {
-    strncpy(capture->node_group_name, config->node_group_name, sizeof(capture->node_group_name) - 1);
+  if (config->cfg.pipewire.has_node_group_name) {
+    strncpy(capture->node_group_name, config->cfg.pipewire.node_group_name, sizeof(capture->node_group_name) - 1);
     capture->has_node_group_name = true;
   }
-  if (config->has_autoconnect_to) {
-    strncpy(capture->autoconnect_to, config->autoconnect_to, sizeof(capture->autoconnect_to) - 1);
+  if (config->cfg.pipewire.has_autoconnect_to) {
+    strncpy(capture->autoconnect_to, config->cfg.pipewire.autoconnect_to, sizeof(capture->autoconnect_to) - 1);
     capture->has_autoconnect_to = true;
   }
 
@@ -481,30 +481,30 @@ playback_backend_t* pipewire_playback_create(
       (pipewire_playback_t*)calloc(1, sizeof(pipewire_playback_t));
   if (!playback) return NULL;
 
-  if (config->has_device && strcmp(config->device, "default") != 0) {
-    snprintf(playback->device, sizeof(playback->device), "%s", config->device);
+  if (config->cfg.pipewire.has_device && strcmp(config->cfg.pipewire.device, "default") != 0) {
+    snprintf(playback->device, sizeof(playback->device), "%s", config->cfg.pipewire.device);
   } else {
     playback->device[0] = '\0';
   }
 
   playback->sample_rate = sample_rate;
-  playback->channels = config->channels;
+  playback->channels = config->cfg.pipewire.channels;
   playback->chunk_size = chunk_size;
 
-  if (config->has_node_name) {
-    strncpy(playback->node_name, config->node_name, sizeof(playback->node_name) - 1);
+  if (config->cfg.pipewire.has_node_name) {
+    strncpy(playback->node_name, config->cfg.pipewire.node_name, sizeof(playback->node_name) - 1);
     playback->has_node_name = true;
   }
-  if (config->has_node_description) {
-    strncpy(playback->node_description, config->node_description, sizeof(playback->node_description) - 1);
+  if (config->cfg.pipewire.has_node_description) {
+    strncpy(playback->node_description, config->cfg.pipewire.node_description, sizeof(playback->node_description) - 1);
     playback->has_node_description = true;
   }
-  if (config->has_node_group_name) {
-    strncpy(playback->node_group_name, config->node_group_name, sizeof(playback->node_group_name) - 1);
+  if (config->cfg.pipewire.has_node_group_name) {
+    strncpy(playback->node_group_name, config->cfg.pipewire.node_group_name, sizeof(playback->node_group_name) - 1);
     playback->has_node_group_name = true;
   }
-  if (config->has_autoconnect_to) {
-    strncpy(playback->autoconnect_to, config->autoconnect_to, sizeof(playback->autoconnect_to) - 1);
+  if (config->cfg.pipewire.has_autoconnect_to) {
+    strncpy(playback->autoconnect_to, config->cfg.pipewire.autoconnect_to, sizeof(playback->autoconnect_to) - 1);
     playback->has_autoconnect_to = true;
   }
 

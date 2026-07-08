@@ -145,8 +145,14 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     var result = self
     if result.backend == .coreAudio {
       let ch = result.supportedChannels
-      if !ch.isEmpty && !ch.contains(result.deviceChannels) {
-        result.deviceChannels = ch.contains(2) ? 2 : ch[0]
+      if !ch.isEmpty {
+        if let bestPhys = ch.first(where: { $0 >= result.channels }) {
+          result.deviceChannels = bestPhys
+        } else {
+          let maxPhys = ch.max() ?? 2
+          result.channels = maxPhys
+          result.deviceChannels = maxPhys
+        }
       }
       result.channels = max(1, min(result.deviceChannels, result.channels))
 

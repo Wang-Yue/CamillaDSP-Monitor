@@ -477,4 +477,98 @@ void rate_change_watcher_free(rate_change_watcher_t* watcher) {
   rate_change_watcher_dispose(watcher);
   free(watcher);
 }
+
+static const char* format_string_for_asbd_local(
+    const AudioStreamBasicDescription* asbd) {
+  AudioFormatFlags flags = asbd->mFormatFlags;
+  bool is_float = (flags & kAudioFormatFlagIsFloat) != 0;
+  bool is_signed_int = (flags & kAudioFormatFlagIsSignedInteger) != 0;
+  uint32_t bits = asbd->mBitsPerChannel;
+
+  if (is_float && bits == 32) return "F32";
+  if (is_signed_int) {
+    switch (bits) {
+      case 16:
+        return "S16";
+      case 24:
+        return "S24";
+      case 32:
+        return "S32";
+      default:
+        return "";
+    }
+  }
+  return "";
+}
+
+bool core_audio_device_set_matching_physical_format(
+    AudioDeviceID device_id, core_audio_scope_t scope, double sample_rate,
+    const char* format_str, int requested_channels) {
+  AudioStreamID streams[32];
+  int stream_count = core_audio_device_streams(device_id, scope, streams, 32);
+
+  AudioStreamBasicDescription best_asbd;
+  bool found_best = false;
+  AudioStreamID best_stream_id = 0;
+
+  for (int s = 0; s < stream_count; s++) {
+    AudioObjectPropertyAddress addr = {
+        .mSelector = kAudioStreamPropertyAvailablePhysicalFormats,
+        .mScope = kAudioObjectPropertyScopeGlobal,
+        .mElement = kAudioObjectPropertyElementMain};
+    uint32_t size = 0;
+    if (AudioObjectGetPropertyDataSize(streams[s], &addr, 0, NULL, &size) != noErr || size == 0) {
+      continue;
+    }
+    int count = (int)(size / sizeof(AudioStreamRangedDescription));
+    AudioStreamRangedDescription* ranged = (AudioStreamRangedDescription*)calloc(count, sizeof(AudioStreamRangedDescription));
+    if (!ranged) continue;
+
+    if (AudioObjectGetPropertyData(streams[s], &addr, 0, NULL, &size, ranged) == noErr) {
+      for (int i = 0; i < count; i++) {
+        AudioStreamBasicDescription asbd = ranged[i].mFormat;
+        if (asbd.mFormatID != kAudioFormatLinearPCM) continue;
+
+        // Match sample rate
+        double lo = ranged[i].mSampleRateRange.mMinimum;
+        double hi = ranged[i].mSampleRateRange.mMaximum;
+        if (sample_rate < lo || sample_rate > hi) {
+          continue;
+        }
+
+        // Match format type (S16, S24, S32, F32)
+        const char* stream_fmt_str = format_string_for_asbd_local(&asbd);
+        if (strcmp(stream_fmt_str, format_str) != 0) {
+          continue;
+        }
+
+        // Match channels (mChannelsPerFrame >= requested_channels)
+        int phys_channels = (int)asbd.mChannelsPerFrame;
+        if (phys_channels < requested_channels) {
+          continue;
+        }
+
+        // We want the smallest channel count that fits
+        if (!found_best || phys_channels < (int)best_asbd.mChannelsPerFrame) {
+          best_asbd = asbd;
+          best_asbd.mSampleRate = sample_rate;
+          best_stream_id = streams[s];
+          found_best = true;
+        }
+      }
+    }
+    free(ranged);
+  }
+
+  if (found_best) {
+    AudioObjectPropertyAddress addr = {
+        .mSelector = kAudioStreamPropertyPhysicalFormat,
+        .mScope = kAudioObjectPropertyScopeGlobal,
+        .mElement = kAudioObjectPropertyElementMain};
+    OSStatus status = AudioObjectSetPropertyData(best_stream_id, &addr, 0, NULL, sizeof(AudioStreamBasicDescription), &best_asbd);
+    return (status == noErr);
+  }
+
+  return false;
+}
 #endif  // ENABLE_COREAUDIO

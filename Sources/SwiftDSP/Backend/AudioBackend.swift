@@ -9,9 +9,9 @@ import Foundation
 func createCaptureBackend(config: CaptureDeviceConfig, sampleRate: Int, chunkSize: Int)
   throws -> CaptureBackend
 {
-  switch config.type {
-  case .coreAudio:
-    return CoreAudioCapture(config: config, sampleRate: sampleRate, chunkSize: chunkSize)
+  switch config {
+  case .coreAudio(let caConfig):
+    return CoreAudioCapture(config: caConfig, sampleRate: sampleRate, chunkSize: chunkSize)
   case .rawFile, .wavFile:
     throw BackendError.initializationFailed("File capture backend is only supported by the C engine")
   case .signalGenerator:
@@ -22,13 +22,11 @@ func createCaptureBackend(config: CaptureDeviceConfig, sampleRate: Int, chunkSiz
 func createPlaybackBackend(config: PlaybackDeviceConfig, sampleRate: Int, chunkSize: Int)
   throws -> PlaybackBackend
 {
-  switch config.type {
-  case .coreAudio:
-    return CoreAudioPlayback(config: config, sampleRate: sampleRate, chunkSize: chunkSize)
-  case .rawFile, .wavFile:
+  switch config {
+  case .coreAudio(let caConfig):
+    return CoreAudioPlayback(config: caConfig, sampleRate: sampleRate, chunkSize: chunkSize)
+  case .rawFile:
     throw BackendError.initializationFailed("File playback backend is only supported by the C engine")
-  case .signalGenerator:
-    throw BackendError.initializationFailed("Generator playback backend is not supported")
   }
 }
 
