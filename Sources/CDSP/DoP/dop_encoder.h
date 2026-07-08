@@ -85,4 +85,12 @@ void dop_encoder_free(dop_encoder_t* encoder);
  */
 bool dop_encoder_is_supported_carrier_rate(int rate);
 
+/**
+ * @brief Check if the DoP encoder is enabled.
+ *
+ * @param encoder Pointer to the encoder instance.
+ * @return True if enabled, false otherwise.
+ */
+bool dop_encoder_is_enabled(const dop_encoder_t* encoder);
+
 #endif  // CLIB_DOP_DOP_ENCODER_H

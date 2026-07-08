@@ -331,3 +331,7 @@ void dop_encoder_free(dop_encoder_t* encoder) {
   if (encoder->coeffs) free(encoder->coeffs);
   free(encoder);
 }
+
+bool dop_encoder_is_enabled(const dop_encoder_t* encoder) {
+  return encoder ? encoder->enabled : false;
+}

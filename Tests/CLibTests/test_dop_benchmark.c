@@ -17,7 +17,7 @@ TEST(DoPEncoder_Benchmark) {
   dop_encoder_t* encoder =
       dop_encoder_create(2, carrier_rate, true, SDM_FILTER_SDM6, 20000.0);
   ASSERT_TRUE(encoder != NULL);
-  ASSERT_TRUE(encoder->enabled);
+  ASSERT_TRUE(dop_encoder_is_enabled(encoder));
 
   int frames = 1024;
   int channels = 2;
@@ -71,7 +71,7 @@ TEST(DoPDecoder_Benchmark) {
       dop_encoder_create(2, carrier_rate, true, SDM_FILTER_SDM6, 20000.0);
   dop_decoder_t* decoder = dop_decoder_create(2, carrier_rate, false, 20000.0);
   ASSERT_TRUE(encoder != NULL);
-  ASSERT_TRUE(encoder->enabled);
+  ASSERT_TRUE(dop_encoder_is_enabled(encoder));
   ASSERT_TRUE(decoder != NULL);
 
   int frames = 1024;
@@ -103,7 +103,7 @@ TEST(DoPDecoder_Benchmark) {
     bool processed = dop_decoder_detect_and_process(decoder, temp_chunk);
     ASSERT_TRUE(processed);
   }
-  ASSERT_TRUE(decoder->is_dop_active);
+  ASSERT_TRUE(dop_decoder_is_active(decoder));
 
   int iters = 2000;
   struct timespec start, end;
