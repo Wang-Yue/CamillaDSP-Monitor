@@ -14,17 +14,6 @@
 #include "Audio/double_helpers.h"
 #include "Audio/processing_parameters.h"
 #include "Config/filter_config_types.h"
-#include "biquad.h"
-#include "biquad_combo.h"
-#include "convolution.h"
-#include "delay.h"
-#include "diffeq.h"
-#include "dither.h"
-#include "gain.h"
-#include "limiter.h"
-#include "lookahead_limiter.h"
-#include "loudness.h"
-#include "volume.h"
 
 /**
  * @brief Types of filter instances.
@@ -48,11 +37,7 @@ typedef enum {
  *
  * Filters operate on one channel at a time.
  */
-typedef struct {
-  char name[64];               /**< The unique name of this filter instance. */
-  filter_instance_type_t type; /**< The type of the filter instance. */
-  void* instance; /**< Pointer to the concrete filter instance data. */
-} filter_t;
+typedef struct filter filter_t;
 
 /**
  * @brief Factory to create filter instances from configuration.

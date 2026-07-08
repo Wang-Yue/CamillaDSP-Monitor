@@ -8,13 +8,11 @@
 #ifndef CLIB_ENGINE_DSP_ENGINE_H
 #define CLIB_ENGINE_DSP_ENGINE_H
 
-#include "Audio/audio_history_buffer.h"
 #include "Audio/spectrum_analyzer.h"
 #include "Backend/audio_backend.h"
 #include "Config/configuration.h"
 #include "Config/engine_config_types.h"
 #include "Config/log_level.h"
-#include "dsp_engine_core.h"
 #if defined(ENABLE_COREAUDIO)
 #include "Backend/core_audio_capabilities.h"
 #endif
@@ -27,8 +25,6 @@
 #if defined(ENABLE_WASAPI)
 #include "Backend/wasapi_capabilities.h"
 #endif
-#include <pthread.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -39,40 +35,7 @@
  *
  * Manages the DSP core, visualization, and configuration state.
  */
-typedef struct {
-  /** Pointer to the underlying DSP core. */
-  dsp_engine_core_t* core;
-  /** Spectrum analyzer instance. */
-  spectrum_analyzer_t* spectrum;
-  /** History buffer for captured audio. */
-  audio_history_buffer_t* capture_buffer;
-  /** History buffer for playback audio. */
-  audio_history_buffer_t* playback_buffer;
-  /** Target volumes for faders. */
-  double desired_fader_volumes[FADER_COUNT];
-  /** Target mute states for faders. */
-  bool desired_fader_mutes[FADER_COUNT];
-  /** Reason for the last processing stop. */
-  processing_stop_reason_t last_stop_reason;
-  /** True if last stop reason is valid. */
-  bool has_last_stop_reason;
-  /** Mutex for protecting state variables. */
-  pthread_mutex_t state_mutex;
-  /** Path to the active configuration file. */
-  char active_config_path[1024];
-  /** True if active config path is set. */
-  bool has_active_config_path;
-  /** Path to the state persistence file. */
-  char state_file_path[1024];
-  /** True if state file path is set. */
-  bool has_state_file_path;
-  /** True if there are unsaved state changes. */
-  bool unsaved_state_changes;
-  /** JSON representation of the active configuration. */
-  char* active_config_json;
-  /** JSON representation of the previous configuration. */
-  char* previous_config_json;
-} dsp_engine_t;
+typedef struct dsp_engine dsp_engine_t;
 
 /**
  * @brief Create a new DSP engine instance.

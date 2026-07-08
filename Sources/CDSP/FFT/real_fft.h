@@ -100,21 +100,22 @@ typedef struct {
 /**
  * @struct real_fft_t
  * @brief Main real FFT structure.
- *
- * Real-input/output FFT of length `length = 2N` (even). Forward
- * produces the `N + 1` unique complex bins; inverse consumes them.
- * Caller is responsible for any `1/length` normalisation.
- *
- * `init(length:)` is the project's single FFT-backend selector — see
- * the file-level header for the routing decision tree. Callers never
- * see (or pick) a backend; they just get a correctly-sized real FFT.
  */
-typedef struct {
-  size_t length;          /**< Time-domain length (must be even). */
-  size_t spectrum_length; /**< Number of unique complex bins in the spectrum (=
-                             length/2 + 1). */
-  real_fft_backend_t* backend; /**< The dispatched backend implementation. */
-} real_fft_t;
+typedef struct real_fft real_fft_t;
+
+/**
+ * @brief Get the time-domain length of the real FFT.
+ * @param fft Pointer to the real FFT context.
+ * @return The length.
+ */
+size_t real_fft_get_length(const real_fft_t* fft);
+
+/**
+ * @brief Get the spectrum length of the real FFT (number of complex bins).
+ * @param fft Pointer to the real FFT context.
+ * @return The spectrum length.
+ */
+size_t real_fft_get_spectrum_length(const real_fft_t* fft);
 
 /**
  * @brief Creates a real FFT context for the specified length.

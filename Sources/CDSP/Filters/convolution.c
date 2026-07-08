@@ -364,7 +364,7 @@ convolution_filter_t* convolution_filter_create(const char* name,
     free(filter);
     return NULL;
   }
-  size_t spec_len = filter->fft->spectrum_length;
+  size_t spec_len = real_fft_get_spectrum_length(filter->fft);
 
   const double* coeffs = NULL;
   size_t coeffs_count = 0;
@@ -464,7 +464,7 @@ convolution_filter_t* convolution_filter_create(const char* name,
 static void process_chunk(convolution_filter_t* filter,
                           mutable_waveform_t waveform) {
   size_t cs = filter->chunk_size;
-  size_t spec_len = filter->fft->spectrum_length;
+  size_t spec_len = real_fft_get_spectrum_length(filter->fft);
   size_t num_seg = filter->num_segments;
   size_t widx = filter->write_idx;
 

@@ -8,8 +8,6 @@
 #ifndef CLIB_SERVER_WEBSOCKET_SERVER_H
 #define CLIB_SERVER_WEBSOCKET_SERVER_H
 
-#include <pthread.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -17,14 +15,6 @@
 #include "Backend/backend_error.h"
 #include "Config/configuration.h"
 #include "Config/engine_config_types.h"
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <winsock2.h>
-typedef SOCKET socket_t;
-#else
-typedef int socket_t;
-#endif
 
 /**
  * @brief Opaque structure representing a WebSocket server.
@@ -87,134 +77,7 @@ typedef struct {
   void (*set_config_path)(void* ctx, const char* path);
 } dsp_engine_interface_t;
 
-/**
- * @brief Represents a single point in level history.
- */
-typedef struct {
-  /** Timestamp in milliseconds when the level was sampled. */
-  uint64_t timestamp_ms;
-  /** Array of levels (one per channel). */
-  double* levels;
-} level_sample_t;
 
-/**
- * @brief Stores historical level samples.
- */
-typedef struct {
-  /** Array of historical level samples. */
-  level_sample_t samples[300];
-  /** Index of the head of the circular buffer. */
-  size_t head;
-  /** Number of elements in the buffer. */
-  size_t size;
-  /** Number of channels per sample. */
-  size_t channels;
-} level_history_t;
-
-/**
- * @brief Represents a single client's WebSocket session state.
- */
-typedef struct {
-  /** Last time capture peak levels were pushed. */
-  uint64_t last_cap_peak_time;
-  /** Last time capture RMS levels were pushed. */
-  uint64_t last_cap_rms_time;
-  /** Last time playback peak levels were pushed. */
-  uint64_t last_pb_peak_time;
-  /** Last time playback RMS levels were pushed. */
-  uint64_t last_pb_rms_time;
-
-  /** True if client is subscribed to state updates. */
-  bool state_subscribed;
-  /** True if client is subscribed to VU level updates. */
-  bool vu_subscribed;
-  /** True if client is subscribed to signal level updates. */
-  bool signal_levels_subscribed;
-  /** Side to subscribe to for signal levels ("capture" or "playback"). */
-  char signal_levels_side[16];
-  /** True if client is subscribed to spectrum updates. */
-  bool spectrum_subscribed;
-  /** True if spectrum subscription is for capture channels. */
-  bool spectrum_is_capture;
-  /** Channel index for spectrum updates. */
-  uint32_t spectrum_channel;
-  /** Minimum frequency for spectrum updates. */
-  double spectrum_min_freq;
-  /** Maximum frequency for spectrum updates. */
-  double spectrum_max_freq;
-  /** Number of bins for spectrum updates. */
-  uint32_t spectrum_n_bins;
-  /** Maximum rate of spectrum updates (per second). */
-  double spectrum_max_rate;
-  /** Last time spectrum data was pushed to this client. */
-  uint64_t last_spectrum_push_time;
-
-  /** Maximum rate of VU updates (per second). */
-  double vu_max_rate;
-  /** Attack time for VU meters. */
-  double vu_attack;
-  /** Release time for VU meters. */
-  double vu_release;
-
-  /** Last time VU levels were pushed to this client. */
-  uint64_t last_vu_push_time;
-
-  /** Current playback RMS levels. */
-  double* vu_pb_rms;
-  /** Current playback peak levels. */
-  double* vu_pb_peak;
-  /** Current capture RMS levels. */
-  double* vu_cap_rms;
-  /** Current capture peak levels. */
-  double* vu_cap_peak;
-  /** Number of playback channels in the VU. */
-  size_t vu_pb_channels;
-  /** Number of capture channels in the VU. */
-  size_t vu_cap_channels;
-} client_session_t;
-
-/**
- * @brief Structure containing the internal state of the WebSocket server.
- */
-struct websocket_server {
-  /** The port the server listens on. */
-  uint16_t port;
-  /** The host interface the server binds to. */
-  char host[128];
-  /** The interface to the DSP engine. */
-  dsp_engine_interface_t* engine;
-
-  /** Server socket file descriptor. */
-  socket_t server_fd;
-  /** Atomic flag indicating if the server is running. */
-  _Atomic bool running;
-  /** Thread handle for the server runloop. */
-  pthread_t thread;
-
-  /** Server update/tick interval in microseconds. */
-  uint32_t update_interval;
-
-  /** History of capture peak levels. */
-  level_history_t capture_peak_history;
-  /** History of capture RMS levels. */
-  level_history_t capture_rms_history;
-  /** History of playback peak levels. */
-  level_history_t playback_peak_history;
-  /** History of playback RMS levels. */
-  level_history_t playback_rms_history;
-
-  /** Array storing global peak capture levels per channel. */
-  double* capture_global_peaks;
-  /** Array storing global peak playback levels per channel. */
-  double* playback_global_peaks;
-  /** Number of capture channels for global peaks. */
-  size_t capture_global_peaks_count;
-  /** Number of playback channels for global peaks. */
-  size_t playback_global_peaks_count;
-
-  /** Array of active client sessions. */
-  client_session_t client_sessions[32];
-};
 
 /**
  * @brief Create a new WebSocket control server on the specified port and host.
@@ -274,5 +137,13 @@ void websocket_server_free(websocket_server_t* server);
 void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                                      const char* command_text,
                                      char* out_response, size_t max_len);
+
+// MARK: - Testing Helpers
+
+bool websocket_server_get_client_vu_subscribed(const websocket_server_t* server, int client_idx);
+double websocket_server_get_client_vu_max_rate(const websocket_server_t* server, int client_idx);
+double websocket_server_get_client_vu_attack(const websocket_server_t* server, int client_idx);
+double websocket_server_get_client_vu_release(const websocket_server_t* server, int client_idx);
+void websocket_server_set_client_vu_subscribed(websocket_server_t* server, int client_idx, bool subscribed);
 
 #endif  // CLIB_SERVER_WEBSOCKET_SERVER_H

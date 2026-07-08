@@ -40,7 +40,7 @@ TEST(DoPDetectionAndBypass) {
       }
       bool is_decoded = dop_decoder_detect_and_process(decoder, part_chunk);
       ASSERT_FALSE(is_decoded);
-      ASSERT_FALSE(decoder->is_dop_active);
+      ASSERT_FALSE(dop_decoder_is_active(decoder));
       audio_chunk_free(part_chunk);
 
       audio_chunk_t* part_chunk2 = audio_chunk_create(44, 2);
@@ -52,7 +52,7 @@ TEST(DoPDetectionAndBypass) {
       }
       is_decoded = dop_decoder_detect_and_process(decoder, part_chunk2);
       ASSERT_TRUE(is_decoded);
-      ASSERT_TRUE(decoder->is_dop_active);
+      ASSERT_TRUE(dop_decoder_is_active(decoder));
       audio_chunk_free(part_chunk2);
       dop_decoder_free(decoder);
 
@@ -68,7 +68,7 @@ TEST(DoPDetectionAndBypass) {
       bool processed =
           dop_decoder_detect_and_process(bypassed_decoder, test_chunk);
       ASSERT_FALSE(processed);
-      ASSERT_FALSE(bypassed_decoder->is_dop_active);
+      ASSERT_FALSE(dop_decoder_is_active(bypassed_decoder));
       audio_chunk_free(test_chunk);
       audio_chunk_free(chunk);
       dop_decoder_free(bypassed_decoder);
@@ -136,7 +136,7 @@ TEST(MultiChunkDoPStreamStability) {
 
         bool processed = dop_decoder_detect_and_process(decoder, chunk);
         ASSERT_TRUE(processed);
-        ASSERT_TRUE(decoder->is_dop_active);
+        ASSERT_TRUE(dop_decoder_is_active(decoder));
         audio_chunk_free(chunk);
       }
       dop_decoder_free(decoder);
@@ -176,7 +176,7 @@ TEST(DoPRoundtripSINAD) {
 
       bool processed = dop_decoder_detect_and_process(decoder, chunk);
       ASSERT_TRUE(processed);
-      ASSERT_TRUE(decoder->is_dop_active);
+      ASSERT_TRUE(dop_decoder_is_active(decoder));
 
       double target_freq = 1000.0;
       double cos_sum = 0.0;

@@ -23,6 +23,41 @@
 
 #include "dop_encoder.h"
 
+#include "sigma_delta_modulator.h"
+#include <stdint.h>
+#include <stdlib.h>
+
+/**
+ * @brief State for a single DoP encoder channel.
+ */
+typedef struct {
+  /** FIFO buffer for interpolation. Holds 32 * 2 doubles. */
+  double fifo[64];
+  /** Current position in the FIFO buffer. */
+  int fifo_pos;
+  /** Alternating DoP marker byte (0x05 or 0xFA). */
+  uint8_t marker;
+  /** Sigma-delta modulator instance for this channel. */
+  sigma_delta_modulator_t* modulator;
+} dop_encoder_channel_state_t;
+
+struct dop_encoder {
+  /** Number of audio channels. */
+  int channels;
+  /**
+   * True if the encoder is enabled (i.e. constructor was asked to encode
+   * AND the carrier rate is supported).
+   */
+  bool enabled;
+  /** Array of channel states. */
+  dop_encoder_channel_state_t* channel_states;
+  /**
+   * Polyphase coefficient table laid out as `coeffs[phase * subFilterTaps +
+   * tap]`. Each phase is normalized to unit DC gain.
+   */
+  double* coeffs;
+};
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

@@ -23,6 +23,48 @@
 // across DSD64 / 128 / 256 at 44.1 / 48 kHz families are preserved.
 #include "dop_decoder.h"
 
+#include <stdint.h>
+#include <stdlib.h>
+
+/**
+ * @brief Per-channel state for DoP decoding.
+ *
+ * Holds a 64-byte ring FIFO of DSD bytes and hysteretic lock counters.
+ */
+typedef struct {
+  int consec_valid;    /**< Number of consecutive valid DoP markers. */
+  int consec_invalid;  /**< Number of consecutive invalid DoP markers. */
+  bool is_active;      /**< Flag indicating if DoP decoding is active for this
+                          channel. */
+  uint8_t last_marker; /**< The last seen marker byte (should alternate between
+                          0x05 and 0xFA). */
+  bool is_32bit_container; /**< Flag indicating if DSD is in a 32-bit container.
+                            */
+  bool container_known;    /**< Flag indicating if container size has been
+                              determined. */
+  uint8_t fifo[64];        /**< Ring buffer for DSD bytes. */
+  int fifo_pos;            /**< Current position in the FIFO. */
+} dop_decoder_channel_state_t;
+
+struct dop_decoder {
+  int channels;    /**< Number of audio channels. */
+  bool bypass_dop; /**< Flag indicating if DoP detection should be bypassed. */
+  dop_decoder_channel_state_t*
+      channel_states; /**< Array of per-channel states. */
+  double* ctables;    /**< Flat ctable storage: `ctables[i*256 + b]` is the
+                         convolution contribution of byte `b` placed at table index
+                         `i`. Built once at init from the configured sample rate
+                         and cutoff; never resized. Size: 64 * 256 doubles. */
+  bool is_dop_active; /**< Flag indicating if DoP is globally active (any
+                         channel has lock). */
+
+  bool logged_active;       /**< Status flag to rate-limit logging. */
+  bool last_seen_active;    /**< Flag indicating if DoP was active in the last
+                               processed chunk. */
+  int chunks_at_seen_state; /**< Count of chunks processed in the current state.
+                             */
+};
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -388,4 +430,8 @@ void dop_decoder_free(dop_decoder_t* decoder) {
   if (decoder->channel_states) free(decoder->channel_states);
   if (decoder->ctables) free(decoder->ctables);
   free(decoder);
+}
+
+bool dop_decoder_is_active(const dop_decoder_t* decoder) {
+  return decoder ? decoder->is_dop_active : false;
 }

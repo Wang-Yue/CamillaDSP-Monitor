@@ -25,9 +25,7 @@
  *     actor is asking us to stop.
  */
 
-#include <stdatomic.h>
 #include <stdbool.h>
-#include <stdint.h>
 
 #include "Config/engine_config_types.h"
 
@@ -46,15 +44,7 @@ typedef void (*engine_stop_callback_t)(void* ctx,
 /**
  * @brief Structure representing the engine state machine.
  */
-typedef struct {
-  /** Raw atomic state representation. */
-  _Atomic uint8_t state_raw;
-  /** Atomic flag to ensure stop logic is executed only once. */
-  _Atomic bool stop_once;
-  /** The reason the engine stopped. See file-level note for publication
-   * discipline. */
-  processing_stop_reason_t stop_reason;
-} engine_state_machine_t;
+typedef struct engine_state_machine engine_state_machine_t;
 
 /**
  * @brief Creates a new engine state machine instance.

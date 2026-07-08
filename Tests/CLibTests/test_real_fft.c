@@ -173,15 +173,15 @@ TEST(RealFFTFallbackForPrimeFactors) {
   size_t length = 22;
   real_fft_t* real_fft = real_fft_create(length);
   ASSERT_TRUE(real_fft != NULL);
-  ASSERT_EQ(length / 2 + 1, real_fft->spectrum_length);
+  ASSERT_EQ(length / 2 + 1, real_fft_get_spectrum_length(real_fft));
 
   double* input = (double*)calloc(length, sizeof(double));
   input[0] = 1.0;
-  double* spec_re = (double*)calloc(real_fft->spectrum_length, sizeof(double));
-  double* spec_im = (double*)calloc(real_fft->spectrum_length, sizeof(double));
+  double* spec_re = (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
+  double* spec_im = (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
 
   real_fft_forward(real_fft, input, spec_re, spec_im);
-  for (size_t k = 0; k < real_fft->spectrum_length; k++) {
+  for (size_t k = 0; k < real_fft_get_spectrum_length(real_fft); k++) {
     double mag = sqrt(spec_re[k] * spec_re[k] + spec_im[k] * spec_im[k]);
     ASSERT_NEAR(1.0, mag, 1e-12);
   }
@@ -206,17 +206,17 @@ TEST(RealFFTVDSPDFTInnerRoundtrip) {
     size_t length = lengths[i];
     real_fft_t* real_fft = real_fft_create(length);
     ASSERT_TRUE(real_fft != NULL);
-    ASSERT_EQ(length / 2 + 1, real_fft->spectrum_length);
+    ASSERT_EQ(length / 2 + 1, real_fft_get_spectrum_length(real_fft));
 
     double* input = (double*)calloc(length, sizeof(double));
     input[0] = 1.0;
     double* spec_re =
-        (double*)calloc(real_fft->spectrum_length, sizeof(double));
+        (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
     double* spec_im =
-        (double*)calloc(real_fft->spectrum_length, sizeof(double));
+        (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
 
     real_fft_forward(real_fft, input, spec_re, spec_im);
-    for (size_t k = 0; k < real_fft->spectrum_length; k++) {
+    for (size_t k = 0; k < real_fft_get_spectrum_length(real_fft); k++) {
       double mag = sqrt(spec_re[k] * spec_re[k] + spec_im[k] * spec_im[k]);
       ASSERT_NEAR(1.0, mag, 1e-12);
     }
@@ -242,22 +242,22 @@ TEST(RealFFTPow2VDSPRoundtrip) {
     size_t length = lengths[i];
     real_fft_t* real_fft = real_fft_create(length);
     ASSERT_TRUE(real_fft != NULL);
-    ASSERT_EQ(length / 2 + 1, real_fft->spectrum_length);
+    ASSERT_EQ(length / 2 + 1, real_fft_get_spectrum_length(real_fft));
 
     double* input = (double*)calloc(length, sizeof(double));
     input[0] = 1.0;
     double* spec_re =
-        (double*)calloc(real_fft->spectrum_length, sizeof(double));
+        (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
     double* spec_im =
-        (double*)calloc(real_fft->spectrum_length, sizeof(double));
+        (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
 
     real_fft_forward(real_fft, input, spec_re, spec_im);
-    for (size_t k = 0; k < real_fft->spectrum_length; k++) {
+    for (size_t k = 0; k < real_fft_get_spectrum_length(real_fft); k++) {
       double mag = sqrt(spec_re[k] * spec_re[k] + spec_im[k] * spec_im[k]);
       ASSERT_NEAR(1.0, mag, 1e-12);
     }
     ASSERT_DOUBLE_EQ(0.0, spec_im[0]);
-    ASSERT_DOUBLE_EQ(0.0, spec_im[real_fft->spectrum_length - 1]);
+    ASSERT_DOUBLE_EQ(0.0, spec_im[real_fft_get_spectrum_length(real_fft) - 1]);
 
     double* recovered = (double*)calloc(length, sizeof(double));
     real_fft_inverse(real_fft, spec_re, spec_im, recovered);

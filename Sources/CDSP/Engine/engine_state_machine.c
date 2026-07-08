@@ -21,6 +21,19 @@
 
 #include "engine_state_machine.h"
 
+#include <stdatomic.h>
+#include <stdint.h>
+
+struct engine_state_machine {
+  /** Raw atomic state representation. */
+  _Atomic uint8_t state_raw;
+  /** Atomic flag to ensure stop logic is executed only once. */
+  _Atomic bool stop_once;
+  /** The reason the engine stopped. See file-level note for publication
+   * discipline. */
+  processing_stop_reason_t stop_reason;
+};
+
 #include <stdlib.h>
 #include <string.h>
 

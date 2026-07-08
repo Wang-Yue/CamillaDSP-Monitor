@@ -1,5 +1,24 @@
 #include "sigma_delta_modulator.h"
 
+struct sigma_delta_modulator {
+  /** Index of the current state slot (0 or 1). */
+  int idx;
+  /** Previous output value. */
+  double prev_y;
+  /** State storage for the filter (two slots of 8 doubles each). */
+  double non_trellis_state[16];
+  /** Cached 'a' coefficients of the filter. */
+  double cached_a[8];
+  /** Cached 'g' coefficients of the filter. */
+  double cached_g[8];
+  /** Cached filter order. */
+  int cached_order;
+  /** Name of the filter. */
+  sdm_filter_t name;
+  /** Sampling frequency. */
+  uint32_t freq;
+};
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

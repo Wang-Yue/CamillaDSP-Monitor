@@ -3,6 +3,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct real_fft {
+  size_t length;          /**< Time-domain length (must be even). */
+  size_t spectrum_length; /**< Number of unique complex bins in the spectrum (=
+                             length/2 + 1). */
+  real_fft_backend_t* backend; /**< The dispatched backend implementation. */
+};
+
+size_t real_fft_get_length(const real_fft_t* fft) {
+  return fft ? fft->length : 0;
+}
+
+size_t real_fft_get_spectrum_length(const real_fft_t* fft) {
+  return fft ? fft->spectrum_length : 0;
+}
+
 #if defined(ENABLE_ACCELERATE)
 
 // Real-input FFT of arbitrary even length. `RealFFT.init` is

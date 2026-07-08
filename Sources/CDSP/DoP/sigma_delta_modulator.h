@@ -6,7 +6,6 @@
 #ifndef CLIB_DOP_SIGMA_DELTA_MODULATOR_H
 #define CLIB_DOP_SIGMA_DELTA_MODULATOR_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 #include "Config/engine_config_types.h"
@@ -21,24 +20,7 @@
  * `cached_a` and `cached_g` mirror the selected filter's coefficients
  * to avoid re-copying the filter structure in the hot loop.
  */
-typedef struct {
-  /** Index of the current state slot (0 or 1). */
-  int idx;
-  /** Previous output value. */
-  double prev_y;
-  /** State storage for the filter (two slots of 8 doubles each). */
-  double non_trellis_state[16];
-  /** Cached 'a' coefficients of the filter. */
-  double cached_a[8];
-  /** Cached 'g' coefficients of the filter. */
-  double cached_g[8];
-  /** Cached filter order. */
-  int cached_order;
-  /** Name of the filter. */
-  sdm_filter_t name;
-  /** Sampling frequency. */
-  uint32_t freq;
-} sigma_delta_modulator_t;
+typedef struct sigma_delta_modulator sigma_delta_modulator_t;
 
 /**
  * @brief Create a sigma-delta modulator.

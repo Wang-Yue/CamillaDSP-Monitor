@@ -1,5 +1,23 @@
 #include "filter.h"
 
+#include "biquad.h"
+#include "biquad_combo.h"
+#include "convolution.h"
+#include "delay.h"
+#include "diffeq.h"
+#include "dither.h"
+#include "gain.h"
+#include "limiter.h"
+#include "lookahead_limiter.h"
+#include "loudness.h"
+#include "volume.h"
+
+struct filter {
+  char name[64];               /**< The unique name of this filter instance. */
+  filter_instance_type_t type; /**< The type of the filter instance. */
+  void* instance; /**< Pointer to the concrete filter instance data. */
+};
+
 #include <stdlib.h>
 #include <string.h>
 
