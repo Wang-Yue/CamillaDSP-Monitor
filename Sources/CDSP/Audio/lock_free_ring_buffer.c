@@ -246,6 +246,66 @@ size_t spsc_audio_ring_buffer_consume(spsc_audio_ring_buffer_t* ring,
   return n;
 }
 
+size_t spsc_audio_ring_buffer_consume_stride(spsc_audio_ring_buffer_t* ring,
+                                             float* dest, size_t count,
+                                             size_t stride) {
+  if (count == 0 || !ring || !dest) return 0;
+  // Relaxed load: we are the only reader.
+  uint64_t r = atomic_load_explicit(&ring->read_index, memory_order_relaxed);
+  // Acquire barrier: ensure we see the writes to the buffer elements before we
+  // read them.
+  uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_acquire);
+  size_t avail = (size_t)(w - r);
+
+  if (avail > ring->capacity) {
+    // Producer has overwritten unread data. This can happen if the producer
+    // writes faster than we consume and the buffer wraps around. Advance read
+    // pointer to the oldest valid data (write_index - capacity).
+    r = w - (uint64_t)ring->capacity;
+    atomic_store_explicit(&ring->read_index, r, memory_order_release);
+    avail = ring->capacity;
+  }
+
+  size_t n = avail < count ? avail : count;
+  if (n == 0) return 0;
+
+  // Calculate read offset and handle wrap-around.
+  size_t read_offset = (size_t)(r & ring->mask);
+  size_t first_chunk = ring->capacity - read_offset;
+  if (first_chunk > n) first_chunk = n;
+
+  if (stride == 1) {
+    memcpy(dest, ring->storage + read_offset, first_chunk * sizeof(float));
+    if (first_chunk < n) {
+      memcpy(dest + first_chunk, ring->storage,
+             (n - first_chunk) * sizeof(float));
+    }
+  } else {
+#ifdef ENABLE_ACCELERATE
+    float zero = 0.0f;
+    vDSP_vsadd(ring->storage + read_offset, 1, &zero, dest, stride,
+               first_chunk);
+    if (first_chunk < n) {
+      vDSP_vsadd(ring->storage, 1, &zero, dest + (stride * first_chunk), stride,
+                 n - first_chunk);
+    }
+#else
+    for (size_t i = 0; i < first_chunk; i++) {
+      dest[i * stride] = ring->storage[read_offset + i];
+    }
+    if (first_chunk < n) {
+      for (size_t i = 0; i < n - first_chunk; i++) {
+        dest[(first_chunk + i) * stride] = ring->storage[i];
+      }
+    }
+#endif
+  }
+  // Release store: let the producer know we've freed up slot space up to r + n.
+  atomic_store_explicit(&ring->read_index, r + n, memory_order_release);
+  return n;
+}
+
+
 void spsc_audio_ring_buffer_drain(spsc_audio_ring_buffer_t* ring) {
   if (!ring) return;
   uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_acquire);

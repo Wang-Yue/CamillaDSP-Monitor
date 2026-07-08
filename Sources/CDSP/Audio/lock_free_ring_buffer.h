@@ -169,6 +169,22 @@ size_t spsc_audio_ring_buffer_consume(spsc_audio_ring_buffer_t* ring,
                                       float* dest, size_t count);
 
 /**
+ * @brief Consume samples from the ring buffer with a destination stride.
+ *
+ * **Consumer-only.** Copy up to `count` samples into `dest` with specified `stride` and advance the
+ * read cursor. Returns the number of samples actually copied.
+ *
+ * @param ring Pointer to the ring buffer.
+ * @param dest Destination buffer.
+ * @param count Maximum number of samples to consume.
+ * @param stride Stride for writing to destination.
+ * @return Number of samples actually consumed.
+ */
+size_t spsc_audio_ring_buffer_consume_stride(spsc_audio_ring_buffer_t* ring,
+                                             float* dest, size_t count,
+                                             size_t stride);
+
+/**
  * @brief Discard all pending samples.
  *
  * **Consumer-only.** Discard any pending samples without copying. Useful when

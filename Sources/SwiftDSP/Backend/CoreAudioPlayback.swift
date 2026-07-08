@@ -38,6 +38,7 @@ final class CoreAudioPlayback: PlaybackBackend {
   /// device change).
   private var openedDeviceID: AudioDeviceID?
   private var didAcquireHogMode = false
+  fileprivate var isInterleaved = false
   /// Watches the device's nominal sample rate so the engine can
   /// surface `.playbackFormatChange` when something else flips the
   /// device rate at runtime.
@@ -255,9 +256,27 @@ final class CoreAudioPlayback: PlaybackBackend {
       &streamFormat,
       UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
     )
-    guard status == noErr else {
-      throw BackendError.initializationFailed("Failed to set playback stream format: \(status)")
+    if status != noErr {
+      // Fallback to interleaved Float32.
+      streamFormat = CoreAudioDevice.float32StreamFormat(
+        sampleRate: sampleRate,
+        channels: channels,
+        interleaved: true
+      )
+      status = AudioUnitSetProperty(
+        audioUnit,
+        kAudioUnitProperty_StreamFormat,
+        kAudioUnitScope_Input,
+        0,
+        &streamFormat,
+        UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+      )
+      guard status == noErr else {
+        throw BackendError.initializationFailed("Failed to set playback stream format: \(status)")
+      }
     }
+
+    isInterleaved = (streamFormat.mFormatFlags & kAudioFormatFlagIsNonInterleaved) == 0
 
     // Set render callback.
     var callbackStruct = AURenderCallbackStruct(
@@ -427,22 +446,34 @@ private func playbackCallback(
   let toCopy = minAvailable
   let underrunFrames = frameCount - toCopy
 
-  let numBuffers = buffers.count
-  for ch in 0..<numBuffers {
-    let buffer = buffers[ch]
-    guard let data = buffer.mData else { continue }
+  if playback.isInterleaved {
+    guard let firstBuffer = buffers.first, let data = firstBuffer.mData else { return noErr }
     let floatPtr = data.assumingMemoryBound(to: Float.self)
-    if ch < playback.channels {
-      // Drain the synchronized frame count for this channel; pad the remainder with silence.
-      let copied = playback.playbackRings[ch].consume(into: floatPtr, count: toCopy)
+    for ch in 0..<playback.channels {
+      let copied = playback.playbackRings[ch].consume(into: floatPtr + ch, count: toCopy, stride: playback.channels)
       if copied < frameCount {
         var zero: Float = 0
-        vDSP_vfill(&zero, floatPtr + copied, 1, vDSP_Length(frameCount - copied))
+        vDSP_vfill(&zero, floatPtr + ch + (copied * playback.channels), playback.channels, vDSP_Length(frameCount - copied))
       }
-    } else {
-      // Channel beyond what the engine produces — output silence.
-      var zero: Float = 0
-      vDSP_vfill(&zero, floatPtr, 1, vDSP_Length(frameCount))
+    }
+  } else {
+    let numBuffers = buffers.count
+    for ch in 0..<numBuffers {
+      let buffer = buffers[ch]
+      guard let data = buffer.mData else { continue }
+      let floatPtr = data.assumingMemoryBound(to: Float.self)
+      if ch < playback.channels {
+        // Drain the synchronized frame count for this channel; pad the remainder with silence.
+        let copied = playback.playbackRings[ch].consume(into: floatPtr, count: toCopy)
+        if copied < frameCount {
+          var zero: Float = 0
+          vDSP_vfill(&zero, floatPtr + copied, 1, vDSP_Length(frameCount - copied))
+        }
+      } else {
+        // Channel beyond what the engine produces — output silence.
+        var zero: Float = 0
+        vDSP_vfill(&zero, floatPtr, 1, vDSP_Length(frameCount))
+      }
     }
   }
   if underrunFrames > 0 && underrunFrames <= frameCount {

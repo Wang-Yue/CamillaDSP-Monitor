@@ -205,7 +205,7 @@ final class SPSCAudioRingBuffer: @unchecked Sendable {
   /// available, in which case the remainder of `dest` is left
   /// untouched and the caller should fill it with silence.
   @discardableResult
-  func consume(into dest: UnsafeMutablePointer<Float>, count: Int) -> Int {
+  func consume(into dest: UnsafeMutablePointer<Float>, count: Int, stride: Int = 1) -> Int {
     guard count > 0 else { return 0 }
     var r = readIndex.load(ordering: .relaxed)
     let w = writeIndex.load(ordering: .acquiring)
@@ -222,11 +222,27 @@ final class SPSCAudioRingBuffer: @unchecked Sendable {
     guard n > 0 else { return 0 }
     let readOffset = Int(r & UInt64(mask))
     let firstChunk = Swift.min(capacity - readOffset, n)
-    dest.update(from: base + readOffset, count: firstChunk)
-    if firstChunk < n {
-      (dest + firstChunk).update(
-        from: base,
-        count: n - firstChunk)
+    if stride == 1 {
+      dest.update(from: base + readOffset, count: firstChunk)
+      if firstChunk < n {
+        (dest + firstChunk).update(
+          from: base,
+          count: n - firstChunk)
+      }
+    } else {
+      var zero: Float = 0
+      vDSP_vsadd(
+        base + readOffset, 1, &zero,
+        dest, vDSP_Stride(stride),
+        vDSP_Length(firstChunk)
+      )
+      if firstChunk < n {
+        vDSP_vsadd(
+          base, 1, &zero,
+          dest + (stride * firstChunk), vDSP_Stride(stride),
+          vDSP_Length(n - firstChunk)
+        )
+      }
     }
     readIndex.store(r &+ UInt64(n), ordering: .releasing)
     return n
