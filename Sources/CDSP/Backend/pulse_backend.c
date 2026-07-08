@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <stdatomic.h>
 #include "Logging/app_logger.h"
 
 struct pulse_capture {
@@ -29,7 +30,7 @@ struct pulse_playback {
   uint8_t* raw_buf;
   size_t raw_buf_size;
   size_t total_bytes_written;
-  bool paused;
+  _Atomic bool paused;
 };
 
 // MARK: - Pulse Capture Backend implementation
@@ -404,6 +405,7 @@ playback_backend_t* pulse_playback_create(
   playback->sample_rate = sample_rate;
   playback->channels = config->cfg.pulse.channels;
   playback->chunk_size = chunk_size;
+  atomic_init(&playback->paused, false);
 
   playback_backend_t* backend =
       (playback_backend_t*)calloc(1, sizeof(playback_backend_t));
@@ -475,7 +477,7 @@ bool pulse_playback_open(pulse_playback_t* playback, backend_error_t* err) {
 
 bool pulse_playback_write(pulse_playback_t* playback,
                           const audio_chunk_t* chunk, backend_error_t* err) {
-  if (playback->paused) {
+  if (atomic_load_explicit(&playback->paused, memory_order_acquire)) {
     return true;
   }
 
@@ -565,11 +567,13 @@ bool pulse_playback_prefill_silence(pulse_playback_t* playback, size_t frames,
 }
 
 bool pulse_playback_get_is_paused(pulse_playback_t* playback) {
-  return playback->paused;
+  if (!playback) return false;
+  return atomic_load_explicit(&playback->paused, memory_order_acquire);
 }
 
 void pulse_playback_set_is_paused(pulse_playback_t* playback, bool paused) {
-  playback->paused = paused;
+  if (!playback) return;
+  atomic_store_explicit(&playback->paused, paused, memory_order_release);
 }
 
 void pulse_playback_destroy(pulse_playback_t* playback) { free(playback); }

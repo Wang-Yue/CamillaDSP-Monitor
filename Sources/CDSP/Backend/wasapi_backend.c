@@ -14,6 +14,7 @@
 #include <string.h>
 #include <windows.h>
 
+#include <stdatomic.h>
 #include "Logging/app_logger.h"
 
 // COM Release helper
@@ -65,7 +66,7 @@ struct wasapi_playback {
   IAudioClient* client;
   IAudioRenderClient* render_client;
   UINT32 buffer_frame_count;
-  bool paused;
+  _Atomic bool paused;
   HANDLE event;
 };
 
@@ -913,6 +914,7 @@ playback_backend_t* wasapi_playback_create(
   playback->polling =
       config->cfg.wasapi.has_polling ? config->cfg.wasapi.polling : false;
 
+  atomic_init(&playback->paused, false);
   playback_backend_t* backend =
       (playback_backend_t*)calloc(1, sizeof(playback_backend_t));
   if (!backend) {
@@ -1218,7 +1220,7 @@ error_cleanup:
 
 bool wasapi_playback_write(wasapi_playback_t* playback,
                            const audio_chunk_t* chunk, backend_error_t* err) {
-  if (playback->paused) return true;
+  if (atomic_load_explicit(&playback->paused, memory_order_acquire)) return true;
 
   size_t frames_written = 0;
   size_t total_frames = audio_chunk_get_valid_frames(chunk);
@@ -1327,11 +1329,13 @@ bool wasapi_playback_prefill_silence(wasapi_playback_t* playback, size_t frames,
 }
 
 bool wasapi_playback_get_is_paused(wasapi_playback_t* playback) {
-  return playback->paused;
+  if (!playback) return false;
+  return atomic_load_explicit(&playback->paused, memory_order_acquire);
 }
 
 void wasapi_playback_set_is_paused(wasapi_playback_t* playback, bool paused) {
-  playback->paused = paused;
+  if (!playback) return;
+  atomic_store_explicit(&playback->paused, paused, memory_order_release);
 }
 
 void wasapi_playback_destroy(wasapi_playback_t* playback) { free(playback); }

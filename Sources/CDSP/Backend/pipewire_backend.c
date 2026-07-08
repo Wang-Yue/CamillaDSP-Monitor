@@ -10,6 +10,7 @@
 #include <time.h>
 
 #include "Audio/lock_free_ring_buffer.h"
+#include <stdatomic.h>
 #include "Logging/app_logger.h"
 
 struct pipewire_capture {
@@ -58,7 +59,7 @@ struct pipewire_playback {
   spsc_audio_ring_buffer_t* ring;
   float* encode_buf;
   size_t encode_buf_size;
-  bool paused;
+  _Atomic bool paused;
 };
 
 // MARK: - PipeWire Callbacks
@@ -563,6 +564,7 @@ playback_backend_t* pipewire_playback_create(
     playback->has_autoconnect_to = true;
   }
 
+  atomic_init(&playback->paused, false);
   playback_backend_t* backend =
       (playback_backend_t*)calloc(1, sizeof(playback_backend_t));
   if (!backend) {
@@ -704,7 +706,7 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
 
 bool pipewire_playback_write(pipewire_playback_t* playback,
                              const audio_chunk_t* chunk, backend_error_t* err) {
-  if (playback->paused) return true;
+  if (atomic_load_explicit(&playback->paused, memory_order_acquire)) return true;
   (void)err;
 
   size_t frames = audio_chunk_get_valid_frames(chunk);
@@ -802,12 +804,14 @@ bool pipewire_playback_prefill_silence(pipewire_playback_t* playback,
 }
 
 bool pipewire_playback_get_is_paused(pipewire_playback_t* playback) {
-  return playback->paused;
+  if (!playback) return false;
+  return atomic_load_explicit(&playback->paused, memory_order_acquire);
 }
 
 void pipewire_playback_set_is_paused(pipewire_playback_t* playback,
                                      bool paused) {
-  playback->paused = paused;
+  if (!playback) return;
+  atomic_store_explicit(&playback->paused, paused, memory_order_release);
 }
 
 void pipewire_playback_destroy(pipewire_playback_t* playback) {

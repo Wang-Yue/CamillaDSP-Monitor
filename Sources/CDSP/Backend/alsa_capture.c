@@ -38,6 +38,7 @@ struct alsa_capture {
 
   void* interleaved_buf;
   size_t interleaved_buf_size;
+  pthread_mutex_t mixer_mutex;
 };
 
 /**
@@ -136,6 +137,7 @@ capture_backend_t* alsa_capture_create(const capture_device_config_t* config,
            "%s", config->cfg.alsa.link_volume_control);
   snprintf(capture->link_mute_control, sizeof(capture->link_mute_control), "%s",
            config->cfg.alsa.link_mute_control);
+  pthread_mutex_init(&capture->mixer_mutex, NULL);
 
   capture_backend_t* backend =
       (capture_backend_t*)calloc(1, sizeof(capture_backend_t));
@@ -264,6 +266,8 @@ static void alsa_capture_init_controls(alsa_capture_t* capture) {
   char ctl_name[32];
   snprintf(ctl_name, sizeof(ctl_name), "hw:%d", card);
 
+  pthread_mutex_lock(&capture->mixer_mutex);
+
   // Open control interface (non-blocking)
   snd_ctl_t* ctl = NULL;
   if (snd_ctl_open(&ctl, ctl_name, SND_CTL_NONBLOCK) >= 0) {
@@ -315,6 +319,7 @@ static void alsa_capture_init_controls(alsa_capture_t* capture) {
       snd_mixer_close(mixer);
     }
   }
+  pthread_mutex_unlock(&capture->mixer_mutex);
 }
 
 /**
@@ -327,7 +332,11 @@ static void alsa_capture_init_controls(alsa_capture_t* capture) {
  * @param capture Pointer to the ALSA capture backend instance.
  */
 static void alsa_capture_sync_controls(alsa_capture_t* capture) {
-  if (!capture->mixer) return;
+  pthread_mutex_lock(&capture->mixer_mutex);
+  if (!capture->mixer) {
+    pthread_mutex_unlock(&capture->mixer_mutex);
+    return;
+  }
 
   if (capture->ctl) {
     snd_ctl_event_t* event;
@@ -369,6 +378,7 @@ static void alsa_capture_sync_controls(alsa_capture_t* capture) {
     set_elem_mute(capture->mute_elem, engine_mute);
     capture->last_synced_mute = engine_mute;
   }
+  pthread_mutex_unlock(&capture->mixer_mutex);
 }
 
 bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
@@ -653,6 +663,7 @@ void alsa_capture_close(alsa_capture_t* capture) {
     snd_pcm_close(capture->pcm);
     capture->pcm = NULL;
   }
+  pthread_mutex_lock(&capture->mixer_mutex);
   if (capture->ctl) {
     snd_ctl_close(capture->ctl);
     capture->ctl = NULL;
@@ -664,6 +675,7 @@ void alsa_capture_close(alsa_capture_t* capture) {
   capture->vol_elem = NULL;
   capture->mute_elem = NULL;
   capture->pitch_elem = NULL;
+  pthread_mutex_unlock(&capture->mixer_mutex);
   if (capture->interleaved_buf) {
     free(capture->interleaved_buf);
     capture->interleaved_buf = NULL;
@@ -682,13 +694,18 @@ bool alsa_capture_pitch_control_supported(alsa_capture_t* capture) {
 }
 
 void alsa_capture_set_pitch(alsa_capture_t* capture, double multiplier) {
-  if (!capture->pitch_elem) return;
+  pthread_mutex_lock(&capture->mixer_mutex);
+  if (!capture->pitch_elem) {
+    pthread_mutex_unlock(&capture->mixer_mutex);
+    return;
+  }
   long value = (long)round(multiplier * 1000000.0);
   if (snd_mixer_selem_has_playback_volume(capture->pitch_elem)) {
     snd_mixer_selem_set_playback_volume_all(capture->pitch_elem, value);
   } else if (snd_mixer_selem_has_capture_volume(capture->pitch_elem)) {
     snd_mixer_selem_set_capture_volume_all(capture->pitch_elem, value);
   }
+  pthread_mutex_unlock(&capture->mixer_mutex);
 }
 
 bool alsa_capture_wait(alsa_capture_t* capture, uint32_t timeout_ms) {
@@ -700,6 +717,7 @@ bool alsa_capture_wait(alsa_capture_t* capture, uint32_t timeout_ms) {
 void alsa_capture_destroy(alsa_capture_t* capture) {
   if (!capture) return;
   alsa_capture_close(capture);
+  pthread_mutex_destroy(&capture->mixer_mutex);
   free(capture);
 }
 

@@ -7,6 +7,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <stdatomic.h>
 #include "Logging/app_logger.h"
 #include "alsa_device.h"
 
@@ -22,7 +23,8 @@ struct alsa_playback {
 
   snd_pcm_t* pcm;
   snd_pcm_format_t format;
-  bool paused;
+  _Atomic bool paused;
+  bool currently_paused;
 
   void* interleaved_buf;
   size_t interleaved_buf_size;
@@ -208,6 +210,8 @@ playback_backend_t* alsa_playback_create(const playback_device_config_t* config,
   playback->has_format = config->cfg.alsa.has_format;
   playback->requested_format = config->cfg.alsa.format;
   playback->params = params;
+  atomic_init(&playback->paused, false);
+  playback->currently_paused = false;
 
   playback_backend_t* backend =
       (playback_backend_t*)calloc(1, sizeof(playback_backend_t));
@@ -511,8 +515,18 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
     }
   }
 
-  if (playback->paused) {
+  bool paused = atomic_load_explicit(&playback->paused, memory_order_acquire);
+  if (paused) {
+    if (!playback->currently_paused) {
+      snd_pcm_pause(playback->pcm, 1);
+      playback->currently_paused = true;
+    }
     return true;
+  } else {
+    if (playback->currently_paused) {
+      snd_pcm_pause(playback->pcm, 0);
+      playback->currently_paused = false;
+    }
   }
 
   // Write interleaved samples to ALSA device.
@@ -597,13 +611,13 @@ bool alsa_playback_prefill_silence(alsa_playback_t* playback, size_t frames,
 }
 
 bool alsa_playback_get_is_paused(alsa_playback_t* playback) {
-  return playback->paused;
+  if (!playback) return false;
+  return atomic_load_explicit(&playback->paused, memory_order_acquire);
 }
 
 void alsa_playback_set_is_paused(alsa_playback_t* playback, bool paused) {
-  if (!playback->pcm) return;
-  playback->paused = paused;
-  snd_pcm_pause(playback->pcm, paused ? 1 : 0);
+  if (!playback) return;
+  atomic_store_explicit(&playback->paused, paused, memory_order_release);
 }
 
 bool alsa_playback_pitch_control_supported(alsa_playback_t* playback) {
