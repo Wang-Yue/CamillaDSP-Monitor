@@ -47,6 +47,8 @@ typedef struct {
   bool (*set_config_json)(void* ctx, const char* json_str,
                           audio_backend_error_t* out_err);
   void (*stop)(void* ctx);
+  void (*set_fader_volume)(void* ctx, fader_t fader, float db, bool instant);
+  void (*set_fader_mute)(void* ctx, fader_t fader, bool mute);
 } dsp_engine_interface_t;
 
 struct active_config_path {

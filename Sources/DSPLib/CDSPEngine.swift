@@ -70,7 +70,7 @@ public actor DSPEngine {
 
   public func setFaderVolume(_ fader: Fader, _ db: Float) async {
     guard let e = engine else { return }
-    dsp_engine_set_fader_volume(e, fader.cValue, db)
+    dsp_engine_set_fader_volume(e, fader.cValue, db, false)
   }
 
   public func setFaderMute(_ fader: Fader, _ mute: Bool) async {

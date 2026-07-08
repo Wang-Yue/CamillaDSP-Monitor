@@ -45,7 +45,8 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
                                   audio_backend_error_t* err);
 void dsp_engine_stop(dsp_engine_t* engine);
 
-void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader, float db);
+void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader, float db,
+                                 bool instant);
 void dsp_engine_set_fader_mute(dsp_engine_t* engine, fader_t fader, bool mute);
 float dsp_engine_get_fader_volume(const dsp_engine_t* engine, fader_t fader);
 bool dsp_engine_is_fader_muted(const dsp_engine_t* engine, fader_t fader);

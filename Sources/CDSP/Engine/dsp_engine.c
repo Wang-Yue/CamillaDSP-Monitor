@@ -170,12 +170,16 @@ void dsp_engine_stop(dsp_engine_t* engine) {
 }
 
 void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader,
-                                 float db) {
+                                 float db, bool instant) {
   if (!engine || fader < 0 || fader >= FADER_COUNT) return;
   engine->desired_fader_volumes[fader] = (double)db;
   if (engine->core && engine->core->processing_params) {
     processing_parameters_set_target_volume_for_fader(
         engine->core->processing_params, (double)db, fader);
+    if (instant) {
+      processing_parameters_set_current_volume_for_fader(
+          engine->core->processing_params, (double)db, fader);
+    }
   }
 }
 
@@ -575,6 +579,12 @@ static const dsp_config_t* iface_get_active_config(void* ctx) {
   if (!ctx) return NULL;
   return dsp_engine_get_active_config((dsp_engine_t*)ctx);
 }
+static void iface_set_fader_volume(void* ctx, fader_t fader, float db, bool instant) {
+  if (ctx) dsp_engine_set_fader_volume((dsp_engine_t*)ctx, fader, db, instant);
+}
+static void iface_set_fader_mute(void* ctx, fader_t fader, bool mute) {
+  if (ctx) dsp_engine_set_fader_mute((dsp_engine_t*)ctx, fader, mute);
+}
 
 dsp_engine_interface_t* dsp_engine_get_interface(dsp_engine_t* engine) {
   if (!engine) return NULL;
@@ -590,5 +600,7 @@ dsp_engine_interface_t* dsp_engine_get_interface(dsp_engine_t* engine) {
   iface.get_spectrum = iface_get_spectrum;
   iface.set_config_json = iface_set_config_json;
   iface.stop = iface_stop;
+  iface.set_fader_volume = iface_set_fader_volume;
+  iface.set_fader_mute = iface_set_fader_mute;
   return &iface;
 }

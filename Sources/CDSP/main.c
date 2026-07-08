@@ -503,7 +503,8 @@ int main(int argc, char** argv) {
 
   for (int i = 0; i < FADER_COUNT; i++) {
     if (has_initial_gains[i]) {
-      dsp_engine_set_fader_volume(engine, (fader_t)i, (float)initial_gains[i]);
+      dsp_engine_set_fader_volume(engine, (fader_t)i, (float)initial_gains[i],
+                                  true);
     }
     if (initial_mutes[i]) {
       dsp_engine_set_fader_mute(engine, (fader_t)i, true);

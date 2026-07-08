@@ -68,12 +68,31 @@ static bool mock_set_config_json(void* ctx, const char* json_str,
   return false;
 }
 
+static void mock_set_fader_volume(void* ctx, fader_t fader, float db, bool instant) {
+  (void)ctx;
+  if (mock_params) {
+    processing_parameters_set_target_volume_for_fader(mock_params, (double)db, fader);
+    if (instant) {
+      processing_parameters_set_current_volume_for_fader(mock_params, (double)db, fader);
+    }
+  }
+}
+
+static void mock_set_fader_mute(void* ctx, fader_t fader, bool mute) {
+  (void)ctx;
+  if (mock_params) {
+    processing_parameters_set_muted_for_fader(mock_params, mute, fader);
+  }
+}
+
 static dsp_engine_interface_t mock_engine = {
     .ctx = NULL,
     .get_status = mock_get_status,
     .get_processing_parameters = mock_get_processing_parameters,
     .set_config_json = mock_set_config_json,
-    .get_device_capabilities = mock_get_device_capabilities};
+    .get_device_capabilities = mock_get_device_capabilities,
+    .set_fader_volume = mock_set_fader_volume,
+    .set_fader_mute = mock_set_fader_mute};
 
 TEST(test_websocket_commands) {
   active_config_path_t* path = active_config_path_create(NULL);

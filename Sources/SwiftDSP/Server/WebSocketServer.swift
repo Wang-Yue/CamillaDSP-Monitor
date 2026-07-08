@@ -1065,20 +1065,20 @@ public final class WebSocketServer: Sendable {
     let processingParams = await engine?.getProcessingParameters()
 
     if let volume = json["SetVolume"] as? Double {
-      guard let params = processingParams else {
+      guard processingParams != nil else {
         return jsonReply("SetVolume", result: .processingNotRunningError)
       }
       let clamped = min(50.0, max(-150.0, volume))
-      params.setTargetVolume(clamped, for: .main)
+      await engine?.setFaderVolume(.main, Float(clamped))
       stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetVolume", result: .ok)
     }
 
     if let mute = json["SetMute"] as? Bool {
-      guard let params = processingParams else {
+      guard processingParams != nil else {
         return jsonReply("SetMute", result: .processingNotRunningError)
       }
-      params.setMuted(mute, for: .main)
+      await engine?.setFaderMute(.main, mute)
       stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetMute", result: .ok)
     }
@@ -1222,14 +1222,14 @@ public final class WebSocketServer: Sendable {
     if let arr = json["SetFaderVolume"] as? [Any], arr.count >= 2,
       let idx = arr[0] as? Int, let vol = arr[1] as? Double
     {
-      guard let params = processingParams else {
+      guard processingParams != nil else {
         return jsonReply("SetFaderVolume", result: .processingNotRunningError)
       }
       guard let fader = faderForIndex(idx) else {
         return jsonReply("SetFaderVolume", result: .invalidFaderError)
       }
       let clamped = min(50.0, max(-150.0, vol))
-      params.setTargetVolume(clamped, for: fader)
+      await engine?.setFaderVolume(fader, Float(clamped))
       stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetFaderVolume", result: .ok)
     }
@@ -1237,15 +1237,14 @@ public final class WebSocketServer: Sendable {
     if let arr = json["SetFaderExternalVolume"] as? [Any], arr.count >= 2,
       let idx = arr[0] as? Int, let vol = arr[1] as? Double
     {
-      guard let params = processingParams else {
+      guard processingParams != nil else {
         return jsonReply("SetFaderExternalVolume", result: .processingNotRunningError)
       }
       guard let fader = faderForIndex(idx) else {
         return jsonReply("SetFaderExternalVolume", result: .invalidFaderError)
       }
       let clamped = min(50.0, max(-150.0, vol))
-      params.setTargetVolume(clamped, for: fader)
-      params.setCurrentVolume(clamped, for: fader)
+      await engine?.setFaderVolume(fader, Float(clamped), instant: true)
       stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetFaderExternalVolume", result: .ok)
     }
@@ -1266,13 +1265,13 @@ public final class WebSocketServer: Sendable {
     if let arr = json["SetFaderMute"] as? [Any], arr.count >= 2,
       let idx = arr[0] as? Int, let mute = arr[1] as? Bool
     {
-      guard let params = processingParams else {
+      guard processingParams != nil else {
         return jsonReply("SetFaderMute", result: .processingNotRunningError)
       }
       guard let fader = faderForIndex(idx) else {
         return jsonReply("SetFaderMute", result: .invalidFaderError)
       }
-      params.setMuted(mute, for: fader)
+      await engine?.setFaderMute(fader, mute)
       stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetFaderMute", result: .ok)
     }
@@ -1287,7 +1286,7 @@ public final class WebSocketServer: Sendable {
           value: "[\(idx),\(ProcessingParameters.defaultMute)]")
       }
       let wasMuted = params.isMuted(for: fader)
-      params.setMuted(!wasMuted, for: fader)
+      await engine?.setFaderMute(fader, !wasMuted)
       stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("ToggleFaderMute", result: .ok, value: "[\(idx),\(!wasMuted)]")
     }

@@ -291,26 +291,21 @@ struct DSPCLI {
     }
 
     // Set initial gains & mutes
-    let params = await engine.getProcessingParameters()
-    if let params = params {
-      for (fader, gain) in initialGains {
-        params.setTargetVolume(Double(gain), for: fader)
-      }
-      for (fader, mute) in initialMutes {
-        params.setMuted(mute, for: fader)
-      }
+    for (fader, gain) in initialGains {
+      await engine.setFaderVolume(fader, Float(gain), instant: true)
+    }
+    for (fader, mute) in initialMutes {
+      await engine.setFaderMute(fader, mute)
     }
 
     // Load state from state file if present
     if let sFile = stateFile {
-      if let params = params {
-        params.setTargetVolume(Double(sFile.volume), for: .main)
-        params.setMuted(sFile.mute, for: .main)
-        for (idx, fState) in sFile.faders.enumerated() {
-          if let fader = faderForIndex(idx + 1) {
-            params.setTargetVolume(Double(fState.volume), for: fader)
-            params.setMuted(fState.mute, for: fader)
-          }
+      await engine.setFaderVolume(.main, Float(sFile.volume), instant: true)
+      await engine.setFaderMute(.main, sFile.mute)
+      for (idx, fState) in sFile.faders.enumerated() {
+        if let fader = faderForIndex(idx + 1) {
+          await engine.setFaderVolume(fader, Float(fState.volume), instant: true)
+          await engine.setFaderMute(fader, fState.mute)
         }
       }
     }

@@ -1709,16 +1709,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
   } else if (strcmp(simple, "SetVolume") == 0) {
     if (arg && cJSON_IsNumber(arg)) {
       double vol = arg->valuedouble;
-      processing_parameters_t* params = NULL;
-      if (server && server->engine &&
-          server->engine->get_processing_parameters &&
-          server->engine->get_processing_parameters(server->engine->ctx,
-                                                    (void**)&params) &&
-          params) {
+      if (server && server->engine && server->engine->set_fader_volume) {
         double clamped = vol < -150.0 ? -150.0 : (vol > 50.0 ? 50.0 : vol);
-        processing_parameters_set_target_volume_for_fader(params, clamped,
-                                                          FADER_MAIN);
-        if (server) server->unsaved_state_changes = true;
+        server->engine->set_fader_volume(server->engine->ctx, FADER_MAIN,
+                                         clamped, false);
         json_reply("SetVolume", "\"Ok\"", NULL, out_response, max_len);
       } else {
         json_reply("SetVolume", "\"ProcessingNotRunningError\"", NULL,
@@ -1732,14 +1726,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
   } else if (strcmp(simple, "SetMute") == 0) {
     if (arg && cJSON_IsBool(arg)) {
       bool mute = cJSON_IsTrue(arg);
-      processing_parameters_t* params = NULL;
-      if (server && server->engine &&
-          server->engine->get_processing_parameters &&
-          server->engine->get_processing_parameters(server->engine->ctx,
-                                                    (void**)&params) &&
-          params) {
-        processing_parameters_set_muted_for_fader(params, mute, FADER_MAIN);
-        if (server) server->unsaved_state_changes = true;
+      if (server && server->engine && server->engine->set_fader_mute) {
+        server->engine->set_fader_mute(server->engine->ctx, FADER_MAIN, mute);
         json_reply("SetMute", "\"Ok\"", NULL, out_response, max_len);
       } else {
         json_reply("SetMute", "\"ProcessingNotRunningError\"", NULL,
@@ -1990,21 +1978,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       }
     }
     if (ok) {
-      processing_parameters_t* params = NULL;
-      if (server && server->engine &&
-          server->engine->get_processing_parameters &&
-          server->engine->get_processing_parameters(server->engine->ctx,
-                                                    (void**)&params) &&
-          params) {
+      if (server && server->engine && server->engine->set_fader_volume) {
         if (idx >= 0 && idx < FADER_COUNT) {
           double clamped = vol < -150.0 ? -150.0 : (vol > 50.0 ? 50.0 : vol);
-          processing_parameters_set_target_volume_for_fader(params, clamped,
-                                                            (fader_t)idx);
-          if (strcmp(simple, "SetFaderExternalVolume") == 0) {
-            processing_parameters_set_current_volume_for_fader(params, clamped,
-                                                               (fader_t)idx);
-          }
-          if (server) server->unsaved_state_changes = true;
+          bool instant = (strcmp(simple, "SetFaderExternalVolume") == 0);
+          server->engine->set_fader_volume(server->engine->ctx, (fader_t)idx,
+                                           clamped, instant);
           json_reply(simple, "\"Ok\"", NULL, out_response, max_len);
         } else {
           json_reply(simple, "\"InvalidFaderError\"", NULL, out_response,
@@ -2063,15 +2042,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       }
     }
     if (ok) {
-      processing_parameters_t* params = NULL;
-      if (server && server->engine &&
-          server->engine->get_processing_parameters &&
-          server->engine->get_processing_parameters(server->engine->ctx,
-                                                    (void**)&params) &&
-          params) {
+      if (server && server->engine && server->engine->set_fader_mute) {
         if (idx >= 0 && idx < FADER_COUNT) {
-          processing_parameters_set_muted_for_fader(params, mute, (fader_t)idx);
-          if (server) server->unsaved_state_changes = true;
+          server->engine->set_fader_mute(server->engine->ctx, (fader_t)idx, mute);
           json_reply("SetFaderMute", "\"Ok\"", NULL, out_response, max_len);
         } else {
           json_reply("SetFaderMute", "\"InvalidFaderError\"", NULL,
@@ -2099,9 +2072,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         if (idx >= 0 && idx < FADER_COUNT) {
           bool was_muted =
               processing_parameters_is_muted_for_fader(params, (fader_t)idx);
-          processing_parameters_set_muted_for_fader(params, !was_muted,
-                                                    (fader_t)idx);
-          if (server) server->unsaved_state_changes = true;
+          if (server->engine->set_fader_mute) {
+            server->engine->set_fader_mute(server->engine->ctx, (fader_t)idx, !was_muted);
+          }
           char val[64];
           snprintf(val, sizeof(val), "[%d,%s]", idx,
                    !was_muted ? "true" : "false");

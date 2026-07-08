@@ -92,9 +92,12 @@ public actor SwiftDSPEngine {
     core = nil
   }
 
-  public func setFaderVolume(_ fader: Fader, _ db: Float) {
+  public func setFaderVolume(_ fader: Fader, _ db: Float, instant: Bool = false) {
     desiredFaderVolumes[fader] = Double(db)
     core?.processingParams.setTargetVolume(Double(db), for: fader)
+    if instant {
+      core?.processingParams.setCurrentVolume(Double(db), for: fader)
+    }
   }
 
   public func setFaderMute(_ fader: Fader, _ mute: Bool) {
