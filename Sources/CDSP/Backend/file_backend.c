@@ -1,12 +1,12 @@
 
 #include "file_backend.h"
 
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <errno.h>
 #if !defined(_WIN32)
 #include <poll.h>
 #endif
@@ -369,9 +369,15 @@ capture_backend_t* file_capture_create(const capture_device_config_t* config,
     capture->is_stdin = true;
     capture->format = config->cfg.stdin_in.format;
     capture->channels = config->cfg.stdin_in.channels;
-    capture->skip_bytes = config->cfg.stdin_in.has_skip_bytes ? (size_t)config->cfg.stdin_in.skip_bytes : 0;
-    capture->read_bytes = config->cfg.stdin_in.has_read_bytes ? (size_t)config->cfg.stdin_in.read_bytes : 0;
-    capture->extra_samples = config->cfg.stdin_in.has_extra_samples ? (size_t)config->cfg.stdin_in.extra_samples : 0;
+    capture->skip_bytes = config->cfg.stdin_in.has_skip_bytes
+                              ? (size_t)config->cfg.stdin_in.skip_bytes
+                              : 0;
+    capture->read_bytes = config->cfg.stdin_in.has_read_bytes
+                              ? (size_t)config->cfg.stdin_in.read_bytes
+                              : 0;
+    capture->extra_samples = config->cfg.stdin_in.has_extra_samples
+                                 ? (size_t)config->cfg.stdin_in.extra_samples
+                                 : 0;
   } else {
     capture->is_wav = config->is_wav;
     if (config->is_wav) {
@@ -381,15 +387,23 @@ capture_backend_t* file_capture_create(const capture_device_config_t* config,
       capture->channels = 0;
       capture->skip_bytes = 0;
       capture->read_bytes = 0;
-      capture->extra_samples = config->cfg.wav_file.has_extra_samples ? (size_t)config->cfg.wav_file.extra_samples : 0;
+      capture->extra_samples = config->cfg.wav_file.has_extra_samples
+                                   ? (size_t)config->cfg.wav_file.extra_samples
+                                   : 0;
     } else {
       snprintf(capture->filename, sizeof(capture->filename), "%s",
                config->cfg.raw_file.filename);
       capture->format = config->cfg.raw_file.format;
       capture->channels = config->cfg.raw_file.channels;
-      capture->skip_bytes = config->cfg.raw_file.has_skip_bytes ? (size_t)config->cfg.raw_file.skip_bytes : 0;
-      capture->read_bytes = config->cfg.raw_file.has_read_bytes ? (size_t)config->cfg.raw_file.read_bytes : 0;
-      capture->extra_samples = config->cfg.raw_file.has_extra_samples ? (size_t)config->cfg.raw_file.extra_samples : 0;
+      capture->skip_bytes = config->cfg.raw_file.has_skip_bytes
+                                ? (size_t)config->cfg.raw_file.skip_bytes
+                                : 0;
+      capture->read_bytes = config->cfg.raw_file.has_read_bytes
+                                ? (size_t)config->cfg.raw_file.read_bytes
+                                : 0;
+      capture->extra_samples = config->cfg.raw_file.has_extra_samples
+                                   ? (size_t)config->cfg.raw_file.extra_samples
+                                   : 0;
     }
   }
 
@@ -679,8 +693,9 @@ bool file_playback_open(file_playback_t* playback, backend_error_t* err) {
     if (!playback->f) {
       if (err) {
         char err_msg[512];
-        snprintf(err_msg, sizeof(err_msg), "Failed to open output file '%s': %s",
-                 playback->filename, strerror(errno));
+        snprintf(err_msg, sizeof(err_msg),
+                 "Failed to open output file '%s': %s", playback->filename,
+                 strerror(errno));
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, err_msg);
       }
       return false;

@@ -126,7 +126,6 @@ typedef struct {
   /// thread once per chunk via `setRelativeRatio`.
   atomic_double_t* resampler_ratio;
 
-
 } engine_shared_state_t;
 
 engine_shared_state_t* engine_shared_state_create(size_t captured_queue_depth,

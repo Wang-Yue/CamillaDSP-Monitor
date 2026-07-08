@@ -1,10 +1,11 @@
 #if defined(ENABLE_JACK)
 
 #include "jack_backend.h"
+
+#include <jack/jack.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <jack/jack.h>
 
 #include "Audio/lock_free_ring_buffer.h"
 #include "Engine/engine_shared_state.h"
@@ -52,8 +53,8 @@ static int jack_capture_sample_rate_cb(jack_nframes_t nframes, void* arg) {
     capture->pending_rate = (double)nframes;
     capture->rate_changed = true;
     logger_warn(&capture->logger, "JACK server sample rate changed to %d Hz",
-                   log_arg_int((int)nframes), log_arg_none(), log_arg_none(),
-                   log_arg_none());
+                log_arg_int((int)nframes), log_arg_none(), log_arg_none(),
+                log_arg_none());
   }
   return 0;
 }
@@ -83,7 +84,8 @@ static void vtable_capture_close(void* ctx) {
   jack_capture_close((jack_capture_t*)ctx);
 }
 
-static bool vtable_capture_get_pending_rate_change(void* ctx, double* out_rate) {
+static bool vtable_capture_get_pending_rate_change(void* ctx,
+                                                   double* out_rate) {
   return jack_capture_get_pending_rate_change((jack_capture_t*)ctx, out_rate);
 }
 
@@ -115,14 +117,16 @@ static const capture_backend_vtable_t JACK_CAPTURE_VTABLE = {
     .set_is_paused = vtable_capture_set_paused,
     .destroy = vtable_capture_destroy};
 
-capture_backend_t* jack_capture_create(
-    const capture_device_config_t* config, int sample_rate, int chunk_size,
-    processing_parameters_t* params, backend_error_t* err) {
+capture_backend_t* jack_capture_create(const capture_device_config_t* config,
+                                       int sample_rate, int chunk_size,
+                                       processing_parameters_t* params,
+                                       backend_error_t* err) {
   (void)params;
   jack_capture_t* capture = (jack_capture_t*)calloc(1, sizeof(jack_capture_t));
   if (!capture) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Memory allocation failed");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Memory allocation failed");
     return NULL;
   }
 
@@ -135,14 +139,17 @@ capture_backend_t* jack_capture_create(
   capture->pending_rate = (double)sample_rate;
 
   if (strlen(config->cfg.jack.device) > 0) {
-    snprintf(capture->client_name, sizeof(capture->client_name), "%s", config->cfg.jack.device);
+    snprintf(capture->client_name, sizeof(capture->client_name), "%s",
+             config->cfg.jack.device);
   } else {
-    snprintf(capture->client_name, sizeof(capture->client_name), "camilladsp_capture");
+    snprintf(capture->client_name, sizeof(capture->client_name),
+             "camilladsp_capture");
   }
 
   if (!engine_sem_init(&capture->sem)) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Failed to initialize semaphore");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to initialize semaphore");
     free(capture);
     return NULL;
   }
@@ -154,7 +161,8 @@ capture_backend_t* jack_capture_create(
     capture->buffers[c] = spsc_audio_ring_buffer_create(buf_capacity);
   }
 
-  capture_backend_t* backend = (capture_backend_t*)malloc(sizeof(capture_backend_t));
+  capture_backend_t* backend =
+      (capture_backend_t*)malloc(sizeof(capture_backend_t));
   backend->ctx = capture;
   backend->vtable = &JACK_CAPTURE_VTABLE;
   return backend;
@@ -162,10 +170,12 @@ capture_backend_t* jack_capture_create(
 
 bool jack_capture_open(jack_capture_t* capture, backend_error_t* err) {
   jack_status_t status;
-  capture->client = jack_client_open(capture->client_name, JackNullOption, &status);
+  capture->client =
+      jack_client_open(capture->client_name, JackNullOption, &status);
   if (!capture->client) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Failed to open JACK client");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to open JACK client");
     return false;
   }
 
@@ -183,27 +193,31 @@ bool jack_capture_open(jack_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
-  capture->ports = (jack_port_t**)calloc(capture->channels, sizeof(jack_port_t*));
+  capture->ports =
+      (jack_port_t**)calloc(capture->channels, sizeof(jack_port_t*));
   for (int c = 0; c < capture->channels; c++) {
     char name[64];
     snprintf(name, sizeof(name), "in_%d", c + 1);
     capture->ports[c] = jack_port_register(
         capture->client, name, JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
     if (!capture->ports[c]) {
-      if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                                 "Failed to register JACK port");
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                           "Failed to register JACK port");
       return false;
     }
   }
 
   jack_set_process_callback(capture->client, jack_capture_process_cb, capture);
-  jack_set_sample_rate_callback(capture->client, jack_capture_sample_rate_cb, capture);
+  jack_set_sample_rate_callback(capture->client, jack_capture_sample_rate_cb,
+                                capture);
   jack_on_shutdown(capture->client, jack_capture_shutdown_cb, capture);
 
   capture->active = true;
   if (jack_activate(capture->client) != 0) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Failed to activate JACK client");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to activate JACK client");
     capture->active = false;
     return false;
   }
@@ -214,19 +228,22 @@ bool jack_capture_open(jack_capture_t* capture, backend_error_t* err) {
 bool jack_capture_read(jack_capture_t* capture, size_t frames,
                        audio_chunk_t* chunk, backend_error_t* err) {
   if (!capture->active) {
-    if (err) backend_error_init(err, BACKEND_ERROR_READ_ERROR,
-                               "JACK capture not active");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_READ_ERROR,
+                         "JACK capture not active");
     return false;
   }
 
-  while (spsc_audio_ring_buffer_get_available_to_read(capture->buffers[0]) < frames) {
+  while (spsc_audio_ring_buffer_get_available_to_read(capture->buffers[0]) <
+         frames) {
     engine_sem_wait(capture->sem);
     if (!capture->active) return false;
   }
 
   float* temp = (float*)malloc(frames * sizeof(float));
   for (int c = 0; c < capture->channels; c++) {
-    size_t consumed = spsc_audio_ring_buffer_consume(capture->buffers[c], temp, frames);
+    size_t consumed =
+        spsc_audio_ring_buffer_consume(capture->buffers[c], temp, frames);
     double* dest = audio_chunk_get_channel(chunk, c);
     for (size_t f = 0; f < consumed; f++) {
       dest[f] = (double)temp[f];
@@ -254,7 +271,8 @@ void jack_capture_close(jack_capture_t* capture) {
   }
 }
 
-bool jack_capture_get_pending_rate_change(jack_capture_t* capture, double* out_rate) {
+bool jack_capture_get_pending_rate_change(jack_capture_t* capture,
+                                          double* out_rate) {
   if (capture->rate_changed) {
     *out_rate = capture->pending_rate;
     capture->rate_changed = false;
@@ -328,7 +346,8 @@ static int jack_playback_process_cb(jack_nframes_t nframes, void* arg) {
   for (int c = 0; c < playback->channels; c++) {
     float* out = (float*)jack_port_get_buffer(playback->ports[c], nframes);
     if (out) {
-      size_t consumed = spsc_audio_ring_buffer_consume(playback->buffers[c], out, nframes);
+      size_t consumed =
+          spsc_audio_ring_buffer_consume(playback->buffers[c], out, nframes);
       if (consumed < nframes) {
         memset(out + consumed, 0, (nframes - consumed) * sizeof(float));
       }
@@ -345,8 +364,8 @@ static int jack_playback_sample_rate_cb(jack_nframes_t nframes, void* arg) {
     playback->pending_rate = (double)nframes;
     playback->rate_changed = true;
     logger_warn(&playback->logger, "JACK server sample rate changed to %d Hz",
-                   log_arg_int((int)nframes), log_arg_none(), log_arg_none(),
-                   log_arg_none());
+                log_arg_int((int)nframes), log_arg_none(), log_arg_none(),
+                log_arg_none());
   }
   return 0;
 }
@@ -380,7 +399,8 @@ static size_t vtable_playback_get_buffer_level(void* ctx) {
   return jack_playback_get_buffer_level((jack_playback_t*)ctx);
 }
 
-static bool vtable_playback_get_pending_rate_change(void* ctx, double* out_rate) {
+static bool vtable_playback_get_pending_rate_change(void* ctx,
+                                                    double* out_rate) {
   return jack_playback_get_pending_rate_change((jack_playback_t*)ctx, out_rate);
 }
 
@@ -420,14 +440,17 @@ static const playback_backend_vtable_t JACK_PLAYBACK_VTABLE = {
     .set_pitch = vtable_playback_set_pitch,
     .destroy = vtable_playback_destroy};
 
-playback_backend_t* jack_playback_create(
-    const playback_device_config_t* config, int sample_rate, int chunk_size,
-    processing_parameters_t* params, backend_error_t* err) {
+playback_backend_t* jack_playback_create(const playback_device_config_t* config,
+                                         int sample_rate, int chunk_size,
+                                         processing_parameters_t* params,
+                                         backend_error_t* err) {
   (void)params;
-  jack_playback_t* playback = (jack_playback_t*)calloc(1, sizeof(jack_playback_t));
+  jack_playback_t* playback =
+      (jack_playback_t*)calloc(1, sizeof(jack_playback_t));
   if (!playback) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Memory allocation failed");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Memory allocation failed");
     return NULL;
   }
 
@@ -441,14 +464,17 @@ playback_backend_t* jack_playback_create(
   playback->pending_rate = (double)sample_rate;
 
   if (strlen(config->cfg.jack.device) > 0) {
-    snprintf(playback->client_name, sizeof(playback->client_name), "%s", config->cfg.jack.device);
+    snprintf(playback->client_name, sizeof(playback->client_name), "%s",
+             config->cfg.jack.device);
   } else {
-    snprintf(playback->client_name, sizeof(playback->client_name), "camilladsp_playback");
+    snprintf(playback->client_name, sizeof(playback->client_name),
+             "camilladsp_playback");
   }
 
   if (!engine_sem_init(&playback->sem)) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Failed to initialize semaphore");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to initialize semaphore");
     free(playback);
     return NULL;
   }
@@ -460,7 +486,8 @@ playback_backend_t* jack_playback_create(
     playback->buffers[c] = spsc_audio_ring_buffer_create(buf_capacity);
   }
 
-  playback_backend_t* backend = (playback_backend_t*)malloc(sizeof(playback_backend_t));
+  playback_backend_t* backend =
+      (playback_backend_t*)malloc(sizeof(playback_backend_t));
   backend->ctx = playback;
   backend->vtable = &JACK_PLAYBACK_VTABLE;
   return backend;
@@ -468,10 +495,12 @@ playback_backend_t* jack_playback_create(
 
 bool jack_playback_open(jack_playback_t* playback, backend_error_t* err) {
   jack_status_t status;
-  playback->client = jack_client_open(playback->client_name, JackNullOption, &status);
+  playback->client =
+      jack_client_open(playback->client_name, JackNullOption, &status);
   if (!playback->client) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Failed to open JACK client");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to open JACK client");
     return false;
   }
 
@@ -489,27 +518,32 @@ bool jack_playback_open(jack_playback_t* playback, backend_error_t* err) {
     return false;
   }
 
-  playback->ports = (jack_port_t**)calloc(playback->channels, sizeof(jack_port_t*));
+  playback->ports =
+      (jack_port_t**)calloc(playback->channels, sizeof(jack_port_t*));
   for (int c = 0; c < playback->channels; c++) {
     char name[64];
     snprintf(name, sizeof(name), "out_%d", c + 1);
     playback->ports[c] = jack_port_register(
         playback->client, name, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
     if (!playback->ports[c]) {
-      if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                                 "Failed to register JACK port");
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                           "Failed to register JACK port");
       return false;
     }
   }
 
-  jack_set_process_callback(playback->client, jack_playback_process_cb, playback);
-  jack_set_sample_rate_callback(playback->client, jack_playback_sample_rate_cb, playback);
+  jack_set_process_callback(playback->client, jack_playback_process_cb,
+                            playback);
+  jack_set_sample_rate_callback(playback->client, jack_playback_sample_rate_cb,
+                                playback);
   jack_on_shutdown(playback->client, jack_playback_shutdown_cb, playback);
 
   playback->active = true;
   if (jack_activate(playback->client) != 0) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Failed to activate JACK client");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to activate JACK client");
     playback->active = false;
     return false;
   }
@@ -520,14 +554,16 @@ bool jack_playback_open(jack_playback_t* playback, backend_error_t* err) {
 bool jack_playback_write(jack_playback_t* playback, const audio_chunk_t* chunk,
                          backend_error_t* err) {
   if (!playback->active) {
-    if (err) backend_error_init(err, BACKEND_ERROR_WRITE_ERROR,
-                               "JACK playback not active");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_WRITE_ERROR,
+                         "JACK playback not active");
     return false;
   }
 
   size_t frames = chunk->valid_frames;
 
-  while (spsc_audio_ring_buffer_get_available_to_write(playback->buffers[0]) < frames) {
+  while (spsc_audio_ring_buffer_get_available_to_write(playback->buffers[0]) <
+         frames) {
     engine_sem_wait(playback->sem);
     if (!playback->active) return false;
   }
@@ -563,7 +599,8 @@ size_t jack_playback_get_buffer_level(jack_playback_t* playback) {
   return spsc_audio_ring_buffer_get_available_to_read(playback->buffers[0]);
 }
 
-bool jack_playback_get_pending_rate_change(jack_playback_t* playback, double* out_rate) {
+bool jack_playback_get_pending_rate_change(jack_playback_t* playback,
+                                           double* out_rate) {
   if (playback->rate_changed) {
     *out_rate = playback->pending_rate;
     playback->rate_changed = false;

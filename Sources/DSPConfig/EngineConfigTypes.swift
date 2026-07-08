@@ -551,7 +551,8 @@ extension CaptureDeviceConfig: Codable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let typeStr = try container.decode(String.self, forKey: .type)
     guard let type = AudioBackendType(rawValue: typeStr) else {
-      throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unknown capture backend type: \(typeStr)")
+      throw DecodingError.dataCorruptedError(
+        forKey: .type, in: container, debugDescription: "Unknown capture backend type: \(typeStr)")
     }
     switch type {
     case .coreAudio:
@@ -597,7 +598,9 @@ extension PlaybackDeviceConfig: Codable {
     } else if typeStr == "CoreAudio" {
       self = .coreAudio(try CoreAudioPlaybackConfig(from: decoder))
     } else {
-      throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "Unsupported playback backend type: \(typeStr)")
+      throw DecodingError.dataCorruptedError(
+        forKey: .type, in: container,
+        debugDescription: "Unsupported playback backend type: \(typeStr)")
     }
   }
 

@@ -102,9 +102,9 @@ static int get_array_element(const jsmntok_t* tokens, int count, int arr_idx,
   return i;
 }
 
-static void parse_labels_array(const char* js, const jsmntok_t* tokens, int count,
-                               int labels_idx, char*** out_labels, size_t* out_count,
-                               bool* out_has_labels) {
+static void parse_labels_array(const char* js, const jsmntok_t* tokens,
+                               int count, int labels_idx, char*** out_labels,
+                               size_t* out_count, bool* out_has_labels) {
   if (labels_idx == -1 || tokens[labels_idx].type != JSMN_ARRAY) return;
   int size = tokens[labels_idx].size;
   if (size <= 0) return;
@@ -431,19 +431,25 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
     get_tok_string(js, &tokens[nn_idx], cap->node_name, sizeof(cap->node_name));
     cap->has_node_name = true;
   }
-  int nd_idx = find_object_key(js, tokens, count, cap_val_idx, "node_description");
+  int nd_idx =
+      find_object_key(js, tokens, count, cap_val_idx, "node_description");
   if (nd_idx != -1 && tokens[nd_idx].type == JSMN_STRING) {
-    get_tok_string(js, &tokens[nd_idx], cap->node_description, sizeof(cap->node_description));
+    get_tok_string(js, &tokens[nd_idx], cap->node_description,
+                   sizeof(cap->node_description));
     cap->has_node_description = true;
   }
-  int ng_idx = find_object_key(js, tokens, count, cap_val_idx, "node_group_name");
+  int ng_idx =
+      find_object_key(js, tokens, count, cap_val_idx, "node_group_name");
   if (ng_idx != -1 && tokens[ng_idx].type == JSMN_STRING) {
-    get_tok_string(js, &tokens[ng_idx], cap->node_group_name, sizeof(cap->node_group_name));
+    get_tok_string(js, &tokens[ng_idx], cap->node_group_name,
+                   sizeof(cap->node_group_name));
     cap->has_node_group_name = true;
   }
-  int ac_idx = find_object_key(js, tokens, count, cap_val_idx, "autoconnect_to");
+  int ac_idx =
+      find_object_key(js, tokens, count, cap_val_idx, "autoconnect_to");
   if (ac_idx != -1 && tokens[ac_idx].type == JSMN_STRING) {
-    get_tok_string(js, &tokens[ac_idx], cap->autoconnect_to, sizeof(cap->autoconnect_to));
+    get_tok_string(js, &tokens[ac_idx], cap->autoconnect_to,
+                   sizeof(cap->autoconnect_to));
     cap->has_autoconnect_to = true;
   }
 #endif
@@ -460,7 +466,8 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
   }
   int dbp_idx = find_object_key(js, tokens, count, cap_val_idx, "dbus_path");
   if (dbp_idx != -1 && tokens[dbp_idx].type == JSMN_STRING) {
-    get_tok_string(js, &tokens[dbp_idx], cap->dbus_path, sizeof(cap->dbus_path));
+    get_tok_string(js, &tokens[dbp_idx], cap->dbus_path,
+                   sizeof(cap->dbus_path));
     cap->has_dbus_path = true;
   }
 #endif
@@ -500,7 +507,6 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
     } else {
       cap->generator.level = 0.0;
     }
-
   }
 
   // Copy flat temp to union configuration
@@ -516,7 +522,8 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
       final_cap->cfg.coreaudio.channels = temp.channels;
-      strncpy(final_cap->cfg.coreaudio.device, temp.device, sizeof(final_cap->cfg.coreaudio.device) - 1);
+      strncpy(final_cap->cfg.coreaudio.device, temp.device,
+              sizeof(final_cap->cfg.coreaudio.device) - 1);
       final_cap->cfg.coreaudio.has_device = temp.has_device;
       final_cap->cfg.coreaudio.format = temp.format;
       final_cap->cfg.coreaudio.has_format = temp.has_format;
@@ -529,52 +536,65 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
 #if defined(ENABLE_ALSA)
     case AUDIO_BACKEND_TYPE_ALSA:
       final_cap->cfg.alsa.channels = temp.channels;
-      strncpy(final_cap->cfg.alsa.device, temp.device, sizeof(final_cap->cfg.alsa.device) - 1);
+      strncpy(final_cap->cfg.alsa.device, temp.device,
+              sizeof(final_cap->cfg.alsa.device) - 1);
       final_cap->cfg.alsa.format = temp.alsa_format;
       final_cap->cfg.alsa.has_format = temp.has_alsa_format;
       final_cap->cfg.alsa.stop_on_inactive = temp.stop_on_inactive;
       final_cap->cfg.alsa.has_stop_on_inactive = temp.has_stop_on_inactive;
-      strncpy(final_cap->cfg.alsa.link_volume_control, temp.link_volume_control, sizeof(final_cap->cfg.alsa.link_volume_control) - 1);
-      final_cap->cfg.alsa.has_link_volume_control = temp.has_link_volume_control;
-      strncpy(final_cap->cfg.alsa.link_mute_control, temp.link_mute_control, sizeof(final_cap->cfg.alsa.link_mute_control) - 1);
+      strncpy(final_cap->cfg.alsa.link_volume_control, temp.link_volume_control,
+              sizeof(final_cap->cfg.alsa.link_volume_control) - 1);
+      final_cap->cfg.alsa.has_link_volume_control =
+          temp.has_link_volume_control;
+      strncpy(final_cap->cfg.alsa.link_mute_control, temp.link_mute_control,
+              sizeof(final_cap->cfg.alsa.link_mute_control) - 1);
       final_cap->cfg.alsa.has_link_mute_control = temp.has_link_mute_control;
       break;
 #endif
 #if defined(ENABLE_PULSE)
     case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
       final_cap->cfg.pulse.channels = temp.channels;
-      strncpy(final_cap->cfg.pulse.device, temp.device, sizeof(final_cap->cfg.pulse.device) - 1);
+      strncpy(final_cap->cfg.pulse.device, temp.device,
+              sizeof(final_cap->cfg.pulse.device) - 1);
       break;
 #endif
 #if defined(ENABLE_PIPEWIRE)
     case AUDIO_BACKEND_TYPE_PIPEWIRE:
       final_cap->cfg.pipewire.channels = temp.channels;
-      strncpy(final_cap->cfg.pipewire.device, temp.device, sizeof(final_cap->cfg.pipewire.device) - 1);
+      strncpy(final_cap->cfg.pipewire.device, temp.device,
+              sizeof(final_cap->cfg.pipewire.device) - 1);
       final_cap->cfg.pipewire.has_device = temp.has_device;
-      strncpy(final_cap->cfg.pipewire.node_name, temp.node_name, sizeof(final_cap->cfg.pipewire.node_name) - 1);
+      strncpy(final_cap->cfg.pipewire.node_name, temp.node_name,
+              sizeof(final_cap->cfg.pipewire.node_name) - 1);
       final_cap->cfg.pipewire.has_node_name = temp.has_node_name;
-      strncpy(final_cap->cfg.pipewire.node_description, temp.node_description, sizeof(final_cap->cfg.pipewire.node_description) - 1);
+      strncpy(final_cap->cfg.pipewire.node_description, temp.node_description,
+              sizeof(final_cap->cfg.pipewire.node_description) - 1);
       final_cap->cfg.pipewire.has_node_description = temp.has_node_description;
-      strncpy(final_cap->cfg.pipewire.node_group_name, temp.node_group_name, sizeof(final_cap->cfg.pipewire.node_group_name) - 1);
+      strncpy(final_cap->cfg.pipewire.node_group_name, temp.node_group_name,
+              sizeof(final_cap->cfg.pipewire.node_group_name) - 1);
       final_cap->cfg.pipewire.has_node_group_name = temp.has_node_group_name;
-      strncpy(final_cap->cfg.pipewire.autoconnect_to, temp.autoconnect_to, sizeof(final_cap->cfg.pipewire.autoconnect_to) - 1);
+      strncpy(final_cap->cfg.pipewire.autoconnect_to, temp.autoconnect_to,
+              sizeof(final_cap->cfg.pipewire.autoconnect_to) - 1);
       final_cap->cfg.pipewire.has_autoconnect_to = temp.has_autoconnect_to;
       break;
 #endif
 #if defined(ENABLE_JACK)
     case AUDIO_BACKEND_TYPE_JACK:
       final_cap->cfg.jack.channels = temp.channels;
-      strncpy(final_cap->cfg.jack.device, temp.device, sizeof(final_cap->cfg.jack.device) - 1);
+      strncpy(final_cap->cfg.jack.device, temp.device,
+              sizeof(final_cap->cfg.jack.device) - 1);
       break;
 #endif
     case AUDIO_BACKEND_TYPE_FILE:
       if (temp.is_wav) {
-        strncpy(final_cap->cfg.wav_file.filename, temp.filename, sizeof(final_cap->cfg.wav_file.filename) - 1);
+        strncpy(final_cap->cfg.wav_file.filename, temp.filename,
+                sizeof(final_cap->cfg.wav_file.filename) - 1);
         final_cap->cfg.wav_file.has_filename = temp.has_filename;
         final_cap->cfg.wav_file.extra_samples = temp.extra_samples;
         final_cap->cfg.wav_file.has_extra_samples = temp.has_extra_samples;
       } else {
-        strncpy(final_cap->cfg.raw_file.filename, temp.filename, sizeof(final_cap->cfg.raw_file.filename) - 1);
+        strncpy(final_cap->cfg.raw_file.filename, temp.filename,
+                sizeof(final_cap->cfg.raw_file.filename) - 1);
         final_cap->cfg.raw_file.has_filename = temp.has_filename;
         final_cap->cfg.raw_file.format = temp.file_format;
         final_cap->cfg.raw_file.has_format = temp.has_file_format;
@@ -604,7 +624,8 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
 #if defined(ENABLE_WASAPI)
     case AUDIO_BACKEND_TYPE_WASAPI:
       final_cap->cfg.wasapi.channels = temp.channels;
-      strncpy(final_cap->cfg.wasapi.device, temp.device, sizeof(final_cap->cfg.wasapi.device) - 1);
+      strncpy(final_cap->cfg.wasapi.device, temp.device,
+              sizeof(final_cap->cfg.wasapi.device) - 1);
       final_cap->cfg.wasapi.has_device = temp.has_device;
       final_cap->cfg.wasapi.format = temp.wasapi_format;
       final_cap->cfg.wasapi.has_format = temp.has_wasapi_format;
@@ -619,16 +640,19 @@ static void parse_capture(const char* js, const jsmntok_t* tokens, int count,
 #if defined(ENABLE_ASIO)
     case AUDIO_BACKEND_TYPE_ASIO:
       final_cap->cfg.asio.channels = temp.channels;
-      strncpy(final_cap->cfg.asio.device, temp.device, sizeof(final_cap->cfg.asio.device) - 1);
+      strncpy(final_cap->cfg.asio.device, temp.device,
+              sizeof(final_cap->cfg.asio.device) - 1);
       final_cap->cfg.asio.format = temp.asio_format;
       final_cap->cfg.asio.has_format = temp.has_asio_format;
       break;
 #endif
 #if defined(ENABLE_BLUEZ)
     case AUDIO_BACKEND_TYPE_BLUEZ:
-      strncpy(final_cap->cfg.bluez.service, temp.service, sizeof(final_cap->cfg.bluez.service) - 1);
+      strncpy(final_cap->cfg.bluez.service, temp.service,
+              sizeof(final_cap->cfg.bluez.service) - 1);
       final_cap->cfg.bluez.has_service = temp.has_service;
-      strncpy(final_cap->cfg.bluez.dbus_path, temp.dbus_path, sizeof(final_cap->cfg.bluez.dbus_path) - 1);
+      strncpy(final_cap->cfg.bluez.dbus_path, temp.dbus_path,
+              sizeof(final_cap->cfg.bluez.dbus_path) - 1);
       final_cap->cfg.bluez.has_dbus_path = temp.has_dbus_path;
       final_cap->cfg.bluez.format = temp.bluez_format;
       final_cap->cfg.bluez.channels = temp.channels;
@@ -790,32 +814,41 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
     play->has_output_dop = true;
   }
 
-  int def_idx = find_object_key(js, tokens, count, play_val_idx, "dop_encoder_filter");
+  int def_idx =
+      find_object_key(js, tokens, count, play_val_idx, "dop_encoder_filter");
   if (def_idx != -1 && tokens[def_idx].type == JSMN_STRING) {
     char filter_str[64];
     get_tok_string(js, &tokens[def_idx], filter_str, sizeof(filter_str));
     play->dop_encoder_filter = sdm_filter_from_string(filter_str);
-    play->has_dop_encoder_filter = (play->dop_encoder_filter != SDM_FILTER_INVALID);
+    play->has_dop_encoder_filter =
+        (play->dop_encoder_filter != SDM_FILTER_INVALID);
   }
 #if defined(ENABLE_PIPEWIRE)
   int nn_idx = find_object_key(js, tokens, count, play_val_idx, "node_name");
   if (nn_idx != -1 && tokens[nn_idx].type == JSMN_STRING) {
-    get_tok_string(js, &tokens[nn_idx], play->node_name, sizeof(play->node_name));
+    get_tok_string(js, &tokens[nn_idx], play->node_name,
+                   sizeof(play->node_name));
     play->has_node_name = true;
   }
-  int nd_idx = find_object_key(js, tokens, count, play_val_idx, "node_description");
+  int nd_idx =
+      find_object_key(js, tokens, count, play_val_idx, "node_description");
   if (nd_idx != -1 && tokens[nd_idx].type == JSMN_STRING) {
-    get_tok_string(js, &tokens[nd_idx], play->node_description, sizeof(play->node_description));
+    get_tok_string(js, &tokens[nd_idx], play->node_description,
+                   sizeof(play->node_description));
     play->has_node_description = true;
   }
-  int ng_idx = find_object_key(js, tokens, count, play_val_idx, "node_group_name");
+  int ng_idx =
+      find_object_key(js, tokens, count, play_val_idx, "node_group_name");
   if (ng_idx != -1 && tokens[ng_idx].type == JSMN_STRING) {
-    get_tok_string(js, &tokens[ng_idx], play->node_group_name, sizeof(play->node_group_name));
+    get_tok_string(js, &tokens[ng_idx], play->node_group_name,
+                   sizeof(play->node_group_name));
     play->has_node_group_name = true;
   }
-  int ac_idx = find_object_key(js, tokens, count, play_val_idx, "autoconnect_to");
+  int ac_idx =
+      find_object_key(js, tokens, count, play_val_idx, "autoconnect_to");
   if (ac_idx != -1 && tokens[ac_idx].type == JSMN_STRING) {
-    get_tok_string(js, &tokens[ac_idx], play->autoconnect_to, sizeof(play->autoconnect_to));
+    get_tok_string(js, &tokens[ac_idx], play->autoconnect_to,
+                   sizeof(play->autoconnect_to));
     play->has_autoconnect_to = true;
   }
 #endif
@@ -836,7 +869,8 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
       final_play->cfg.coreaudio.channels = temp.channels;
-      strncpy(final_play->cfg.coreaudio.device, temp.device, sizeof(final_play->cfg.coreaudio.device) - 1);
+      strncpy(final_play->cfg.coreaudio.device, temp.device,
+              sizeof(final_play->cfg.coreaudio.device) - 1);
       final_play->cfg.coreaudio.has_device = temp.has_device;
       final_play->cfg.coreaudio.format = temp.format;
       final_play->cfg.coreaudio.has_format = temp.has_format;
@@ -845,13 +879,15 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
       final_play->cfg.coreaudio.output_dop = temp.output_dop;
       final_play->cfg.coreaudio.has_output_dop = temp.has_output_dop;
       final_play->cfg.coreaudio.dop_encoder_filter = temp.dop_encoder_filter;
-      final_play->cfg.coreaudio.has_dop_encoder_filter = temp.has_dop_encoder_filter;
+      final_play->cfg.coreaudio.has_dop_encoder_filter =
+          temp.has_dop_encoder_filter;
       break;
 #endif
 #if defined(ENABLE_ALSA)
     case AUDIO_BACKEND_TYPE_ALSA:
       final_play->cfg.alsa.channels = temp.channels;
-      strncpy(final_play->cfg.alsa.device, temp.device, sizeof(final_play->cfg.alsa.device) - 1);
+      strncpy(final_play->cfg.alsa.device, temp.device,
+              sizeof(final_play->cfg.alsa.device) - 1);
       final_play->cfg.alsa.format = temp.alsa_format;
       final_play->cfg.alsa.has_format = temp.has_alsa_format;
       break;
@@ -859,32 +895,40 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
 #if defined(ENABLE_PULSE)
     case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
       final_play->cfg.pulse.channels = temp.channels;
-      strncpy(final_play->cfg.pulse.device, temp.device, sizeof(final_play->cfg.pulse.device) - 1);
+      strncpy(final_play->cfg.pulse.device, temp.device,
+              sizeof(final_play->cfg.pulse.device) - 1);
       break;
 #endif
 #if defined(ENABLE_PIPEWIRE)
     case AUDIO_BACKEND_TYPE_PIPEWIRE:
       final_play->cfg.pipewire.channels = temp.channels;
-      strncpy(final_play->cfg.pipewire.device, temp.device, sizeof(final_play->cfg.pipewire.device) - 1);
+      strncpy(final_play->cfg.pipewire.device, temp.device,
+              sizeof(final_play->cfg.pipewire.device) - 1);
       final_play->cfg.pipewire.has_device = temp.has_device;
-      strncpy(final_play->cfg.pipewire.node_name, temp.node_name, sizeof(final_play->cfg.pipewire.node_name) - 1);
+      strncpy(final_play->cfg.pipewire.node_name, temp.node_name,
+              sizeof(final_play->cfg.pipewire.node_name) - 1);
       final_play->cfg.pipewire.has_node_name = temp.has_node_name;
-      strncpy(final_play->cfg.pipewire.node_description, temp.node_description, sizeof(final_play->cfg.pipewire.node_description) - 1);
+      strncpy(final_play->cfg.pipewire.node_description, temp.node_description,
+              sizeof(final_play->cfg.pipewire.node_description) - 1);
       final_play->cfg.pipewire.has_node_description = temp.has_node_description;
-      strncpy(final_play->cfg.pipewire.node_group_name, temp.node_group_name, sizeof(final_play->cfg.pipewire.node_group_name) - 1);
+      strncpy(final_play->cfg.pipewire.node_group_name, temp.node_group_name,
+              sizeof(final_play->cfg.pipewire.node_group_name) - 1);
       final_play->cfg.pipewire.has_node_group_name = temp.has_node_group_name;
-      strncpy(final_play->cfg.pipewire.autoconnect_to, temp.autoconnect_to, sizeof(final_play->cfg.pipewire.autoconnect_to) - 1);
+      strncpy(final_play->cfg.pipewire.autoconnect_to, temp.autoconnect_to,
+              sizeof(final_play->cfg.pipewire.autoconnect_to) - 1);
       final_play->cfg.pipewire.has_autoconnect_to = temp.has_autoconnect_to;
       break;
 #endif
 #if defined(ENABLE_JACK)
     case AUDIO_BACKEND_TYPE_JACK:
       final_play->cfg.jack.channels = temp.channels;
-      strncpy(final_play->cfg.jack.device, temp.device, sizeof(final_play->cfg.jack.device) - 1);
+      strncpy(final_play->cfg.jack.device, temp.device,
+              sizeof(final_play->cfg.jack.device) - 1);
       break;
 #endif
     case AUDIO_BACKEND_TYPE_FILE:
-      strncpy(final_play->cfg.raw_file.filename, temp.filename, sizeof(final_play->cfg.raw_file.filename) - 1);
+      strncpy(final_play->cfg.raw_file.filename, temp.filename,
+              sizeof(final_play->cfg.raw_file.filename) - 1);
       final_play->cfg.raw_file.has_filename = temp.has_filename;
       final_play->cfg.raw_file.format = temp.file_format;
       final_play->cfg.raw_file.has_format = temp.has_file_format;
@@ -901,7 +945,8 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
 #if defined(ENABLE_WASAPI)
     case AUDIO_BACKEND_TYPE_WASAPI:
       final_play->cfg.wasapi.channels = temp.channels;
-      strncpy(final_play->cfg.wasapi.device, temp.device, sizeof(final_play->cfg.wasapi.device) - 1);
+      strncpy(final_play->cfg.wasapi.device, temp.device,
+              sizeof(final_play->cfg.wasapi.device) - 1);
       final_play->cfg.wasapi.has_device = temp.has_device;
       final_play->cfg.wasapi.format = temp.wasapi_format;
       final_play->cfg.wasapi.has_format = temp.has_wasapi_format;
@@ -914,7 +959,8 @@ static void parse_playback(const char* js, const jsmntok_t* tokens, int count,
 #if defined(ENABLE_ASIO)
     case AUDIO_BACKEND_TYPE_ASIO:
       final_play->cfg.asio.channels = temp.channels;
-      strncpy(final_play->cfg.asio.device, temp.device, sizeof(final_play->cfg.asio.device) - 1);
+      strncpy(final_play->cfg.asio.device, temp.device,
+              sizeof(final_play->cfg.asio.device) - 1);
       final_play->cfg.asio.format = temp.asio_format;
       final_play->cfg.asio.has_format = temp.has_asio_format;
       break;
@@ -1903,50 +1949,59 @@ static int parse_processors(const char* js, const jsmntok_t* tokens, int count,
       switch (p_conf->type) {
         case PROCESSOR_TYPE_COMPRESSOR: {
           compressor_parameters_t* cp = &p_conf->parameters.compressor;
-          
-          int ch_idx = find_object_key(js, tokens, count, params_idx, "channels");
+
+          int ch_idx =
+              find_object_key(js, tokens, count, params_idx, "channels");
           if (ch_idx != -1 && tokens[ch_idx].type == JSMN_PRIMITIVE) {
             cp->channels = get_tok_int(js, &tokens[ch_idx]);
           }
-          
-          int att_idx = find_object_key(js, tokens, count, params_idx, "attack");
+
+          int att_idx =
+              find_object_key(js, tokens, count, params_idx, "attack");
           if (att_idx != -1 && tokens[att_idx].type == JSMN_PRIMITIVE) {
             cp->attack = get_tok_double(js, &tokens[att_idx]);
           }
 
-          int rel_idx = find_object_key(js, tokens, count, params_idx, "release");
+          int rel_idx =
+              find_object_key(js, tokens, count, params_idx, "release");
           if (rel_idx != -1 && tokens[rel_idx].type == JSMN_PRIMITIVE) {
             cp->release = get_tok_double(js, &tokens[rel_idx]);
           }
 
-          int th_idx = find_object_key(js, tokens, count, params_idx, "threshold");
+          int th_idx =
+              find_object_key(js, tokens, count, params_idx, "threshold");
           if (th_idx != -1 && tokens[th_idx].type == JSMN_PRIMITIVE) {
             cp->threshold = get_tok_double(js, &tokens[th_idx]);
           }
 
-          int fac_idx = find_object_key(js, tokens, count, params_idx, "factor");
+          int fac_idx =
+              find_object_key(js, tokens, count, params_idx, "factor");
           if (fac_idx != -1 && tokens[fac_idx].type == JSMN_PRIMITIVE) {
             cp->factor = get_tok_double(js, &tokens[fac_idx]);
           }
 
-          int mg_idx = find_object_key(js, tokens, count, params_idx, "makeup_gain");
+          int mg_idx =
+              find_object_key(js, tokens, count, params_idx, "makeup_gain");
           if (mg_idx != -1 && tokens[mg_idx].type == JSMN_PRIMITIVE) {
             cp->makeup_gain = get_tok_double(js, &tokens[mg_idx]);
             cp->has_makeup_gain = true;
           }
 
-          int sc_idx = find_object_key(js, tokens, count, params_idx, "soft_clip");
+          int sc_idx =
+              find_object_key(js, tokens, count, params_idx, "soft_clip");
           if (sc_idx != -1 && tokens[sc_idx].type == JSMN_PRIMITIVE) {
             cp->soft_clip = get_tok_bool(js, &tokens[sc_idx]);
           }
 
-          int cl_idx = find_object_key(js, tokens, count, params_idx, "clip_limit");
+          int cl_idx =
+              find_object_key(js, tokens, count, params_idx, "clip_limit");
           if (cl_idx != -1 && tokens[cl_idx].type == JSMN_PRIMITIVE) {
             cp->clip_limit = get_tok_double(js, &tokens[cl_idx]);
             cp->has_clip_limit = true;
           }
 
-          int mon_idx = find_object_key(js, tokens, count, params_idx, "monitor_channels");
+          int mon_idx = find_object_key(js, tokens, count, params_idx,
+                                        "monitor_channels");
           if (mon_idx != -1 && tokens[mon_idx].type == JSMN_ARRAY) {
             int m_size = tokens[mon_idx].size;
             cp->monitor_channels = (int*)calloc(m_size, sizeof(int));
@@ -1959,7 +2014,8 @@ static int parse_processors(const char* js, const jsmntok_t* tokens, int count,
             }
           }
 
-          int pr_idx = find_object_key(js, tokens, count, params_idx, "process_channels");
+          int pr_idx = find_object_key(js, tokens, count, params_idx,
+                                       "process_channels");
           if (pr_idx != -1 && tokens[pr_idx].type == JSMN_ARRAY) {
             int p_size = tokens[pr_idx].size;
             cp->process_channels = (int*)calloc(p_size, sizeof(int));
@@ -1975,33 +2031,39 @@ static int parse_processors(const char* js, const jsmntok_t* tokens, int count,
         }
         case PROCESSOR_TYPE_NOISE_GATE: {
           noise_gate_parameters_t* ng = &p_conf->parameters.noise_gate;
-          
-          int ch_idx = find_object_key(js, tokens, count, params_idx, "channels");
+
+          int ch_idx =
+              find_object_key(js, tokens, count, params_idx, "channels");
           if (ch_idx != -1 && tokens[ch_idx].type == JSMN_PRIMITIVE) {
             ng->channels = get_tok_int(js, &tokens[ch_idx]);
           }
 
-          int att_idx = find_object_key(js, tokens, count, params_idx, "attack");
+          int att_idx =
+              find_object_key(js, tokens, count, params_idx, "attack");
           if (att_idx != -1 && tokens[att_idx].type == JSMN_PRIMITIVE) {
             ng->attack = get_tok_double(js, &tokens[att_idx]);
           }
 
-          int rel_idx = find_object_key(js, tokens, count, params_idx, "release");
+          int rel_idx =
+              find_object_key(js, tokens, count, params_idx, "release");
           if (rel_idx != -1 && tokens[rel_idx].type == JSMN_PRIMITIVE) {
             ng->release = get_tok_double(js, &tokens[rel_idx]);
           }
 
-          int th_idx = find_object_key(js, tokens, count, params_idx, "threshold");
+          int th_idx =
+              find_object_key(js, tokens, count, params_idx, "threshold");
           if (th_idx != -1 && tokens[th_idx].type == JSMN_PRIMITIVE) {
             ng->threshold = get_tok_double(js, &tokens[th_idx]);
           }
 
-          int attn_idx = find_object_key(js, tokens, count, params_idx, "attenuation");
+          int attn_idx =
+              find_object_key(js, tokens, count, params_idx, "attenuation");
           if (attn_idx != -1 && tokens[attn_idx].type == JSMN_PRIMITIVE) {
             ng->attenuation = get_tok_double(js, &tokens[attn_idx]);
           }
 
-          int mon_idx = find_object_key(js, tokens, count, params_idx, "monitor_channels");
+          int mon_idx = find_object_key(js, tokens, count, params_idx,
+                                        "monitor_channels");
           if (mon_idx != -1 && tokens[mon_idx].type == JSMN_ARRAY) {
             int m_size = tokens[mon_idx].size;
             ng->monitor_channels = (int*)calloc(m_size, sizeof(int));
@@ -2014,7 +2076,8 @@ static int parse_processors(const char* js, const jsmntok_t* tokens, int count,
             }
           }
 
-          int pr_idx = find_object_key(js, tokens, count, params_idx, "process_channels");
+          int pr_idx = find_object_key(js, tokens, count, params_idx,
+                                       "process_channels");
           if (pr_idx != -1 && tokens[pr_idx].type == JSMN_ARRAY) {
             int p_size = tokens[pr_idx].size;
             ng->process_channels = (int*)calloc(p_size, sizeof(int));
@@ -2030,18 +2093,21 @@ static int parse_processors(const char* js, const jsmntok_t* tokens, int count,
         }
         case PROCESSOR_TYPE_RACE: {
           race_parameters_t* rp = &p_conf->parameters.race;
-          
-          int ch_idx = find_object_key(js, tokens, count, params_idx, "channels");
+
+          int ch_idx =
+              find_object_key(js, tokens, count, params_idx, "channels");
           if (ch_idx != -1 && tokens[ch_idx].type == JSMN_PRIMITIVE) {
             rp->channels = get_tok_int(js, &tokens[ch_idx]);
           }
 
-          int cha_idx = find_object_key(js, tokens, count, params_idx, "channel_a");
+          int cha_idx =
+              find_object_key(js, tokens, count, params_idx, "channel_a");
           if (cha_idx != -1 && tokens[cha_idx].type == JSMN_PRIMITIVE) {
             rp->channel_a = get_tok_int(js, &tokens[cha_idx]);
           }
 
-          int chb_idx = find_object_key(js, tokens, count, params_idx, "channel_b");
+          int chb_idx =
+              find_object_key(js, tokens, count, params_idx, "channel_b");
           if (chb_idx != -1 && tokens[chb_idx].type == JSMN_PRIMITIVE) {
             rp->channel_b = get_tok_int(js, &tokens[chb_idx]);
           }
@@ -2051,13 +2117,15 @@ static int parse_processors(const char* js, const jsmntok_t* tokens, int count,
             rp->delay = get_tok_double(js, &tokens[del_idx]);
           }
 
-          int ssd_idx = find_object_key(js, tokens, count, params_idx, "subsample_delay");
+          int ssd_idx =
+              find_object_key(js, tokens, count, params_idx, "subsample_delay");
           if (ssd_idx != -1 && tokens[ssd_idx].type == JSMN_PRIMITIVE) {
             rp->subsample_delay = get_tok_bool(js, &tokens[ssd_idx]);
             rp->has_subsample_delay = true;
           }
 
-          int du_idx = find_object_key(js, tokens, count, params_idx, "delay_unit");
+          int du_idx =
+              find_object_key(js, tokens, count, params_idx, "delay_unit");
           if (du_idx != -1 && tokens[du_idx].type == JSMN_STRING) {
             char du_str[32];
             get_tok_string(js, &tokens[du_idx], du_str, sizeof(du_str));
@@ -2072,7 +2140,8 @@ static int parse_processors(const char* js, const jsmntok_t* tokens, int count,
             rp->has_delay_unit = true;
           }
 
-          int attn_idx = find_object_key(js, tokens, count, params_idx, "attenuation");
+          int attn_idx =
+              find_object_key(js, tokens, count, params_idx, "attenuation");
           if (attn_idx != -1 && tokens[attn_idx].type == JSMN_PRIMITIVE) {
             rp->attenuation = get_tok_double(js, &tokens[attn_idx]);
           }
@@ -2169,7 +2238,8 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config,
 
   int processors_idx = find_top_level_key(json, tokens, count, "processors");
   if (processors_idx != -1) {
-    if (parse_processors(json, tokens, count, processors_idx, config, err) != 0) {
+    if (parse_processors(json, tokens, count, processors_idx, config, err) !=
+        0) {
       free(tokens);
       dsp_config_free(config);
       return -1;

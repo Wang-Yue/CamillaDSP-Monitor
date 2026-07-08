@@ -281,7 +281,8 @@ bool playback_backend_pitch_control_supported(playback_backend_t* backend) {
   return backend->vtable->pitch_control_supported(backend->ctx);
 }
 
-void playback_backend_set_pitch(playback_backend_t* backend, double multiplier) {
+void playback_backend_set_pitch(playback_backend_t* backend,
+                                double multiplier) {
   if (!backend || !backend->vtable || !backend->vtable->set_pitch) return;
   backend->vtable->set_pitch(backend->ctx, multiplier);
 }

@@ -1,6 +1,7 @@
 #if defined(ENABLE_BLUEZ)
 
 #include "bluez_backend.h"
+
 #include <dbus/dbus.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -147,14 +148,17 @@ static const capture_backend_vtable_t BLUEZ_CAPTURE_VTABLE = {
     .set_is_paused = vtable_bluez_set_paused,
     .destroy = vtable_bluez_destroy};
 
-capture_backend_t* bluez_capture_create(
-    const capture_device_config_t* config, int sample_rate, int chunk_size,
-    processing_parameters_t* params, backend_error_t* err) {
+capture_backend_t* bluez_capture_create(const capture_device_config_t* config,
+                                        int sample_rate, int chunk_size,
+                                        processing_parameters_t* params,
+                                        backend_error_t* err) {
   (void)params;
-  bluez_capture_t* capture = (bluez_capture_t*)calloc(1, sizeof(bluez_capture_t));
+  bluez_capture_t* capture =
+      (bluez_capture_t*)calloc(1, sizeof(bluez_capture_t));
   if (!capture) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Memory allocation failed");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Memory allocation failed");
     return NULL;
   }
 
@@ -168,21 +172,26 @@ capture_backend_t* bluez_capture_create(
   capture->active = false;
 
   if (config->cfg.bluez.has_service && strlen(config->cfg.bluez.service) > 0) {
-    snprintf(capture->service, sizeof(capture->service), "%s", config->cfg.bluez.service);
+    snprintf(capture->service, sizeof(capture->service), "%s",
+             config->cfg.bluez.service);
   } else {
     snprintf(capture->service, sizeof(capture->service), "org.bluealsa");
   }
 
-  if (config->cfg.bluez.has_dbus_path && strlen(config->cfg.bluez.dbus_path) > 0) {
-    snprintf(capture->dbus_path, sizeof(capture->dbus_path), "%s", config->cfg.bluez.dbus_path);
+  if (config->cfg.bluez.has_dbus_path &&
+      strlen(config->cfg.bluez.dbus_path) > 0) {
+    snprintf(capture->dbus_path, sizeof(capture->dbus_path), "%s",
+             config->cfg.bluez.dbus_path);
   } else {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Missing dbus_path for Bluez backend");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Missing dbus_path for Bluez backend");
     free(capture);
     return NULL;
   }
 
-  capture_backend_t* backend = (capture_backend_t*)malloc(sizeof(capture_backend_t));
+  capture_backend_t* backend =
+      (capture_backend_t*)malloc(sizeof(capture_backend_t));
   backend->ctx = capture;
   backend->vtable = &BLUEZ_CAPTURE_VTABLE;
   return backend;
@@ -196,7 +205,8 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
   if (!conn) {
     if (err) {
       char msg[256];
-      snprintf(msg, sizeof(msg), "Failed to connect to System DBus: %s", derr.message);
+      snprintf(msg, sizeof(msg), "Failed to connect to System DBus: %s",
+               derr.message);
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, msg);
     }
     dbus_error_free(&derr);
@@ -206,18 +216,21 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
   DBusMessage* msg = dbus_message_new_method_call(
       capture->service, capture->dbus_path, "org.bluealsa.PCM1", "Open");
   if (!msg) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Failed to create DBus Open message");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to create DBus Open message");
     return false;
   }
 
-  DBusMessage* reply = dbus_connection_send_with_reply_and_block(conn, msg, -1, &derr);
+  DBusMessage* reply =
+      dbus_connection_send_with_reply_and_block(conn, msg, -1, &derr);
   dbus_message_unref(msg);
 
   if (!reply) {
     if (err) {
       char msg_buf[256];
-      snprintf(msg_buf, sizeof(msg_buf), "Bluez DBus Open call failed: %s", derr.message);
+      snprintf(msg_buf, sizeof(msg_buf), "Bluez DBus Open call failed: %s",
+               derr.message);
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, msg_buf);
     }
     dbus_error_free(&derr);
@@ -240,8 +253,9 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
   dbus_message_unref(reply);
 
   if (pipe_fd == -1) {
-    if (err) backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                               "Open reply did not contain valid UNIX FDs");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Open reply did not contain valid UNIX FDs");
     return false;
   }
 
@@ -260,8 +274,9 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
 bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
                         audio_chunk_t* chunk, backend_error_t* err) {
   if (!capture->active || capture->pipe_fd == -1) {
-    if (err) backend_error_init(err, BACKEND_ERROR_READ_ERROR,
-                               "Bluez capture not active");
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_READ_ERROR,
+                         "Bluez capture not active");
     return false;
   }
 
@@ -281,13 +296,14 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
     int res = poll(&pfd, 1, 1000);
     if (res < 0) {
       if (errno == EINTR) continue;
-      if (err) backend_error_init(err, BACKEND_ERROR_READ_ERROR,
-                                 "Bluez read poll failed");
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_READ_ERROR,
+                           "Bluez read poll failed");
       return false;
     }
     if (res == 0) {
-      if (err) backend_error_init(err, BACKEND_ERROR_READ_ERROR,
-                                 "Bluez read timeout");
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_READ_ERROR, "Bluez read timeout");
       return false;
     }
 
@@ -297,13 +313,14 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
         continue;
       }
-      if (err) backend_error_init(err, BACKEND_ERROR_READ_ERROR,
-                                 "Bluez read pipe failed");
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_READ_ERROR,
+                           "Bluez read pipe failed");
       return false;
     }
     if (n == 0) {
-      if (err) backend_error_init(err, BACKEND_ERROR_READ_ERROR,
-                                 "Bluez stream EOF");
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_READ_ERROR, "Bluez stream EOF");
       return false;
     }
     bytes_read += (size_t)n;
@@ -334,7 +351,8 @@ void bluez_capture_close(bluez_capture_t* capture) {
   }
 }
 
-bool bluez_capture_get_pending_rate_change(bluez_capture_t* capture, double* out_rate) {
+bool bluez_capture_get_pending_rate_change(bluez_capture_t* capture,
+                                           double* out_rate) {
   (void)capture;
   (void)out_rate;
   return false;

@@ -30,7 +30,8 @@ void backend_error_init(backend_error_t* err, backend_error_type_t type,
 const char* backend_error_description(const backend_error_t* err, char* out_buf,
                                       size_t buf_len);
 
-/// Errors returned when probing audio device capabilities (matching Rust's DeviceError enum).
+/// Errors returned when probing audio device capabilities (matching Rust's
+/// DeviceError enum).
 typedef enum {
   DEVICE_ERROR_NOT_FOUND = 0,
   DEVICE_ERROR_BUSY,

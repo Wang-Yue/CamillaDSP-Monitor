@@ -100,10 +100,12 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
                                               (fader_t)i);
   }
 
-  audio_history_buffer_reset(engine->capture_buffer,
-                             capture_device_config_get_channels(&config->devices.capture));
-  audio_history_buffer_reset(engine->playback_buffer,
-                             playback_device_config_get_channels(&config->devices.playback));
+  audio_history_buffer_reset(
+      engine->capture_buffer,
+      capture_device_config_get_channels(&config->devices.capture));
+  audio_history_buffer_reset(
+      engine->playback_buffer,
+      playback_device_config_get_channels(&config->devices.playback));
 
   core->on_chunk_captured = engine_on_chunk_captured_callback;
   core->on_chunk_captured_ctx = engine->capture_buffer;
@@ -431,7 +433,8 @@ audio_device_descriptor_t* dsp_engine_get_device_capabilities(
     device_error_t* err) {
   if (!backend || !device) {
     if (err) {
-      device_error_init(err, DEVICE_ERROR_OTHER, "Invalid backend or device name");
+      device_error_init(err, DEVICE_ERROR_OTHER,
+                        "Invalid backend or device name");
     }
     return NULL;
   }
@@ -440,7 +443,8 @@ audio_device_descriptor_t* dsp_engine_get_device_capabilities(
     return core_audio_capabilities_describe(device, is_capture, err);
 #else
     if (err) {
-      device_error_init(err, DEVICE_ERROR_OTHER, "CoreAudio backend not compiled");
+      device_error_init(err, DEVICE_ERROR_OTHER,
+                        "CoreAudio backend not compiled");
     }
     return NULL;
 #endif
@@ -531,11 +535,13 @@ static bool iface_get_available_devices(void* ctx, const char* backend,
   *out_count = (size_t)n;
   return true;
 }
-static bool iface_get_device_capabilities(
-    void* ctx, const char* backend, const char* device, bool is_capture,
-    audio_device_descriptor_t** out_desc, device_error_t* out_err) {
+static bool iface_get_device_capabilities(void* ctx, const char* backend,
+                                          const char* device, bool is_capture,
+                                          audio_device_descriptor_t** out_desc,
+                                          device_error_t* out_err) {
   if (!ctx || !out_desc) return false;
-  *out_desc = dsp_engine_get_device_capabilities(backend, device, is_capture, out_err);
+  *out_desc =
+      dsp_engine_get_device_capabilities(backend, device, is_capture, out_err);
   return *out_desc != NULL;
 }
 static bool iface_get_spectrum(void* ctx, bool is_capture, uint32_t channel,

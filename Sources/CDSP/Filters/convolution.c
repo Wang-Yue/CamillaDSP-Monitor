@@ -1,10 +1,11 @@
 #include "convolution.h"
-#include "Config/engine_config_types.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "Config/engine_config_types.h"
 
 // Uniform-partitioned overlap-save FIR convolution.
 // Stockham-style segmented overlap-save with one 2N-point real FFT per
@@ -39,12 +40,18 @@
 /// IR buffer first (control plane only, may touch the filesystem).
 static size_t get_raw_sample_size(binary_sample_format_t format) {
   switch (format) {
-    case BINARY_SAMPLE_FORMAT_S16_LE: return 2;
-    case BINARY_SAMPLE_FORMAT_S24_3_LE: return 3;
-    case BINARY_SAMPLE_FORMAT_S32_LE: return 4;
-    case BINARY_SAMPLE_FORMAT_F32_LE: return 4;
-    case BINARY_SAMPLE_FORMAT_F64_LE: return 8;
-    default: return 0;
+    case BINARY_SAMPLE_FORMAT_S16_LE:
+      return 2;
+    case BINARY_SAMPLE_FORMAT_S24_3_LE:
+      return 3;
+    case BINARY_SAMPLE_FORMAT_S32_LE:
+      return 4;
+    case BINARY_SAMPLE_FORMAT_F32_LE:
+      return 4;
+    case BINARY_SAMPLE_FORMAT_F64_LE:
+      return 8;
+    default:
+      return 0;
   }
 }
 
@@ -66,7 +73,8 @@ static double* load_wav_file(const char* path, int channel, size_t* out_count) {
 
   uint16_t audio_format = header[20] | (header[21] << 8);
   uint16_t channels = header[22] | (header[23] << 8);
-  uint32_t sample_rate = header[24] | (header[25] << 8) | (header[26] << 16) | (header[27] << 24);
+  uint32_t sample_rate =
+      header[24] | (header[25] << 8) | (header[26] << 16) | (header[27] << 24);
   uint16_t bits_per_sample = header[34] | (header[35] << 8);
 
   if (audio_format != 1 && audio_format != 3) {
@@ -82,7 +90,8 @@ static double* load_wav_file(const char* path, int channel, size_t* out_count) {
   // Find data chunk
   uint32_t data_bytes = 0;
   if (memcmp(header + 36, "data", 4) == 0) {
-    data_bytes = header[40] | (header[41] << 8) | (header[42] << 16) | (header[43] << 24);
+    data_bytes = header[40] | (header[41] << 8) | (header[42] << 16) |
+                 (header[43] << 24);
   } else {
     fseek(f, 36, SEEK_SET);
     uint8_t chunk_id[4];
@@ -124,7 +133,8 @@ static double* load_wav_file(const char* path, int channel, size_t* out_count) {
 
   size_t read_frames = 0;
   for (size_t i = 0; i < num_frames; i++) {
-    if (fread(frame_buf, 1, channels * bytes_per_sample, f) != channels * bytes_per_sample) {
+    if (fread(frame_buf, 1, channels * bytes_per_sample, f) !=
+        channels * bytes_per_sample) {
       break;
     }
     const uint8_t* src = frame_buf + channel * bytes_per_sample;
@@ -160,7 +170,8 @@ static double* load_wav_file(const char* path, int channel, size_t* out_count) {
 }
 
 static double* load_raw_file(const char* path, const char* format_str,
-                             int skip_bytes, int read_bytes, size_t* out_count) {
+                             int skip_bytes, int read_bytes,
+                             size_t* out_count) {
   if (strcmp(format_str, "TEXT") == 0) {
     FILE* f = fopen(path, "r");
     if (!f) return NULL;

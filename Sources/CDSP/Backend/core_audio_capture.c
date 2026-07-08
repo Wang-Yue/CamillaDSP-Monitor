@@ -308,7 +308,8 @@ capture_backend_t* core_audio_capture_create(
   coreaudio_sample_format_t fmt = capture_device_config_get_format(config);
   if (fmt != COREAUDIO_SAMPLE_FORMAT_INVALID) {
     const char* fmt_str = coreaudio_sample_format_to_string(fmt);
-    strncpy(capture->sample_format, fmt_str, sizeof(capture->sample_format) - 1);
+    strncpy(capture->sample_format, fmt_str,
+            sizeof(capture->sample_format) - 1);
     capture->has_sample_format = true;
   }
 

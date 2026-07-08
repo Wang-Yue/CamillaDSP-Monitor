@@ -1,6 +1,5 @@
 #if defined(ENABLE_ALSA)
 #include "alsa_playback.h"
-#include "alsa_device.h"
 
 #include <alloca.h>
 #include <alsa/asoundlib.h>
@@ -9,6 +8,7 @@
 #include <time.h>
 
 #include "Logging/app_logger.h"
+#include "alsa_device.h"
 
 struct alsa_playback {
   char device_name[256];

@@ -3,9 +3,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include "wasapi_backend.h"
 
-#include <initguid.h>
 #include <audioclient.h>
 #include <functiondiscoverykeys_devpkey.h>
+#include <initguid.h>
 #include <ksmedia.h>
 #include <mmdeviceapi.h>
 #include <stdio.h>
@@ -73,8 +73,7 @@ static inline void decode_samples_from_wasapi(audio_chunk_t* chunk,
                                               const BYTE* src, size_t frames,
                                               int channels, DWORD flags,
                                               int bits_per_sample,
-                                              int valid_bits,
-                                              bool is_float) {
+                                              int valid_bits, bool is_float) {
   if (flags & AUDCLNT_BUFFERFLAGS_SILENT) {
     for (size_t f = 0; f < frames; f++) {
       for (int c = 0; c < channels; c++) {
@@ -138,10 +137,8 @@ static inline void decode_samples_from_wasapi(audio_chunk_t* chunk,
 static inline void encode_samples_to_wasapi(BYTE* dst,
                                             const audio_chunk_t* chunk,
                                             size_t chunk_offset, size_t frames,
-                                            int channels,
-                                            int bits_per_sample,
-                                            int valid_bits,
-                                            bool is_float) {
+                                            int channels, int bits_per_sample,
+                                            int valid_bits, bool is_float) {
   if (is_float) {
     float* f32 = (float*)dst;
     for (size_t f = 0; f < frames; f++) {
@@ -256,8 +253,10 @@ capture_backend_t* wasapi_capture_create(const capture_device_config_t* config,
       (wasapi_capture_t*)calloc(1, sizeof(wasapi_capture_t));
   if (!capture) return NULL;
 
-  if (config->cfg.wasapi.has_device && strcmp(config->cfg.wasapi.device, "default") != 0) {
-    snprintf(capture->device, sizeof(capture->device), "%s", config->cfg.wasapi.device);
+  if (config->cfg.wasapi.has_device &&
+      strcmp(config->cfg.wasapi.device, "default") != 0) {
+    snprintf(capture->device, sizeof(capture->device), "%s",
+             config->cfg.wasapi.device);
   } else {
     capture->device[0] = '\0';
   }
@@ -268,7 +267,8 @@ capture_backend_t* wasapi_capture_create(const capture_device_config_t* config,
   capture->format = config->cfg.wasapi.format;
   capture->loopback = config->cfg.wasapi.loopback;
   capture->exclusive = config->cfg.wasapi.exclusive;
-  capture->polling = config->cfg.wasapi.has_polling ? config->cfg.wasapi.polling : false;
+  capture->polling =
+      config->cfg.wasapi.has_polling ? config->cfg.wasapi.polling : false;
 
   capture_backend_t* backend =
       (capture_backend_t*)calloc(1, sizeof(capture_backend_t));
@@ -400,10 +400,12 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
     if (capture->format == WASAPI_SAMPLE_FORMAT_S16) {
       wfx.Format.wBitsPerSample = 16;
       wfx.Format.nBlockAlign = 2 * capture->channels;
-      wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Format.nAvgBytesPerSec =
+          capture->sample_rate * wfx.Format.nBlockAlign;
       wfx.Samples.wValidBitsPerSample = 16;
       wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-      hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      hr = IAudioClient_IsFormatSupported(capture->client, mode,
+                                          (WAVEFORMATEX*)&wfx, NULL);
       if (SUCCEEDED(hr)) {
         capture->bits_per_sample = 16;
         capture->valid_bits = 16;
@@ -413,10 +415,12 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
     } else if (capture->format == WASAPI_SAMPLE_FORMAT_S32) {
       wfx.Format.wBitsPerSample = 32;
       wfx.Format.nBlockAlign = 4 * capture->channels;
-      wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Format.nAvgBytesPerSec =
+          capture->sample_rate * wfx.Format.nBlockAlign;
       wfx.Samples.wValidBitsPerSample = 32;
       wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-      hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      hr = IAudioClient_IsFormatSupported(capture->client, mode,
+                                          (WAVEFORMATEX*)&wfx, NULL);
       if (SUCCEEDED(hr)) {
         capture->bits_per_sample = 32;
         capture->valid_bits = 32;
@@ -426,10 +430,12 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
     } else if (capture->format == WASAPI_SAMPLE_FORMAT_F32) {
       wfx.Format.wBitsPerSample = 32;
       wfx.Format.nBlockAlign = 4 * capture->channels;
-      wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Format.nAvgBytesPerSec =
+          capture->sample_rate * wfx.Format.nBlockAlign;
       wfx.Samples.wValidBitsPerSample = 32;
       wfx.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
-      hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      hr = IAudioClient_IsFormatSupported(capture->client, mode,
+                                          (WAVEFORMATEX*)&wfx, NULL);
       if (SUCCEEDED(hr)) {
         capture->bits_per_sample = 32;
         capture->valid_bits = 32;
@@ -439,10 +445,12 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
     } else if (capture->format == WASAPI_SAMPLE_FORMAT_S24) {
       wfx.Format.wBitsPerSample = 24;
       wfx.Format.nBlockAlign = 3 * capture->channels;
-      wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Format.nAvgBytesPerSec =
+          capture->sample_rate * wfx.Format.nBlockAlign;
       wfx.Samples.wValidBitsPerSample = 24;
       wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-      hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      hr = IAudioClient_IsFormatSupported(capture->client, mode,
+                                          (WAVEFORMATEX*)&wfx, NULL);
       if (SUCCEEDED(hr)) {
         capture->bits_per_sample = 24;
         capture->valid_bits = 24;
@@ -451,10 +459,12 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
       } else {
         wfx.Format.wBitsPerSample = 32;
         wfx.Format.nBlockAlign = 4 * capture->channels;
-        wfx.Format.nAvgBytesPerSec = capture->sample_rate * wfx.Format.nBlockAlign;
+        wfx.Format.nAvgBytesPerSec =
+            capture->sample_rate * wfx.Format.nBlockAlign;
         wfx.Samples.wValidBitsPerSample = 24;
         wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-        hr = IAudioClient_IsFormatSupported(capture->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+        hr = IAudioClient_IsFormatSupported(capture->client, mode,
+                                            (WAVEFORMATEX*)&wfx, NULL);
         if (SUCCEEDED(hr)) {
           capture->bits_per_sample = 32;
           capture->valid_bits = 24;
@@ -514,7 +524,8 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
     capture->event = NULL;
   }
 
-  hr = IAudioClient_GetBufferSize(capture->client, &capture->buffer_frame_count);
+  hr =
+      IAudioClient_GetBufferSize(capture->client, &capture->buffer_frame_count);
   hr = IAudioClient_GetService(capture->client, &IID_IAudioCaptureClient,
                                (void**)&capture->capture_client);
   if (FAILED(hr)) {
@@ -588,11 +599,9 @@ bool wasapi_capture_read(wasapi_capture_t* capture, size_t frames,
         UINT32 to_copy = frames - frames_read;
         if (to_copy > num_frames) to_copy = num_frames;
 
-        decode_samples_from_wasapi(chunk, frames_read, data, to_copy,
-                                   capture->channels, flags,
-                                   capture->bits_per_sample,
-                                   capture->valid_bits,
-                                   capture->is_float);
+        decode_samples_from_wasapi(
+            chunk, frames_read, data, to_copy, capture->channels, flags,
+            capture->bits_per_sample, capture->valid_bits, capture->is_float);
         IAudioCaptureClient_ReleaseBuffer(capture->capture_client, num_frames);
         frames_read += to_copy;
       }
@@ -711,8 +720,10 @@ playback_backend_t* wasapi_playback_create(
       (wasapi_playback_t*)calloc(1, sizeof(wasapi_playback_t));
   if (!playback) return NULL;
 
-  if (config->cfg.wasapi.has_device && strcmp(config->cfg.wasapi.device, "default") != 0) {
-    snprintf(playback->device, sizeof(playback->device), "%s", config->cfg.wasapi.device);
+  if (config->cfg.wasapi.has_device &&
+      strcmp(config->cfg.wasapi.device, "default") != 0) {
+    snprintf(playback->device, sizeof(playback->device), "%s",
+             config->cfg.wasapi.device);
   } else {
     playback->device[0] = '\0';
   }
@@ -722,7 +733,8 @@ playback_backend_t* wasapi_playback_create(
   playback->chunk_size = chunk_size;
   playback->format = config->cfg.wasapi.format;
   playback->exclusive = config->cfg.wasapi.exclusive;
-  playback->polling = config->cfg.wasapi.has_polling ? config->cfg.wasapi.polling : false;
+  playback->polling =
+      config->cfg.wasapi.has_polling ? config->cfg.wasapi.polling : false;
 
   playback_backend_t* backend =
       (playback_backend_t*)calloc(1, sizeof(playback_backend_t));
@@ -851,10 +863,12 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
     if (playback->format == WASAPI_SAMPLE_FORMAT_S16) {
       wfx.Format.wBitsPerSample = 16;
       wfx.Format.nBlockAlign = 2 * playback->channels;
-      wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Format.nAvgBytesPerSec =
+          playback->sample_rate * wfx.Format.nBlockAlign;
       wfx.Samples.wValidBitsPerSample = 16;
       wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-      hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      hr = IAudioClient_IsFormatSupported(playback->client, mode,
+                                          (WAVEFORMATEX*)&wfx, NULL);
       if (SUCCEEDED(hr)) {
         playback->bits_per_sample = 16;
         playback->valid_bits = 16;
@@ -864,10 +878,12 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
     } else if (playback->format == WASAPI_SAMPLE_FORMAT_S32) {
       wfx.Format.wBitsPerSample = 32;
       wfx.Format.nBlockAlign = 4 * playback->channels;
-      wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Format.nAvgBytesPerSec =
+          playback->sample_rate * wfx.Format.nBlockAlign;
       wfx.Samples.wValidBitsPerSample = 32;
       wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-      hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      hr = IAudioClient_IsFormatSupported(playback->client, mode,
+                                          (WAVEFORMATEX*)&wfx, NULL);
       if (SUCCEEDED(hr)) {
         playback->bits_per_sample = 32;
         playback->valid_bits = 32;
@@ -877,10 +893,12 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
     } else if (playback->format == WASAPI_SAMPLE_FORMAT_F32) {
       wfx.Format.wBitsPerSample = 32;
       wfx.Format.nBlockAlign = 4 * playback->channels;
-      wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Format.nAvgBytesPerSec =
+          playback->sample_rate * wfx.Format.nBlockAlign;
       wfx.Samples.wValidBitsPerSample = 32;
       wfx.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
-      hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      hr = IAudioClient_IsFormatSupported(playback->client, mode,
+                                          (WAVEFORMATEX*)&wfx, NULL);
       if (SUCCEEDED(hr)) {
         playback->bits_per_sample = 32;
         playback->valid_bits = 32;
@@ -890,10 +908,12 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
     } else if (playback->format == WASAPI_SAMPLE_FORMAT_S24) {
       wfx.Format.wBitsPerSample = 24;
       wfx.Format.nBlockAlign = 3 * playback->channels;
-      wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+      wfx.Format.nAvgBytesPerSec =
+          playback->sample_rate * wfx.Format.nBlockAlign;
       wfx.Samples.wValidBitsPerSample = 24;
       wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-      hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+      hr = IAudioClient_IsFormatSupported(playback->client, mode,
+                                          (WAVEFORMATEX*)&wfx, NULL);
       if (SUCCEEDED(hr)) {
         playback->bits_per_sample = 24;
         playback->valid_bits = 24;
@@ -902,10 +922,12 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
       } else {
         wfx.Format.wBitsPerSample = 32;
         wfx.Format.nBlockAlign = 4 * playback->channels;
-        wfx.Format.nAvgBytesPerSec = playback->sample_rate * wfx.Format.nBlockAlign;
+        wfx.Format.nAvgBytesPerSec =
+            playback->sample_rate * wfx.Format.nBlockAlign;
         wfx.Samples.wValidBitsPerSample = 24;
         wfx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-        hr = IAudioClient_IsFormatSupported(playback->client, mode, (WAVEFORMATEX*)&wfx, NULL);
+        hr = IAudioClient_IsFormatSupported(playback->client, mode,
+                                            (WAVEFORMATEX*)&wfx, NULL);
         if (SUCCEEDED(hr)) {
           playback->bits_per_sample = 32;
           playback->valid_bits = 24;
@@ -929,9 +951,9 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
     flags |= AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
   }
 
-  hr = IAudioClient_Initialize(
-      playback->client, mode, flags, duration,
-      playback->exclusive ? duration : 0, (WAVEFORMATEX*)&wfx, NULL);
+  hr = IAudioClient_Initialize(playback->client, mode, flags, duration,
+                               playback->exclusive ? duration : 0,
+                               (WAVEFORMATEX*)&wfx, NULL);
   if (FAILED(hr)) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
@@ -1038,10 +1060,8 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
                                         &data);
       if (SUCCEEDED(hr) && data) {
         encode_samples_to_wasapi(data, chunk, frames_written, to_write,
-                                 playback->channels,
-                                 playback->bits_per_sample,
-                                 playback->valid_bits,
-                                 playback->is_float);
+                                 playback->channels, playback->bits_per_sample,
+                                 playback->valid_bits, playback->is_float);
         IAudioRenderClient_ReleaseBuffer(playback->render_client, to_write, 0);
         frames_written += to_write;
       }

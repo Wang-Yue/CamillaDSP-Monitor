@@ -46,7 +46,6 @@ engine_shared_state_t* engine_shared_state_create(
   atomic_init(&state->should_stop, false);
   state->resampler_ratio = atomic_double_create(1.0);
 
-
   if (!state->captured_queue || !state->processed_queue ||
       !state->captured_semaphore || !state->processed_semaphore ||
       !state->resampler_ratio) {

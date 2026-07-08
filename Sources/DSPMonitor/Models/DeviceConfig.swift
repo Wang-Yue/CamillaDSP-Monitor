@@ -75,7 +75,8 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
 
   // Custom decode tolerates configs persisted before new fields existed.
   private enum CodingKeys: String, CodingKey {
-    case backend, capabilities, channels, deviceChannels, sampleRate, format, bypassDoP, dopCutoffHz,
+    case backend, capabilities, channels, deviceChannels, sampleRate, format, bypassDoP,
+      dopCutoffHz,
       outputDoP, dopEncoderFilter, filename, fileFormat, isWav, skipBytes, readBytes, extraSamples,
       generatorType, generatorFreq, generatorLevel
   }

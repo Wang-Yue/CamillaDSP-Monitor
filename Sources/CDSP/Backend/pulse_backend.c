@@ -80,8 +80,10 @@ capture_backend_t* pulse_capture_create(const capture_device_config_t* config,
       (pulse_capture_t*)calloc(1, sizeof(pulse_capture_t));
   if (!capture) return NULL;
 
-  if (strlen(config->cfg.pulse.device) > 0 && strcmp(config->cfg.pulse.device, "default") != 0) {
-    snprintf(capture->device, sizeof(capture->device), "%s", config->cfg.pulse.device);
+  if (strlen(config->cfg.pulse.device) > 0 &&
+      strcmp(config->cfg.pulse.device, "default") != 0) {
+    snprintf(capture->device, sizeof(capture->device), "%s",
+             config->cfg.pulse.device);
   } else {
     capture->device[0] = '\0';  // default device
   }
@@ -267,8 +269,10 @@ playback_backend_t* pulse_playback_create(
       (pulse_playback_t*)calloc(1, sizeof(pulse_playback_t));
   if (!playback) return NULL;
 
-  if (strlen(config->cfg.pulse.device) > 0 && strcmp(config->cfg.pulse.device, "default") != 0) {
-    snprintf(playback->device, sizeof(playback->device), "%s", config->cfg.pulse.device);
+  if (strlen(config->cfg.pulse.device) > 0 &&
+      strcmp(config->cfg.pulse.device, "default") != 0) {
+    snprintf(playback->device, sizeof(playback->device), "%s",
+             config->cfg.pulse.device);
   } else {
     playback->device[0] = '\0';
   }

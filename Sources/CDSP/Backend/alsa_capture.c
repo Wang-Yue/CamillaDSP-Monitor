@@ -1,6 +1,5 @@
 #if defined(ENABLE_ALSA)
 #include "alsa_capture.h"
-#include "alsa_device.h"
 
 #include <alloca.h>
 #include <alsa/asoundlib.h>
@@ -11,6 +10,7 @@
 
 #include "Audio/processing_parameters.h"
 #include "Logging/app_logger.h"
+#include "alsa_device.h"
 
 struct alsa_capture {
   char device_name[256];

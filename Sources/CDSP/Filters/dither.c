@@ -225,7 +225,7 @@ static inline uint32_t xorshift32(uint32_t* state) {
 
 static inline double sample_rng_0_1(uint32_t* state) {
   uint32_t val = xorshift32(state);
-  return (double)val / (double)4294967295.0; // 2^32 - 1
+  return (double)val / (double)4294967295.0;  // 2^32 - 1
 }
 
 static double sample_dither(dither_filter_t* filter) {

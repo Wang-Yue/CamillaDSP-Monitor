@@ -148,11 +148,11 @@ struct EQFrequencyResponseView: View {
       let h = geo.size.height
       ZStack {
         RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor))
-        
+
         if showAnalyzer {
           EQSpectrumBackgroundView(width: w, height: h, minFreq: minFreq, maxFreq: maxFreq)
         }
-        
+
         drawGrid(w: w, h: h)
 
         if let target = overlay?.target {
@@ -525,27 +525,29 @@ struct EQSpectrumBackgroundView: View {
 
   var body: some View {
     ZStack {
-      if let bands = spectrum.bands, let frequencies = spectrum.frequencies, !bands.isEmpty, bands.count == frequencies.count {
+      if let bands = spectrum.bands, let frequencies = spectrum.frequencies, !bands.isEmpty,
+        bands.count == frequencies.count
+      {
         let logMin = log10(minFreq)
         let logMax = log10(maxFreq)
-        
+
         let points: [CGPoint] = (0..<bands.count).map { i in
           let f = Double(frequencies[i])
           let db = Double(bands[i])
-          
+
           let logF = log10(max(f, minFreq))
           let x = (logF - logMin) / (logMax - logMin) * width
-          
+
           // Map -70 dB..-10 dB to height..0
           let minSpecDB = -70.0
           let maxSpecDB = -10.0
           let ratio = (db - minSpecDB) / (maxSpecDB - minSpecDB)
           let clampedRatio = max(0.0, min(1.0, ratio))
           let y = height * (1.0 - clampedRatio)
-          
+
           return CGPoint(x: x, y: y)
         }
-        
+
         if !points.isEmpty {
           // Fill Path
           Path { path in
@@ -560,13 +562,13 @@ struct EQSpectrumBackgroundView: View {
             LinearGradient(
               colors: [
                 Color.accentColor.opacity(0.12),
-                Color.accentColor.opacity(0.01)
+                Color.accentColor.opacity(0.01),
               ],
               startPoint: .top,
               endPoint: .bottom
             )
           )
-          
+
           // Stroke Path
           Path { path in
             path.move(to: points[0])

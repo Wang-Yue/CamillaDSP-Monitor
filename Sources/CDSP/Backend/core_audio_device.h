@@ -128,9 +128,11 @@ bool core_audio_device_has_nominal_sample_rate_property(
 AudioStreamBasicDescription core_audio_device_float32_stream_format(
     double sample_rate, int channels, bool interleaved);
 
-bool core_audio_device_set_matching_physical_format(
-    AudioDeviceID device_id, core_audio_scope_t scope, double sample_rate,
-    const char* format_str, int requested_channels);
+bool core_audio_device_set_matching_physical_format(AudioDeviceID device_id,
+                                                    core_audio_scope_t scope,
+                                                    double sample_rate,
+                                                    const char* format_str,
+                                                    int requested_channels);
 
 // RateChangeWatcher
 /// Watches a CoreAudio device's `kAudioDevicePropertyNominalSampleRate`

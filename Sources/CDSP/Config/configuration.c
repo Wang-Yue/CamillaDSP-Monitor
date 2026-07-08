@@ -52,7 +52,8 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     config_error_set(err, CONFIG_ERR_VALIDATION, "Chunk size must be positive");
     return -1;
   }
-  if (!config->devices.capture.is_wav && capture_device_config_get_channels(&config->devices.capture) <= 0) {
+  if (!config->devices.capture.is_wav &&
+      capture_device_config_get_channels(&config->devices.capture) <= 0) {
     config_error_set(err, CONFIG_ERR_VALIDATION,
                      "Capture channels must be positive");
     return -1;
@@ -63,12 +64,14 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     return -1;
   }
 
-  if (config->devices.has_silence_timeout && config->devices.silence_timeout < 0.0) {
+  if (config->devices.has_silence_timeout &&
+      config->devices.silence_timeout < 0.0) {
     config_error_set(err, CONFIG_ERR_VALIDATION,
                      "silence_timeout cannot be negative");
     return -1;
   }
-  if (config->devices.has_silence_threshold && config->devices.silence_threshold > 0.0) {
+  if (config->devices.has_silence_threshold &&
+      config->devices.silence_threshold > 0.0) {
     config_error_set(err, CONFIG_ERR_VALIDATION,
                      "silence_threshold must be less than or equal to 0");
     return -1;
@@ -86,7 +89,8 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     }
   }
   if (config->devices.has_target_level) {
-    int qlimit = config->devices.has_queuelimit ? config->devices.queuelimit : 4;
+    int qlimit =
+        config->devices.has_queuelimit ? config->devices.queuelimit : 4;
     int target_limit = (2 + qlimit) * config->devices.chunksize;
 #if defined(ENABLE_ALSA)
     if (config->devices.playback.type == AUDIO_BACKEND_TYPE_ALSA) {
@@ -95,7 +99,8 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
 #endif
     if (config->devices.target_level > target_limit) {
       char msg[128];
-      snprintf(msg, sizeof(msg), "target_level cannot be larger than %d", target_limit);
+      snprintf(msg, sizeof(msg), "target_level cannot be larger than %d",
+               target_limit);
       config_error_set(err, CONFIG_ERR_VALIDATION, msg);
       return -1;
     }
@@ -137,7 +142,8 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
   }
 
   // Validate pipeline
-  int num_channels = capture_device_config_get_channels(&config->devices.capture);
+  int num_channels =
+      capture_device_config_get_channels(&config->devices.capture);
   for (size_t i = 0; i < config->pipeline_count; i++) {
     const pipeline_step_t* step = &config->pipeline[i];
     if (step->bypassed) continue;
@@ -247,7 +253,8 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     }
   }
 
-  int playback_channels = playback_device_config_get_channels(&config->devices.playback);
+  int playback_channels =
+      playback_device_config_get_channels(&config->devices.playback);
   if (num_channels != playback_channels) {
     config_error_set(
         err, CONFIG_ERR_INVALID_PIPELINE,

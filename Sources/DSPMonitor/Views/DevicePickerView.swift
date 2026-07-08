@@ -528,7 +528,7 @@ struct FileSelectionView: View {
   let isCapture: Bool
 
   let formats = [
-    "S16_LE", "S24_3_LE", "S24_4_RJ_LE", "S24_4_LJ_LE", "S32_LE", "F32_LE", "F64_LE"
+    "S16_LE", "S24_3_LE", "S24_4_RJ_LE", "S24_4_LJ_LE", "S32_LE", "F32_LE", "F64_LE",
   ]
 
   var body: some View {
@@ -587,7 +587,7 @@ struct FileSelectionView: View {
         HStack {
           Text("Extra Samples")
             .frame(width: 100, alignment: .leading)
-          Stepper("\(extraSamples)", value: $extraSamples, in: 0...1000000)
+          Stepper("\(extraSamples)", value: $extraSamples, in: 0...1_000_000)
             .frame(width: 120)
         }
       }
@@ -681,4 +681,3 @@ struct DeviceRow: View {
     .padding(.vertical, 2)
   }
 }
-

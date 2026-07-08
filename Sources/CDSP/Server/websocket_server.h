@@ -10,9 +10,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "Backend/backend_error.h"
 #include "Config/configuration.h"
 #include "Config/engine_config_types.h"
-#include "Backend/backend_error.h"
 
 typedef struct active_config_path active_config_path_t;
 typedef struct websocket_server websocket_server_t;

@@ -75,7 +75,8 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
   pipeline->frames_per_chunk =
       explicit_chunk_size > 0 ? explicit_chunk_size : config->devices.chunksize;
   pipeline->rate = config->devices.samplerate;
-  pipeline->expected_in_channels = capture_device_config_get_channels(&config->devices.capture);
+  pipeline->expected_in_channels =
+      capture_device_config_get_channels(&config->devices.capture);
 
   // Create the implicit master volume filter — equivalent to the
   // master volume slot (which keys off

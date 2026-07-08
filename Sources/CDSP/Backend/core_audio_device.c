@@ -501,9 +501,11 @@ static const char* format_string_for_asbd_local(
   return "";
 }
 
-bool core_audio_device_set_matching_physical_format(
-    AudioDeviceID device_id, core_audio_scope_t scope, double sample_rate,
-    const char* format_str, int requested_channels) {
+bool core_audio_device_set_matching_physical_format(AudioDeviceID device_id,
+                                                    core_audio_scope_t scope,
+                                                    double sample_rate,
+                                                    const char* format_str,
+                                                    int requested_channels) {
   AudioStreamID streams[32];
   int stream_count = core_audio_device_streams(device_id, scope, streams, 32);
 
@@ -517,14 +519,19 @@ bool core_audio_device_set_matching_physical_format(
         .mScope = kAudioObjectPropertyScopeGlobal,
         .mElement = kAudioObjectPropertyElementMain};
     uint32_t size = 0;
-    if (AudioObjectGetPropertyDataSize(streams[s], &addr, 0, NULL, &size) != noErr || size == 0) {
+    if (AudioObjectGetPropertyDataSize(streams[s], &addr, 0, NULL, &size) !=
+            noErr ||
+        size == 0) {
       continue;
     }
     int count = (int)(size / sizeof(AudioStreamRangedDescription));
-    AudioStreamRangedDescription* ranged = (AudioStreamRangedDescription*)calloc(count, sizeof(AudioStreamRangedDescription));
+    AudioStreamRangedDescription* ranged =
+        (AudioStreamRangedDescription*)calloc(
+            count, sizeof(AudioStreamRangedDescription));
     if (!ranged) continue;
 
-    if (AudioObjectGetPropertyData(streams[s], &addr, 0, NULL, &size, ranged) == noErr) {
+    if (AudioObjectGetPropertyData(streams[s], &addr, 0, NULL, &size, ranged) ==
+        noErr) {
       for (int i = 0; i < count; i++) {
         AudioStreamBasicDescription asbd = ranged[i].mFormat;
         if (asbd.mFormatID != kAudioFormatLinearPCM) continue;
@@ -565,7 +572,9 @@ bool core_audio_device_set_matching_physical_format(
         .mSelector = kAudioStreamPropertyPhysicalFormat,
         .mScope = kAudioObjectPropertyScopeGlobal,
         .mElement = kAudioObjectPropertyElementMain};
-    OSStatus status = AudioObjectSetPropertyData(best_stream_id, &addr, 0, NULL, sizeof(AudioStreamBasicDescription), &best_asbd);
+    OSStatus status = AudioObjectSetPropertyData(
+        best_stream_id, &addr, 0, NULL, sizeof(AudioStreamBasicDescription),
+        &best_asbd);
     return (status == noErr);
   }
 

@@ -133,7 +133,8 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
                                 &IID_IMMDeviceEnumerator, (void**)&enumerator);
   if (FAILED(hr)) {
     if (err) {
-      device_error_init(err, DEVICE_ERROR_OTHER, "Failed to create MMDeviceEnumerator");
+      device_error_init(err, DEVICE_ERROR_OTHER,
+                        "Failed to create MMDeviceEnumerator");
     }
     goto error_cleanup;
   }
@@ -209,10 +210,12 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
     if (err) {
       if (hr == AUDCLNT_E_DEVICE_INVALIDATED) {
         device_error_init(err, DEVICE_ERROR_NOT_FOUND, "Device invalidated");
-      } else if (hr == E_ACCESSDENIED || hr == AUDCLNT_E_RESOURCES_INVALIDATED) {
+      } else if (hr == E_ACCESSDENIED ||
+                 hr == AUDCLNT_E_RESOURCES_INVALIDATED) {
         device_error_init(err, DEVICE_ERROR_BUSY, "Device is busy");
       } else {
-        device_error_init(err, DEVICE_ERROR_OTHER, "Failed to activate WASAPI client");
+        device_error_init(err, DEVICE_ERROR_OTHER,
+                          "Failed to activate WASAPI client");
       }
     }
     goto error_cleanup;

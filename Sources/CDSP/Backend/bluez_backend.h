@@ -13,9 +13,10 @@ typedef struct bluez_capture bluez_capture_t;
 typedef struct processing_parameters processing_parameters_t;
 
 // Capture backend factory & methods
-capture_backend_t* bluez_capture_create(
-    const capture_device_config_t* config, int sample_rate, int chunk_size,
-    processing_parameters_t* params, backend_error_t* err);
+capture_backend_t* bluez_capture_create(const capture_device_config_t* config,
+                                        int sample_rate, int chunk_size,
+                                        processing_parameters_t* params,
+                                        backend_error_t* err);
 bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err);
 bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
                         audio_chunk_t* chunk, backend_error_t* err);

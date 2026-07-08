@@ -62,8 +62,6 @@ final class EngineSharedState: Sendable {
   /// thread once per chunk via `setRelativeRatio`.
   let resamplerRatio = AtomicDouble(1.0)
 
-
-
   init(capturedQueueDepth: Int = 16, processedQueueDepth: Int = 16) {
     self.capturedQueue = SPSCQueue<AudioChunk>(minimumCapacity: capturedQueueDepth)
     self.processedQueue = SPSCQueue<AudioChunk>(minimumCapacity: processedQueueDepth)

@@ -4,10 +4,10 @@
 #include "asio_backend.h"
 
 #include <initguid.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <unknwn.h>
 #include <windows.h>
 
@@ -80,9 +80,8 @@ static ASIOCallbacks asio_callbacks;
 // Forward declaration of COM interface
 typedef struct IASIO IASIO;
 static bool force_sample_rate_with_dummy_cycle(const char* driver_name,
-                                                IASIO** p_iasio,
-                                                double rate,
-                                                backend_error_t* err);
+                                               IASIO** p_iasio, double rate,
+                                               backend_error_t* err);
 typedef struct IASIOVtbl {
   HRESULT(STDMETHODCALLTYPE* QueryInterface)(IASIO* This, REFIID riid,
                                              void** ppvObject);
@@ -99,7 +98,8 @@ typedef struct IASIOVtbl {
   ASIOError(STDMETHODCALLTYPE* getLatencies)(IASIO* This, long* inputLatency,
                                              long* outputLatency);
   ASIOError(STDMETHODCALLTYPE* getBufferSize)(IASIO* This, long* minSize,
-                                              long* maxSize, long* preferredSize,
+                                              long* maxSize,
+                                              long* preferredSize,
                                               long* granularity);
   ASIOError(STDMETHODCALLTYPE* canSampleRate)(IASIO* This, double sampleRate);
   ASIOError(STDMETHODCALLTYPE* getSampleRate)(IASIO* This, double* sampleRate);
@@ -247,8 +247,8 @@ static bool register_and_wait_asio(bool is_input, const char* driver_name,
       return false;
     }
 
-    HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER,
-                                  &clsid, (void**)&g_asio_shared.iasio);
+    HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &clsid,
+                                  (void**)&g_asio_shared.iasio);
     if (FAILED(hr)) {
       g_asio_shared.initialized = false;
       ReleaseSRWLockExclusive(&g_asio_shared.lock);
@@ -284,11 +284,14 @@ static bool register_and_wait_asio(bool is_input, const char* driver_name,
     // Set requested sample rate
     double rate = sample_rate;
     double current_rate = 0.0;
-    if (g_asio_shared.iasio->lpVtbl->getSampleRate(g_asio_shared.iasio, &current_rate) == 0) {
+    if (g_asio_shared.iasio->lpVtbl->getSampleRate(g_asio_shared.iasio,
+                                                   &current_rate) == 0) {
       if (fabs(current_rate - rate) > 0.5) {
-        if (g_asio_shared.iasio->lpVtbl->setSampleRate(g_asio_shared.iasio, rate) == 0) {
+        if (g_asio_shared.iasio->lpVtbl->setSampleRate(g_asio_shared.iasio,
+                                                       rate) == 0) {
           // Force sample rate change via dummy stream cycle
-          if (!force_sample_rate_with_dummy_cycle(driver_name, &g_asio_shared.iasio, rate, err)) {
+          if (!force_sample_rate_with_dummy_cycle(
+                  driver_name, &g_asio_shared.iasio, rate, err)) {
             g_asio_shared.initialized = false;
             ReleaseSRWLockExclusive(&g_asio_shared.lock);
             return false;
@@ -407,11 +410,11 @@ static bool register_and_wait_asio(bool is_input, const char* driver_name,
           g_asio_shared.combined_buffer_infos[pb_ch + i].buffers[1];
     }
 
-    ASIOError start_res = g_asio_shared.iasio->lpVtbl->start(g_asio_shared.iasio);
+    ASIOError start_res =
+        g_asio_shared.iasio->lpVtbl->start(g_asio_shared.iasio);
     if (start_res != 0) {
       snprintf(g_asio_shared.setup_error, sizeof(g_asio_shared.setup_error),
-               "ASIOStart failed in full-duplex setup: %ld",
-               start_res);
+               "ASIOStart failed in full-duplex setup: %ld", start_res);
       g_asio_shared.iasio->lpVtbl->disposeBuffers(g_asio_shared.iasio);
       WakeAllConditionVariable(&g_asio_shared.cond);
       ReleaseSRWLockExclusive(&g_asio_shared.lock);
@@ -476,9 +479,8 @@ static void release_shared_asio(bool is_input, IASIO* iasio) {
 }
 
 static bool force_sample_rate_with_dummy_cycle(const char* driver_name,
-                                                IASIO** p_iasio,
-                                                double rate,
-                                                backend_error_t* err) {
+                                               IASIO** p_iasio, double rate,
+                                               backend_error_t* err) {
   IASIO* iasio = *p_iasio;
 
   long num_in = 0, num_out = 0;
@@ -544,8 +546,9 @@ static bool force_sample_rate_with_dummy_cycle(const char* driver_name,
                                 (void**)&iasio);
   if (FAILED(hr)) {
     if (err)
-      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                         "Failed to recreate driver instance after dummy cycle");
+      backend_error_init(
+          err, BACKEND_ERROR_INITIALIZATION_FAILED,
+          "Failed to recreate driver instance after dummy cycle");
     return false;
   }
 
@@ -579,8 +582,9 @@ static bool force_sample_rate_with_dummy_cycle(const char* driver_name,
   if (fabs(verify - rate) > 0.5) {
     SAFE_RELEASE(iasio);
     if (err)
-      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                         "ASIO sample rate verification failed after dummy cycle");
+      backend_error_init(
+          err, BACKEND_ERROR_INITIALIZATION_FAILED,
+          "ASIO sample rate verification failed after dummy cycle");
     return false;
   }
 
@@ -750,7 +754,8 @@ static long asio_message(long selector, long value, void* message,
     {
       logger_t logger = logger_create("dsp.backend.asio");
       logger_warn(&logger, "ASIO reset request received from driver.",
-                  log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
+                  log_arg_none(), log_arg_none(), log_arg_none(),
+                  log_arg_none());
     }
       return 1;
     case 6:  // kAsioBufferSizeChange
@@ -818,10 +823,12 @@ static bool asio_capture_open_internal(void* ctx, backend_error_t* err) {
 
     double rate = capture->sample_rate;
     double current_rate = 0.0;
-    if (capture->iasio->lpVtbl->getSampleRate(capture->iasio, &current_rate) == 0) {
+    if (capture->iasio->lpVtbl->getSampleRate(capture->iasio, &current_rate) ==
+        0) {
       if (fabs(current_rate - rate) > 0.5) {
         if (capture->iasio->lpVtbl->setSampleRate(capture->iasio, rate) == 0) {
-          if (!force_sample_rate_with_dummy_cycle(capture->device, &capture->iasio, rate, err)) {
+          if (!force_sample_rate_with_dummy_cycle(capture->device,
+                                                  &capture->iasio, rate, err)) {
             goto error_cleanup;
           }
         } else {
@@ -1029,7 +1036,8 @@ capture_backend_t* asio_capture_new(const capture_device_config_t* config,
   asio_capture_t* capture = (asio_capture_t*)calloc(1, sizeof(asio_capture_t));
   if (!capture) return NULL;
 
-  snprintf(capture->device, sizeof(capture->device), "%s", config->cfg.asio.device);
+  snprintf(capture->device, sizeof(capture->device), "%s",
+           config->cfg.asio.device);
   capture->channels = config->cfg.asio.channels;
   capture->sample_rate = sample_rate;
   capture->chunk_size = chunk_size;
@@ -1072,8 +1080,8 @@ static bool asio_playback_open_internal(void* ctx, backend_error_t* err) {
       goto error_cleanup;
     }
 
-    HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER,
-                                  &clsid, (void**)&playback->iasio);
+    HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &clsid,
+                                  (void**)&playback->iasio);
     if (FAILED(hr)) {
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
@@ -1091,10 +1099,13 @@ static bool asio_playback_open_internal(void* ctx, backend_error_t* err) {
 
     double rate = playback->sample_rate;
     double current_rate = 0.0;
-    if (playback->iasio->lpVtbl->getSampleRate(playback->iasio, &current_rate) == 0) {
+    if (playback->iasio->lpVtbl->getSampleRate(playback->iasio,
+                                               &current_rate) == 0) {
       if (fabs(current_rate - rate) > 0.5) {
-        if (playback->iasio->lpVtbl->setSampleRate(playback->iasio, rate) == 0) {
-          if (!force_sample_rate_with_dummy_cycle(playback->device, &playback->iasio, rate, err)) {
+        if (playback->iasio->lpVtbl->setSampleRate(playback->iasio, rate) ==
+            0) {
+          if (!force_sample_rate_with_dummy_cycle(
+                  playback->device, &playback->iasio, rate, err)) {
             goto error_cleanup;
           }
         } else {
@@ -1315,7 +1326,8 @@ playback_backend_t* asio_playback_new(const playback_device_config_t* config,
       (asio_playback_t*)calloc(1, sizeof(asio_playback_t));
   if (!playback) return NULL;
 
-  snprintf(playback->device, sizeof(playback->device), "%s", config->cfg.asio.device);
+  snprintf(playback->device, sizeof(playback->device), "%s",
+           config->cfg.asio.device);
   playback->channels = config->cfg.asio.channels;
   playback->sample_rate = sample_rate;
   playback->chunk_size = chunk_size;

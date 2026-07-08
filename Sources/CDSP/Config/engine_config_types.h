@@ -588,36 +588,56 @@ void devices_config_init(devices_config_t* config, size_t samplerate,
 
 // Accessor helper functions
 int capture_device_config_get_channels(const capture_device_config_t* config);
-const char* capture_device_config_get_device(const capture_device_config_t* config);
+const char* capture_device_config_get_device(
+    const capture_device_config_t* config);
 #if defined(ENABLE_COREAUDIO)
-coreaudio_sample_format_t capture_device_config_get_format(const capture_device_config_t* config);
+coreaudio_sample_format_t capture_device_config_get_format(
+    const capture_device_config_t* config);
 #endif
-bool capture_device_config_get_bypass_dop(const capture_device_config_t* config);
-double capture_device_config_get_dop_cutoff_hz(const capture_device_config_t* config);
-const char* capture_device_config_get_filename(const capture_device_config_t* config);
-binary_sample_format_t capture_device_config_get_file_format(const capture_device_config_t* config);
-int capture_device_config_get_extra_samples(const capture_device_config_t* config);
+bool capture_device_config_get_bypass_dop(
+    const capture_device_config_t* config);
+double capture_device_config_get_dop_cutoff_hz(
+    const capture_device_config_t* config);
+const char* capture_device_config_get_filename(
+    const capture_device_config_t* config);
+binary_sample_format_t capture_device_config_get_file_format(
+    const capture_device_config_t* config);
+int capture_device_config_get_extra_samples(
+    const capture_device_config_t* config);
 int capture_device_config_get_skip_bytes(const capture_device_config_t* config);
 int capture_device_config_get_read_bytes(const capture_device_config_t* config);
-generator_signal_t capture_device_config_get_generator(const capture_device_config_t* config);
+generator_signal_t capture_device_config_get_generator(
+    const capture_device_config_t* config);
 
 int playback_device_config_get_channels(const playback_device_config_t* config);
-const char* playback_device_config_get_device(const playback_device_config_t* config);
+const char* playback_device_config_get_device(
+    const playback_device_config_t* config);
 #if defined(ENABLE_COREAUDIO)
-coreaudio_sample_format_t playback_device_config_get_format(const playback_device_config_t* config);
+coreaudio_sample_format_t playback_device_config_get_format(
+    const playback_device_config_t* config);
 #endif
-bool playback_device_config_get_exclusive(const playback_device_config_t* config);
-bool playback_device_config_get_output_dop(const playback_device_config_t* config);
-sdm_filter_t playback_device_config_get_dop_encoder_filter(const playback_device_config_t* config);
-const char* playback_device_config_get_filename(const playback_device_config_t* config);
-binary_sample_format_t playback_device_config_get_file_format(const playback_device_config_t* config);
-bool playback_device_config_get_wav_header(const playback_device_config_t* config);
+bool playback_device_config_get_exclusive(
+    const playback_device_config_t* config);
+bool playback_device_config_get_output_dop(
+    const playback_device_config_t* config);
+sdm_filter_t playback_device_config_get_dop_encoder_filter(
+    const playback_device_config_t* config);
+const char* playback_device_config_get_filename(
+    const playback_device_config_t* config);
+binary_sample_format_t playback_device_config_get_file_format(
+    const playback_device_config_t* config);
+bool playback_device_config_get_wav_header(
+    const playback_device_config_t* config);
 
-void capture_device_config_set_channels(capture_device_config_t* config, int channels);
-void capture_device_config_set_extra_samples(capture_device_config_t* config, int extra_samples);
+void capture_device_config_set_channels(capture_device_config_t* config,
+                                        int channels);
+void capture_device_config_set_extra_samples(capture_device_config_t* config,
+                                             int extra_samples);
 #if defined(ENABLE_COREAUDIO)
-void capture_device_config_set_format(capture_device_config_t* config, coreaudio_sample_format_t format);
+void capture_device_config_set_format(capture_device_config_t* config,
+                                      coreaudio_sample_format_t format);
 #endif
-void capture_device_config_set_file_format(capture_device_config_t* config, binary_sample_format_t format);
+void capture_device_config_set_file_format(capture_device_config_t* config,
+                                           binary_sample_format_t format);
 
 #endif  // CLIB_CONFIG_ENGINE_CONFIG_TYPES_H

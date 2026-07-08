@@ -75,7 +75,8 @@ typedef struct IASIOVtbl {
   ASIOError(STDMETHODCALLTYPE* getLatencies)(IASIO* This, long* inputLatency,
                                              long* outputLatency);
   ASIOError(STDMETHODCALLTYPE* getBufferSize)(IASIO* This, long* minSize,
-                                              long* maxSize, long* preferredSize,
+                                              long* maxSize,
+                                              long* preferredSize,
                                               long* granularity);
   ASIOError(STDMETHODCALLTYPE* canSampleRate)(IASIO* This, double sampleRate);
   ASIOError(STDMETHODCALLTYPE* getSampleRate)(IASIO* This, double* sampleRate);
@@ -191,18 +192,21 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
   }
 
   IASIO* iasio = NULL;
-  HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER,
-                                &clsid, (void**)&iasio);
+  HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &clsid,
+                                (void**)&iasio);
   if (FAILED(hr)) {
     if (err) {
-      device_error_init(err, DEVICE_ERROR_OTHER, "Failed to instantiate ASIO COM object");
+      device_error_init(err, DEVICE_ERROR_OTHER,
+                        "Failed to instantiate ASIO COM object");
     }
     goto error_cleanup;
   }
 
   if (!iasio->lpVtbl->init(iasio, GetDesktopWindow())) {
     if (err) {
-      device_error_init(err, DEVICE_ERROR_BUSY, "ASIO driver initialization failed (busy or disconnected)");
+      device_error_init(
+          err, DEVICE_ERROR_BUSY,
+          "ASIO driver initialization failed (busy or disconnected)");
     }
     SAFE_RELEASE(iasio);
     goto error_cleanup;
@@ -213,7 +217,9 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
   long target_channels = is_capture ? num_inputs : num_outputs;
   if (target_channels <= 0) {
     if (err) {
-      device_error_init(err, DEVICE_ERROR_OTHER, "ASIO driver has no channels in the requested direction");
+      device_error_init(
+          err, DEVICE_ERROR_OTHER,
+          "ASIO driver has no channels in the requested direction");
     }
     SAFE_RELEASE(iasio);
     goto error_cleanup;

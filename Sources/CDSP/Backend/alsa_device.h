@@ -4,10 +4,10 @@
 #if defined(ENABLE_ALSA)
 
 #include <alsa/asoundlib.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <pthread.h>
 
 extern pthread_mutex_t g_alsa_mutex;
 

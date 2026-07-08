@@ -79,20 +79,23 @@ dsp_engine_core_t* dsp_engine_core_create(dsp_config_t* config) {
   double capture_rate = (double)(config->devices.has_capture_samplerate
                                      ? config->devices.capture_samplerate
                                      : config->devices.samplerate);
-  core->dop_decoder =
-      dop_decoder_create(capture_device_config_get_channels(&config->devices.capture), capture_rate,
-                         capture_device_config_get_bypass_dop(&config->devices.capture),
-                         capture_device_config_get_dop_cutoff_hz(&config->devices.capture));
+  core->dop_decoder = dop_decoder_create(
+      capture_device_config_get_channels(&config->devices.capture),
+      capture_rate,
+      capture_device_config_get_bypass_dop(&config->devices.capture),
+      capture_device_config_get_dop_cutoff_hz(&config->devices.capture));
 
   double playback_rate = (double)config->devices.samplerate;
-  sdm_filter_t dop_filter = playback_device_config_get_dop_encoder_filter(&config->devices.playback);
+  sdm_filter_t dop_filter =
+      playback_device_config_get_dop_encoder_filter(&config->devices.playback);
   if (dop_filter == SDM_FILTER_INVALID) {
     dop_filter = SDM_FILTER_SDM6;
   }
-  core->dop_encoder =
-      dop_encoder_create(playback_device_config_get_channels(&config->devices.playback), playback_rate,
-                         playback_device_config_get_output_dop(&config->devices.playback),
-                         dop_filter, 20000.0);
+  core->dop_encoder = dop_encoder_create(
+      playback_device_config_get_channels(&config->devices.playback),
+      playback_rate,
+      playback_device_config_get_output_dop(&config->devices.playback),
+      dop_filter, 20000.0);
 
   // Log configuration details and read properties to satisfy Periphery
   logger_t logger = logger_create("dsp.engine.core");
@@ -180,7 +183,8 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   if (core->current_config->devices.has_resampler) {
     core->resampler = audio_resampler_create_from_config(
         &core->current_config->devices.resampler, capture_rate, pipeline_rate,
-        capture_device_config_get_channels(&core->current_config->devices.capture),
+        capture_device_config_get_channels(
+            &core->current_config->devices.capture),
         core->current_config->devices.chunksize);
   } else {
     core->resampler = NULL;
@@ -213,8 +217,10 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
 #if defined(ENABLE_ASIO)
   if (core->current_config->devices.capture.type == AUDIO_BACKEND_TYPE_ASIO &&
       core->current_config->devices.playback.type == AUDIO_BACKEND_TYPE_ASIO &&
-      strcmp(capture_device_config_get_device(&core->current_config->devices.capture),
-             playback_device_config_get_device(&core->current_config->devices.playback)) == 0) {
+      strcmp(capture_device_config_get_device(
+                 &core->current_config->devices.capture),
+             playback_device_config_get_device(
+                 &core->current_config->devices.playback)) == 0) {
     full_duplex = true;
   }
 #endif
@@ -278,10 +284,12 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   core->resampler_scratch = audio_chunk_create(
       core->resampler ? audio_resampler_get_max_output_frames(core->resampler)
                       : capture_chunk_size,
-      capture_device_config_get_channels(&core->current_config->devices.capture));
+      capture_device_config_get_channels(
+          &core->current_config->devices.capture));
   core->resampler_scratch->valid_frames = 0;
   core->pipeline_scratch = audio_chunk_create(
-      playback_chunk_size, playback_device_config_get_channels(&core->current_config->devices.playback));
+      playback_chunk_size, playback_device_config_get_channels(
+                               &core->current_config->devices.playback));
   core->pipeline_scratch->valid_frames = 0;
 
   config_error_t cerr;
@@ -301,7 +309,9 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   core->capture_loop = engine_capture_loop_create(
       core->shared, core->state_machine, core->capture, core->playback,
       core->processing_params, core->dop_decoder, capture_chunk_size,
-      capture_device_config_get_channels(&core->current_config->devices.capture), capture_rate,
+      capture_device_config_get_channels(
+          &core->current_config->devices.capture),
+      capture_rate,
       core->current_config->devices.has_silence_threshold
           ? core->current_config->devices.silence_threshold
           : 0.0,
@@ -460,21 +470,24 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
                                      ? new_config->devices.capture_samplerate
                                      : new_config->devices.samplerate);
   if (core->dop_decoder) dop_decoder_free(core->dop_decoder);
-  core->dop_decoder =
-      dop_decoder_create(capture_device_config_get_channels(&new_config->devices.capture), capture_rate,
-                         capture_device_config_get_bypass_dop(&new_config->devices.capture),
-                         capture_device_config_get_dop_cutoff_hz(&new_config->devices.capture));
+  core->dop_decoder = dop_decoder_create(
+      capture_device_config_get_channels(&new_config->devices.capture),
+      capture_rate,
+      capture_device_config_get_bypass_dop(&new_config->devices.capture),
+      capture_device_config_get_dop_cutoff_hz(&new_config->devices.capture));
 
   double playback_rate = (double)new_config->devices.samplerate;
   if (core->dop_encoder) dop_encoder_free(core->dop_encoder);
-  sdm_filter_t dop_filter = playback_device_config_get_dop_encoder_filter(&new_config->devices.playback);
+  sdm_filter_t dop_filter = playback_device_config_get_dop_encoder_filter(
+      &new_config->devices.playback);
   if (dop_filter == SDM_FILTER_INVALID) {
     dop_filter = SDM_FILTER_SDM6;
   }
-  core->dop_encoder =
-      dop_encoder_create(playback_device_config_get_channels(&new_config->devices.playback), playback_rate,
-                         playback_device_config_get_output_dop(&new_config->devices.playback),
-                         dop_filter, 20000.0);
+  core->dop_encoder = dop_encoder_create(
+      playback_device_config_get_channels(&new_config->devices.playback),
+      playback_rate,
+      playback_device_config_get_output_dop(&new_config->devices.playback),
+      dop_filter, 20000.0);
 
   if (dsp_engine_core_get_state(core) == PROCESSING_STATE_INACTIVE) return true;
 

@@ -7,11 +7,11 @@
 #include <unistd.h>
 
 #include "Audio/double_helpers.h"
+#include "Backend/audio_backend.h"
 #include "Config/configuration.h"
 #include "Config/engine_config_types.h"
 #include "Config/log_level.h"
 #include "Engine/dsp_engine.h"
-#include "Backend/audio_backend.h"
 #include "Pipeline/config_loader.h"
 #include "Pipeline/state_file.h"
 #include "Server/websocket_server.h"
@@ -52,7 +52,8 @@ static void print_usage(void) {
       "  -r, --samplerate  Override samplerate in config.\n"
       "  -n, --channels    Override number of channels of capture device in "
       "config.\n"
-      "  -f, --format      Override sample format of capture device in config.\n"
+      "  -f, --format      Override sample format of capture device in "
+      "config.\n"
       "  -e, --extra_samples Override number of extra samples in config.\n\n"
       "Supported device types:\n"
       "  Capture: "
@@ -103,8 +104,7 @@ static void print_usage(void) {
 #if defined(ENABLE_ASIO)
       "ASIO, "
 #endif
-      "File, Stdout\n"
-  );
+      "File, Stdout\n");
 }
 
 static char* read_file_to_string(const char* path) {
@@ -377,16 +377,19 @@ int main(int argc, char** argv) {
     if (samplerate_override > 0)
       parsed->devices.samplerate = samplerate_override;
     if (channels_override > 0)
-      capture_device_config_set_channels(&parsed->devices.capture, channels_override);
+      capture_device_config_set_channels(&parsed->devices.capture,
+                                         channels_override);
     if (extra_samples_override >= 0) {
-      capture_device_config_set_extra_samples(&parsed->devices.capture, extra_samples_override);
+      capture_device_config_set_extra_samples(&parsed->devices.capture,
+                                              extra_samples_override);
     }
     if (format_override) {
       if (false) {
         // dummy
 #if defined(ENABLE_ALSA)
       } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_ALSA) {
-        alsa_sample_format_t fmt = alsa_sample_format_from_string(format_override);
+        alsa_sample_format_t fmt =
+            alsa_sample_format_from_string(format_override);
         if (fmt != ALSA_SAMPLE_FORMAT_INVALID) {
           parsed->devices.capture.cfg.alsa.format = fmt;
           parsed->devices.capture.cfg.alsa.has_format = true;
@@ -398,8 +401,10 @@ int main(int argc, char** argv) {
         }
 #endif
 #if defined(ENABLE_COREAUDIO)
-      } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_CORE_AUDIO) {
-        coreaudio_sample_format_t fmt = coreaudio_sample_format_from_string(format_override);
+      } else if (parsed->devices.capture.type ==
+                 AUDIO_BACKEND_TYPE_CORE_AUDIO) {
+        coreaudio_sample_format_t fmt =
+            coreaudio_sample_format_from_string(format_override);
         if (fmt != COREAUDIO_SAMPLE_FORMAT_INVALID) {
           capture_device_config_set_format(&parsed->devices.capture, fmt);
         } else {
@@ -411,7 +416,8 @@ int main(int argc, char** argv) {
 #endif
 #if defined(ENABLE_WASAPI)
       } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_WASAPI) {
-        wasapi_sample_format_t fmt = wasapi_sample_format_from_string(format_override);
+        wasapi_sample_format_t fmt =
+            wasapi_sample_format_from_string(format_override);
         if (fmt != WASAPI_SAMPLE_FORMAT_INVALID) {
           parsed->devices.capture.cfg.wasapi.format = fmt;
           parsed->devices.capture.cfg.wasapi.has_format = true;
@@ -424,7 +430,8 @@ int main(int argc, char** argv) {
 #endif
 #if defined(ENABLE_ASIO)
       } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_ASIO) {
-        asio_sample_format_t fmt = asio_sample_format_from_string(format_override);
+        asio_sample_format_t fmt =
+            asio_sample_format_from_string(format_override);
         if (fmt != ASIO_SAMPLE_FORMAT_INVALID) {
           parsed->devices.capture.cfg.asio.format = fmt;
           parsed->devices.capture.cfg.asio.has_format = true;
@@ -437,7 +444,8 @@ int main(int argc, char** argv) {
 #endif
 #if defined(ENABLE_BLUEZ)
       } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_BLUEZ) {
-        binary_sample_format_t fmt = binary_sample_format_from_string(format_override);
+        binary_sample_format_t fmt =
+            binary_sample_format_from_string(format_override);
         if (fmt != BINARY_SAMPLE_FORMAT_INVALID) {
           parsed->devices.capture.cfg.bluez.format = fmt;
         } else {
@@ -449,7 +457,8 @@ int main(int argc, char** argv) {
 #endif
       } else if (parsed->devices.capture.type == AUDIO_BACKEND_TYPE_FILE ||
                  parsed->devices.capture.type == AUDIO_BACKEND_TYPE_STDIN_OUT) {
-        binary_sample_format_t fmt = binary_sample_format_from_string(format_override);
+        binary_sample_format_t fmt =
+            binary_sample_format_from_string(format_override);
         if (fmt != BINARY_SAMPLE_FORMAT_INVALID) {
           capture_device_config_set_file_format(&parsed->devices.capture, fmt);
         } else {
@@ -459,7 +468,9 @@ int main(int argc, char** argv) {
           return 1;
         }
       } else {
-        printf("Warning: Overriding format is not supported for this backend, ignoring\n");
+        printf(
+            "Warning: Overriding format is not supported for this backend, "
+            "ignoring\n");
       }
     }
   }

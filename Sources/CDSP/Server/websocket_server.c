@@ -5,10 +5,10 @@
 #include "websocket_server.h"
 
 #ifndef _WIN32
-#include "Config/jsmn.h"
 #include <sys/time.h>
 
 #include "Audio/processing_parameters.h"
+#include "Config/jsmn.h"
 #include "Pipeline/config_loader.h"
 #ifdef __APPLE__
 #include <CommonCrypto/CommonDigest.h>
@@ -1326,10 +1326,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       }
       json_reply("SubscribeSpectrum", "\"Ok\"", NULL, out_response, max_len);
     } else {
-      json_reply(
-          "SubscribeSpectrum",
-          "{\"InvalidRequestError\":\"Could not parse SubscribeSpectrum arguments\"}",
-          NULL, out_response, max_len);
+      json_reply("SubscribeSpectrum",
+                 "{\"InvalidRequestError\":\"Could not parse SubscribeSpectrum "
+                 "arguments\"}",
+                 NULL, out_response, max_len);
     }
   } else if (strcmp(simple, "StopSubscription") == 0) {
     if (server) {
@@ -1766,10 +1766,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     char play_labels[2048] = "null";
     char cap_labels[2048] = "null";
     if (json) {
-      server_get_value_at_pointer(json, "/devices/playback/labels",
-                                  play_labels, sizeof(play_labels));
-      server_get_value_at_pointer(json, "/devices/capture/labels",
-                                  cap_labels, sizeof(cap_labels));
+      server_get_value_at_pointer(json, "/devices/playback/labels", play_labels,
+                                  sizeof(play_labels));
+      server_get_value_at_pointer(json, "/devices/capture/labels", cap_labels,
+                                  sizeof(cap_labels));
     }
     char val[4096];
     snprintf(val, sizeof(val), "{\"playback\":%s,\"capture\":%s}", play_labels,
@@ -1893,8 +1893,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       if (json) {
         audio_backend_error_t err;
         memset(&err, 0, sizeof(err));
-        bool ok = server && server->engine && server->engine->set_config_json &&
-                  server->engine->set_config_json(server->engine->ctx, json, &err);
+        bool ok =
+            server && server->engine && server->engine->set_config_json &&
+            server->engine->set_config_json(server->engine->ctx, json, &err);
         if (ok) {
           if (server->previous_config_json) free(server->previous_config_json);
           server->previous_config_json = server->active_config_json;
@@ -1997,8 +1998,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     if (new_json) {
       audio_backend_error_t err;
       memset(&err, 0, sizeof(err));
-      bool ok = server && server->engine && server->engine->set_config_json &&
-                server->engine->set_config_json(server->engine->ctx, new_json, &err);
+      bool ok =
+          server && server->engine && server->engine->set_config_json &&
+          server->engine->set_config_json(server->engine->ctx, new_json, &err);
       if (ok) {
         if (server->previous_config_json) free(server->previous_config_json);
         server->previous_config_json = server->active_config_json;
@@ -2144,9 +2146,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                                       arg_idx, path_buf, sizeof(path_buf))) {
           audio_backend_error_t err;
           memset(&err, 0, sizeof(err));
-          bool ok =
-              server && server->engine && server->engine->set_config_json &&
-              server->engine->set_config_json(server->engine->ctx, target_json, &err);
+          bool ok = server && server->engine &&
+                    server->engine->set_config_json &&
+                    server->engine->set_config_json(server->engine->ctx,
+                                                    target_json, &err);
           if (ok) {
             if (server->previous_config_json)
               free(server->previous_config_json);
@@ -2491,8 +2494,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       device_error_clear(&d_err);
       bool cap_ok =
           server && server->engine && server->engine->get_device_capabilities &&
-          server->engine->get_device_capabilities(server->engine->ctx, backend,
-                                                  device, is_capture, &desc, &d_err);
+          server->engine->get_device_capabilities(
+              server->engine->ctx, backend, device, is_capture, &desc, &d_err);
       if (cap_ok && desc) {
         char val[8192];
         format_device_descriptor(desc, val, sizeof(val));
@@ -2963,26 +2966,28 @@ static void* server_thread_func(void* arg) {
         }
 
         if (session->spectrum_subscribed) {
-          double interval =
-              session->spectrum_max_rate > 0.0 ? 1000.0 / session->spectrum_max_rate : 0.0;
+          double interval = session->spectrum_max_rate > 0.0
+                                ? 1000.0 / session->spectrum_max_rate
+                                : 0.0;
           if (now - session->last_spectrum_push_time >= interval) {
             spectrum_t spec;
             memset(&spec, 0, sizeof(spec));
             bool spec_ok =
                 server && server->engine && server->engine->get_spectrum &&
-                server->engine->get_spectrum(server->engine->ctx,
-                                             session->spectrum_is_capture,
-                                             session->spectrum_channel,
-                                             session->spectrum_min_freq,
-                                             session->spectrum_max_freq,
-                                             session->spectrum_n_bins, &spec);
+                server->engine->get_spectrum(
+                    server->engine->ctx, session->spectrum_is_capture,
+                    session->spectrum_channel, session->spectrum_min_freq,
+                    session->spectrum_max_freq, session->spectrum_n_bins,
+                    &spec);
             if (spec_ok) {
               size_t spec_buf_size = spec.count * 50 + 200;
               char* spec_buf = (char*)malloc(spec_buf_size);
               if (spec_buf) {
                 format_spectrum(&spec, spec_buf, spec_buf_size);
                 char* msg = (char*)malloc(spec_buf_size + 120);
-                sprintf(msg, "{\"SpectrumEvent\":{\"result\":\"Ok\",\"value\":%s}}", spec_buf);
+                sprintf(msg,
+                        "{\"SpectrumEvent\":{\"result\":\"Ok\",\"value\":%s}}",
+                        spec_buf);
                 send_websocket_frame(client_fds[i], msg);
                 free(msg);
                 free(spec_buf);

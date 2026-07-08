@@ -37,7 +37,9 @@ final class AudioDeviceManager {
       if let data = try? JSONEncoder().encode(captureConfig) {
         defaults.set(data, forKey: "captureConfig")
       }
-      if captureConfig.deviceName != oldValue.deviceName || captureConfig.backend != oldValue.backend {
+      if captureConfig.deviceName != oldValue.deviceName
+        || captureConfig.backend != oldValue.backend
+      {
         Task { await refreshDeviceCapabilities() }
       } else {
         validateSampleRates()
@@ -57,7 +59,9 @@ final class AudioDeviceManager {
       if let data = try? JSONEncoder().encode(playbackConfig) {
         defaults.set(data, forKey: "playbackConfig")
       }
-      if playbackConfig.deviceName != oldValue.deviceName || playbackConfig.backend != oldValue.backend {
+      if playbackConfig.deviceName != oldValue.deviceName
+        || playbackConfig.backend != oldValue.backend
+      {
         Task { await refreshDeviceCapabilities() }
       } else {
         validateSampleRates()

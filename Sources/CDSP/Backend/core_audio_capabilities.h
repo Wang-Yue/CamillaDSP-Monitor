@@ -10,8 +10,8 @@
 #include <stdint.h>
 
 #include "Config/engine_config_types.h"
-#include "core_audio_device.h"
 #include "backend_error.h"
+#include "core_audio_device.h"
 
 // MARK: - Discovery
 

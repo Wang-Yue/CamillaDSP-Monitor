@@ -168,8 +168,10 @@ capture_backend_t* pipewire_capture_create(
       (pipewire_capture_t*)calloc(1, sizeof(pipewire_capture_t));
   if (!capture) return NULL;
 
-  if (config->cfg.pipewire.has_device && strcmp(config->cfg.pipewire.device, "default") != 0) {
-    snprintf(capture->device, sizeof(capture->device), "%s", config->cfg.pipewire.device);
+  if (config->cfg.pipewire.has_device &&
+      strcmp(config->cfg.pipewire.device, "default") != 0) {
+    snprintf(capture->device, sizeof(capture->device), "%s",
+             config->cfg.pipewire.device);
   } else {
     capture->device[0] = '\0';
   }
@@ -179,19 +181,23 @@ capture_backend_t* pipewire_capture_create(
   capture->chunk_size = chunk_size;
 
   if (config->cfg.pipewire.has_node_name) {
-    strncpy(capture->node_name, config->cfg.pipewire.node_name, sizeof(capture->node_name) - 1);
+    strncpy(capture->node_name, config->cfg.pipewire.node_name,
+            sizeof(capture->node_name) - 1);
     capture->has_node_name = true;
   }
   if (config->cfg.pipewire.has_node_description) {
-    strncpy(capture->node_description, config->cfg.pipewire.node_description, sizeof(capture->node_description) - 1);
+    strncpy(capture->node_description, config->cfg.pipewire.node_description,
+            sizeof(capture->node_description) - 1);
     capture->has_node_description = true;
   }
   if (config->cfg.pipewire.has_node_group_name) {
-    strncpy(capture->node_group_name, config->cfg.pipewire.node_group_name, sizeof(capture->node_group_name) - 1);
+    strncpy(capture->node_group_name, config->cfg.pipewire.node_group_name,
+            sizeof(capture->node_group_name) - 1);
     capture->has_node_group_name = true;
   }
   if (config->cfg.pipewire.has_autoconnect_to) {
-    strncpy(capture->autoconnect_to, config->cfg.pipewire.autoconnect_to, sizeof(capture->autoconnect_to) - 1);
+    strncpy(capture->autoconnect_to, config->cfg.pipewire.autoconnect_to,
+            sizeof(capture->autoconnect_to) - 1);
     capture->has_autoconnect_to = true;
   }
 
@@ -241,15 +247,19 @@ bool pipewire_capture_open(pipewire_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
-  const char* node_name = capture->has_node_name ? capture->node_name : "cdsp-capture";
-  const char* node_desc = capture->has_node_description ? capture->node_description : "CDSP Capture";
-  const char* node_group = capture->has_node_group_name ? capture->node_group_name : "cdsp";
+  const char* node_name =
+      capture->has_node_name ? capture->node_name : "cdsp-capture";
+  const char* node_desc = capture->has_node_description
+                              ? capture->node_description
+                              : "CDSP Capture";
+  const char* node_group =
+      capture->has_node_group_name ? capture->node_group_name : "cdsp";
 
   struct pw_properties* props = pw_properties_new(
       PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Capture",
       PW_KEY_MEDIA_ROLE, "DSP", PW_KEY_APP_NAME, "CDSP", PW_KEY_NODE_NAME,
-      node_name, PW_KEY_NODE_DESCRIPTION, node_desc,
-      PW_KEY_NODE_GROUP, node_group, NULL);
+      node_name, PW_KEY_NODE_DESCRIPTION, node_desc, PW_KEY_NODE_GROUP,
+      node_group, NULL);
 
   if (props) {
     char latency_str[64];
@@ -481,8 +491,10 @@ playback_backend_t* pipewire_playback_create(
       (pipewire_playback_t*)calloc(1, sizeof(pipewire_playback_t));
   if (!playback) return NULL;
 
-  if (config->cfg.pipewire.has_device && strcmp(config->cfg.pipewire.device, "default") != 0) {
-    snprintf(playback->device, sizeof(playback->device), "%s", config->cfg.pipewire.device);
+  if (config->cfg.pipewire.has_device &&
+      strcmp(config->cfg.pipewire.device, "default") != 0) {
+    snprintf(playback->device, sizeof(playback->device), "%s",
+             config->cfg.pipewire.device);
   } else {
     playback->device[0] = '\0';
   }
@@ -492,19 +504,23 @@ playback_backend_t* pipewire_playback_create(
   playback->chunk_size = chunk_size;
 
   if (config->cfg.pipewire.has_node_name) {
-    strncpy(playback->node_name, config->cfg.pipewire.node_name, sizeof(playback->node_name) - 1);
+    strncpy(playback->node_name, config->cfg.pipewire.node_name,
+            sizeof(playback->node_name) - 1);
     playback->has_node_name = true;
   }
   if (config->cfg.pipewire.has_node_description) {
-    strncpy(playback->node_description, config->cfg.pipewire.node_description, sizeof(playback->node_description) - 1);
+    strncpy(playback->node_description, config->cfg.pipewire.node_description,
+            sizeof(playback->node_description) - 1);
     playback->has_node_description = true;
   }
   if (config->cfg.pipewire.has_node_group_name) {
-    strncpy(playback->node_group_name, config->cfg.pipewire.node_group_name, sizeof(playback->node_group_name) - 1);
+    strncpy(playback->node_group_name, config->cfg.pipewire.node_group_name,
+            sizeof(playback->node_group_name) - 1);
     playback->has_node_group_name = true;
   }
   if (config->cfg.pipewire.has_autoconnect_to) {
-    strncpy(playback->autoconnect_to, config->cfg.pipewire.autoconnect_to, sizeof(playback->autoconnect_to) - 1);
+    strncpy(playback->autoconnect_to, config->cfg.pipewire.autoconnect_to,
+            sizeof(playback->autoconnect_to) - 1);
     playback->has_autoconnect_to = true;
   }
 
@@ -555,15 +571,19 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
     return false;
   }
 
-  const char* node_name = playback->has_node_name ? playback->node_name : "cdsp-playback";
-  const char* node_desc = playback->has_node_description ? playback->node_description : "CDSP Playback";
-  const char* node_group = playback->has_node_group_name ? playback->node_group_name : "cdsp";
+  const char* node_name =
+      playback->has_node_name ? playback->node_name : "cdsp-playback";
+  const char* node_desc = playback->has_node_description
+                              ? playback->node_description
+                              : "CDSP Playback";
+  const char* node_group =
+      playback->has_node_group_name ? playback->node_group_name : "cdsp";
 
   struct pw_properties* props = pw_properties_new(
       PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback",
       PW_KEY_MEDIA_ROLE, "DSP", PW_KEY_APP_NAME, "CDSP", PW_KEY_NODE_NAME,
-      node_name, PW_KEY_NODE_DESCRIPTION, node_desc,
-      PW_KEY_NODE_GROUP, node_group, NULL);
+      node_name, PW_KEY_NODE_DESCRIPTION, node_desc, PW_KEY_NODE_GROUP,
+      node_group, NULL);
 
   if (props) {
     char latency_str[64];

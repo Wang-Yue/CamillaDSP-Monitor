@@ -566,14 +566,15 @@ int capture_device_config_get_channels(const capture_device_config_t* config) {
           uint8_t header[44];
           int wav_channels = 0;
           if (fread(header, 1, 44, f) == 44) {
-            if (memcmp(header, "RIFF", 4) == 0 && memcmp(header + 8, "WAVE", 4) == 0) {
+            if (memcmp(header, "RIFF", 4) == 0 &&
+                memcmp(header + 8, "WAVE", 4) == 0) {
               wav_channels = header[22] | (header[23] << 8);
             }
           }
           fclose(f);
           return wav_channels;
         }
-        return 0; 
+        return 0;
       }
       return config->cfg.raw_file.channels;
     case AUDIO_BACKEND_TYPE_STDIN_OUT:
@@ -597,7 +598,8 @@ int capture_device_config_get_channels(const capture_device_config_t* config) {
   }
 }
 
-const char* capture_device_config_get_device(const capture_device_config_t* config) {
+const char* capture_device_config_get_device(
+    const capture_device_config_t* config) {
   switch (config->type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -629,17 +631,20 @@ const char* capture_device_config_get_device(const capture_device_config_t* conf
 }
 
 #if defined(ENABLE_COREAUDIO)
-coreaudio_sample_format_t capture_device_config_get_format(const capture_device_config_t* config) {
+coreaudio_sample_format_t capture_device_config_get_format(
+    const capture_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
-      return config->cfg.coreaudio.has_format ? config->cfg.coreaudio.format : COREAUDIO_SAMPLE_FORMAT_INVALID;
+      return config->cfg.coreaudio.has_format ? config->cfg.coreaudio.format
+                                              : COREAUDIO_SAMPLE_FORMAT_INVALID;
     default:
       return COREAUDIO_SAMPLE_FORMAT_INVALID;
   }
 }
 #endif
 
-bool capture_device_config_get_bypass_dop(const capture_device_config_t* config) {
+bool capture_device_config_get_bypass_dop(
+    const capture_device_config_t* config) {
   switch (config->type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -650,7 +655,8 @@ bool capture_device_config_get_bypass_dop(const capture_device_config_t* config)
   }
 }
 
-double capture_device_config_get_dop_cutoff_hz(const capture_device_config_t* config) {
+double capture_device_config_get_dop_cutoff_hz(
+    const capture_device_config_t* config) {
   switch (config->type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -661,7 +667,8 @@ double capture_device_config_get_dop_cutoff_hz(const capture_device_config_t* co
   }
 }
 
-const char* capture_device_config_get_filename(const capture_device_config_t* config) {
+const char* capture_device_config_get_filename(
+    const capture_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_FILE:
       if (config->is_wav) {
@@ -673,7 +680,8 @@ const char* capture_device_config_get_filename(const capture_device_config_t* co
   }
 }
 
-binary_sample_format_t capture_device_config_get_file_format(const capture_device_config_t* config) {
+binary_sample_format_t capture_device_config_get_file_format(
+    const capture_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_FILE:
       if (!config->is_wav) {
@@ -684,7 +692,8 @@ binary_sample_format_t capture_device_config_get_file_format(const capture_devic
   }
 }
 
-int capture_device_config_get_extra_samples(const capture_device_config_t* config) {
+int capture_device_config_get_extra_samples(
+    const capture_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_FILE:
       if (config->is_wav) {
@@ -696,7 +705,8 @@ int capture_device_config_get_extra_samples(const capture_device_config_t* confi
   }
 }
 
-int capture_device_config_get_skip_bytes(const capture_device_config_t* config) {
+int capture_device_config_get_skip_bytes(
+    const capture_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_FILE:
       if (!config->is_wav) {
@@ -707,7 +717,8 @@ int capture_device_config_get_skip_bytes(const capture_device_config_t* config) 
   }
 }
 
-int capture_device_config_get_read_bytes(const capture_device_config_t* config) {
+int capture_device_config_get_read_bytes(
+    const capture_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_FILE:
       if (!config->is_wav) {
@@ -718,7 +729,8 @@ int capture_device_config_get_read_bytes(const capture_device_config_t* config) 
   }
 }
 
-generator_signal_t capture_device_config_get_generator(const capture_device_config_t* config) {
+generator_signal_t capture_device_config_get_generator(
+    const capture_device_config_t* config) {
   if (config->type == AUDIO_BACKEND_TYPE_GENERATOR) {
     return config->cfg.generator.signal;
   }
@@ -726,7 +738,8 @@ generator_signal_t capture_device_config_get_generator(const capture_device_conf
   return sig;
 }
 
-int playback_device_config_get_channels(const playback_device_config_t* config) {
+int playback_device_config_get_channels(
+    const playback_device_config_t* config) {
   switch (config->type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -765,7 +778,8 @@ int playback_device_config_get_channels(const playback_device_config_t* config) 
   }
 }
 
-const char* playback_device_config_get_device(const playback_device_config_t* config) {
+const char* playback_device_config_get_device(
+    const playback_device_config_t* config) {
   switch (config->type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -797,17 +811,20 @@ const char* playback_device_config_get_device(const playback_device_config_t* co
 }
 
 #if defined(ENABLE_COREAUDIO)
-coreaudio_sample_format_t playback_device_config_get_format(const playback_device_config_t* config) {
+coreaudio_sample_format_t playback_device_config_get_format(
+    const playback_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
-      return config->cfg.coreaudio.has_format ? config->cfg.coreaudio.format : COREAUDIO_SAMPLE_FORMAT_INVALID;
+      return config->cfg.coreaudio.has_format ? config->cfg.coreaudio.format
+                                              : COREAUDIO_SAMPLE_FORMAT_INVALID;
     default:
       return COREAUDIO_SAMPLE_FORMAT_INVALID;
   }
 }
 #endif
 
-bool playback_device_config_get_exclusive(const playback_device_config_t* config) {
+bool playback_device_config_get_exclusive(
+    const playback_device_config_t* config) {
   switch (config->type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -822,7 +839,8 @@ bool playback_device_config_get_exclusive(const playback_device_config_t* config
   }
 }
 
-bool playback_device_config_get_output_dop(const playback_device_config_t* config) {
+bool playback_device_config_get_output_dop(
+    const playback_device_config_t* config) {
   switch (config->type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -833,7 +851,8 @@ bool playback_device_config_get_output_dop(const playback_device_config_t* confi
   }
 }
 
-sdm_filter_t playback_device_config_get_dop_encoder_filter(const playback_device_config_t* config) {
+sdm_filter_t playback_device_config_get_dop_encoder_filter(
+    const playback_device_config_t* config) {
   switch (config->type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -844,7 +863,8 @@ sdm_filter_t playback_device_config_get_dop_encoder_filter(const playback_device
   }
 }
 
-const char* playback_device_config_get_filename(const playback_device_config_t* config) {
+const char* playback_device_config_get_filename(
+    const playback_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_FILE:
       return config->cfg.raw_file.filename;
@@ -853,7 +873,8 @@ const char* playback_device_config_get_filename(const playback_device_config_t* 
   }
 }
 
-binary_sample_format_t playback_device_config_get_file_format(const playback_device_config_t* config) {
+binary_sample_format_t playback_device_config_get_file_format(
+    const playback_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_FILE:
       return config->cfg.raw_file.format;
@@ -862,7 +883,8 @@ binary_sample_format_t playback_device_config_get_file_format(const playback_dev
   }
 }
 
-bool playback_device_config_get_wav_header(const playback_device_config_t* config) {
+bool playback_device_config_get_wav_header(
+    const playback_device_config_t* config) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_FILE:
       return config->cfg.raw_file.wav_header;
@@ -871,7 +893,8 @@ bool playback_device_config_get_wav_header(const playback_device_config_t* confi
   }
 }
 
-void capture_device_config_set_channels(capture_device_config_t* config, int channels) {
+void capture_device_config_set_channels(capture_device_config_t* config,
+                                        int channels) {
   switch (config->type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -927,7 +950,8 @@ void capture_device_config_set_channels(capture_device_config_t* config, int cha
   }
 }
 
-void capture_device_config_set_extra_samples(capture_device_config_t* config, int extra_samples) {
+void capture_device_config_set_extra_samples(capture_device_config_t* config,
+                                             int extra_samples) {
   switch (config->type) {
     case AUDIO_BACKEND_TYPE_FILE:
       if (config->is_wav) {
@@ -944,7 +968,8 @@ void capture_device_config_set_extra_samples(capture_device_config_t* config, in
 }
 
 #if defined(ENABLE_COREAUDIO)
-void capture_device_config_set_format(capture_device_config_t* config, coreaudio_sample_format_t format) {
+void capture_device_config_set_format(capture_device_config_t* config,
+                                      coreaudio_sample_format_t format) {
   if (config->type == AUDIO_BACKEND_TYPE_CORE_AUDIO) {
     config->cfg.coreaudio.format = format;
     config->cfg.coreaudio.has_format = true;
@@ -952,7 +977,8 @@ void capture_device_config_set_format(capture_device_config_t* config, coreaudio
 }
 #endif
 
-void capture_device_config_set_file_format(capture_device_config_t* config, binary_sample_format_t format) {
+void capture_device_config_set_file_format(capture_device_config_t* config,
+                                           binary_sample_format_t format) {
   if (config->type == AUDIO_BACKEND_TYPE_FILE && !config->is_wav) {
     config->cfg.raw_file.format = format;
     config->cfg.raw_file.has_format = true;

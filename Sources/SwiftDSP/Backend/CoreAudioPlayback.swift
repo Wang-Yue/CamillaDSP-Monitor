@@ -193,13 +193,15 @@ final class CoreAudioPlayback: PlaybackBackend {
         ) {
           physicalFormatSet = true
         } else {
-          throw BackendError.initializationFailed("Failed to find matching physical playback format")
+          throw BackendError.initializationFailed(
+            "Failed to find matching physical playback format")
         }
       }
       if !physicalFormatSet {
         if !CoreAudioDevice.setNominalSampleRate(deviceID, sampleRate) {
           logger.warning(
-            "Playback device refused %f Hz; AudioUnit will sample-rate convert", .double(sampleRate))
+            "Playback device refused %f Hz; AudioUnit will sample-rate convert", .double(sampleRate)
+          )
         }
       }
 

@@ -178,7 +178,8 @@ playback_backend_t* core_audio_playback_create(
   coreaudio_sample_format_t fmt = playback_device_config_get_format(config);
   if (fmt != COREAUDIO_SAMPLE_FORMAT_INVALID) {
     const char* fmt_str = coreaudio_sample_format_to_string(fmt);
-    strncpy(playback->sample_format, fmt_str, sizeof(playback->sample_format) - 1);
+    strncpy(playback->sample_format, fmt_str,
+            sizeof(playback->sample_format) - 1);
     playback->has_sample_format = true;
   }
 
@@ -303,8 +304,9 @@ bool core_audio_playback_open(core_audio_playback_t* playback,
         physical_format_set = true;
       } else {
         if (err)
-          backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                             "Failed to find matching physical playback format");
+          backend_error_init(
+              err, BACKEND_ERROR_INITIALIZATION_FAILED,
+              "Failed to find matching physical playback format");
         goto cleanup;
       }
     }

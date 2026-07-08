@@ -1,6 +1,5 @@
 #if defined(ENABLE_ALSA)
 #include "alsa_capabilities.h"
-#include "alsa_device.h"
 
 #include <alloca.h>
 #include <alsa/asoundlib.h>
@@ -8,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#include "alsa_device.h"
 
 const int ALSA_PROBE_RATES[] = {5512,   8000,   11025,  16000,  22050, 32000,
                                 44100,  48000,  64000,  88200,  96000, 176400,
@@ -107,7 +108,8 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
         device_error_init(err, DEVICE_ERROR_NOT_FOUND, "Device not found");
       } else {
         char msg[256];
-        snprintf(msg, sizeof(msg), "ALSA open failed: %s", snd_strerror(open_res));
+        snprintf(msg, sizeof(msg), "ALSA open failed: %s",
+                 snd_strerror(open_res));
         device_error_init(err, DEVICE_ERROR_OTHER, msg);
       }
     }

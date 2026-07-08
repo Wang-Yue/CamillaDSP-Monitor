@@ -404,7 +404,8 @@ enum CoreAudioDevice {
         continue
       }
       let count = Int(size) / MemoryLayout<AudioStreamRangedDescription>.size
-      var ranged = [AudioStreamRangedDescription](repeating: AudioStreamRangedDescription(), count: count)
+      var ranged = [AudioStreamRangedDescription](
+        repeating: AudioStreamRangedDescription(), count: count)
       guard AudioObjectGetPropertyData(stream, &addr, 0, nil, &size, &ranged) == noErr else {
         continue
       }
