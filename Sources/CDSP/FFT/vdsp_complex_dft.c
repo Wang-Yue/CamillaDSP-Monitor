@@ -15,6 +15,11 @@ struct vdsp_complex_dft {
   vDSP_DFT_SetupD setup_inverse;
 };
 
+/**
+ * @brief Wrapper for the vDSP complex DFT execution.
+ *
+ * Conforms to the arbitrary_complex_fft_t interface.
+ */
 static void vdsp_complex_dft_execute_wrapper(void* ctx, waveform_t real_in,
                                              waveform_t imag_in,
                                              mutable_waveform_t real_out,
@@ -24,6 +29,11 @@ static void vdsp_complex_dft_execute_wrapper(void* ctx, waveform_t real_in,
                            imag_out, inverse);
 }
 
+/**
+ * @brief Wrapper for the vDSP complex DFT free function.
+ *
+ * Conforms to the arbitrary_complex_fft_t interface.
+ */
 static void vdsp_complex_dft_free_wrapper(void* ctx) {
   vdsp_complex_dft_free((vdsp_complex_dft_t*)ctx);
 }

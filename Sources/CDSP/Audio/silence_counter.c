@@ -38,6 +38,7 @@ void silence_counter_init(silence_counter_t* counter, double threshold_db,
   if (!counter) return;
   counter->threshold_db = threshold_db;
   counter->silent_chunks = 0;
+  // Convert the timeout duration from seconds to the number of audio chunks.
   if (timeout_seconds > 0.0 && chunksize > 0) {
     counter->limit_chunks = (size_t)round(
         (timeout_seconds * (double)samplerate) / (double)chunksize);
@@ -53,13 +54,16 @@ processing_state_t silence_counter_update(silence_counter_t* counter,
   if (!counter || counter->limit_chunks == 0) {
     return PROCESSING_STATE_RUNNING;
   }
+  // Reset counter if signal level is above the silence threshold.
   if (signal_peak_db > counter->threshold_db) {
     counter->silent_chunks = 0;
     return PROCESSING_STATE_RUNNING;
   }
+  // Increment silent chunk count, bounding it to the limit.
   if (counter->silent_chunks < counter->limit_chunks) {
     counter->silent_chunks++;
   }
+  // Transition to PAUSED state if silence duration exceeds the limit.
   return (counter->silent_chunks >= counter->limit_chunks)
              ? PROCESSING_STATE_PAUSED
              : PROCESSING_STATE_RUNNING;

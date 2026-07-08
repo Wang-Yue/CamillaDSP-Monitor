@@ -152,7 +152,7 @@ void compressor_processor_process(compressor_processor_t* processor,
   if (count == 0 || processor->monitor_channels_count == 0) return;
 
   // Step 1: Sum monitored channels into scratch buffer to evaluate overall
-  // signal level
+  // signal level (creating a mono sum for sidechain level detection).
   int ch0 = processor->monitor_channels[0];
   const double* src0_base = audio_chunk_get_channel(chunk, ch0);
   if (!src0_base) return;
@@ -163,6 +163,7 @@ void compressor_processor_process(compressor_processor_t* processor,
     int ch = processor->monitor_channels[ch_idx];
     const double* src_base = audio_chunk_get_channel(chunk, ch);
     if (!src_base) continue;
+    // Perform vector addition to sum the channel's samples into scratch.
 #ifdef ENABLE_ACCELERATE
     vDSP_vaddD(processor->scratch, 1, src_base, 1, processor->scratch, 1,
                count);
@@ -175,34 +176,42 @@ void compressor_processor_process(compressor_processor_t* processor,
 
   // Step 2: Envelope Detection (Loudness Estimation with Attack/Release
   // Smoothing)
+  // We process sample-by-sample, smoothing the loudness envelope in dB.
   double prev = processor->prev_loudness;
   for (size_t i = 0; i < count; i++) {
+    // Convert absolute amplitude to dB. 1e-9 avoids log10(0) which is -inf.
     double val = 20.0 * log10(fabs(processor->scratch[i]) + 1e-9);
     if (val >= prev) {
-      // Signal level rising: apply attack time constant
+      // Signal level rising: apply attack time constant.
+      // attack coefficient determines how quickly the envelope responds to level increases.
       val = processor->attack * prev + (1.0 - processor->attack) * val;
     } else {
-      // Signal level falling: apply release time constant
+      // Signal level falling: apply release time constant.
+      // release coefficient determines how slowly the envelope decays back down.
       val = processor->release * prev + (1.0 - processor->release) * val;
     }
     prev = val;
     processor->scratch[i] = val;
   }
+  // Store final envelope level for the next chunk's processing.
   processor->prev_loudness = prev;
 
   // Step 3: Gain Reduction Curve Calculation
+  // Calculate the gain multiplier (in linear scale) for each sample based on the envelope.
   for (size_t i = 0; i < count; i++) {
     double val = processor->scratch[i];
     if (val > processor->threshold) {
-      // Above threshold: attenuate according to compression ratio (factor)
+      // Above threshold: attenuate according to compression ratio (factor).
+      // The attenuation in dB is: -(excess_dB * (ratio - 1) / ratio).
       val = -(val - processor->threshold) * (processor->factor - 1.0) /
             processor->factor;
     } else {
-      // Below threshold: unity gain (0.0 dB reduction)
+      // Below threshold: unity gain (0.0 dB reduction).
       val = 0.0;
     }
+    // Apply user-defined makeup gain (in dB).
     val += processor->makeup_gain;
-    // Convert gain reduction in dB to linear gain multiplier
+    // Convert gain reduction in dB to linear gain multiplier.
     processor->scratch[i] = double_from_db(val);
   }
 

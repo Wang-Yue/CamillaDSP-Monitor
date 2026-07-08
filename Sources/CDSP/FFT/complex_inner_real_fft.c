@@ -44,6 +44,17 @@ struct complex_inner_real_fft {
   double* z_f_im;
 };
 
+/**
+ * @brief Wrapper for the forward FFT implementation.
+ *
+ * This function conforms to the signature required by the real_fft_backend_t interface.
+ * It casts the context pointer back to complex_inner_real_fft_t and calls the actual forward function.
+ *
+ * @param ctx Pointer to the complex_inner_real_fft_t context.
+ * @param real_in Input real waveform.
+ * @param spec_re Output real part of the spectrum.
+ * @param spec_im Output imaginary part of the spectrum.
+ */
 static void complex_inner_real_fft_forward_wrapper(void* ctx,
                                                    waveform_t real_in,
                                                    mutable_waveform_t spec_re,
@@ -52,6 +63,17 @@ static void complex_inner_real_fft_forward_wrapper(void* ctx,
                                  spec_re, spec_im);
 }
 
+/**
+ * @brief Wrapper for the inverse FFT implementation.
+ *
+ * This function conforms to the signature required by the real_fft_backend_t interface.
+ * It casts the context pointer back to complex_inner_real_fft_t and calls the actual inverse function.
+ *
+ * @param ctx Pointer to the complex_inner_real_fft_t context.
+ * @param spec_re Input real part of the spectrum.
+ * @param spec_im Input imaginary part of the spectrum.
+ * @param real_out Output real waveform.
+ */
 static void complex_inner_real_fft_inverse_wrapper(
     void* ctx, waveform_t spec_re, waveform_t spec_im,
     mutable_waveform_t real_out) {
@@ -59,6 +81,14 @@ static void complex_inner_real_fft_inverse_wrapper(
                                  spec_im, real_out);
 }
 
+/**
+ * @brief Wrapper for the free function.
+ *
+ * This function conforms to the signature required by the real_fft_backend_t interface.
+ * It casts the context pointer back to complex_inner_real_fft_t and calls the actual free function.
+ *
+ * @param ctx Pointer to the complex_inner_real_fft_t context.
+ */
 static void complex_inner_real_fft_free_wrapper(void* ctx) {
   complex_inner_real_fft_free((complex_inner_real_fft_t*)ctx);
 }

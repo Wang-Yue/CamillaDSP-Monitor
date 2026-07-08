@@ -7,6 +7,16 @@
 #include "cJSON.h"
 #include "configuration.h"
 
+/**
+ * @brief Parses an array of string labels from a cJSON array.
+ *
+ * Allocates a string array and duplicates each label string.
+ *
+ * @param labels_arr The cJSON array containing the labels.
+ * @param out_labels Output pointer to store the allocated array of string pointers.
+ * @param out_count Output pointer to store the size of the parsed labels array.
+ * @param out_has_labels Output pointer to set to true if labels were successfully parsed.
+ */
 static void parse_labels_array(const cJSON* labels_arr, char*** out_labels,
                                size_t* out_count, bool* out_has_labels) {
   if (!cJSON_IsArray(labels_arr)) return;
@@ -30,6 +40,14 @@ static void parse_labels_array(const cJSON* labels_arr, char*** out_labels,
   *out_has_labels = true;
 }
 
+/**
+ * @brief Parses the resampler configuration section.
+ *
+ * Parses the "resampler" JSON object and populates the devices configuration.
+ *
+ * @param res_obj The cJSON object containing resampler settings.
+ * @param devices Pointer to the devices configuration structure to populate.
+ */
 static void parse_resampler(const cJSON* res_obj, devices_config_t* devices) {
   if (!cJSON_IsObject(res_obj)) return;
   resampler_config_t* res = &devices->resampler;
@@ -173,6 +191,16 @@ typedef struct {
 #endif
 } flat_capture_device_config_t;
 
+/**
+ * @brief Parses the capture device configuration section.
+ *
+ * Parses the "capture" JSON object and populates the capture configuration.
+ * Supports various audio backends such as CoreAudio, ALSA, WASAPI, Bluez,
+ * File, and Generator, mapping the values into a union layout.
+ *
+ * @param cap_obj The cJSON object containing capture settings.
+ * @param devices Pointer to the devices configuration structure to populate.
+ */
 static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
   if (!cJSON_IsObject(cap_obj)) return;
 
@@ -591,6 +619,15 @@ typedef struct {
   bool has_autoconnect_to;
 } flat_playback_device_config_t;
 
+/**
+ * @brief Parses the playback device configuration section.
+ *
+ * Parses the "playback" JSON object and populates the playback configuration.
+ * Supports various audio backends similar to parse_capture.
+ *
+ * @param play_obj The cJSON object containing playback settings.
+ * @param devices Pointer to the devices configuration structure to populate.
+ */
 static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
   if (!cJSON_IsObject(play_obj)) return;
 
@@ -837,6 +874,17 @@ static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
   }
 }
 
+/**
+ * @brief Parses the top-level devices section from the configuration.
+ *
+ * Extracts global configuration fields like sample rate, chunk size, limits,
+ * adjust options, and calls helpers to parse resampler, capture, and playback settings.
+ *
+ * @param dev_obj The cJSON object representing the "devices" section.
+ * @param config Pointer to the top-level configuration structure.
+ * @param err Pointer to config_error_t to record errors.
+ * @return 0 on success, or -1 on error (with err populated).
+ */
 static int parse_devices(const cJSON* dev_obj, dsp_config_t* config,
                          config_error_t* err) {
   if (!cJSON_IsObject(dev_obj)) {
@@ -942,6 +990,17 @@ static int parse_devices(const cJSON* dev_obj, dsp_config_t* config,
   return 0;
 }
 
+/**
+ * @brief Parses the pipeline steps from the configuration.
+ *
+ * Iterates through the pipeline array to extract step types (Filter, Mixer, Processor),
+ * names, channels, and bypass flags.
+ *
+ * @param pipe_arr The cJSON array representing the "pipeline" section.
+ * @param config Pointer to the top-level configuration structure.
+ * @param err Pointer to config_error_t to record errors.
+ * @return 0 on success, or -1 on error.
+ */
 static int parse_pipeline(const cJSON* pipe_arr, dsp_config_t* config,
                           config_error_t* err) {
   if (!cJSON_IsArray(pipe_arr)) {
@@ -1026,6 +1085,16 @@ static int parse_pipeline(const cJSON* pipe_arr, dsp_config_t* config,
   return 0;
 }
 
+/**
+ * @brief Parses mixers defined in the configuration.
+ *
+ * Iterates through the mixers object, parsing input/output channels and the matrix mapping.
+ *
+ * @param mixers_obj The cJSON object containing mixer definitions.
+ * @param config Pointer to the top-level configuration structure.
+ * @param err Pointer to config_error_t to record errors.
+ * @return 0 on success, or -1 on error.
+ */
 static int parse_mixers(const cJSON* mixers_obj, dsp_config_t* config,
                         config_error_t* err) {
   if (!cJSON_IsObject(mixers_obj)) {
@@ -1161,6 +1230,17 @@ static int parse_mixers(const cJSON* mixers_obj, dsp_config_t* config,
   return 0;
 }
 
+/**
+ * @brief Parses filters defined in the configuration.
+ *
+ * Parsers various filter types (Gain, Volume, Loudness, Biquad, Delay, Conv,
+ * BiquadCombo, DiffEq, Dither, Limiter, LookaheadLimiter) and their specific parameters.
+ *
+ * @param filters_obj The cJSON object containing filter definitions.
+ * @param config Pointer to the top-level configuration structure.
+ * @param err Pointer to config_error_t to record errors.
+ * @return 0 on success, or -1 on error.
+ */
 static int parse_filters(const cJSON* filters_obj, dsp_config_t* config,
                          config_error_t* err) {
   if (!cJSON_IsObject(filters_obj)) {
@@ -1644,6 +1724,16 @@ static int parse_filters(const cJSON* filters_obj, dsp_config_t* config,
   return 0;
 }
 
+/**
+ * @brief Parses processors defined in the configuration.
+ *
+ * Parses processor parameters based on the type (Compressor, NoiseGate, RACE).
+ *
+ * @param processors_obj The cJSON object containing processor definitions.
+ * @param config Pointer to the top-level configuration structure.
+ * @param err Pointer to config_error_t to record errors.
+ * @return 0 on success, or -1 on error.
+ */
 static int parse_processors(const cJSON* processors_obj, dsp_config_t* config,
                             config_error_t* err) {
   if (!cJSON_IsObject(processors_obj)) {
@@ -1913,6 +2003,9 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config,
 
   cJSON_Delete(root);
 
+  /* Validate the populated configuration structure.
+   * This checks schema constraints and traces channel flows through the pipeline
+   * to catch configuration inconsistencies before return. */
   if (dsp_config_validate(config, err) != 0) {
     dsp_config_free(config);
     return -1;

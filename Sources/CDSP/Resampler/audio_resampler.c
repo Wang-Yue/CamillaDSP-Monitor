@@ -44,32 +44,74 @@ poly_interpolation_t poly_interpolation_from_string(const char* str) {
   return POLY_INTERPOLATION_CUBIC;
 }
 
+/**
+ * @brief process wrapper for synchronous resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @param input Pointer to the input audio chunk.
+ * @param output Pointer to the output audio chunk.
+ * @return resampler_error_t Status code.
+ */
 static resampler_error_t sync_process(audio_resampler_t* self,
                                       const audio_chunk_t* input,
                                       audio_chunk_t* output) {
   return synchronous_resampler_process((synchronous_resampler_t*)self->impl,
                                        input, output);
 }
+
+/**
+ * @brief set_relative_ratio wrapper for synchronous resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @param mult The ratio multiplier.
+ */
 static void sync_set_ratio(audio_resampler_t* self, double mult) {
   synchronous_resampler_set_relative_ratio((synchronous_resampler_t*)self->impl,
                                            mult);
 }
+
+/**
+ * @brief get_ratio wrapper for synchronous resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The current resample ratio.
+ */
 static double sync_get_ratio(const audio_resampler_t* self) {
   return synchronous_resampler_get_ratio(
       (const synchronous_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_max_output_frames wrapper for synchronous resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The maximum number of output frames.
+ */
 static size_t sync_get_max(const audio_resampler_t* self) {
   return synchronous_resampler_get_max_output_frames(
       (const synchronous_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_chunk_size wrapper for synchronous resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The chunk size.
+ */
 static size_t sync_get_cs(const audio_resampler_t* self) {
   return synchronous_resampler_get_chunk_size(
       (const synchronous_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_channels wrapper for synchronous resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The number of channels.
+ */
 static size_t sync_get_ch(const audio_resampler_t* self) {
   return synchronous_resampler_get_channels(
       (const synchronous_resampler_t*)self->impl);
 }
+
+/**
+ * @brief free wrapper for synchronous resampler.
+ * @param self Pointer to the audio_resampler wrapper to free.
+ */
 static void sync_free(audio_resampler_t* self) {
   if (self->impl)
     synchronous_resampler_free((synchronous_resampler_t*)self->impl);
@@ -97,32 +139,74 @@ audio_resampler_t* audio_resampler_wrap_synchronous(
   return wrap;
 }
 
+/**
+ * @brief process wrapper for async sinc resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @param input Pointer to the input audio chunk.
+ * @param output Pointer to the output audio chunk.
+ * @return resampler_error_t Status code.
+ */
 static resampler_error_t sinc_process(audio_resampler_t* self,
                                       const audio_chunk_t* input,
                                       audio_chunk_t* output) {
   return async_sinc_resampler_process((async_sinc_resampler_t*)self->impl,
                                       input, output);
 }
+
+/**
+ * @brief set_relative_ratio wrapper for async sinc resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @param mult The ratio multiplier.
+ */
 static void sinc_set_ratio(audio_resampler_t* self, double mult) {
   async_sinc_resampler_set_relative_ratio((async_sinc_resampler_t*)self->impl,
                                           mult);
 }
+
+/**
+ * @brief get_ratio wrapper for async sinc resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The current resample ratio.
+ */
 static double sinc_get_ratio(const audio_resampler_t* self) {
   return async_sinc_resampler_get_ratio(
       (const async_sinc_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_max_output_frames wrapper for async sinc resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The maximum number of output frames.
+ */
 static size_t sinc_get_max(const audio_resampler_t* self) {
   return async_sinc_resampler_get_max_output_frames(
       (const async_sinc_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_chunk_size wrapper for async sinc resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The chunk size.
+ */
 static size_t sinc_get_cs(const audio_resampler_t* self) {
   return async_sinc_resampler_get_chunk_size(
       (const async_sinc_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_channels wrapper for async sinc resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The number of channels.
+ */
 static size_t sinc_get_ch(const audio_resampler_t* self) {
   return async_sinc_resampler_get_channels(
       (const async_sinc_resampler_t*)self->impl);
 }
+
+/**
+ * @brief free wrapper for async sinc resampler.
+ * @param self Pointer to the audio_resampler wrapper to free.
+ */
 static void sinc_free(audio_resampler_t* self) {
   if (self->impl)
     async_sinc_resampler_free((async_sinc_resampler_t*)self->impl);
@@ -150,32 +234,74 @@ audio_resampler_t* audio_resampler_wrap_async_sinc(
   return wrap;
 }
 
+/**
+ * @brief process wrapper for async poly resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @param input Pointer to the input audio chunk.
+ * @param output Pointer to the output audio chunk.
+ * @return resampler_error_t Status code.
+ */
 static resampler_error_t poly_process(audio_resampler_t* self,
                                       const audio_chunk_t* input,
                                       audio_chunk_t* output) {
   return async_poly_resampler_process((async_poly_resampler_t*)self->impl,
                                       input, output);
 }
+
+/**
+ * @brief set_relative_ratio wrapper for async poly resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @param mult The ratio multiplier.
+ */
 static void poly_set_ratio(audio_resampler_t* self, double mult) {
   async_poly_resampler_set_relative_ratio((async_poly_resampler_t*)self->impl,
                                           mult);
 }
+
+/**
+ * @brief get_ratio wrapper for async poly resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The current resample ratio.
+ */
 static double poly_get_ratio(const audio_resampler_t* self) {
   return async_poly_resampler_get_ratio(
       (const async_poly_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_max_output_frames wrapper for async poly resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The maximum number of output frames.
+ */
 static size_t poly_get_max(const audio_resampler_t* self) {
   return async_poly_resampler_get_max_output_frames(
       (const async_poly_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_chunk_size wrapper for async poly resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The chunk size.
+ */
 static size_t poly_get_cs(const audio_resampler_t* self) {
   return async_poly_resampler_get_chunk_size(
       (const async_poly_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_channels wrapper for async poly resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The number of channels.
+ */
 static size_t poly_get_ch(const audio_resampler_t* self) {
   return async_poly_resampler_get_channels(
       (const async_poly_resampler_t*)self->impl);
 }
+
+/**
+ * @brief free wrapper for async poly resampler.
+ * @param self Pointer to the audio_resampler wrapper to free.
+ */
 static void poly_free(audio_resampler_t* self) {
   if (self->impl)
     async_poly_resampler_free((async_poly_resampler_t*)self->impl);
@@ -204,27 +330,69 @@ audio_resampler_t* audio_resampler_wrap_async_poly(
 }
 
 #ifdef ENABLE_COREAUDIO
+/**
+ * @brief process wrapper for Apple resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @param input Pointer to the input audio chunk.
+ * @param output Pointer to the output audio chunk.
+ * @return resampler_error_t Status code.
+ */
 static resampler_error_t apple_process(audio_resampler_t* self,
                                        const audio_chunk_t* input,
                                        audio_chunk_t* output) {
   return apple_resampler_process((apple_resampler_t*)self->impl, input, output);
 }
+
+/**
+ * @brief set_relative_ratio wrapper for Apple resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @param mult The ratio multiplier.
+ */
 static void apple_set_ratio(audio_resampler_t* self, double mult) {
   apple_resampler_set_relative_ratio((apple_resampler_t*)self->impl, mult);
 }
+
+/**
+ * @brief get_ratio wrapper for Apple resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The current resample ratio.
+ */
 static double apple_get_ratio(const audio_resampler_t* self) {
   return apple_resampler_get_ratio((const apple_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_max_output_frames wrapper for Apple resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The maximum number of output frames.
+ */
 static size_t apple_get_max(const audio_resampler_t* self) {
   return apple_resampler_get_max_output_frames(
       (const apple_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_chunk_size wrapper for Apple resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The chunk size.
+ */
 static size_t apple_get_cs(const audio_resampler_t* self) {
   return apple_resampler_get_chunk_size((const apple_resampler_t*)self->impl);
 }
+
+/**
+ * @brief get_channels wrapper for Apple resampler.
+ * @param self Pointer to the audio_resampler wrapper.
+ * @return The number of channels.
+ */
 static size_t apple_get_ch(const audio_resampler_t* self) {
   return apple_resampler_get_channels((const apple_resampler_t*)self->impl);
 }
+
+/**
+ * @brief free wrapper for Apple resampler.
+ * @param self Pointer to the audio_resampler wrapper to free.
+ */
 static void apple_free_fn(audio_resampler_t* self) {
   if (self->impl) apple_resampler_free((apple_resampler_t*)self->impl);
   free(self);

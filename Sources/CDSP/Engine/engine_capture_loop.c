@@ -53,11 +53,20 @@ struct engine_capture_loop {
 
 #ifndef __APPLE__
 #define CLOCK_UPTIME_RAW CLOCK_MONOTONIC
+/**
+ * @brief Helper function to retrieve the raw system uptime in nanoseconds.
+ * Used for the watchdog stall detector. On non-Apple platforms, this wraps
+ * clock_gettime(CLOCK_MONOTONIC).
+ *
+ * @param clock_id The system clock identifier.
+ * @return The current time value in nanoseconds.
+ */
 static inline uint64_t clock_gettime_nsec_np(int clock_id) {
   struct timespec ts;
   clock_gettime(clock_id, &ts);
   return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 }
+
 #endif
 
 engine_capture_loop_t* engine_capture_loop_create(
@@ -105,17 +114,15 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
   logger_info(&logger, "Capture thread started", log_arg_none(), log_arg_none(),
               log_arg_none(), log_arg_none());
 
+  // Set real-time execution priority parameters for this thread.
   set_realtime_thread_priority("Capture", loop->chunk_size, loop->samplerate);
-
-
 
   while (
       !atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
-    // Surface a HAL-level sample-rate change before doing any
-    // more work. A user (or another app) flipping the device
-    // rate in Audio MIDI Setup invalidates the AudioUnit's
-    // configured format; the cleanest recovery is to stop
-    // unconditionally and let the host rebuild.
+    // 1. Hardware Sample-Rate Change Check:
+    // Check if the hardware sample rates have drifted or been explicitly modified
+    // (e.g. by another application or OS settings). An unexpected hardware rate change
+    // invalidates the processing thread pipeline, so we signal a host rebuild stop reason.
     double rate = 0.0;
     if (capture_backend_get_pending_rate_change(loop->capture, &rate)) {
       if (!loop->has_last_observed_pending_rate ||
@@ -150,12 +157,16 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       }
     }
 
+    // 2. Fetch a chunk buffer from the pre-allocated round-robin pool.
     audio_chunk_t* chunk = round_robin_chunk_pool_next(loop->chunk_pool);
     backend_error_t err;
     backend_error_init(&err, BACKEND_ERROR_NONE, "");
+
+    // 3. Read raw PCM/DSD frame data from the capture backend.
     bool got_data =
         capture_backend_read(loop->capture, loop->chunk_size, chunk, &err);
     if (!got_data) {
+      // If reading fails with an error, trigger an engine stop.
       if (err.type != BACKEND_ERROR_NONE) {
         static char s_capture_err_log[256];
         snprintf(s_capture_err_log, sizeof(s_capture_err_log), "%s",
@@ -168,9 +179,12 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
         engine_shared_state_request_stop(loop->shared, reason);
         break;
       }
+      // If we should stop, exit the thread loop.
       if (atomic_load_explicit(&loop->shared->should_stop,
                                memory_order_acquire))
         break;
+      // If the engine is in a PAUSED state (no active input signal), reset the watchdog
+      // timer to avoid triggering stall warnings while waiting for signal.
       if (engine_state_machine_get_state(loop->state_machine) ==
           PROCESSING_STATE_PAUSED) {
         loop->watchdog_last_success_ns =
@@ -178,6 +192,9 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
         capture_backend_wait(loop->capture, 20);
         continue;
       }
+      // 4. Watchdog / Stall Monitor:
+      // If the engine is running but we get no data chunks from the capture device for
+      // more than watchdog_timeout_seconds, set state to STALLED and log a warning.
       if (!loop->watchdog_triggered) {
         uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         double elapsed =
@@ -191,13 +208,14 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
                       log_arg_none(), log_arg_none(), log_arg_none());
         }
       }
-      // Wait on the capture device's GCD semaphore for new samples, up to 20ms.
-      // This uses a 20ms timeout design, preserving
-      // real-time priority propagation under load instead of doing a raw sleep.
+      // Block/wait up to 20ms using the backend's synchronization mechanism (e.g. semaphore).
+      // This yields CPU time while maintaining real-time scheduling priority.
       capture_backend_wait(loop->capture, 20);
       continue;
     }
 
+    // 5. Watchdog Stall Recovery:
+    // Reset the watchdog status if we successfully read data after a stall.
     loop->watchdog_last_success_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     if (loop->watchdog_triggered) {
       loop->watchdog_triggered = false;
@@ -205,21 +223,22 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
                   log_arg_none(), log_arg_none(), log_arg_none());
     }
 
-    // Decode DoP in place before computing capture levels so the
-    // monitoring meters reflect the actual decoded audio rather
-    // than the carrier waveform with its high-frequency marker
-    // bytes (which would otherwise show a tiny ~0.04 amplitude
-    // floor).
+    // 6. DoP (DSD over PCM) Decoding:
+    // If DoP decoding is active, process the PCM chunk to detect DSD marker flags
+    // and decode them back to raw DSD samples in-place. Decoding is done before metering
+    // so RMS/Peak values reflect the actual signal instead of the carrier noise.
     if (loop->dop_decoder) {
       dop_decoder_detect_and_process(loop->dop_decoder, chunk);
     }
 
+    // Update level meters with the peak/rms of this chunk.
     double loudest_peak = processing_parameters_update_capture_levels(
         loop->processing_params, chunk);
 
-    // Update silence detector with the loudest channel's peak.
-    // We only flip when the value actually changes to avoid
-    // hammering the atomic from the audio thread.
+    // 7. Silence/Auto-pause Gate:
+    // Update the silence counter. If the signal level is below the threshold for longer
+    // than the timeout duration, desired is set to PROCESSING_STATE_PAUSED. We toggle
+    // the backends' state to paused to stop downstream devices.
     processing_state_t desired =
         silence_counter_update(loop->silence_counter, loudest_peak);
     processing_state_t current =
@@ -229,12 +248,13 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       playback_backend_set_is_paused(loop->playback,
                                      (desired == PROCESSING_STATE_PAUSED));
       capture_backend_set_is_paused(loop->capture,
-                                    (desired == PROCESSING_STATE_PAUSED));
+                                     (desired == PROCESSING_STATE_PAUSED));
     }
 
-    // Enqueue for processing. The lock-free SPSC queue is bounded.
-    // On overflow (processing loop is slow), we block the capture thread
-    // to yield CPU and propagate backpressure upstream.
+    // 8. Enqueue Captured Chunk:
+    // If the engine is running (not paused), push the chunk pointer into the bounded
+    // lock-free SPSC queue. If the queue is full, sleep briefly to yield CPU and propagate
+    // backpressure upstream.
     if (engine_state_machine_get_state(loop->state_machine) !=
         PROCESSING_STATE_PAUSED) {
       while (!spsc_queue_enqueue(loop->shared->captured_queue, chunk)) {
@@ -244,11 +264,12 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
         struct timespec req = {.tv_sec = 0, .tv_nsec = 2000000L};
         nanosleep(&req, NULL);
       }
+      // Signal the processing thread that a new chunk is available.
       engine_sem_signal(loop->shared->captured_semaphore);
     }
   }
 
-
   logger_info(&logger, "Capture thread stopped", log_arg_none(), log_arg_none(),
               log_arg_none(), log_arg_none());
 }
+

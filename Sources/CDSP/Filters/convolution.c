@@ -56,6 +56,12 @@ struct convolution_filter {
 ///
 /// Convenience initialiser that resolves `ConvParameters` to a flat
 /// IR buffer first (control plane only, may touch the filesystem).
+/**
+ * @brief Helper to get the size in bytes of a binary sample format.
+ *
+ * @param format The binary sample format.
+ * @return The size in bytes, or 0 if invalid.
+ */
 static size_t get_raw_sample_size(binary_sample_format_t format) {
   switch (format) {
     case BINARY_SAMPLE_FORMAT_S16_LE:
@@ -73,6 +79,16 @@ static size_t get_raw_sample_size(binary_sample_format_t format) {
   }
 }
 
+/**
+ * @brief Loads a single channel from a WAV file and converts it to double.
+ *
+ * Supports 16-bit, 24-bit, 32-bit PCM and float, and 64-bit float formats.
+ *
+ * @param path Path to the WAV file.
+ * @param channel The channel index to load (0-indexed).
+ * @param out_count Output pointer to store the number of loaded samples.
+ * @return Pointer to the allocated double array containing samples, or NULL on failure.
+ */
 static double* load_wav_file(const char* path, int channel, size_t* out_count) {
   FILE* f = fopen(path, "rb");
   if (!f) return NULL;
@@ -185,6 +201,19 @@ static double* load_wav_file(const char* path, int channel, size_t* out_count) {
   return result;
 }
 
+/**
+ * @brief Loads raw PCM or text data from a file and converts it to double.
+ *
+ * For "TEXT" format, reads line by line. For binary formats, reads according
+ * to specified sample format.
+ *
+ * @param path Path to the raw file.
+ * @param format_str Format string (e.g., "S16_LE", "TEXT").
+ * @param skip_bytes Number of bytes (or lines for TEXT) to skip at start.
+ * @param read_bytes Max bytes (or lines for TEXT) to read.
+ * @param out_count Output pointer to store the number of loaded samples.
+ * @return Pointer to the allocated double array containing samples, or NULL on failure.
+ */
 static double* load_raw_file(const char* path, const char* format_str,
                              int skip_bytes, int read_bytes,
                              size_t* out_count) {
@@ -413,6 +442,19 @@ convolution_filter_t* convolution_filter_create(const char* name,
   return filter;
 }
 
+/**
+ * @brief Processes one chunk of audio data using partitioned overlap-add convolution.
+ *
+ * This function performs the following steps:
+ * 1. Copies the input block to the time buffer and pads with zeros.
+ * 2. Computes the forward FFT of the padded block and stores it in the history buffer.
+ * 3. Performs frequency-domain multiply-accumulate with the partitioned IR segments.
+ * 4. Computes the inverse FFT of the accumulated spectrum.
+ * 5. Reconstructs the output block using overlap-add.
+ *
+ * @param filter Pointer to the convolution filter.
+ * @param waveform In-place buffer containing the input block, which will be overwritten with the output.
+ */
 static void process_chunk(convolution_filter_t* filter,
                           mutable_waveform_t waveform) {
   size_t cs = filter->chunk_size;

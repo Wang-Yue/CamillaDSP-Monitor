@@ -28,6 +28,12 @@ struct bluez_capture {
   logger_t logger;
 };
 
+/**
+ * @brief Helper function to get the size in bytes of a sample format.
+ *
+ * @param format The binary sample format.
+ * @return The size of one sample in bytes, or 0 if format is unknown.
+ */
 static size_t get_sample_size(binary_sample_format_t format) {
   switch (format) {
     case BINARY_SAMPLE_FORMAT_S16_LE:
@@ -49,6 +55,15 @@ static size_t get_sample_size(binary_sample_format_t format) {
   }
 }
 
+/**
+ * @brief Helper function to decode a raw sample of a given format into a double.
+ *
+ * Decodes little-endian samples of various formats, scaling them to the range [-1.0, 1.0].
+ *
+ * @param src Pointer to the raw bytes of the sample.
+ * @param format The binary sample format.
+ * @return The decoded sample as a double.
+ */
 static inline double decode_sample(const uint8_t* src,
                                    binary_sample_format_t format) {
   switch (format) {
@@ -89,39 +104,67 @@ static inline double decode_sample(const uint8_t* src,
   }
 }
 
+// --- Capture Backend VTable Adapters ---
+// The following static functions adapt the bluez_capture_t interface
+// to the generic capture_backend_vtable_t callback structure.
+
+/**
+ * @brief VTable callback to destroy the backend context.
+ */
 static void vtable_bluez_destroy(void* ctx) {
   bluez_capture_destroy((bluez_capture_t*)ctx);
 }
 
+/**
+ * @brief VTable callback to open the backend device.
+ */
 static bool vtable_bluez_open(void* ctx, backend_error_t* err) {
   return bluez_capture_open((bluez_capture_t*)ctx, err);
 }
 
+/**
+ * @brief VTable callback to read audio data.
+ */
 static bool vtable_bluez_read(void* ctx, size_t frames, audio_chunk_t* chunk,
                               backend_error_t* err) {
   return bluez_capture_read((bluez_capture_t*)ctx, frames, chunk, err);
 }
 
+/**
+ * @brief VTable callback to close the backend device.
+ */
 static void vtable_bluez_close(void* ctx) {
   bluez_capture_close((bluez_capture_t*)ctx);
 }
 
+/**
+ * @brief VTable callback to check if there is a pending sample rate change request.
+ */
 static bool vtable_bluez_get_pending_rate_change(void* ctx, double* out_rate) {
   (void)ctx;
   (void)out_rate;
   return false;
 }
 
+/**
+ * @brief VTable callback to check if pitch control is supported.
+ */
 static bool vtable_bluez_pitch_supported(void* ctx) {
   (void)ctx;
   return false;
 }
 
+/**
+ * @brief VTable callback to set the pitch multiplier.
+ */
 static void vtable_bluez_set_pitch(void* ctx, double multiplier) {
   (void)ctx;
   (void)multiplier;
 }
 
+/**
+ * @brief VTable callback to wait for audio data to become available (polling).
+ */
 static bool vtable_bluez_wait(void* ctx, uint32_t timeout_ms) {
   bluez_capture_t* capture = (bluez_capture_t*)ctx;
   if (!capture->active || capture->pipe_fd == -1) return false;
@@ -132,6 +175,9 @@ static bool vtable_bluez_wait(void* ctx, uint32_t timeout_ms) {
   return (res > 0 && (pfd.revents & POLLIN));
 }
 
+/**
+ * @brief VTable callback to pause/unpause capture.
+ */
 static void vtable_bluez_set_paused(void* ctx, bool paused) {
   (void)ctx;
   (void)paused;
@@ -201,6 +247,7 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
   DBusError derr;
   dbus_error_init(&derr);
 
+  // Connect to the DBus system bus where BlueALSA exposes its services.
   DBusConnection* conn = dbus_bus_get(DBUS_BUS_SYSTEM, &derr);
   if (!conn) {
     if (err) {
@@ -213,6 +260,7 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
+  // Send a synchronous method call to BlueALSA to request opening the PCM stream.
   DBusMessage* msg = dbus_message_new_method_call(
       capture->service, capture->dbus_path, "org.bluealsa.PCM1", "Open");
   if (!msg) {
@@ -237,6 +285,8 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
+  // Extract the returned Unix file descriptors (data pipe and control socket)
+  // from the DBus response.
   int pipe_fd = -1;
   int ctrl_fd = -1;
   DBusMessageIter iter;
@@ -259,11 +309,11 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
-  // Duplicate FDs to ensure ownership
+  // Duplicate FDs so we own them independently of the DBus message lifecycle.
   capture->pipe_fd = dup(pipe_fd);
   capture->ctrl_fd = dup(ctrl_fd);
 
-  // Set O_NONBLOCK
+  // Set O_NONBLOCK to prevent read operations from hanging the thread if there is a delay.
   int flags = fcntl(capture->pipe_fd, F_GETFL, 0);
   fcntl(capture->pipe_fd, F_SETFL, flags | O_NONBLOCK);
 
@@ -280,14 +330,18 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
     return false;
   }
 
+  // Calculate the exact number of bytes needed for the requested number of frames.
   size_t sample_size = get_sample_size(capture->format);
   size_t required_bytes = frames * capture->channels * sample_size;
 
+  // Grow the temporary raw read buffer if the current capacity is insufficient.
   if (capture->raw_buf_capacity < required_bytes) {
     capture->raw_buf = (uint8_t*)realloc(capture->raw_buf, required_bytes);
     capture->raw_buf_capacity = required_bytes;
   }
 
+  // Read raw bytes from the non-blocking pipe. Since it's non-blocking, we loop
+  // and use poll to wait for the data to become available.
   size_t bytes_read = 0;
   while (bytes_read < required_bytes) {
     struct pollfd pfd;
@@ -295,7 +349,7 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
     pfd.events = POLLIN;
     int res = poll(&pfd, 1, 1000);
     if (res < 0) {
-      if (errno == EINTR) continue;
+      if (errno == EINTR) continue; // Interrupted by signal, retry.
       if (err)
         backend_error_init(err, BACKEND_ERROR_READ_ERROR,
                            "Bluez read poll failed");
@@ -311,7 +365,7 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
                      required_bytes - bytes_read);
     if (n < 0) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        continue;
+        continue; // No data available yet, poll again.
       }
       if (err)
         backend_error_init(err, BACKEND_ERROR_READ_ERROR,
@@ -326,7 +380,8 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
     bytes_read += (size_t)n;
   }
 
-  // Decode raw bytes to chunk double channels
+  // Decode the raw interleaved bytes into non-interleaved float/double channels
+  // within the destination audio chunk.
   for (size_t f = 0; f < frames; f++) {
     for (int c = 0; c < capture->channels; c++) {
       size_t offset = (f * capture->channels + c) * sample_size;

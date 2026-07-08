@@ -61,6 +61,8 @@ audio_chunk_t* audio_chunk_from_buffers(audio_buffers_t* buffers,
   if (!chunk) return NULL;
   chunk->buffers = buffers;
   chunk->valid_frames = valid_frames;
+  // Mark as not owning the buffers. This chunk acts as a temporary view,
+  // and freeing this chunk will not free the underlying buffers.
   chunk->owns_buffers = false;
   return chunk;
 }
@@ -102,6 +104,7 @@ round_robin_chunk_pool_t* round_robin_chunk_pool_create(size_t capacity,
 audio_chunk_t* round_robin_chunk_pool_next(round_robin_chunk_pool_t* pool) {
   if (!pool || pool->capacity == 0) return NULL;
   audio_chunk_t* chunk = pool->pool[pool->current_index];
+  // Advance the index in a circular fashion. This is not thread-safe.
   pool->current_index = (pool->current_index + 1) % pool->capacity;
   return chunk;
 }

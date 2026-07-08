@@ -58,6 +58,15 @@ bool dop_encoder_is_supported_carrier_rate(int rate) {
   return false;
 }
 
+/**
+ * @brief Computes the modified Bessel function of the first kind of order zero, I0(x).
+ *
+ * This function uses a power series expansion to approximate I0(x).
+ * It is used in the calculation of the Kaiser window.
+ *
+ * @param x The input value.
+ * @return The approximated value of I0(x).
+ */
 static double bessel_i0_enc(double x) {
   double sum = 1.0;
   double denominator = 1.0;
@@ -76,6 +85,18 @@ static double bessel_i0_enc(double x) {
 /// `h[m·phases + p]` for `m = 0..<subFilterTaps`; each phase is
 /// normalized to unit DC gain so a constant input passes through
 /// unchanged.
+/**
+ * @brief Builds the polyphase coefficient table for the 16x interpolation filter.
+ *
+ * Designs a 511-tap Kaiser-windowed sinc filter and decomposes it into 16 phases
+ * (polyphase representation) with 32 taps per phase. Each phase is normalized
+ * to ensure unit DC gain, so a constant input passes through unchanged.
+ *
+ * @param sample_rate The PCM sample rate (carrier rate).
+ * @param cutoff_hz The desired cutoff frequency in Hz.
+ * @return A pointer to the allocated flat array of polyphase coefficients (size 16 * 32 doubles),
+ *         or NULL on allocation failure.
+ */
 static double* build_coeffs(double sample_rate, double cutoff_hz) {
   double beta = 11.0;
   double dsd_rate = sample_rate * 16.0;
@@ -167,6 +188,25 @@ dop_encoder_t* dop_encoder_create(int channels, double sample_rate,
   return enc;
 }
 
+/**
+ * @brief Encodes a single channel's PCM buffer to DoP in-place.
+ *
+ * For each input PCM frame, this function:
+ * 1. Pushes the sample into a duplicate-history FIFO.
+ * 2. Runs a 16-phase polyphase interpolation filter.
+ * 3. Feeds each interpolated sample to the Sigma-Delta Modulator (scaled by 0.5
+ *    for headroom).
+ * 4. Packs the 16 resulting DSD bits into a 16-bit word (MSB to LSB matching the phase order).
+ * 5. Combines the DSD word with the alternating DoP marker (0x05 / 0xFA) into a
+ *    24-bit integer container.
+ * 6. Sign-extends the 24-bit integer to 32-bit and normalizes it to a float [-1.0, 1.0]
+ *    to overwrite the input buffer.
+ *
+ * @param state Pointer to the per-channel encoder state.
+ * @param buf The audio buffer to process in-place.
+ * @param frames Number of frames in the buffer.
+ * @param coeffs Polyphase filter coefficients.
+ */
 static void encode_channel(dop_encoder_channel_state_t* state,
                            mutable_waveform_t buf, size_t frames,
                            const double* coeffs) {
@@ -178,6 +218,9 @@ static void encode_channel(dop_encoder_channel_state_t* state,
 
   for (size_t t = 0; t < frames; t++) {
     // Push the new PCM sample into both halves of the polyphase FIR's history.
+    // By duplicating the history buffer, we can perform the convolution on a
+    // contiguous block of memory without checking for ring buffer wrap-around
+    // in the inner loop.
     double sample_val = buf[t];
     fifo[pos] = sample_val;
     fifo[pos + DOP_ENC_SUB_FILTER_TAPS] = sample_val;
@@ -194,12 +237,14 @@ static void encode_channel(dop_encoder_channel_state_t* state,
       const double* fifo_p = fifo + base_idx;
       double acc = 0.0;
 #ifdef ENABLE_ACCELERATE
+      // Use Apple's Accelerate framework for optimized dot product if available.
       vDSP_dotprD(coeff_p, 1, fifo_p, 1, &acc, 32);
 #else
       for (int m = 0; m < 32; m++) {
         acc += coeff_p[m] * fifo_p[m];
       }
 #endif
+      // Scale input by 0.5 for SDM headroom.
       double dsd = sigma_delta_modulator_sample(mod, acc * 0.5);
       if (dsd > 0.0) {
         word |= (uint16_t)(1 << (15 - p));
@@ -211,6 +256,7 @@ static void encode_channel(dop_encoder_channel_state_t* state,
     // playback backend, which will re-quantize to the device format
     // (must be S24 or S32 to preserve the bit pattern).
     uint32_t val24 = ((uint32_t)marker << 16) | (uint32_t)word;
+    // Sign-extend 24-bit to 32-bit: shift left by 8, then arithmetic shift right by 8.
     int32_t int_val = (int32_t)(val24 << 8) >> 8;
     buf[t] = (double)int_val / 8388608.0;
 

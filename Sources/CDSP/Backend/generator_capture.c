@@ -12,6 +12,14 @@
 #endif
 
 #if defined(_WIN32)
+/**
+ * @brief Simple thread-safe random number generator helper for Windows.
+ * 
+ * Replaces POSIX rand_r.
+ * 
+ * @param seed Pointer to the seed.
+ * @return Pseudo-random integer.
+ */
 static inline int rand_r(unsigned int* seed) {
   *seed = *seed * 1103515245 + 12345;
   return (unsigned int)(*seed / 65536) % 32768;
@@ -31,47 +39,67 @@ struct generator_capture {
   bool is_paused;
 };
 
+/**
+ * @brief Helper to get monotonic time in nanoseconds.
+ * 
+ * @return Monotonic time in nanoseconds.
+ */
 static uint64_t get_time_ns(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 }
 
+/**
+ * @brief Convert decibels to linear amplitude multiplier.
+ * 
+ * @param db Value in dB.
+ * @return Linear amplitude multiplier.
+ */
 static double db_to_linear(double db) { return pow(10.0, db / 20.0); }
 
+/** @brief Vtable wrapper for generator_capture_open. */
 static bool vtable_open(void* ctx, backend_error_t* err) {
   return generator_capture_open((generator_capture_t*)ctx, err);
 }
 
+/** @brief Vtable wrapper for generator_capture_read. */
 static bool vtable_read(void* ctx, size_t frames, audio_chunk_t* chunk,
                         backend_error_t* err) {
   return generator_capture_read((generator_capture_t*)ctx, frames, chunk, err);
 }
 
+/** @brief Vtable wrapper for generator_capture_close. */
 static void vtable_close(void* ctx) {
   generator_capture_close((generator_capture_t*)ctx);
 }
 
+/** @brief Vtable wrapper for generator_capture_get_pending_rate_change. */
 static bool vtable_get_pending_rate_change(void* ctx, double* out_rate) {
   return generator_capture_get_pending_rate_change((generator_capture_t*)ctx,
                                                    out_rate);
 }
 
+/** @brief Vtable wrapper for generator_capture_pitch_control_supported. */
 static bool vtable_is_pitch_control_supported(void* ctx) {
   return generator_capture_pitch_control_supported((generator_capture_t*)ctx);
 }
 
+/** @brief Vtable wrapper for generator_capture_set_pitch. */
 static void vtable_set_pitch(void* ctx, double multiplier) {
   generator_capture_set_pitch((generator_capture_t*)ctx, multiplier);
 }
 
+/** @brief Vtable wrapper for generator_capture_wait. */
 static bool vtable_wait_for_data(void* ctx, uint32_t timeout_ms) {
   return generator_capture_wait((generator_capture_t*)ctx, timeout_ms);
 }
 
+/** @brief Vtable wrapper for generator_capture_destroy. */
 static void vtable_destroy(void* ctx) {
   generator_capture_destroy((generator_capture_t*)ctx);
 }
+/** @brief Vtable wrapper for generator_capture_set_is_paused. */
 static void vtable_set_is_paused(void* ctx, bool paused) {
   generator_capture_set_is_paused((generator_capture_t*)ctx, paused);
 }
@@ -141,10 +169,12 @@ bool generator_capture_read(generator_capture_t* capture, size_t frames,
     return false;
   }
 
+  // freq_delta is the phase increment per sample.
   double freq_delta = capture->frequency / (double)capture->sample_rate;
 
   for (size_t f = 0; f < frames; f++) {
     double val = 0.0;
+    // Generate sample value based on configured signal type.
     switch (capture->signal_type) {
       case SIGNAL_TYPE_SINE:
         val = sin(capture->phase * 2.0 * M_PI) * capture->amplitude;
@@ -167,6 +197,7 @@ bool generator_capture_read(generator_capture_t* capture, size_t frames,
       audio_chunk_get_channel(chunk, c)[f] = val;
     }
 
+    // Increment phase and wrap around [0.0, 1.0) range.
     capture->phase += freq_delta;
     if (capture->phase >= 1.0) {
       capture->phase -= 1.0;

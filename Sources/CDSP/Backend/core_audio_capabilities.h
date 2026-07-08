@@ -13,59 +13,86 @@
 #include "backend_error.h"
 #include "core_audio_device.h"
 
-// MARK: - Discovery
+/**
+ * @file core_audio_capabilities.h
+ * @brief Device capability discovery for CoreAudio.
+ *
+ * This header defines functions to query available CoreAudio devices,
+ * their names, default devices, channel counts, and detailed capabilities.
+ */
 
-/// Sample rates we report when a device exposes a *range* rather than a
-/// discrete list. CoreAudio devices commonly advertise something like
-/// 44.1 kHz – 192 kHz; we report only the standard rates that fall
-/// inside the range so the UI doesn't need to render thousands of
-/// values.
-///
-/// Public so room-correction tooling can pre-render an FIR per
-/// rate, then pick the matching one at engine-config time.
+/**
+ * @brief Array of standard sample rates reported when a device exposes a range.
+ *
+ * CoreAudio devices commonly advertise a range (e.g., 44.1 kHz - 192 kHz).
+ * This array contains standard rates within that range to avoid cluttering the UI.
+ * Public so room-correction tooling can pre-render FIR filters per rate.
+ */
 extern const int CORE_AUDIO_STANDARD_RATES[15];
+
+/**
+ * @brief Number of elements in CORE_AUDIO_STANDARD_RATES.
+ */
 extern const size_t CORE_AUDIO_STANDARD_RATES_COUNT;
 
-// MARK: Device enumeration
-//
-// Thin wrappers over `CoreAudioDevice` so the UI doesn't need to
-// touch HAL types. Anything beyond a name lives in the capability
-// descriptor (`describe`) below.
-
-/// Names of all devices visible to the system in the requested
-/// direction. Empty when no devices match (no mics connected, no
-/// output devices, etc.).
+/**
+ * @brief Get the names of all available devices in the requested direction.
+ *
+ * Thin wrapper over `CoreAudioDevice`.
+ *
+ * @param is_capture True for capture devices, false for playback devices.
+ * @param out_names 2D array to store the retrieved names.
+ * @param max_names Maximum number of names to retrieve (size of out_names).
+ * @return The number of device names written to out_names, or negative on error.
+ */
 int core_audio_capabilities_available_device_names(bool is_capture,
                                                    char out_names[][256],
                                                    int max_names);
 
-/// Name of the system-default device in the requested direction,
-/// if one is configured. Useful as the initial value for a picker.
+/**
+ * @brief Get the name of the system-default device in the requested direction.
+ *
+ * @param is_capture True for capture default, false for playback default.
+ * @param out_name Buffer to store the default device name.
+ * @param max_len Size of the out_name buffer.
+ * @return true if default device was found and name copied, false otherwise.
+ */
 bool core_audio_capabilities_default_device_name(bool is_capture,
                                                  char* out_name,
                                                  size_t max_len);
 
-/// Maximum channel count the named device exposes across any of
-/// its physical formats. When `name` is `nil` the system default
-/// is queried. Returns `0` if the device can't be located.
-///
-/// Derived from `describe(deviceName:isCapture:)` — no separate HAL
-/// query — so the answer matches whatever the capability descriptor
-/// reports. Used by the room-correction UI to populate per-channel
-/// pickers (e.g. left/right speaker, calibrated mic capsule on a
-/// stereo interface).
+/**
+ * @brief Get the maximum channel count the named device exposes.
+ *
+ * Derived from core_audio_capabilities_describe().
+ * Used to populate per-channel pickers.
+ *
+ * @param device_name Name of the device. If NULL, the system default is queried.
+ * @param is_capture True for capture device, false for playback device.
+ * @return Maximum channel count, or 0 if device not found.
+ */
 int core_audio_capabilities_channel_count(const char* device_name,
                                           bool is_capture);
 
-/// Build the capability descriptor for a named device. Returns `nil`
-/// if the device cannot be located. All low-level HAL plumbing is
-/// delegated to `CoreAudioDevice`; this layer only adds the
-/// physical-format probe + aggregation that's specific to the UI's
-/// `AudioDeviceDescriptor` shape.
+/**
+ * @brief Build the capability descriptor for a named device.
+ *
+ * Delegates low-level HAL plumbing to `CoreAudioDevice`.
+ *
+ * @param device_name Name of the device.
+ * @param is_capture True for capture device, false for playback device.
+ * @param err Pointer to device error structure to report errors.
+ * @return Pointer to the allocated audio_device_descriptor_t, or NULL on error/not found.
+ *         Must be freed with core_audio_capabilities_free_descriptor().
+ */
 audio_device_descriptor_t* core_audio_capabilities_describe(
     const char* device_name, bool is_capture, device_error_t* err);
 
-/// Free the audio device descriptor and its internal capability sets.
+/**
+ * @brief Free the audio device descriptor and its internal capability sets.
+ *
+ * @param desc Pointer to the descriptor to free.
+ */
 void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 
 #endif  // ENABLE_COREAUDIO

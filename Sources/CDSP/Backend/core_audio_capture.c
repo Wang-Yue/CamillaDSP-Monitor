@@ -72,6 +72,11 @@ struct core_audio_capture {
   dispatch_semaphore_t semaphore;
 };
 
+/**
+ * @brief HAL listener callback to monitor if the capture device is alive.
+ *
+ * Stashes the status atomically so that the consumer thread can check for device disconnection.
+ */
 static OSStatus capture_alive_listener_callback(
     AudioObjectID inObjectID, UInt32 inNumberAddresses,
     const AudioObjectPropertyAddress* inAddresses, void* inClientData) {
@@ -93,8 +98,13 @@ static OSStatus capture_alive_listener_callback(
   return noErr;
 }
 
-/// CoreAudio render callback for capture. Hot path: must not lock,
-/// allocate, or call into Swift runtime in a way that could block.
+/**
+ * @brief CoreAudio render callback for capturing audio.
+ *
+ * This function runs on a high-priority, real-time HAL thread. It must NOT block,
+ * take locks, allocate memory, or invoke slow system APIs. It renders audio samples
+ * from the AudioUnit into preallocated buffers and writes them to lock-free SPSC rings.
+ */
 static OSStatus capture_callback(void* inRefCon,
                                  AudioUnitRenderActionFlags* ioActionFlags,
                                  const AudioTimeStamp* inTimeStamp,
@@ -108,12 +118,15 @@ static OSStatus capture_callback(void* inRefCon,
     return noErr;
   }
 
+  // Restore the size of the preallocated buffer list's buffers, since AudioUnitRender
+  // may modify mDataByteSize during invocation to report actual bytes written.
   AudioBufferList* buffer_list = capture->prealloc_buffer_list;
   uint32_t prealloc_size = (uint32_t)capture->prealloc_bytes_per_channel_buffer;
   for (UInt32 i = 0; i < buffer_list->mNumberBuffers; i++) {
     buffer_list->mBuffers[i].mDataByteSize = prealloc_size;
   }
 
+  // Render the audio from the hardware into our preallocated buffers.
   OSStatus status =
       AudioUnitRender(capture->audio_unit, ioActionFlags, inTimeStamp, 1,
                       inNumberFrames, buffer_list);
@@ -124,6 +137,7 @@ static OSStatus capture_callback(void* inRefCon,
     return noErr;
   }
 
+  // Determine the number of valid frames produced based on buffer format.
   int frame_count = (int)inNumberFrames;
   int actual_frames = frame_count;
   if (capture->is_interleaved) {
@@ -141,6 +155,7 @@ static OSStatus capture_callback(void* inRefCon,
   int frames = actual_frames < frame_count ? actual_frames : frame_count;
   if (frames <= 0) return noErr;
 
+  // Push the captured samples into the lock-free ring buffers.
   if (capture->is_interleaved) {
     float* float_ptr = (float*)capture->prealloc_channel_data_pointers[0];
     for (int ch = 0; ch < capture->channels; ch++) {
@@ -155,6 +170,7 @@ static OSStatus capture_callback(void* inRefCon,
     }
   }
 
+  // Signal the semaphore to wake up the consumer thread waiting for new data.
   if (capture->semaphore) {
     dispatch_semaphore_signal(capture->semaphore);
   }
@@ -164,6 +180,9 @@ static OSStatus capture_callback(void* inRefCon,
 
 // MARK: - Render-callback storage
 
+/**
+ * @brief Helper function to free preallocated render buffers.
+ */
 static void deallocate_render_buffers(core_audio_capture_t* capture) {
   if (capture->prealloc_channel_data_pointers) {
     int num_buffers = capture->prealloc_buffer_list
@@ -182,9 +201,15 @@ static void deallocate_render_buffers(core_audio_capture_t* capture) {
   capture->prealloc_bytes_per_channel_buffer = 0;
 }
 
-/// Allocate the AudioBufferList plus per-buffer raw storage that the
-/// render callback re-uses on every invocation. Caller must have set
-/// `isInterleaved` before this is invoked.
+/**
+ * @brief Helper function to preallocate the AudioBufferList and internal raw buffers.
+ *
+ * Ensures that the render thread doesn't trigger allocations. It checks the device's
+ * current buffer frame size and uses the larger of that or the requested chunk size.
+ *
+ * @param capture Pointer to the CoreAudio capture backend.
+ * @return true if allocation succeeded, false otherwise.
+ */
 static bool allocate_render_buffers(core_audio_capture_t* capture) {
   deallocate_render_buffers(capture);
 
@@ -231,30 +256,65 @@ static bool allocate_render_buffers(core_audio_capture_t* capture) {
   return true;
 }
 
+// --- Capture Backend VTable Adapters ---
+// The following static functions adapt the core_audio_capture_t interface
+// to the generic capture_backend_vtable_t callback structure.
+
+/**
+ * @brief VTable callback to open the device.
+ */
 static bool vtable_open(void* ctx, backend_error_t* err) {
   return core_audio_capture_open((core_audio_capture_t*)ctx, err);
 }
+
+/**
+ * @brief VTable callback to read audio frames.
+ */
 static bool vtable_read(void* ctx, size_t frames, audio_chunk_t* chunk,
                         backend_error_t* err) {
   return core_audio_capture_read((core_audio_capture_t*)ctx, frames, chunk,
                                  err);
 }
+
+/**
+ * @brief VTable callback to close the device.
+ */
 static void vtable_close(void* ctx) {
   core_audio_capture_close((core_audio_capture_t*)ctx);
 }
+
+/**
+ * @brief VTable callback to check if there is a pending sample rate change request.
+ */
 static bool vtable_get_rate(void* ctx, double* out_rate) {
   return core_audio_capture_get_pending_rate_change((core_audio_capture_t*)ctx,
                                                     out_rate);
 }
+
+/**
+ * @brief VTable callback to check if pitch control is supported.
+ */
 static bool vtable_pitch_supp(void* ctx) {
   return core_audio_capture_pitch_control_supported((core_audio_capture_t*)ctx);
 }
+
+/**
+ * @brief VTable callback to set the pitch multiplier.
+ */
 static void vtable_set_pitch(void* ctx, double mult) {
   core_audio_capture_set_pitch((core_audio_capture_t*)ctx, mult);
 }
+
+/**
+ * @brief VTable callback to wait for audio data (semaphore-based).
+ */
 static bool vtable_wait(void* ctx, uint32_t t) {
   return core_audio_capture_wait((core_audio_capture_t*)ctx, t);
 }
+
+/**
+ * @brief VTable callback to destroy the backend context.
+ */
 static void vtable_destroy(void* ctx) {
   core_audio_capture_destroy((core_audio_capture_t*)ctx);
 }
@@ -362,6 +422,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
   core_audio_capture_close(capture);
   bool open_succeeded = false;
 
+  // Set up component query for HAL Output Audio Unit.
   AudioComponentDescription desc = {
       .componentType = kAudioUnitType_Output,
       .componentSubType = kAudioUnitSubType_HALOutput,
@@ -377,6 +438,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
     goto cleanup;
   }
 
+  // Create the AudioUnit instance.
   OSStatus status = AudioComponentInstanceNew(comp, &capture->audio_unit);
   if (status != noErr || !capture->audio_unit) {
     if (err)
@@ -385,6 +447,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
     goto cleanup;
   }
 
+  // Enable Input scope (bus 1) on the HAL AudioUnit.
   UInt32 enable_input = 1;
   status = AudioUnitSetProperty(
       capture->audio_unit, kAudioOutputUnitProperty_EnableIO,
@@ -396,6 +459,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
     goto cleanup;
   }
 
+  // Disable Output scope (bus 0) on the HAL AudioUnit since we are only capturing.
   UInt32 disable_output = 0;
   status = AudioUnitSetProperty(
       capture->audio_unit, kAudioOutputUnitProperty_EnableIO,
@@ -407,11 +471,13 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
     goto cleanup;
   }
 
+  // Look up the Device ID based on device name.
   AudioDeviceID dev_id = core_audio_device_id_for_name(
       capture->device_name[0] ? capture->device_name : NULL,
       CORE_AUDIO_SCOPE_INPUT);
   capture->opened_device_id = dev_id;
   if (dev_id != 0 && capture->device_name[0]) {
+    // Bind the AudioUnit to the discovered HAL Device ID.
     AudioUnitSetProperty(capture->audio_unit,
                          kAudioOutputUnitProperty_CurrentDevice,
                          kAudioUnitScope_Global, 0, &dev_id, sizeof(dev_id));
@@ -419,6 +485,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
   if (dev_id != 0) {
     bool physical_format_set = false;
     if (capture->has_sample_format) {
+      // Attempt to configure the device hardware to the user's requested format.
       if (core_audio_device_set_matching_physical_format(
               dev_id, CORE_AUDIO_SCOPE_INPUT, capture->sample_rate,
               capture->sample_format, capture->channels)) {
@@ -433,9 +500,11 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
     if (!physical_format_set) {
       core_audio_device_set_nominal_sample_rate(dev_id, capture->sample_rate);
     }
+    // Set device buffer frame size matching target chunk size.
     core_audio_device_set_buffer_frame_size(
         dev_id, (uint32_t)capture->chunk_size, CORE_AUDIO_SCOPE_INPUT);
 
+    // Register a listener to track if the hardware disappears.
     AudioObjectPropertyAddress alive_addr = {
         .mSelector = kAudioDevicePropertyDeviceIsAlive,
         .mScope = kAudioObjectPropertyScopeGlobal,
@@ -444,6 +513,8 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
                                    capture_alive_listener_callback, capture);
   }
 
+  // Configure the client stream format on the output scope of the input bus (bus 1).
+  // First, try non-interleaved float32.
   AudioStreamBasicDescription stream_format =
       core_audio_device_float32_stream_format(capture->sample_rate,
                                               capture->channels, false);
@@ -451,11 +522,12 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
       capture->audio_unit, kAudioUnitProperty_StreamFormat,
       kAudioUnitScope_Output, 1, &stream_format, sizeof(stream_format));
   if (status != noErr) {
+    // Fallback to interleaved float32.
     stream_format = core_audio_device_float32_stream_format(
         capture->sample_rate, capture->channels, true);
     status = AudioUnitSetProperty(
-        capture->audio_unit, kAudioUnitProperty_StreamFormat,
-        kAudioUnitScope_Output, 1, &stream_format, sizeof(stream_format));
+      capture->audio_unit, kAudioUnitProperty_StreamFormat,
+      kAudioUnitScope_Output, 1, &stream_format, sizeof(stream_format));
     if (status != noErr) {
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
@@ -466,6 +538,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
   capture->is_interleaved =
       ((stream_format.mFormatFlags & kAudioFormatFlagIsNonInterleaved) == 0);
 
+  // Set the maximum frames per slice on the AudioUnit.
   UInt32 max_frames = (UInt32)capture->chunk_size;
   if (dev_id != 0) {
     uint32_t actual_size = 0;
@@ -478,6 +551,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
       capture->audio_unit, kAudioUnitProperty_MaximumFramesPerSlice,
       kAudioUnitScope_Global, 0, &max_frames, sizeof(max_frames));
 
+  // Preallocate render buffers.
   if (!allocate_render_buffers(capture)) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
@@ -494,6 +568,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
     goto cleanup;
   }
 
+  // Register the real-time callback.
   AURenderCallbackStruct cb = {.inputProc = capture_callback,
                                .inputProcRefCon = capture};
   status = AudioUnitSetProperty(capture->audio_unit,
@@ -506,6 +581,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
     goto cleanup;
   }
 
+  // Initialize and start the AudioUnit.
   status = AudioUnitInitialize(capture->audio_unit);
   if (status != noErr) {
     if (err)
@@ -522,6 +598,7 @@ bool core_audio_capture_open(core_audio_capture_t* capture,
     goto cleanup;
   }
 
+  // Set up rate change watcher and adjustable clock pitch control if possible.
   if (dev_id != 0 &&
       core_audio_device_has_nominal_sample_rate_property(dev_id)) {
     capture->rate_watcher =
@@ -546,12 +623,14 @@ cleanup:
 bool core_audio_capture_read(core_audio_capture_t* capture, size_t frames,
                              audio_chunk_t* chunk, backend_error_t* err) {
   if (!capture) return false;
+  // Verify that the hardware device is still alive using atomic access.
   if (!atomic_load_explicit(&capture->is_device_alive, memory_order_acquire)) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_READ_ERROR,
                          "Capture device disconnected");
     return false;
   }
+  // Verify all channels have enough samples ready in their rings.
   for (int ch = 0; ch < capture->channels; ch++) {
     if (spsc_audio_ring_buffer_get_available_to_read(
             capture->capture_rings[ch]) < frames) {
@@ -560,6 +639,9 @@ bool core_audio_capture_read(core_audio_capture_t* capture, size_t frames,
   }
   if (!capture->read_scratch) return false;
 
+  // Consume float samples from rings into the float scratch buffer, and then
+  // use Accelerate (vDSP) to convert them efficiently to double precision
+  // for the destination audio chunk.
   for (int ch = 0; ch < capture->channels; ch++) {
     size_t n = spsc_audio_ring_buffer_consume(capture->capture_rings[ch],
                                               capture->read_scratch, frames);

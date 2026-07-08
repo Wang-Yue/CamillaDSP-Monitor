@@ -34,28 +34,82 @@ struct pulse_playback {
 
 // MARK: - Pulse Capture Backend implementation
 
+/**
+ * @brief Vtable adapter to open the PulseAudio capture stream.
+ * @param ctx Pointer to the pulse_capture_t context.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool cap_vtable_open(void* ctx, backend_error_t* err) {
   return pulse_capture_open((pulse_capture_t*)ctx, err);
 }
+
+/**
+ * @brief Vtable adapter to read frames from the PulseAudio capture stream.
+ * @param ctx Pointer to the pulse_capture_t context.
+ * @param frames Number of frames to read.
+ * @param chunk Pointer to audio_chunk_t to store the read audio data.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool cap_vtable_read(void* ctx, size_t frames, audio_chunk_t* chunk,
                             backend_error_t* err) {
   return pulse_capture_read((pulse_capture_t*)ctx, frames, chunk, err);
 }
+
+/**
+ * @brief Vtable adapter to close the PulseAudio capture stream.
+ * @param ctx Pointer to the pulse_capture_t context.
+ */
 static void cap_vtable_close(void* ctx) {
   pulse_capture_close((pulse_capture_t*)ctx);
 }
+
+/**
+ * @brief Vtable adapter to check for pending rate changes.
+ * @note PulseAudio backend does not support dynamic rate changes.
+ * @param ctx Pointer to the pulse_capture_t context.
+ * @param out_rate Pointer to store the new rate (unused).
+ * @return Always false.
+ */
 static bool cap_vtable_get_pending_rate_change(void* ctx, double* out_rate) {
   return pulse_capture_get_pending_rate_change((pulse_capture_t*)ctx, out_rate);
 }
+
+/**
+ * @brief Vtable adapter to check if pitch control is supported.
+ * @note PulseAudio backend does not support pitch control.
+ * @param ctx Pointer to the pulse_capture_t context.
+ * @return Always false.
+ */
 static bool cap_vtable_is_pitch_control_supported(void* ctx) {
   return pulse_capture_pitch_control_supported((pulse_capture_t*)ctx);
 }
+
+/**
+ * @brief Vtable adapter to set pitch multiplier.
+ * @note PulseAudio backend does not support pitch control (no-op).
+ * @param ctx Pointer to the pulse_capture_t context.
+ * @param multiplier The pitch multiplier.
+ */
 static void cap_vtable_set_pitch(void* ctx, double multiplier) {
   pulse_capture_set_pitch((pulse_capture_t*)ctx, multiplier);
 }
+
+/**
+ * @brief Vtable adapter to wait for data to become available.
+ * @param ctx Pointer to the pulse_capture_t context.
+ * @param timeout_ms Timeout in milliseconds.
+ * @return true after waiting.
+ */
 static bool cap_vtable_wait_for_data(void* ctx, uint32_t timeout_ms) {
   return pulse_capture_wait((pulse_capture_t*)ctx, timeout_ms);
 }
+
+/**
+ * @brief Vtable adapter to destroy the PulseAudio capture context.
+ * @param ctx Pointer to the pulse_capture_t context.
+ */
 static void cap_vtable_destroy(void* ctx) {
   pulse_capture_destroy((pulse_capture_t*)ctx);
 }
@@ -108,6 +162,10 @@ bool pulse_capture_open(pulse_capture_t* capture, backend_error_t* err) {
                        .rate = (uint32_t)capture->sample_rate,
                        .channels = (uint8_t)capture->channels};
 
+  // Configure PulseAudio buffer attributes.
+  // We request default values for maxlength, tlength, prebuf, and minreq by setting them to -1.
+  // fragsize is set to the size of a single frame (channels * sizeof(float)) to minimize latency
+  // by requesting small fragments from the server.
   pa_buffer_attr attr = {
       .maxlength = (uint32_t)-1,
       .tlength = (uint32_t)-1,
@@ -128,6 +186,7 @@ bool pulse_capture_open(pulse_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
+  // Allocate raw buffer for holding interleaved float data read from PulseAudio.
   capture->raw_buf_size =
       capture->chunk_size * capture->channels * sizeof(float);
   capture->raw_buf = (uint8_t*)malloc(capture->raw_buf_size);
@@ -153,6 +212,7 @@ bool pulse_capture_open(pulse_capture_t* capture, backend_error_t* err) {
 bool pulse_capture_read(pulse_capture_t* capture, size_t frames,
                         audio_chunk_t* chunk, backend_error_t* err) {
   size_t bytes_to_read = frames * capture->channels * sizeof(float);
+  // Dynamically resize internal buffer if requested frame count exceeds current size.
   if (bytes_to_read > capture->raw_buf_size) {
     capture->raw_buf = (uint8_t*)realloc(capture->raw_buf, bytes_to_read);
     capture->raw_buf_size = bytes_to_read;
@@ -165,6 +225,8 @@ bool pulse_capture_read(pulse_capture_t* capture, size_t frames,
     return false;
   }
 
+  // Convert interleaved 32-bit float samples from PulseAudio
+  // to deinterleaved double samples in the output audio chunk.
   float* src = (float*)capture->raw_buf;
   for (size_t f = 0; f < frames; f++) {
     for (int c = 0; c < capture->channels; c++) {
@@ -218,33 +280,91 @@ void pulse_capture_destroy(pulse_capture_t* capture) { free(capture); }
 
 // MARK: - Pulse Playback Backend implementation
 
+/**
+ * @brief Vtable adapter to open the PulseAudio playback stream.
+ * @param ctx Pointer to the pulse_playback_t context.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool play_vtable_open(void* ctx, backend_error_t* err) {
   return pulse_playback_open((pulse_playback_t*)ctx, err);
 }
+
+/**
+ * @brief Vtable adapter to write a chunk of audio to the PulseAudio playback stream.
+ * @param ctx Pointer to the pulse_playback_t context.
+ * @param chunk Pointer to audio_chunk_t containing the data to write.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool play_vtable_write(void* ctx, const audio_chunk_t* chunk,
                               backend_error_t* err) {
   return pulse_playback_write((pulse_playback_t*)ctx, chunk, err);
 }
+
+/**
+ * @brief Vtable adapter to close the PulseAudio playback stream.
+ * @param ctx Pointer to the pulse_playback_t context.
+ */
 static void play_vtable_close(void* ctx) {
   pulse_playback_close((pulse_playback_t*)ctx);
 }
+
+/**
+ * @brief Vtable adapter to get the current playback buffer level in frames.
+ * @param ctx Pointer to the pulse_playback_t context.
+ * @return Buffer level in frames.
+ */
 static size_t play_vtable_get_buffer_level(void* ctx) {
   return pulse_playback_get_buffer_level((pulse_playback_t*)ctx);
 }
+
+/**
+ * @brief Vtable adapter to check for pending rate changes.
+ * @note PulseAudio backend does not support dynamic rate changes.
+ * @param ctx Pointer to the pulse_playback_t context.
+ * @param out_rate Pointer to store the new rate (unused).
+ * @return Always false.
+ */
 static bool play_vtable_get_pending_rate_change(void* ctx, double* out_rate) {
   return pulse_playback_get_pending_rate_change((pulse_playback_t*)ctx,
                                                 out_rate);
 }
+
+/**
+ * @brief Vtable adapter to prefill the playback buffer with silence.
+ * @param ctx Pointer to the pulse_playback_t context.
+ * @param frames Number of silence frames to write.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool play_vtable_prefill_silence(void* ctx, size_t frames,
                                         backend_error_t* err) {
   return pulse_playback_prefill_silence((pulse_playback_t*)ctx, frames, err);
 }
+
+/**
+ * @brief Vtable adapter to check if playback is paused.
+ * @param ctx Pointer to the pulse_playback_t context.
+ * @return true if paused, false otherwise.
+ */
 static bool play_vtable_get_is_paused(void* ctx) {
   return pulse_playback_get_is_paused((pulse_playback_t*)ctx);
 }
+
+/**
+ * @brief Vtable adapter to set the paused state of playback.
+ * @param ctx Pointer to the pulse_playback_t context.
+ * @param paused Desired paused state.
+ */
 static void play_vtable_set_is_paused(void* ctx, bool paused) {
   pulse_playback_set_is_paused((pulse_playback_t*)ctx, paused);
 }
+
+/**
+ * @brief Vtable adapter to destroy the PulseAudio playback context.
+ * @param ctx Pointer to the pulse_playback_t context.
+ */
 static void play_vtable_destroy(void* ctx) {
   pulse_playback_destroy((pulse_playback_t*)ctx);
 }
@@ -297,6 +417,10 @@ bool pulse_playback_open(pulse_playback_t* playback, backend_error_t* err) {
                        .rate = (uint32_t)playback->sample_rate,
                        .channels = (uint8_t)playback->channels};
 
+  // Configure PulseAudio buffer attributes.
+  // We request default values for maxlength, tlength, and minreq by setting them to -1.
+  // prebuf specifies how much data must be in the buffer before starting playback.
+  // We set it to one frame size (channels * sizeof(float)) to minimize startup latency.
   pa_buffer_attr attr = {
       .maxlength = (uint32_t)-1,
       .tlength = (uint32_t)-1,
@@ -317,6 +441,7 @@ bool pulse_playback_open(pulse_playback_t* playback, backend_error_t* err) {
     return false;
   }
 
+  // Allocate raw buffer for holding interleaved float data to be written to PulseAudio.
   playback->raw_buf_size =
       playback->chunk_size * playback->channels * sizeof(float);
   playback->raw_buf = (uint8_t*)malloc(playback->raw_buf_size);
@@ -350,11 +475,14 @@ bool pulse_playback_write(pulse_playback_t* playback,
 
   size_t frames = audio_chunk_get_valid_frames(chunk);
   size_t required_bytes = frames * playback->channels * sizeof(float);
+  // Dynamically resize internal buffer if write size exceeds current size.
   if (required_bytes > playback->raw_buf_size) {
     playback->raw_buf = (uint8_t*)realloc(playback->raw_buf, required_bytes);
     playback->raw_buf_size = required_bytes;
   }
 
+  // Convert deinterleaved double samples from audio chunk
+  // to interleaved 32-bit float samples for PulseAudio.
   float* dst = (float*)playback->raw_buf;
   for (size_t f = 0; f < frames; f++) {
     for (int c = 0; c < playback->channels; c++) {
@@ -391,8 +519,10 @@ void pulse_playback_close(pulse_playback_t* playback) {
 size_t pulse_playback_get_buffer_level(pulse_playback_t* playback) {
   if (!playback->s) return 0;
   int error;
+  // Get playback latency from PulseAudio in microseconds.
   pa_usec_t latency = pa_simple_get_latency(playback->s, &error);
   if (latency == (pa_usec_t)-1) return 0;
+  // Convert microseconds to number of frames based on sample rate.
   return (size_t)((double)latency * (double)playback->sample_rate / 1000000.0);
 }
 

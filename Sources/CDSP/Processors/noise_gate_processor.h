@@ -42,6 +42,12 @@
  */
 typedef struct noise_gate_processor noise_gate_processor_t;
 
+/**
+ * @brief Gets the name of the noise gate processor.
+ *
+ * @param processor Pointer to the noise gate processor.
+ * @return The unique name of the processor instance.
+ */
 const char* noise_gate_processor_get_name(const noise_gate_processor_t* processor);
 
 /**

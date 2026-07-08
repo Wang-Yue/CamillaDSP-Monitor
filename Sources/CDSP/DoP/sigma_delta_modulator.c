@@ -232,6 +232,17 @@ static const sdm_preset_t sdm_presets[] = {
      2822400,
      SDM_FILTER_SDM8}};
 
+/**
+ * @brief Finds a preset matching the given filter name and frequency rate.
+ *
+ * It iterates through the sdm_presets array. If filter_name is
+ * SDM_FILTER_INVALID, it matches any filter with a matching or lower
+ * sampling rate.
+ *
+ * @param filter_name The filter name preset to search for.
+ * @param freq The target modulation frequency (sampling rate).
+ * @return A pointer to the matching sdm_preset_t, or NULL if not found.
+ */
 static const sdm_preset_t* sdm_find_preset(sdm_filter_t filter_name,
                                            uint32_t freq) {
   size_t count = sizeof(sdm_presets) / sizeof(sdm_presets[0]);
@@ -244,6 +255,7 @@ static const sdm_preset_t* sdm_find_preset(sdm_filter_t filter_name,
   }
   return NULL;
 }
+
 
 void sigma_delta_modulator_init(sigma_delta_modulator_t* mod,
                                 sdm_filter_t filter_name, uint32_t freq) {
@@ -278,6 +290,24 @@ sigma_delta_modulator_t* sigma_delta_modulator_create(sdm_filter_t filter_name,
   return mod;
 }
 
+/**
+ * @brief Performs 4th-order Sigma-Delta modulation on a single sample.
+ *
+ * This implementation uses a ping-pong state buffer setup to avoid copying arrays.
+ * - `s` is the state array for the current iteration (from index `current_idx * 8`).
+ * - `d` is the destination state array for the next iteration (index `(current_idx ^ 1) * 8`).
+ * At the end of the calculation, `mod->idx` is toggled.
+ *
+ * The math models a Cascade of Resonators in Feedback Form (CRFB) structure, where:
+ * - `a` contains feedback coefficients.
+ * - `g` contains resonator coefficients (local feedback to create zeroes in the noise transfer function).
+ * - `v` is the input to the quantizer.
+ * - `y_new` is the quantizer output (+1.0 or -1.0).
+ *
+ * @param mod Pointer to the modulator state.
+ * @param x The input analog-like sample.
+ * @return The quantized 1-bit DSD-like sample representation (+1.0 or -1.0).
+ */
 static inline double sdm_sample4(sigma_delta_modulator_t* mod, double x) {
   int current_idx = mod->idx;
   double* s = &mod->non_trellis_state[current_idx * 8];
@@ -304,6 +334,11 @@ static inline double sdm_sample4(sigma_delta_modulator_t* mod, double x) {
   return y_new;
 }
 
+
+/**
+ * @brief Performs 5th-order Sigma-Delta modulation on a single sample.
+ * @see sdm_sample4 for details on the structure and ping-pong buffering.
+ */
 static inline double sdm_sample5(sigma_delta_modulator_t* mod, double x) {
   int current_idx = mod->idx;
   double* s = &mod->non_trellis_state[current_idx * 8];
@@ -333,6 +368,10 @@ static inline double sdm_sample5(sigma_delta_modulator_t* mod, double x) {
   return y_new;
 }
 
+/**
+ * @brief Performs 6th-order Sigma-Delta modulation on a single sample.
+ * @see sdm_sample4 for details on the structure and ping-pong buffering.
+ */
 static inline double sdm_sample6(sigma_delta_modulator_t* mod, double x) {
   int current_idx = mod->idx;
   double* s = &mod->non_trellis_state[current_idx * 8];
@@ -365,6 +404,10 @@ static inline double sdm_sample6(sigma_delta_modulator_t* mod, double x) {
   return y_new;
 }
 
+/**
+ * @brief Performs 7th-order Sigma-Delta modulation on a single sample.
+ * @see sdm_sample4 for details on the structure and ping-pong buffering.
+ */
 static inline double sdm_sample7(sigma_delta_modulator_t* mod, double x) {
   int current_idx = mod->idx;
   double* s = &mod->non_trellis_state[current_idx * 8];
@@ -400,6 +443,10 @@ static inline double sdm_sample7(sigma_delta_modulator_t* mod, double x) {
   return y_new;
 }
 
+/**
+ * @brief Performs 8th-order Sigma-Delta modulation on a single sample.
+ * @see sdm_sample4 for details on the structure and ping-pong buffering.
+ */
 static inline double sdm_sample8(sigma_delta_modulator_t* mod, double x) {
   int current_idx = mod->idx;
   double* s = &mod->non_trellis_state[current_idx * 8];
@@ -452,6 +499,9 @@ double sigma_delta_modulator_sample(sigma_delta_modulator_t* mod, double x) {
     case 8:
       return sdm_sample8(mod, x);
     default: {
+      // Fallback loop implementation for arbitrary filter orders.
+      // This is less optimized than the hardcoded functions above, but
+      // handles any other supported filter order dynamically using the same CRFB model.
       int current_idx = mod->idx;
       double* s = &mod->non_trellis_state[current_idx * 8];
       double* d = &mod->non_trellis_state[(current_idx ^ 1) * 8];

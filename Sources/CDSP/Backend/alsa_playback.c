@@ -31,47 +31,139 @@ struct alsa_playback {
   snd_mixer_elem_t* pitch_elem;
 };
 
+/**
+ * @brief Open the ALSA playback device.
+ *
+ * Wrapper for alsa_playback_open to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool vtable_open(void* ctx, backend_error_t* err) {
   return alsa_playback_open((alsa_playback_t*)ctx, err);
 }
 
+/**
+ * @brief Write audio samples to the ALSA device.
+ *
+ * Wrapper for alsa_playback_write to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ * @param chunk Audio chunk to write.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool vtable_write(void* ctx, const audio_chunk_t* chunk,
                          backend_error_t* err) {
   return alsa_playback_write((alsa_playback_t*)ctx, chunk, err);
 }
 
+/**
+ * @brief Close the ALSA playback device.
+ *
+ * Wrapper for alsa_playback_close to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ */
 static void vtable_close(void* ctx) {
   alsa_playback_close((alsa_playback_t*)ctx);
 }
 
+/**
+ * @brief Get the current ALSA buffer latency level.
+ *
+ * Wrapper for alsa_playback_get_buffer_level to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ * @return Current buffer level in frames.
+ */
 static size_t vtable_get_buffer_level(void* ctx) {
   return alsa_playback_get_buffer_level((alsa_playback_t*)ctx);
 }
 
+/**
+ * @brief Check for pending rate change.
+ *
+ * Wrapper for alsa_playback_get_pending_rate_change to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ * @param out_rate Pointer to receive the new rate.
+ * @return true if a rate change is pending, false otherwise.
+ */
 static bool vtable_get_rate(void* ctx, double* out_rate) {
   return alsa_playback_get_pending_rate_change((alsa_playback_t*)ctx, out_rate);
 }
 
+/**
+ * @brief Prefill ALSA buffer with silence.
+ *
+ * Wrapper for alsa_playback_prefill_silence to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ * @param frames Number of silence frames to prefill.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool vtable_prefill(void* ctx, size_t frames, backend_error_t* err) {
   return alsa_playback_prefill_silence((alsa_playback_t*)ctx, frames, err);
 }
 
+/**
+ * @brief Get the pause status of the ALSA playback.
+ *
+ * Wrapper for alsa_playback_get_is_paused to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ * @return true if paused, false otherwise.
+ */
 static bool vtable_get_paused(void* ctx) {
   return alsa_playback_get_is_paused((alsa_playback_t*)ctx);
 }
 
+/**
+ * @brief Set the pause status of the ALSA playback.
+ *
+ * Wrapper for alsa_playback_set_is_paused to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ * @param paused true to pause, false to resume.
+ */
 static void vtable_set_paused(void* ctx, bool paused) {
   alsa_playback_set_is_paused((alsa_playback_t*)ctx, paused);
 }
 
+/**
+ * @brief Destroy the ALSA playback context.
+ *
+ * Wrapper for alsa_playback_destroy to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ */
 static void vtable_destroy(void* ctx) {
   alsa_playback_destroy((alsa_playback_t*)ctx);
 }
 
+/**
+ * @brief Check if pitch control is supported by the ALSA device.
+ *
+ * Wrapper for alsa_playback_pitch_control_supported to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ * @return true if pitch control is supported, false otherwise.
+ */
 static bool vtable_pitch_control_supported(void* ctx) {
   return alsa_playback_pitch_control_supported((alsa_playback_t*)ctx);
 }
 
+/**
+ * @brief Set the pitch multiplier for playback.
+ *
+ * Wrapper for alsa_playback_set_pitch to match the backend vtable.
+ *
+ * @param ctx Pointer to the alsa_playback_t context.
+ * @param mult Pitch multiplier.
+ */
 static void vtable_set_pitch(void* ctx, double mult) {
   alsa_playback_set_pitch((alsa_playback_t*)ctx, mult);
 }
@@ -158,6 +250,9 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
     goto error_cleanup;
   }
 
+  // Select format: If a specific format was requested, attempt to use only that.
+  // Otherwise, probe format support in order of preference:
+  // float32 -> int32 -> int24 (3 bytes) -> int16.
   snd_pcm_format_t formats[5];
   size_t num_formats = 0;
   if (playback->has_format) {
@@ -284,6 +379,10 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
   playback->paused = false;
 
   // Initialize mixer for pitch control
+  // Initialize mixer for pitch control.
+  // Queries the ALSA hardware card related to the PCM device and attempts to find
+  // a simple mixer control element named "Playback Pitch 1000000" which is used
+  // to scale the playback speed.
   snd_pcm_info_t* pcm_info;
   snd_pcm_info_alloca(&pcm_info);
   if (snd_pcm_info(playback->pcm, pcm_info) >= 0) {
@@ -332,7 +431,10 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
   size_t frames = audio_chunk_get_valid_frames(chunk);
   if (frames == 0) return true;
 
+  // Convert the input audio chunk (planar double format) to the target interleaved
+  // format buffer. Clip samples to valid range when converting to fixed-point formats.
   if (playback->format == SND_PCM_FORMAT_FLOAT_LE) {
+    // Convert double to float.
     float* dst = (float*)playback->interleaved_buf;
     for (size_t f = 0; f < frames; f++) {
       for (size_t c = 0; c < (size_t)playback->channels; c++) {
@@ -341,6 +443,7 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
       }
     }
   } else if (playback->format == SND_PCM_FORMAT_S32_LE) {
+    // Convert double to 32-bit signed integer.
     int32_t* dst = (int32_t*)playback->interleaved_buf;
     for (size_t f = 0; f < frames; f++) {
       for (size_t c = 0; c < (size_t)playback->channels; c++) {
@@ -353,6 +456,7 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
       }
     }
   } else if (playback->format == SND_PCM_FORMAT_S24_3LE) {
+    // Convert double to 24-bit signed integer, packed in 3 bytes.
     uint8_t* dst = (uint8_t*)playback->interleaved_buf;
     for (size_t f = 0; f < frames; f++) {
       for (size_t c = 0; c < (size_t)playback->channels; c++) {
@@ -369,6 +473,7 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
       }
     }
   } else if (playback->format == SND_PCM_FORMAT_S24_LE) {
+    // Convert double to 24-bit signed integer inside 32-bit containers.
     int32_t* dst = (int32_t*)playback->interleaved_buf;
     for (size_t f = 0; f < frames; f++) {
       for (size_t c = 0; c < (size_t)playback->channels; c++) {
@@ -381,6 +486,7 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
       }
     }
   } else if (playback->format == SND_PCM_FORMAT_FLOAT64_LE) {
+    // Direct copy for double format.
     double* dst = (double*)playback->interleaved_buf;
     for (size_t f = 0; f < frames; f++) {
       for (size_t c = 0; c < (size_t)playback->channels; c++) {
@@ -388,6 +494,7 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
       }
     }
   } else if (playback->format == SND_PCM_FORMAT_S16_LE) {
+    // Convert double to 16-bit signed integer.
     int16_t* dst = (int16_t*)playback->interleaved_buf;
     for (size_t f = 0; f < frames; f++) {
       for (size_t c = 0; c < (size_t)playback->channels; c++) {
@@ -405,6 +512,8 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
     return true;
   }
 
+  // Write interleaved samples to ALSA device.
+  // In case of write failure (e.g., underrun), attempt to recover and retry the write once.
   snd_pcm_sframes_t rc =
       snd_pcm_writei(playback->pcm, playback->interleaved_buf, frames);
   if (rc < 0) {
@@ -499,6 +608,9 @@ bool alsa_playback_pitch_control_supported(alsa_playback_t* playback) {
 
 void alsa_playback_set_pitch(alsa_playback_t* playback, double multiplier) {
   if (!playback || !playback->pitch_elem) return;
+  // Calculate raw pitch value. The pitch element expects a value mapped to 1000000 / multiplier.
+  // A higher multiplier means higher pitch (faster playback), which translates to a smaller
+  // interval value on the control.
   long value = (long)round(1000000.0 / multiplier);
   if (snd_mixer_selem_has_playback_volume(playback->pitch_elem)) {
     snd_mixer_selem_set_playback_volume_all(playback->pitch_elem, value);

@@ -10,6 +10,14 @@
 
 #ifndef __APPLE__
 #define CLOCK_UPTIME_RAW CLOCK_MONOTONIC
+/**
+ * @brief Helper to get the current time in nanoseconds.
+ *
+ * Fallback implementation for non-Apple platforms using clock_gettime.
+ *
+ * @param clock_id The clock identifier (e.g., CLOCK_MONOTONIC).
+ * @return Current time in nanoseconds.
+ */
 static inline uint64_t clock_gettime_nsec_np(int clock_id) {
   struct timespec ts;
   clock_gettime(clock_id, &ts);
@@ -203,8 +211,19 @@ void processing_parameters_set_playback_signal_rms(
   }
 }
 
-/// Lock-free fixed-size `double` level storage update helper.
-/// Maintains a simple interface without allocation on the audio thread.
+/**
+ * @brief Lock-free helper to update audio levels (Peak and RMS) for each channel.
+ *
+ * Calculates peak and RMS values in dB for the active channels in the chunk
+ * and updates the respective atomic storage. It avoids dynamic allocation, making
+ * it suitable for the audio processing thread.
+ *
+ * @param chunk The audio chunk to process.
+ * @param peak_storage Atomic storage array for peak levels.
+ * @param rms_storage Atomic storage array for RMS levels.
+ * @param storage_count Capacity of the storage arrays.
+ * @return The maximum peak level (dB) across all processed channels.
+ */
 static double update_levels_internal(const audio_chunk_t* chunk,
                                      atomic_double_t* peak_storage,
                                      atomic_double_t* rms_storage,

@@ -104,6 +104,15 @@ typedef struct {
 /// format token (S16, S24, S32, F32) — exactly the formats the CoreAudio
 /// backend accepts. Anything else (e.g. 64-bit float, unsigned PCM)
 /// returns an empty string and is filtered out by the caller.
+/**
+ * @brief Map CoreAudio AudioStreamBasicDescription to a string representing the sample format.
+ *
+ * This helper filters formats and maps supported formats to "S16", "S24", "S32", or "F32".
+ * Unsupported formats return an empty string.
+ *
+ * @param asbd Pointer to the AudioStreamBasicDescription to inspect.
+ * @return A string literal ("S16", "S24", "S32", "F32") or an empty string if unsupported.
+ */
 static const char* format_string_for_asbd(
     const AudioStreamBasicDescription* asbd) {
   AudioFormatFlags flags = asbd->mFormatFlags;
@@ -146,6 +155,7 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
     const char* device_name, bool is_capture, device_error_t* err) {
   core_audio_scope_t scope =
       is_capture ? CORE_AUDIO_SCOPE_INPUT : CORE_AUDIO_SCOPE_OUTPUT;
+  // Look up the internal HAL AudioDeviceID for the given device name.
   AudioDeviceID id = core_audio_device_id_for_name(device_name, scope);
   if (id == 0) {
     if (err) {
@@ -154,6 +164,7 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
     return NULL;
   }
 
+  // Allocate the wrapper descriptor structure.
   audio_device_descriptor_t* desc =
       (audio_device_descriptor_t*)calloc(1, sizeof(audio_device_descriptor_t));
   if (!desc) {
@@ -163,24 +174,29 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
     return NULL;
   }
 
+  // Get the actual device name from HAL.
   if (!core_audio_device_name(id, desc->name, sizeof(desc->name))) {
     if (device_name) {
       strncpy(desc->name, device_name, sizeof(desc->name) - 1);
     }
   }
 
+  // Query the list of AudioStreamIDs that belong to this device.
   AudioStreamID streams[32];
   int stream_count = core_audio_device_streams(id, scope, streams, 32);
 
+  // Temporary flat array to collect formats across all streams.
   phys_fmt_t fmts[256];
   int fmt_count = 0;
 
+  // Iterate through each stream to probe its physical formats.
   for (int s = 0; s < stream_count; s++) {
     AudioObjectPropertyAddress addr = {
         .mSelector = kAudioStreamPropertyAvailablePhysicalFormats,
         .mScope = kAudioObjectPropertyScopeGlobal,
         .mElement = kAudioObjectPropertyElementMain};
     uint32_t size = 0;
+    // Query the size of the kAudioStreamPropertyAvailablePhysicalFormats array.
     if (AudioObjectGetPropertyDataSize(streams[s], &addr, 0, NULL, &size) !=
             noErr ||
         size == 0)
@@ -190,10 +206,12 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
         (AudioStreamRangedDescription*)calloc(
             count, sizeof(AudioStreamRangedDescription));
     if (!ranged) continue;
+    // Fetch the actual physical formats array.
     if (AudioObjectGetPropertyData(streams[s], &addr, 0, NULL, &size, ranged) ==
         noErr) {
       for (int i = 0; i < count; i++) {
         AudioStreamBasicDescription asbd = ranged[i].mFormat;
+        // We only support Linear PCM.
         if (asbd.mFormatID != kAudioFormatLinearPCM) continue;
         const char* fmt_str = format_string_for_asbd(&asbd);
         if (fmt_str[0] == '\0') continue;
@@ -203,6 +221,8 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
 
         int rates_to_add[32];
         int rate_cnt = 0;
+        // Resolve sample rates: if it's a fixed value (lo == hi), add that.
+        // If it's a range, intersect it with our list of standard rates (CORE_AUDIO_STANDARD_RATES).
         if (lo == hi) {
           rates_to_add[rate_cnt++] = (int)round(lo);
         } else {
@@ -212,6 +232,8 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
               rates_to_add[rate_cnt++] = CORE_AUDIO_STANDARD_RATES[r];
             }
           }
+          // Also check if the current nominal format sample rate is inside
+          // the range and not already in our list.
           int hint = (int)round(asbd.mSampleRate);
           if (hint > 0) {
             bool found = false;
@@ -227,6 +249,7 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
           }
         }
 
+        // Store combinations in the flat array.
         for (int r = 0; r < rate_cnt; r++) {
           if (fmt_count < 256) {
             fmts[fmt_count].channels = (int)asbd.mChannelsPerFrame;
@@ -240,12 +263,13 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
     free(ranged);
   }
 
-  // Aggregate into desc->capability_sets
+  // Aggregate the flat array into the hierarchically nested capability tree structure:
+  // Channel counts -> Sample rates -> Formats.
   desc->capability_sets =
       (device_capability_set_t*)calloc(1, sizeof(device_capability_set_t));
   desc->capability_sets_count = 1;
 
-  // Find unique channel counts
+  // Find unique channel counts present in the collected formats.
   int unique_ch[32];
   int unique_ch_cnt = 0;
   for (int i = 0; i < fmt_count; i++) {
@@ -266,11 +290,11 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
       unique_ch_cnt, sizeof(channel_capability_t));
   set->capabilities_count = unique_ch_cnt;
 
+  // For each unique channel count, find all the unique sample rates.
   for (int c = 0; c < unique_ch_cnt; c++) {
     channel_capability_t* ch_cap = &set->capabilities[c];
     ch_cap->channels = unique_ch[c];
 
-    // Find unique rates for this ch
     int unique_rate[64];
     int unique_rate_cnt = 0;
     for (int i = 0; i < fmt_count; i++) {
@@ -292,11 +316,11 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
         unique_rate_cnt, sizeof(samplerate_capability_t));
     ch_cap->samplerates_count = unique_rate_cnt;
 
+    // For each combination of channel count and sample rate, extract the unique formats.
     for (int r = 0; r < unique_rate_cnt; r++) {
       samplerate_capability_t* rate_cap = &ch_cap->samplerates[r];
       rate_cap->samplerate = unique_rate[r];
 
-      // Find unique formats for this ch and rate
       char unique_fmt[16][16];
       int unique_fmt_cnt = 0;
       for (int i = 0; i < fmt_count; i++) {

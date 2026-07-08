@@ -46,9 +46,19 @@ struct engine_playback_loop {
   int target_level;
 };
 
-/// Apply a rate-adjust output. Skip if the speed change is
-/// negligible (< 1 ppm) so we don't churn the resampler ratio
-/// pointlessly.
+/**
+ * @brief Applies the calculated speed adjustment to the audio device or resampler.
+ *
+ * This function compares the new speed with the last applied speed. If the change
+ * is greater than 1 ppm (part per million), it updates the speed. Depending on backend
+ * capabilities, it sets the pitch on the capture backend, the playback backend, or
+ * updates the resampler ratio in the shared state.
+ *
+ * @param loop Pointer to the playback loop structure.
+ * @param speed The new speed ratio to apply.
+ * @param last_speed Pointer to the last applied speed ratio (updated if changed).
+ * @param average The average buffer level, used for logging.
+ */
 static void apply_speed(engine_playback_loop_t* loop, double speed,
                         double* last_speed, double average) {
   bool changed = fabs(speed - *last_speed) > 0.000001;
@@ -76,6 +86,11 @@ static void apply_speed(engine_playback_loop_t* loop, double speed,
   }
 }
 
+/**
+ * @brief Logs the configured rate adjustment mode and parameters.
+ *
+ * @param loop Pointer to the playback loop structure.
+ */
 static void log_rate_adjust_mode(engine_playback_loop_t* loop) {
   logger_t logger = logger_create("dsp.playback");
   if (loop->rate_adjust_enabled) {
@@ -162,6 +177,8 @@ void engine_playback_loop_run(engine_playback_loop_t* loop) {
         return;
       }
 
+      // Calculate total buffer level: frames in the hardware playback buffer
+      // plus frames currently queued in the SPSC queue waiting to be written.
       size_t ring_fill = playback_backend_get_buffer_level(loop->playback);
       size_t queued_frames =
           spsc_queue_get_count(loop->shared->processed_queue) *
@@ -174,6 +191,8 @@ void engine_playback_loop_run(engine_playback_loop_t* loop) {
       if (loop->rate_adjust_enabled && rate_controller) {
         averager_add(&averager, (double)(ring_fill + queued_frames));
 
+        // Only run the PI controller periodically to avoid rapid fluctuations
+        // and allow the physical/resampler adjustments to take effect.
         if (stopwatch_elapsed_seconds(&stopwatch) >= loop->adjust_period) {
           double avg = 0.0;
           if (averager_get_average(&averager, &avg)) {

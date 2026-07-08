@@ -1,9 +1,12 @@
-// Resampler protocol + shared types.
-// Four resampler implementations conform to AudioResampler:
-//   * SynchronousResampler — FFT-based fixed-ratio.
-//   * AsyncSincResampler   — Asynchronous windowed-sinc resampler.
-//   * AsyncPolyResampler   — Asynchronous polynomial resampler.
-//   * AppleResampler       — Core Audio AudioConverter wrapper.
+/**
+ * @file audio_resampler.h
+ * @brief Unified interface and wrappers for various audio resampler implementations.
+ *
+ * This file defines the `audio_resampler_t` interface, which abstracts different
+ * resampling algorithms (synchronous, asynchronous sinc, asynchronous polynomial, etc.).
+ * It supports zero-allocation processing on the hot path by requiring pre-allocated
+ * buffers.
+ */
 
 #ifndef CLIB_RESAMPLER_AUDIO_RESAMPLER_H
 #define CLIB_RESAMPLER_AUDIO_RESAMPLER_H
@@ -21,75 +24,165 @@
 #include "apple_resampler.h"
 #endif
 
+/**
+ * @brief Identifiers for the underlying resampler implementations.
+ */
 typedef enum {
+  /** FFT-based fixed-ratio resampler. */
   RESAMPLER_IMPL_SYNCHRONOUS = 0,
+  /** Asynchronous windowed-sinc resampler. */
   RESAMPLER_IMPL_ASYNC_SINC,
+  /** Asynchronous polynomial resampler. */
   RESAMPLER_IMPL_ASYNC_POLY,
 #if defined(ENABLE_COREAUDIO)
+  /** Apple Core Audio AudioConverter wrapper. */
   RESAMPLER_IMPL_APPLE
 #endif
 } resampler_impl_type_t;
 
-/// Resampler protocol.
-///
-/// Each resampler is initialised with a *base* ratio of `outputRate /
-/// inputRate`, a *fixed* `chunkSize` (the number of input frames every
-/// `process` call must receive), and a *relative* multiplier (`1.0` by default)
-/// that the rate-adjust loop nudges to track clock drift. The effective ratio
-/// per chunk is `base * relative`.
-///
-/// Because `chunkSize` is fixed at construction, the implementations
-/// pre-allocate every internal buffer at init and never allocate on the hot
-/// path. The caller must supply pre-allocated output buffers via
-/// `process(input:into:)`.
+/**
+ * @struct audio_resampler
+ * @brief Opaque structure representing an audio resampler instance.
+ *
+ * Concrete resamplers are wrapped in this structure to provide a uniform API.
+ */
 struct audio_resampler;
 typedef struct audio_resampler audio_resampler_t;
 
+/**
+ * @brief Creates an audio resampler based on the provided configuration.
+ *
+ * @param config Configuration parameters for the resampler.
+ * @param input_rate Input sample rate in Hz.
+ * @param output_rate Output sample rate in Hz.
+ * @param channels Number of audio channels.
+ * @param chunk_size Fixed number of input frames expected per process call.
+ * @return A new audio resampler instance, or NULL on error.
+ */
 audio_resampler_t* audio_resampler_create_from_config(
     const resampler_config_t* config, size_t input_rate, size_t output_rate,
     size_t channels, size_t chunk_size);
 
+/**
+ * @brief Wraps a synchronous resampler.
+ *
+ * @param res The synchronous resampler to wrap.
+ * @return An audio resampler instance wrapping the synchronous resampler.
+ */
 audio_resampler_t* audio_resampler_wrap_synchronous(
     synchronous_resampler_t* res);
+
+/**
+ * @brief Wraps an asynchronous sinc resampler.
+ *
+ * @param res The async sinc resampler to wrap.
+ * @return An audio resampler instance wrapping the async sinc resampler.
+ */
 audio_resampler_t* audio_resampler_wrap_async_sinc(async_sinc_resampler_t* res);
+
+/**
+ * @brief Wraps an asynchronous polynomial resampler.
+ *
+ * @param res The async polynomial resampler to wrap.
+ * @return An audio resampler instance wrapping the async polynomial resampler.
+ */
 audio_resampler_t* audio_resampler_wrap_async_poly(async_poly_resampler_t* res);
+
 #if defined(ENABLE_COREAUDIO)
+/**
+ * @brief Wraps an Apple resampler.
+ *
+ * @param res The Apple resampler to wrap.
+ * @return An audio resampler instance wrapping the Apple resampler.
+ */
 audio_resampler_t* audio_resampler_wrap_apple(apple_resampler_t* res);
 #endif
 
-/// Zero-allocation API. The caller pre-allocates `output` with
-/// `output.channels == channels` and `output.frames >= maxOutputFrames`.
-/// The resampler writes the produced samples in place and updates
-/// `output.validFrames`.
-///
-/// Throws `ResamplerError.inputSizeMismatch` if `input.validFrames` does
-/// not equal `chunkSize`, `outputBufferTooSmall` if the per-channel buffers
-/// can't fit the output, or `channelCountMismatch` if the channel layout
-/// doesn't match.
+/**
+ * @brief Processes a chunk of audio data.
+ *
+ * This function performs the resampling. It is a zero-allocation call.
+ * The caller must pre-allocate the output buffer.
+ *
+ * @param resampler The resampler instance.
+ * @param input The input audio chunk. `input->validFrames` must equal `chunk_size`.
+ * @param output The output audio chunk. Must have capacity for at least the worst-case
+ *               number of output frames (see @ref audio_resampler_get_max_output_frames).
+ *               This function updates `output->validFrames` with the actual number of
+ *               frames written.
+ * @return @ref RESAMPLER_OK on success, or an error code on failure.
+ */
 resampler_error_t audio_resampler_process(audio_resampler_t* resampler, const audio_chunk_t* input, audio_chunk_t* output);
 
-/// Apply a multiplicative correction on top of the base ratio.
-/// `SynchronousResampler` ignores this (its ratio is fixed by
-/// construction).
+/**
+ * @brief Adjusts the resampling ratio dynamically.
+ *
+ * Applies a multiplicative correction factor to the base resampling ratio.
+ * Note: Synchronous resamplers may ignore this adjustment.
+ *
+ * @param resampler The resampler instance.
+ * @param multiplier The correction factor (e.g. 1.0001 to slightly increase output rate).
+ */
 void audio_resampler_set_relative_ratio(audio_resampler_t* resampler, double multiplier);
 
-/// Current effective ratio (`base * relative`).
+/**
+ * @brief Gets the current effective resampling ratio.
+ *
+ * The effective ratio is `base_ratio * relative_ratio`.
+ *
+ * @param resampler The resampler instance.
+ * @return The current resampling ratio as a double.
+ */
 double audio_resampler_get_ratio(const audio_resampler_t* resampler);
 
-/// Worst-case output frames across the resampler's allowed ratio range —
-/// use this to size the output `AudioChunk` once at startup.
+/**
+ * @brief Gets the maximum number of output frames that could be generated.
+ *
+ * Use this to size the output buffer before calling @ref audio_resampler_process.
+ *
+ * @param resampler The resampler instance.
+ * @return The maximum number of output frames.
+ */
 size_t audio_resampler_get_max_output_frames(const audio_resampler_t* resampler);
 
-/// Input frames the resampler expects on every `process` call.
+/**
+ * @brief Gets the fixed input chunk size expected by the resampler.
+ *
+ * @param resampler The resampler instance.
+ * @return The expected input chunk size in frames.
+ */
 size_t audio_resampler_get_chunk_size(const audio_resampler_t* resampler);
 
-/// Number of channels processed per call.
+/**
+ * @brief Gets the number of channels the resampler is configured for.
+ *
+ * @param resampler The resampler instance.
+ * @return The number of audio channels.
+ */
 size_t audio_resampler_get_channels(const audio_resampler_t* resampler);
 
+/**
+ * @brief Frees the audio resampler instance and its resources.
+ *
+ * @param resampler The resampler instance to free.
+ */
 void audio_resampler_free(audio_resampler_t* resampler);
 
+/**
+ * @brief Parses a sinc interpolation type from a string representation.
+ *
+ * @param str String representing the interpolation type (e.g. "linear", "cubic").
+ * @return The corresponding sinc interpolation type enum value.
+ */
 sinc_interpolation_type_t sinc_interpolation_type_from_string(const char* str);
-/// Polynomial degree exposed by `AsyncPolyResampler`.
+
+/**
+ * @brief Parses a polynomial interpolation type from a string representation.
+ *
+ * @param str String representing the interpolation type.
+ * @return The corresponding polynomial interpolation type enum value.
+ */
 poly_interpolation_t poly_interpolation_from_string(const char* str);
 
 #endif  // CLIB_RESAMPLER_AUDIO_RESAMPLER_H
+

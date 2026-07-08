@@ -100,6 +100,13 @@ struct IASIO {
   const IASIOVtbl* lpVtbl;
 };
 
+/**
+ * @brief Searches the Windows Registry to find the CLSID of an ASIO driver by name.
+ *
+ * @param driver_name Name of the ASIO driver.
+ * @param out_clsid Pointer to a CLSID structure to receive the result.
+ * @return true if the CLSID was successfully found, false otherwise.
+ */
 static bool find_asio_driver_caps_clsid(const char* driver_name,
                                         CLSID* out_clsid) {
   HKEY hk;
@@ -249,6 +256,8 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
   cap->channels = (int)target_channels;
 
   // Probe supported sample rates
+  // Probe supported sample rates from a predefined list.
+  // We use the ASIO driver's canSampleRate method to check each rate.
   const double PROBE_RATES[] = {
       5512.0,   8000.0,   11025.0,  16000.0,  22050.0, 32000.0,
       44100.0,  48000.0,  64000.0,  88200.0,  96000.0, 176400.0,
@@ -259,13 +268,15 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
       PROBE_RATES_COUNT, sizeof(samplerate_capability_t));
   size_t valid_rates_count = 0;
 
-  // Probe format of first channel
+  // Probe native sample format of the first channel.
+  // ASIO usually expects all channels to share the same sample type.
   ASIOChannelInfo chan_info;
   memset(&chan_info, 0, sizeof(chan_info));
   chan_info.channel = 0;
   chan_info.isInput = is_capture ? ASIOTrue : ASIOFalse;
   iasio->lpVtbl->getChannelInfo(iasio, &chan_info);
 
+  // Map the ASIO-specific sample format to our internal format string representation.
   const char* native_fmt_name = "S32_LE";  // fallback
   if (chan_info.type == ASIOSTInt16LSB)
     native_fmt_name = "S16_LE";

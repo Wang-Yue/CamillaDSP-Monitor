@@ -156,7 +156,7 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
     return SPECTRUM_ERROR_EMPTY;
   }
 
-  // 1. Apply Hann window in-place
+  // 1. Apply Hann window in-place to reduce spectral leakage
 #ifdef ENABLE_ACCELERATE
   vDSP_vmul(analyzer->data, 1, analyzer->window, 1, analyzer->data, 1,
             analyzer->fft_n);
@@ -166,7 +166,8 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   }
 #endif
 
-  // 2. Perform FFT using reusable split-complex buffers
+  // 2. Perform FFT using reusable split-complex buffers.
+  // Uses vDSP on macOS/iOS or falls back to a custom double-precision FFT.
   size_t half_n = analyzer->fft_n / 2;
 #ifdef ENABLE_ACCELERATE
   DSPSplitComplex split_complex = {analyzer->realp, analyzer->imagp};
@@ -182,13 +183,12 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
                    analyzer->fft_re_d, analyzer->fft_im_d);
 #endif
 
-  // 3. Compute magnitudes in dB directly into preallocated arrays
+  // 3. Compute magnitudes in dBFS directly into preallocated arrays
   float scale = 2.0f / (float)analyzer->fft_n;
-  float floor_val = 1e-10f;
+  float floor_val = 1e-10f; // Threshold to prevent log10(0)
 
 #ifdef ENABLE_ACCELERATE
-  // Calculate magnitudes of complex bins [1 .. half_n - 1] via vector absolute
-  // value
+  // Calculate magnitudes of complex bins [1 .. half_n - 1] via vector absolute value
   DSPSplitComplex split_complex1 = {analyzer->realp + 1, analyzer->imagp + 1};
   vDSP_zvabs(&split_complex1, 1, analyzer->magnitudes + 1, 1,
              (vDSP_Length)(half_n - 1));
@@ -196,7 +196,7 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   vDSP_vsmul(analyzer->magnitudes + 1, 1, &scale, analyzer->magnitudes + 1, 1,
              (vDSP_Length)(half_n - 1));
 
-  // Set DC and Nyquist bins
+  // Set DC and Nyquist bins (handled specially in vDSP packed format)
   analyzer->magnitudes[0] = fabsf(analyzer->realp[0]) / (float)analyzer->fft_n;
   analyzer->magnitudes[half_n] =
       fabsf(analyzer->imagp[0]) / (float)analyzer->fft_n;
@@ -209,6 +209,7 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   vDSP_vdbcon(analyzer->magnitudes, 1, &ref, analyzer->db_magnitudes, 1,
               (vDSP_Length)(half_n + 1), 1);
 #else
+  // Manual magnitude calculation for fallback FFT
   analyzer->magnitudes[0] =
       fabsf((float)analyzer->fft_re_d[0]) / (float)analyzer->fft_n;
   analyzer->magnitudes[half_n] =
@@ -227,6 +228,7 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
 #endif
 
   // 4. Geometric Binning via Cached Plan
+  // Reallocate buffers if the requested number of bins exceeds current capacity.
   if (n_bins > analyzer->out_capacity) {
     size_t new_cap = spsc_audio_ring_buffer_round_up_to_power_of_two(n_bins);
     float* new_freqs =
@@ -248,6 +250,8 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
     analyzer->out_capacity = new_cap;
   }
 
+  // Recompute the logarithmic binning plan if parameters changed.
+  // This maps output frequency bins to ranges of FFT bins.
   if (analyzer->plan.min_freq != min_freq ||
       analyzer->plan.max_freq != max_freq || analyzer->plan.n_bins != n_bins ||
       analyzer->plan.samplerate != samplerate) {
@@ -260,12 +264,14 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
       double center_f = pow(10.0, center_log);
       analyzer->plan.frequencies[i] = (float)center_f;
 
+      // Define frequency boundaries for this bin
       double low_log = i > 0 ? center_log - step / 2.0 : log_min;
       double high_log = i < n_bins - 1 ? center_log + step / 2.0 : log_max;
 
       double low_f = pow(10.0, low_log);
       double high_f = pow(10.0, high_log);
 
+      // Convert frequency boundaries to FFT bin indices
       int low_k =
           (int)floor(low_f * (double)analyzer->fft_n / (double)samplerate);
       int high_k =
@@ -283,6 +289,8 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
     analyzer->plan.samplerate = samplerate;
   }
 
+  // Map FFT magnitudes to the output bins.
+  // For each output bin, we take the maximum magnitude within its mapped FFT bin range.
   for (size_t i = 0; i < n_bins; i++) {
     bin_range_t range = analyzer->plan.ranges[i];
     int start = range.low_k > 0 ? range.low_k : 0;
@@ -302,6 +310,8 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
 #endif
       analyzer->out_magnitudes[i] = max_val;
     } else {
+      // If the range doesn't cover any FFT bin (e.g. low frequencies with small FFT),
+      // fallback to the nearest FFT bin.
       int k = range.nearest_k;
       if (k < 0) k = 0;
       if (k > (int)half_n) k = (int)half_n;

@@ -21,6 +21,14 @@ void dsp_state_free(dsp_state_t* state) {
   free(state);
 }
 
+/**
+ * @brief Helper function to trim trailing whitespace and newline characters from a string.
+ *
+ * Modifies the input string in-place by replacing trailing whitespace, carriage returns,
+ * and line feeds with null terminators.
+ *
+ * @param str The string to trim.
+ */
 static void trim_trailing(char* str) {
   size_t len = strlen(str);
   while (len > 0 && (str[len - 1] == '\r' || str[len - 1] == '\n' ||
@@ -38,7 +46,11 @@ bool dsp_state_load(const char* filename, dsp_state_t* out_state) {
   memset(out_state, 0, sizeof(dsp_state_t));
 
   char line[1024];
-  int mode = 0;  // 0 = root, 1 = mute list, 2 = volume list
+  // Parser state machine mode:
+  // 0: Root level key-value pairs
+  // 1: Processing the elements of the 'mute' list
+  // 2: Processing the elements of the 'volume' list
+  int mode = 0;
   int mute_idx = 0;
   int vol_idx = 0;
 
@@ -50,7 +62,9 @@ bool dsp_state_load(const char* filename, dsp_state_t* out_state) {
       continue;
     }
 
-    // Check indentation to determine if we exited a list
+    // YAML-like parser: Check indentation to determine if we exited a list.
+    // List elements are expected to be indented (e.g. by 2 spaces).
+    // If indentation is less than 2 spaces, we assume we have returned to the root level.
     int indent = 0;
     while (line[indent] == ' ' || line[indent] == '\t') {
       indent++;
@@ -117,7 +131,9 @@ bool dsp_state_load(const char* filename, dsp_state_t* out_state) {
 bool dsp_state_save(const char* filename, const dsp_state_t* state) {
   if (!filename || !state) return false;
 
-  // Save to a temporary file first, then rename (atomic write)
+  // Save to a temporary file first, then rename to the target filename.
+  // This ensures an atomic write, preventing corruption of the state file
+  // if the process is interrupted or crashes during write.
   char tmp_name[1024];
   snprintf(tmp_name, sizeof(tmp_name), "%s.tmp", filename);
 

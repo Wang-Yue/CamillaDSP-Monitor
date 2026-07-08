@@ -70,8 +70,12 @@ void engine_shared_state_request_stop(engine_shared_state_t* state,
                                       processing_stop_reason_t reason) {
   if (!state) return;
   bool expected = false;
+  // Atomically check if the stop reason has already been recorded.
+  // We use a first-reason-wins strategy to preserve the root cause of the stop.
   if (atomic_compare_exchange_strong(&state->stop_reason_written, &expected, true)) {
     state->stop_reason = reason;
   }
+  // Store should_stop with release ordering so the write becomes visible
+  // to the capture, processing, and playback loops immediately on their next check.
   atomic_store_explicit(&state->should_stop, true, memory_order_release);
 }

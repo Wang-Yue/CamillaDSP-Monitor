@@ -50,10 +50,12 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
     A = pow(10.0, gain / 40.0);
 
     // Compute effective Q if bandwidth or slope is present
+    // Bandwidth to Q conversion: Q = 1 / (2 * sinh(ln(2)/2 * BW * w0 / sin(w0)))
     if (params->steepness_type == STEEPNESS_TYPE_BANDWIDTH) {
       double bw = params->bandwidth;
       q = 1.0 / (2.0 * sinh(log(2.0) / 2.0 * bw * w0 / sin_w0));
     } else if (params->steepness_type == STEEPNESS_TYPE_SLOPE) {
+      // Slope to Q conversion: Q = 1 / sqrt((A + 1/A) * (1/S - 1) + 2)
       double slope_s = params->slope / 12.0;
       q = 1.0 / sqrt((A + 1.0 / A) * (1.0 / slope_s - 1.0) + 2.0);
     }
@@ -74,6 +76,8 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
       break;
 
     case BIQUAD_TYPE_GENERAL_NOTCH: {
+      // General notch filter allows independent control of notch frequency and pole frequency.
+      // Uses bilinear transform.
       double freq_z = params->freq_notch > 0 ? params->freq_notch : 1000.0;
       double freq_p = params->freq_pole > 0 ? params->freq_pole : 1000.0;
       double q_p =
@@ -84,6 +88,7 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
       double alpha_p = tn_p / q_p;
       double tn2_p = tn_p * tn_p;
       double tn2_z = tn_z * tn_z;
+      // Optional normalization to ensure 0 dB gain at DC.
       double gain_norm = normalize ? (tn2_p / tn2_z) : 1.0;
       b0 = gain_norm * (1.0 + tn2_z);
       b1 = -2.0 * gain_norm * (1.0 - tn2_z);
@@ -95,6 +100,9 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
     }
 
     case BIQUAD_TYPE_LINKWITZ_TRANSFORM: {
+      // Linkwitz Transform compensates for the low frequency roll-off of a speaker
+      // in a sealed box and replaces it with a new target response (lower Fc, different Q).
+      // Act: actual speaker parameters. Target: desired parameters.
       double freq_act = params->freq_act > 0 ? params->freq_act : 50.0;
       double q_act = params->q_act > 0 ? params->q_act : 0.707;
       double freq_target = params->freq_target > 0 ? params->freq_target : 25.0;
@@ -250,11 +258,16 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
 double biquad_coefficients_gain_db(const biquad_coefficients_t* coeffs,
                                    double f, int sample_rate) {
   if (!coeffs || sample_rate <= 0) return 0.0;
+  // Calculate angular frequency w = 2*pi*f/Fs
   double w = 2.0 * M_PI * f / (double)sample_rate;
   double cos_w = cos(w);
   double sin_w = sin(w);
   double cos_2w = cos(2.0 * w);
   double sin_2w = sin(2.0 * w);
+  // H(z) = (b0 + b1*z^-1 + b2*z^-2) / (1 + a1*z^-1 + a2*z^-2)
+  // Substitute z = e^(jw) = cos(w) + j*sin(w)
+  // z^-1 = cos(w) - j*sin(w)
+  // z^-2 = cos(2w) - j*sin(2w)
   double num_re = coeffs->b0 + coeffs->b1 * cos_w + coeffs->b2 * cos_2w;
   double num_im = -coeffs->b1 * sin_w - coeffs->b2 * sin_2w;
   double den_re = 1.0 + coeffs->a1 * cos_w + coeffs->a2 * cos_2w;
@@ -269,17 +282,23 @@ double biquad_coefficients_gain_db(const biquad_coefficients_t* coeffs,
 double biquad_coefficients_phase_rad(const biquad_coefficients_t* coeffs,
                                      double f, int sample_rate) {
   if (!coeffs || sample_rate <= 0) return 0.0;
+  // Calculate angular frequency w = 2*pi*f/Fs
   double w = 2.0 * M_PI * f / (double)sample_rate;
   double cos_w = cos(w);
   double sin_w = sin(w);
   double cos_2w = cos(2.0 * w);
   double sin_2w = sin(2.0 * w);
+  // H(z) = Num(z) / Den(z)
+  // Substitute z = e^(jw)
   double num_re = coeffs->b0 + coeffs->b1 * cos_w + coeffs->b2 * cos_2w;
   double num_im = -coeffs->b1 * sin_w - coeffs->b2 * sin_2w;
   double den_re = 1.0 + coeffs->a1 * cos_w + coeffs->a2 * cos_2w;
   double den_im = -coeffs->a1 * sin_w - coeffs->a2 * sin_2w;
   double den_mag_sq = den_re * den_re + den_im * den_im;
   if (den_mag_sq <= 0.0) return 0.0;
+  // H(e^(jw)) = (Num_re + j*Num_im) / (Den_re + j*Den_im)
+  //           = ((Num_re + j*Num_im) * (Den_re - j*Den_im)) / |Den|^2
+  //           = (Num_re*Den_re + Num_im*Den_im + j*(Num_im*Den_re - Num_re*Den_im)) / |Den|^2
   double h_re = (num_re * den_re + num_im * den_im) / den_mag_sq;
   double h_im = (num_im * den_re - num_re * den_im) / den_mag_sq;
   return atan2(h_im, h_re);
@@ -319,6 +338,9 @@ void biquad_filter_process(biquad_filter_t* filter, mutable_waveform_t waveform,
   double* output_ptr = waveform;
   vDSP_biquadmD(filter->setup, &signal_ptr, 1, &output_ptr, 1, count);
 #else
+  // Direct Form II Transposed (DF2T) implementation.
+  // This structure is preferred for floating-point implementation as it
+  // has better numerical properties and is easy to implement.
   double b0 = filter->coeffs.b0;
   double b1 = filter->coeffs.b1;
   double b2 = filter->coeffs.b2;

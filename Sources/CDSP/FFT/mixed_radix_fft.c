@@ -66,6 +66,11 @@ struct mixed_radix_fft {
   double* work_im;
 };
 
+/**
+ * @brief Wrapper for the mixed-radix FFT execution.
+ *
+ * Conforms to the arbitrary_complex_fft_t interface.
+ */
 static void mixed_radix_fft_execute_wrapper(void* ctx, waveform_t real_in,
                                             waveform_t imag_in,
                                             mutable_waveform_t real_out,
@@ -75,14 +80,29 @@ static void mixed_radix_fft_execute_wrapper(void* ctx, waveform_t real_in,
                           imag_out, inverse);
 }
 
+/**
+ * @brief Wrapper for the mixed-radix FFT free function.
+ *
+ * Conforms to the arbitrary_complex_fft_t interface.
+ */
 static void mixed_radix_fft_free_wrapper(void* ctx) {
   mixed_radix_fft_free((mixed_radix_fft_t*)ctx);
 }
 
-/// Apply radix-2 butterflies across `n / (m·2)` blocks of size `m·2`.
-/// Twiddle table layout: twRe[j·m + k] for j ∈ {0, 1}, k ∈ [0, m). The
-/// SIMD2 path processes pairs of `k` for `m ≥ 2`; the scalar tail handles
-/// odd `m` (and the m=1 stages where the k loop has just one iteration).
+/**
+ * @brief Apply radix-2 butterflies across `n / (m·2)` blocks of size `m·2`.
+ *
+ * Twiddle table layout: twRe[j·m + k] for j ∈ {0, 1}, k ∈ [0, m).
+ *
+ * Computes:
+ *   v0 = x0 + x1 * tw
+ *   v1 = x0 - x1 * tw
+ *
+ * @param fft Pointer to the FFT context.
+ * @param m Current subblock size.
+ * @param tw_re Real part of twiddle factors.
+ * @param tw_im Imaginary part of twiddle factors.
+ */
 static inline void stage_radix2(mixed_radix_fft_t* fft, int m,
                                 const double* tw_re, const double* tw_im) {
   int block_size = m * 2;
@@ -106,7 +126,23 @@ static inline void stage_radix2(mixed_radix_fft_t* fft, int m,
   }
 }
 
-/// Apply radix-3 butterflies. Same layout as radix-2.
+/**
+ * @brief Apply radix-3 butterflies. Same layout as radix-2.
+ *
+ * Uses the standard radix-3 DFT formulation:
+ *   s = v1 + v2
+ *   d = v1 - v2
+ *   a = v0 - 0.5 * s
+ *   b = i * sin(2π/3) * d
+ *   O[0] = v0 + s
+ *   O[1] = a + b
+ *   O[2] = a - b
+ *
+ * @param fft Pointer to the FFT context.
+ * @param m Current subblock size.
+ * @param tw_re Real part of twiddle factors.
+ * @param tw_im Imaginary part of twiddle factors.
+ */
 static inline void stage_radix3(mixed_radix_fft_t* fft, int m,
                                 const double* tw_re, const double* tw_im) {
   int block_size = m * 3;
@@ -149,12 +185,18 @@ static inline void stage_radix3(mixed_radix_fft_t* fft, int m,
   }
 }
 
-/// Apply radix-4 butterflies. The inner DFT is multiplication-free —
-/// the four 4th-roots of unity are `{1, -i, -1, i}`, so the inner
-/// stage is just adds and ±i swaps. Only the 3 outer-stage twiddles
-/// (`v[1], v[2], v[3]`) cost real multiplies.
-///
-/// SIMD2 path over consecutive `k` pairs; scalar tail for odd `m`.
+/**
+ * @brief Apply radix-4 butterflies.
+ *
+ * The inner DFT is multiplication-free — the four 4th-roots of unity are
+ * `{1, -i, -1, i}`, so the inner stage is just adds and ±i swaps.
+ * Only the 3 outer-stage twiddles (`v[1], v[2], v[3]`) cost real multiplies.
+ *
+ * @param fft Pointer to the FFT context.
+ * @param m Current subblock size.
+ * @param tw_re Real part of twiddle factors.
+ * @param tw_im Imaginary part of twiddle factors.
+ */
 static inline void stage_radix4(mixed_radix_fft_t* fft, int m,
                                 const double* tw_re, const double* tw_im) {
   int block_size = m * 4;
@@ -203,19 +245,25 @@ static inline void stage_radix4(mixed_radix_fft_t* fft, int m,
   }
 }
 
-/// Apply radix-5 butterflies.
-///
-/// Output layout uses the conjugate-pair factoring trick:
-///
-///     O[k] = v0 + Σ_p W^(p·k) · v_p,  W = exp(-2πi/5)
-///
-/// Outputs `O[1]` and `O[4]` differ only in the sign of the `W^(p·k)·v_p`
-/// imaginary parts (since `W^4 = conj(W)`); same for `O[2]` and `O[3]`
-/// (since `W^3 = conj(W²)`). Pre-compute a "common" w_R-weighted sum and
-/// a "twist" w_I-weighted sum once per pair, then assemble the four
-/// outputs as `r0 ± common ± twist`. Cuts the multiplies per butterfly
-/// from ~48 to ~32 (-33 %) without changing the scalar tail's
-/// arithmetic identity.
+/**
+ * @brief Apply radix-5 butterflies.
+ *
+ * Output layout uses the conjugate-pair factoring trick:
+ *     O[k] = v0 + Σ_p W^(p·k) · v_p,  W = exp(-2πi/5)
+ *
+ * Outputs `O[1]` and `O[4]` differ only in the sign of the `W^(p·k)·v_p`
+ * imaginary parts (since `W^4 = conj(W)`); same for `O[2]` and `O[3]`
+ * (since `W^3 = conj(W²)`). Pre-compute a "common" w_R-weighted sum and
+ * a "twist" w_I-weighted sum once per pair, then assemble the four
+ * outputs as `r0 ± common ± twist`. Cuts the multiplies per butterfly
+ * from ~48 to ~32 (-33 %) without changing the scalar tail's
+ * arithmetic identity.
+ *
+ * @param fft Pointer to the FFT context.
+ * @param m Current subblock size.
+ * @param tw_re Real part of twiddle factors.
+ * @param tw_im Imaginary part of twiddle factors.
+ */
 static inline void stage_radix5(mixed_radix_fft_t* fft, int m,
                                 const double* tw_re, const double* tw_im) {
   int block_size = m * 5;
@@ -297,20 +345,24 @@ static inline void stage_radix5(mixed_radix_fft_t* fft, int m,
   }
 }
 
-/// Apply radix-7 butterflies. Direct DFT — 6 unique pairs of conjugate
-/// twiddles. Compute each output as `v0 + Σ pair-products`.
-///
-/// The six non-DC outputs come in three conjugate pairs:
-/// `(O[1], O[6])`, `(O[2], O[5])`, `(O[3], O[4])` — each pair shares a
-/// w_R-weighted "common" term and a w_I-weighted "twist" term, with
-/// only the twist's sign (and the imag flip) distinguishing the two
-/// outputs in a pair. This factoring cuts the multiplies per butterfly
-/// from ~96 to ~60 (-38 %) versus computing each output from scratch.
-///
-/// Two paths: for `m ≥ 2`, the inner `k` loop is unrolled by 2 with NEON
-/// `SIMD2<Double>` so each butterfly's 6 twiddle multiplies + 6 sum/diff
-/// pairs + 7 outputs run on 2 lanes simultaneously. The scalar tail
-/// applies the same conjugate-pair factoring without SIMD2 loads/stores.
+/**
+ * @brief Apply radix-7 butterflies.
+ *
+ * Direct DFT — 6 unique pairs of conjugate twiddles. Compute each output as
+ * `v0 + Σ pair-products`.
+ *
+ * The six non-DC outputs come in three conjugate pairs:
+ * `(O[1], O[6])`, `(O[2], O[5])`, `(O[3], O[4])` — each pair shares a
+ * w_R-weighted "common" term and a w_I-weighted "twist" term, with
+ * only the twist's sign (and the imag flip) distinguishing the two
+ * outputs in a pair. This factoring cuts the multiplies per butterfly
+ * from ~96 to ~60 (-38 %) versus computing each output from scratch.
+ *
+ * @param fft Pointer to the FFT context.
+ * @param m Current subblock size.
+ * @param tw_re Real part of twiddle factors.
+ * @param tw_im Imaginary part of twiddle factors.
+ */
 static inline void stage_radix7(mixed_radix_fft_t* fft, int m,
                                 const double* tw_re, const double* tw_im) {
   int block_size = m * 7;
@@ -420,13 +472,21 @@ static inline void stage_radix7(mixed_radix_fft_t* fft, int m,
   }
 }
 
-/// Apply radix-8 butterflies. The inner DFT is computed via DIT
-/// decomposition into two radix-4s (even-indexed and odd-indexed),
-/// then combined with the trivial 8th-root twiddles
-/// `W_8^k = exp(-2πi·k/8)`. Multiplications cost only the constant
-/// `√2/2` for the k=1 and k=3 inner twiddles — k=0 is free, k=2 is
-/// `-i` (free), so no real-coefficient multiplies on the inner DFT
-/// beyond the two `√2/2` cross-terms.
+/**
+ * @brief Apply radix-8 butterflies.
+ *
+ * The inner DFT is computed via DIT decomposition into two radix-4s (even-indexed
+ * and odd-indexed), then combined with the trivial 8th-root twiddles
+ * `W_8^k = exp(-2πi·k/8)`. Multiplications cost only the constant
+ * `√2/2` for the k=1 and k=3 inner twiddles — k=0 is free, k=2 is
+ * `-i` (free), so no real-coefficient multiplies on the inner DFT
+ * beyond the two `√2/2` cross-terms.
+ *
+ * @param fft Pointer to the FFT context.
+ * @param m Current subblock size.
+ * @param tw_re Real part of twiddle factors.
+ * @param tw_im Imaginary part of twiddle factors.
+ */
 static inline void stage_radix8(mixed_radix_fft_t* fft, int m,
                                 const double* tw_re, const double* tw_im) {
   int block_size = m * 8;

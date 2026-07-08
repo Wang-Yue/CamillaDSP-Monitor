@@ -74,26 +74,37 @@ void diffeq_filter_process(diffeq_filter_t* filter, mutable_waveform_t waveform,
   size_t idx_x = filter->idx_x;
   size_t idx_y = filter->idx_y;
 
+  // Process each sample through the difference equation:
+  // y[n] = b[0]*x[n] + b[1]*x[n-1] + ... + b[N]*x[n-N] - a[1]*y[n-1] - ... - a[M]*y[n-M]
+  // x and y are implemented as circular buffers to store historical samples.
   for (size_t i = 0; i < count; i++) {
+    // Advance circular buffer write indices
     idx_x = (idx_x + 1) % nb;
     idx_y = (idx_y + 1) % na;
+    
+    // Store current input sample
     x[idx_x] = waveform[i];
 
     double out = 0.0;
+    // Compute feedforward part: sum(b[n] * x[n-i])
     for (size_t n = 0; n < nb; n++) {
-      size_t n_idx = (idx_x + nb - n) % nb;
+      size_t n_idx = (idx_x + nb - n) % nb; // Retrieve x[n-i]
       out += b[n] * x[n_idx];
     }
+    // Compute feedback part: sum(a[p] * y[p-j])
     for (size_t p = 1; p < na; p++) {
-      size_t p_idx = (idx_y + na - p) % na;
+      size_t p_idx = (idx_y + na - p) % na; // Retrieve y[n-j]
       out -= a[p] * y[p_idx];
     }
+    
+    // Store current output sample and update waveform
     y[idx_y] = out;
     waveform[i] = out;
   }
   filter->idx_x = idx_x;
   filter->idx_y = idx_y;
 }
+
 
 void diffeq_filter_update_parameters(diffeq_filter_t* filter,
                                      const filter_config_t* config,

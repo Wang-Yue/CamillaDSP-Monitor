@@ -55,6 +55,15 @@
 // few samples after activation don't produce a click.
 #define DOP_SILENCE_BYTE 0x69
 
+/**
+ * @brief Computes the modified Bessel function of the first kind of order zero, I0(x).
+ *
+ * This function uses a power series expansion to approximate I0(x).
+ * It is used in the calculation of the Kaiser window.
+ *
+ * @param x The input value.
+ * @return The approximated value of I0(x).
+ */
 static double bessel_i0(double x) {
   double sum = 1.0;
   double denominator = 1.0;
@@ -82,6 +91,25 @@ static double bessel_i0(double x) {
 /// the most recent byte is the lower byte of the frame's 16-bit DSD
 /// payload and bit 0 of that byte is the latest of the frame's 16
 /// DSD samples (LSB-first within byte = newer first within byte).
+/**
+ * @brief Precomputes the convolution lookup tables for DSD-to-PCM decimation.
+ *
+ * This function designs a 511-tap Kaiser-windowed sinc lowpass filter and then
+ * reformats it into a set of 64 lookup tables (one for each byte offset in the
+ * 64-byte DSD FIFO). Each lookup table has 256 entries, corresponding to the
+ * 256 possible values of a DSD byte. The table entry precomputes the sum of
+ * the 8 filter coefficients multiplied by the corresponding DSD bits (+1.0 for 1,
+ * -1.0 for 0). This allows the convolution to be performed using simple table
+ * lookups instead of bit-by-bit multiplication and accumulation on the hot path.
+ *
+ * The filter design is a lowpass filter with a cutoff frequency relative to the
+ * DSD rate (which is 16 times the PCM sample rate).
+ *
+ * @param sample_rate The PCM sample rate (carrier rate).
+ * @param cutoff_hz The desired cutoff frequency in Hz.
+ * @return A pointer to the allocated flat array of lookup tables (size 64 * 256 doubles),
+ *         or NULL on allocation failure.
+ */
 static double* build_ctables(double sample_rate, double cutoff_hz) {
   double beta = 11.0;
   double dsd_rate = sample_rate * 16.0;
@@ -156,6 +184,28 @@ dop_decoder_t* dop_decoder_create(int channels, double sample_rate,
   return dec;
 }
 
+/**
+ * @brief Processes a single channel's audio buffer, detecting and decoding DoP.
+ *
+ * This function iterates through the input PCM samples. For each sample:
+ * 1. It extracts the DoP marker and the DSD payload. It dynamically detects
+ *    whether the container is 24-bit or 32-bit by looking for valid markers
+ *    in both formats.
+ * 2. It validates the marker (must be 0x05 or 0xFA and must alternate).
+ * 3. It updates a hysteretic state machine. If enough valid markers are seen
+ *    (DOP_ACTIVATE_THRESHOLD), it locks on (is_active = true). If too many invalid
+ *    markers are seen (DOP_DEACTIVATE_THRESHOLD), it loses lock.
+ * 4. If locked or warming up, it pushes the extracted DSD bytes (hi, then lo)
+ *    into the channel's ring FIFO.
+ * 5. If locked, it performs the DSD-to-PCM decimation filter by summing values
+ *    from the precomputed lookup tables indexed by the FIFO bytes, and overwrites
+ *    the input PCM sample with the decoded and scaled PCM value.
+ *
+ * @param state Pointer to the per-channel decoder state.
+ * @param buf The audio buffer to be processed in-place.
+ * @param frames The number of frames in the buffer.
+ * @param tables Pointer to the precomputed convolution lookup tables.
+ */
 static void process_channel(dop_decoder_channel_state_t* state,
                             mutable_waveform_t buf, size_t frames,
                             const double* tables) {
@@ -171,6 +221,8 @@ static void process_channel(dop_decoder_channel_state_t* state,
     // 23..16 of int24). MPD's flavor encodes a true 32-bit value
     // 0xff05XXXX / 0xfffaXXXX where the top byte sign-extends and the
     // marker is still at bits 23..16 — same shift, different float scale.
+    
+    // Scale float to 32-bit integer range to check for 32-bit container DoP.
     double v32 = round(raw * 2147483648.0);
     int32_t val32 = 0;
     if (v32 >= 2147483647.0)
@@ -181,6 +233,7 @@ static void process_channel(dop_decoder_channel_state_t* state,
       val32 = (int32_t)v32;
     uint8_t marker32 = (uint8_t)(((uint32_t)val32 >> 16) & 0xFF);
 
+    // Scale float to 24-bit integer range to check for 24-bit container DoP.
     double v24 = round(raw * 8388608.0);
     int32_t val24 = 0;
     if (v24 >= 8388607.0)
@@ -191,6 +244,7 @@ static void process_channel(dop_decoder_channel_state_t* state,
       val24 = (int32_t)v24;
     uint8_t marker24 = (uint8_t)(((uint32_t)val24 >> 16) & 0xFF);
 
+    // If container size is not yet known, detect it based on where we see valid markers.
     if (!state->container_known) {
       if (marker32 == 0x05 || marker32 == 0xFA) {
         state->is_32bit_container = true;
@@ -210,24 +264,29 @@ static void process_channel(dop_decoder_channel_state_t* state,
     bool alternates = (state->last_marker == 0 || marker != state->last_marker);
     bool valid = is_marker_valid && alternates;
 
+    // Hysteretic state machine updates:
     if (valid) {
       state->consec_valid++;
       state->consec_invalid = 0;
       state->last_marker = marker;
+      // Confirm container choice after 4 consecutive valid frames.
       if (!state->container_known && state->consec_valid >= 4) {
         state->container_known = true;
       }
+      // Lock on if we exceed the activation threshold.
       if (!state->is_active && state->consec_valid >= DOP_ACTIVATE_THRESHOLD) {
         state->is_active = true;
       }
     } else {
       state->consec_invalid++;
       state->consec_valid = 0;
+      // Lose lock only if we exceed the deactivation threshold (hysteresis).
       if (state->consec_invalid >= DOP_DEACTIVATE_THRESHOLD) {
         state->last_marker = 0;
         state->container_known = false;
         if (state->is_active) {
           state->is_active = false;
+          // Fill FIFO with DSD silence to prevent clicks on transition back to PCM.
           memset(fifo, DOP_SILENCE_BYTE, DOP_FIFO_SIZE);
           pos = 0;
         }
@@ -251,6 +310,7 @@ static void process_channel(dop_decoder_channel_state_t* state,
     }
 
     if (state->is_active) {
+      // Decode DSD to PCM using the precomputed tables.
       // y[n] = Σ_{i<numCtables} ctables[i][fifo[(pos-1-i) & mask]].
       // ctable[i] precomputes the contribution of bits 0..7 of the
       // byte at offset `i` to filter taps i*8 .. i*8+7 — see

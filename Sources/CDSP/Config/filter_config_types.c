@@ -492,6 +492,12 @@ int biquad_parameters_validate(const biquad_parameters_t* params,
   // lie strictly inside the unit circle.
   biquad_coefficients_t coeffs;
   if (biquad_coefficients_compute(params, sample_rate, &coeffs)) {
+    /* Verify filter stability using the stability triangle criteria for a second-order IIR filter.
+     * The poles of the transfer function H(z) must reside inside the unit circle.
+     * This requires:
+     *   1. |a2| < 1
+     *   2. |a1| < 1 + a2
+     * If these are violated, the filter is unstable. */
     if (fabs(coeffs.a2) >= 1.0 || fabs(coeffs.a1) >= 1.0 + coeffs.a2) {
       if (err)
         config_error_set(err, CONFIG_ERR_INVALID_FILTER, "unstable biquad");

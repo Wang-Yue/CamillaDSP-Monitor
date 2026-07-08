@@ -106,8 +106,10 @@ audio_history_buffer_status_t audio_history_buffer_read_latest(
   }
   if (!dest || count == 0) return AUDIO_HISTORY_BUFFER_OK;
 
-  // Find the minimum written count across all channels to keep them
-  // perfectly phase-aligned in case of concurrent producer writes.
+  // Phase alignment logic: Find the minimum total samples written across all
+  // channels. This ensures that when we read "latest" samples, we read from
+  // the same point in time (phase-aligned) even if the producer is currently
+  // writing to some channels but has not finished all of them.
   uint64_t min_written = UINT64_MAX;
   for (size_t ch = 0; ch < history->channels; ch++) {
     if (!history->buffers[ch]) continue;
@@ -117,10 +119,12 @@ audio_history_buffer_status_t audio_history_buffer_read_latest(
       min_written = w;
     }
   }
+  // If we haven't even written 'count' samples yet overall, we can't satisfy the request.
   if (min_written == UINT64_MAX || min_written < (uint64_t)count) {
     return AUDIO_HISTORY_BUFFER_OK;
   }
 
+  // If a specific channel is requested, read it directly and return.
   if (channel >= 0) {
     bool ok = spsc_audio_ring_buffer_read_latest_at(history->buffers[channel],
                                                     dest, count, min_written);
@@ -128,10 +132,13 @@ audio_history_buffer_status_t audio_history_buffer_read_latest(
     return AUDIO_HISTORY_BUFFER_OK;
   }
 
+  // Otherwise, we need to average all channels.
   if (!history->averaging_scratch || count > AUDIO_HISTORY_BUFFER_CAPACITY) {
     return AUDIO_HISTORY_BUFFER_OK;
   }
 
+  // Step 1: Read channel 0 directly into the destination buffer.
+  // This avoids having to initialize dest to zero and perform an extra copy.
   bool ok = spsc_audio_ring_buffer_read_latest_at(history->buffers[0], dest,
                                                   count, min_written);
   if (!ok) return AUDIO_HISTORY_BUFFER_OK;
@@ -141,27 +148,29 @@ audio_history_buffer_status_t audio_history_buffer_read_latest(
     return AUDIO_HISTORY_BUFFER_OK;
   }
 
-  // Average across channels into `dest`. Read channel 0 directly into
-  // `dest` to avoid a zeroing pass, then accumulate the rest into a
-  // preallocated scratch buffer and add+divide.
+  // Step 2: Read subsequent channels into scratch memory and accumulate into dest.
   for (size_t ch = 1; ch < history->channels; ch++) {
     ok = spsc_audio_ring_buffer_read_latest_at(
         history->buffers[ch], history->averaging_scratch, count, min_written);
     if (!ok) return AUDIO_HISTORY_BUFFER_OK;
 #ifdef ENABLE_ACCELERATE
-    // dest += scratch (vectorised, no allocation).
+    // Use Apple's Accelerate framework for hardware-accelerated vector addition.
     vDSP_vadd(dest, 1, history->averaging_scratch, 1, dest, 1, count);
 #else
+    // Fallback naive loop if Accelerate is not available.
     for (size_t i = 0; i < count; i++) {
       dest[i] += history->averaging_scratch[i];
     }
 #endif
   }
 
+  // Step 3: Scale the accumulated sum to get the average.
   float scale = 1.0f / (float)history->channels;
 #ifdef ENABLE_ACCELERATE
+  // Hardware-accelerated vector scaling.
   vDSP_vsmul(dest, 1, &scale, dest, 1, count);
 #else
+  // Fallback naive loop.
   for (size_t i = 0; i < count; i++) {
     dest[i] *= scale;
   }

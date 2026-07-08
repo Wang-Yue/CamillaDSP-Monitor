@@ -30,6 +30,17 @@ struct jack_capture {
   logger_t logger;
 };
 
+/**
+ * @brief JACK process callback for capture.
+ * 
+ * Called by JACK server in its real-time thread context.
+ * Reads audio from JACK ports and writes to internal ring buffers.
+ * Signals the semaphore to notify the reading thread.
+ * 
+ * @param nframes Number of frames to process.
+ * @param arg Pointer to jack_capture_t.
+ * @return 0 on success.
+ */
 static int jack_capture_process_cb(jack_nframes_t nframes, void* arg) {
   jack_capture_t* capture = (jack_capture_t*)arg;
   if (!capture->active) return 0;
@@ -47,6 +58,15 @@ static int jack_capture_process_cb(jack_nframes_t nframes, void* arg) {
   return 0;
 }
 
+/**
+ * @brief JACK sample rate change callback for capture.
+ * 
+ * Called by JACK server when the sample rate changes.
+ * 
+ * @param nframes New sample rate.
+ * @param arg Pointer to jack_capture_t.
+ * @return 0.
+ */
 static int jack_capture_sample_rate_cb(jack_nframes_t nframes, void* arg) {
   jack_capture_t* capture = (jack_capture_t*)arg;
   if ((int)nframes != capture->sample_rate) {
@@ -59,6 +79,13 @@ static int jack_capture_sample_rate_cb(jack_nframes_t nframes, void* arg) {
   return 0;
 }
 
+/**
+ * @brief JACK shutdown callback for capture.
+ * 
+ * Called by JACK server on shutdown. Marks backend as inactive and signals semaphore.
+ * 
+ * @param arg Pointer to jack_capture_t.
+ */
 static void jack_capture_shutdown_cb(void* arg) {
   jack_capture_t* capture = (jack_capture_t*)arg;
   capture->active = false;
@@ -67,40 +94,41 @@ static void jack_capture_shutdown_cb(void* arg) {
                log_arg_none(), log_arg_none(), log_arg_none());
 }
 
+/** @brief Vtable wrapper for jack_capture_destroy. */
 static void vtable_capture_destroy(void* ctx) {
   jack_capture_destroy((jack_capture_t*)ctx);
 }
-
+/** @brief Vtable wrapper for jack_capture_open. */
 static bool vtable_capture_open(void* ctx, backend_error_t* err) {
   return jack_capture_open((jack_capture_t*)ctx, err);
 }
-
+/** @brief Vtable wrapper for jack_capture_read. */
 static bool vtable_capture_read(void* ctx, size_t frames, audio_chunk_t* chunk,
                                 backend_error_t* err) {
   return jack_capture_read((jack_capture_t*)ctx, frames, chunk, err);
 }
-
+/** @brief Vtable wrapper for jack_capture_close. */
 static void vtable_capture_close(void* ctx) {
   jack_capture_close((jack_capture_t*)ctx);
 }
-
+/** @brief Vtable wrapper for jack_capture_get_pending_rate_change. */
 static bool vtable_capture_get_pending_rate_change(void* ctx,
                                                    double* out_rate) {
   return jack_capture_get_pending_rate_change((jack_capture_t*)ctx, out_rate);
 }
-
+/** @brief Vtable wrapper for jack_capture_pitch_control_supported. */
 static bool vtable_capture_pitch_supported(void* ctx) {
   return jack_capture_pitch_control_supported((jack_capture_t*)ctx);
 }
-
+/** @brief Vtable wrapper for jack_capture_set_pitch. */
 static void vtable_capture_set_pitch(void* ctx, double multiplier) {
   jack_capture_set_pitch((jack_capture_t*)ctx, multiplier);
 }
-
+/** @brief Vtable wrapper for jack_capture_wait. */
 static bool vtable_capture_wait(void* ctx, uint32_t timeout_ms) {
   return jack_capture_wait((jack_capture_t*)ctx, timeout_ms);
 }
-
+/** @brief Vtable wrapper for jack_capture_set_is_paused. */
 static void vtable_capture_set_paused(void* ctx, bool paused) {
   (void)ctx;
   (void)paused;
@@ -234,6 +262,8 @@ bool jack_capture_read(jack_capture_t* capture, size_t frames,
     return false;
   }
 
+  // Block the calling thread if there is not enough data in the ring buffer.
+  // The JACK process callback will signal the semaphore when it writes new data.
   while (spsc_audio_ring_buffer_get_available_to_read(capture->buffers[0]) <
          frames) {
     engine_sem_wait(capture->sem);
@@ -333,6 +363,17 @@ struct jack_playback {
   logger_t logger;
 };
 
+/**
+ * @brief JACK process callback for playback.
+ * 
+ * Called by JACK server in its real-time thread context.
+ * Consumes audio from internal ring buffers and writes to JACK ports.
+ * Signals the semaphore to notify the writing thread.
+ * 
+ * @param nframes Number of frames to process.
+ * @param arg Pointer to jack_playback_t.
+ * @return 0 on success.
+ */
 static int jack_playback_process_cb(jack_nframes_t nframes, void* arg) {
   jack_playback_t* playback = (jack_playback_t*)arg;
   if (!playback->active) {
@@ -358,6 +399,15 @@ static int jack_playback_process_cb(jack_nframes_t nframes, void* arg) {
   return 0;
 }
 
+/**
+ * @brief JACK sample rate change callback for playback.
+ * 
+ * Called by JACK server when the sample rate changes.
+ * 
+ * @param nframes New sample rate.
+ * @param arg Pointer to jack_playback_t.
+ * @return 0.
+ */
 static int jack_playback_sample_rate_cb(jack_nframes_t nframes, void* arg) {
   jack_playback_t* playback = (jack_playback_t*)arg;
   if ((int)nframes != playback->sample_rate) {
@@ -370,6 +420,13 @@ static int jack_playback_sample_rate_cb(jack_nframes_t nframes, void* arg) {
   return 0;
 }
 
+/**
+ * @brief JACK shutdown callback for playback.
+ * 
+ * Called by JACK server on shutdown. Marks backend as inactive and signals semaphore.
+ * 
+ * @param arg Pointer to jack_playback_t.
+ */
 static void jack_playback_shutdown_cb(void* arg) {
   jack_playback_t* playback = (jack_playback_t*)arg;
   playback->active = false;
@@ -378,50 +435,51 @@ static void jack_playback_shutdown_cb(void* arg) {
                log_arg_none(), log_arg_none(), log_arg_none());
 }
 
+/** @brief Vtable wrapper for jack_playback_destroy. */
 static void vtable_playback_destroy(void* ctx) {
   jack_playback_destroy((jack_playback_t*)ctx);
 }
-
+/** @brief Vtable wrapper for jack_playback_open. */
 static bool vtable_playback_open(void* ctx, backend_error_t* err) {
   return jack_playback_open((jack_playback_t*)ctx, err);
 }
-
+/** @brief Vtable wrapper for jack_playback_write. */
 static bool vtable_playback_write(void* ctx, const audio_chunk_t* chunk,
                                   backend_error_t* err) {
   return jack_playback_write((jack_playback_t*)ctx, chunk, err);
 }
-
+/** @brief Vtable wrapper for jack_playback_close. */
 static void vtable_playback_close(void* ctx) {
   jack_playback_close((jack_playback_t*)ctx);
 }
-
+/** @brief Vtable wrapper for jack_playback_get_buffer_level. */
 static size_t vtable_playback_get_buffer_level(void* ctx) {
   return jack_playback_get_buffer_level((jack_playback_t*)ctx);
 }
-
+/** @brief Vtable wrapper for jack_playback_get_pending_rate_change. */
 static bool vtable_playback_get_pending_rate_change(void* ctx,
                                                     double* out_rate) {
   return jack_playback_get_pending_rate_change((jack_playback_t*)ctx, out_rate);
 }
-
+/** @brief Vtable wrapper for jack_playback_prefill_silence. */
 static bool vtable_playback_prefill_silence(void* ctx, size_t frames,
                                             backend_error_t* err) {
   return jack_playback_prefill_silence((jack_playback_t*)ctx, frames, err);
 }
-
+/** @brief Vtable wrapper for jack_playback_get_is_paused. */
 static bool vtable_playback_get_is_paused(void* ctx) {
   return jack_playback_get_is_paused((jack_playback_t*)ctx);
 }
-
+/** @brief Vtable wrapper for jack_playback_set_is_paused. */
 static void vtable_playback_set_is_paused(void* ctx, bool paused) {
   jack_playback_set_is_paused((jack_playback_t*)ctx, paused);
 }
-
+/** @brief Vtable wrapper for jack_playback_pitch_control_supported. */
 static bool vtable_playback_pitch_supported(void* ctx) {
   (void)ctx;
   return false;
 }
-
+/** @brief Vtable wrapper for jack_playback_set_pitch. */
 static void vtable_playback_set_pitch(void* ctx, double multiplier) {
   (void)ctx;
   (void)multiplier;
@@ -562,6 +620,8 @@ bool jack_playback_write(jack_playback_t* playback, const audio_chunk_t* chunk,
 
   size_t frames = audio_chunk_get_valid_frames(chunk);
 
+  // Block the calling thread if there is not enough space in the ring buffer.
+  // The JACK process callback will signal the semaphore when it consumes data.
   while (spsc_audio_ring_buffer_get_available_to_write(playback->buffers[0]) <
          frames) {
     engine_sem_wait(playback->sem);

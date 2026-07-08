@@ -18,6 +18,14 @@ struct lookahead_limiter_filter {
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @brief Computes delay in samples from a given delay value and unit.
+ * 
+ * @param delay The delay value.
+ * @param unit The unit of the delay (ms, us, samples, or mm).
+ * @param sample_rate The current audio sample rate.
+ * @return The equivalent delay in fractional samples.
+ */
 static double compute_delay_samples(double delay, delay_unit_t unit,
                                     int sample_rate) {
   switch (unit) {
@@ -28,12 +36,22 @@ static double compute_delay_samples(double delay, delay_unit_t unit,
     case DELAY_UNIT_SAMPLES:
       return delay;
     case DELAY_UNIT_MM:
+      // Uses speed of sound = 343 m/s to convert distance to time
       return delay / 1000.0 * (double)sample_rate / 343.0;
     default:
       return delay;
   }
 }
 
+/**
+ * @brief Parses parameters and computes internal filter settings.
+ * 
+ * @param params User-provided filter parameters.
+ * @param sample_rate The sample rate.
+ * @param out_limit Output pointer for the computed linear gain limit.
+ * @param out_attack_samples Output pointer for attack time in samples.
+ * @param out_release_coeff Output pointer for exponential release coefficient.
+ */
 static void configure(const lookahead_limiter_parameters_t* params,
                       int sample_rate, double* out_limit,
                       int* out_attack_samples, double* out_release_coeff) {
@@ -52,6 +70,12 @@ static void configure(const lookahead_limiter_parameters_t* params,
   }
 }
 
+/**
+ * @brief Pushes a sample into the lookahead circular buffer, overwriting the oldest sample.
+ * 
+ * @param filter The limiter filter instance.
+ * @param sample The input sample value.
+ */
 static inline void push_overwrite(lookahead_limiter_filter_t* filter,
                                   double sample) {
   filter->lookahead_data[filter->lookahead_write_index] = sample;
@@ -61,6 +85,13 @@ static inline void push_overwrite(lookahead_limiter_filter_t* filter,
       (filter->lookahead_read_index + 1) % filter->lookahead_capacity;
 }
 
+/**
+ * @brief Retrieves a sample from the circular lookahead buffer at an offset from read index.
+ * 
+ * @param filter The limiter filter instance.
+ * @param idx Offset relative to the current read index.
+ * @return The sample value.
+ */
 static inline double get_occupied(lookahead_limiter_filter_t* filter,
                                   size_t idx) {
   size_t real_idx =
@@ -108,22 +139,47 @@ lookahead_limiter_filter_t* lookahead_limiter_filter_create(
   return filter;
 }
 
+/**
+ * @brief Processes a slice of the waveform.
+ * 
+ * This function implements a two-pass lookahead limiter algorithm:
+ * 1. A backward pass that scans future samples (including the lookahead delay buffer)
+ *    and calculates the required gain reduction to prevent clipping, applying a linear 
+ *    ramp-down (attack) leading up to any peak.
+ * 2. A forward pass that applies an exponential release to the gain reduction envelope.
+ * 3. Finally, it applies the computed gain envelope to the delayed input samples.
+ * 
+ * @param filter The limiter filter instance.
+ * @param waveform The current block of audio samples to process.
+ * @param len The length of the slice (must be <= output_buffer_capacity).
+ */
 static void process_slice(lookahead_limiter_filter_t* filter,
                           mutable_waveform_t waveform, size_t len) {
+  // The oldest sample in the lookahead buffer (delay line) starts at this offset relative
+  // to the capacity.
   size_t lookahead_start = filter->lookahead_capacity - filter->attack_samples;
   double peak = 1.0;
   int samples_since_peak = filter->attack_samples + 1;
 
-  // Backward pass
+  // Backward pass: Scan from the future (end of the new waveform block)
+  // to the past (oldest samples in the delay line).
+  // This calculates the necessary gain reduction to smoothly anticipate peaks.
   for (int i = (int)(filter->attack_samples + len) - 1; i >= 0; i--) {
     double input_sample;
     if (i < filter->attack_samples) {
+      // Access samples in the lookahead delay line (older inputs).
       input_sample = get_occupied(filter, lookahead_start + i);
     } else {
+      // Access new input samples from the current block.
       input_sample = waveform[i - filter->attack_samples];
     }
+    
     double amplitude = fabs(input_sample);
+    // If the sample exceeds the limit, compute the required attenuation factor.
     double gain = amplitude > filter->limit ? (filter->limit / amplitude) : 1.0;
+    
+    // Smoothly ramp down the gain leading up to a peak (going backward, this
+    // looks like ramping up to 1.0 from the peak).
     double ramp_gain = 1.0;
     if (samples_since_peak <= filter->attack_samples) {
       double ramp =
@@ -132,28 +188,36 @@ static void process_slice(lookahead_limiter_filter_t* filter,
       ramp_gain = 1.0 - (ramp * (1.0 - peak));
       samples_since_peak++;
     }
+    
+    // If the current sample requires more attenuation than the ramp,
+    // establish a new peak.
     if (gain < ramp_gain) {
       peak = gain;
       samples_since_peak = 1;
     } else {
       gain = ramp_gain;
     }
+    
+    // We only output gain values for the current block (length len).
     if (i < (int)len) {
       filter->output_buffer[i] = gain;
     }
   }
 
-  // Forward pass
+  // Forward pass: Apply exponential release to the gain envelope.
   for (size_t i = 0; i < len; i++) {
+    // Release gain exponentially towards 1.0 using pow() in the log/dB domain.
     filter->release_gain = pow(filter->release_gain, filter->release_coeff);
     if (filter->output_buffer[i] < filter->release_gain) {
+      // Instantaneous gain reduction if the peak requires it.
       filter->release_gain = filter->output_buffer[i];
     } else {
+      // Apply the slower release gain.
       filter->output_buffer[i] = filter->release_gain;
     }
   }
 
-  // Apply gain reduction
+  // Apply gain reduction: Multiply the delayed input samples by the computed gain.
   for (size_t i = 0; i < len; i++) {
     double input_sample;
     if (i < (size_t)filter->attack_samples) {
@@ -164,7 +228,9 @@ static void process_slice(lookahead_limiter_filter_t* filter,
     filter->output_buffer[i] *= input_sample;
   }
 
-  // Update lookahead buffer / Output
+  // Update lookahead buffer and Output:
+  // Push the current raw input into the lookahead delay buffer,
+  // and write the computed limited samples to the output waveform.
   for (size_t i = 0; i < len; i++) {
     push_overwrite(filter, waveform[i]);
     waveform[i] = filter->output_buffer[i];

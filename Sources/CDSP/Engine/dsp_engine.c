@@ -15,17 +15,32 @@ static bool dsp_engine_is_state_dirty(const dsp_engine_t* engine);
 static void dsp_engine_set_state_dirty(dsp_engine_t* engine, bool dirty);
 static char* dsp_engine_get_config_path(const dsp_engine_t* engine);
 
+/**
+ * @brief Callback triggered when a chunk is captured by the audio engine core.
+ * Appends the chunk to the capture history buffer.
+ *
+ * @param ctx Pointer to the audio_history_buffer_t capture buffer.
+ * @param chunk Pointer to the captured audio_chunk_t.
+ */
 static void engine_on_chunk_captured_callback(void* ctx,
                                               const audio_chunk_t* chunk) {
   audio_history_buffer_t* buf = (audio_history_buffer_t*)ctx;
   if (buf && chunk) audio_history_buffer_append(buf, chunk);
 }
 
+/**
+ * @brief Callback triggered when a chunk is processed (played back) by the audio engine core.
+ * Appends the chunk to the playback history buffer.
+ *
+ * @param ctx Pointer to the audio_history_buffer_t playback buffer.
+ * @param chunk Pointer to the processed audio_chunk_t.
+ */
 static void engine_on_chunk_processed_callback(void* ctx,
                                                const audio_chunk_t* chunk) {
   audio_history_buffer_t* buf = (audio_history_buffer_t*)ctx;
   if (buf && chunk) audio_history_buffer_append(buf, chunk);
 }
+
 
 dsp_engine_t* dsp_engine_create(void) {
   dsp_engine_t* engine = (dsp_engine_t*)calloc(1, sizeof(dsp_engine_t));
@@ -70,6 +85,10 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
                                   audio_backend_error_t* err) {
   if (!engine || !config) return false;
 
+  // 1. Hot Reload attempt:
+  // If the engine core is currently running, and the new configuration's device properties
+  // (e.g. backend, sample rate, channels, buffer sizes) match the running configuration,
+  // we can reload the filters/routing pipeline dynamically without tearing down audio threads.
   if (engine->core &&
       dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
     if (memcmp(&engine->core->current_config->devices, &config->devices,
@@ -78,6 +97,7 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
       if (dsp_engine_core_reload_config(engine->core, config, &berr)) {
         return true;
       } else {
+        // Hot reload failed. Stop and clean up the core before failing.
         dsp_engine_core_stop(
             engine->core, (processing_stop_reason_t){.type = STOP_REASON_NONE});
         dsp_engine_core_free(engine->core);
@@ -88,6 +108,9 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
     }
   }
 
+  // 2. Cold Reload:
+  // If hot reload is not possible (device configuration changed or core is not running),
+  // we must stop and destroy the existing core, which shuts down the capture/playback loops.
   if (engine->core &&
       dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
     dsp_engine_core_stop(engine->core,
@@ -98,6 +121,7 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
     engine->core = NULL;
   }
 
+  // Create the new engine core with the new configuration
   dsp_engine_core_t* core = dsp_engine_core_create(config);
   if (!core) {
     dsp_config_free(config);
@@ -108,6 +132,7 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
     return false;
   }
 
+  // Persist fader levels and mute states across config change
   for (int i = 0; i < FADER_COUNT; i++) {
     double vol = engine->desired_fader_volumes[i];
     bool mute = engine->desired_fader_mutes[i];
@@ -119,6 +144,7 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
                                               (fader_t)i);
   }
 
+  // Resize history buffers to match the new channel counts
   audio_history_buffer_reset(
       engine->capture_buffer,
       capture_device_config_get_channels(&config->devices.capture));
@@ -126,11 +152,13 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
       engine->playback_buffer,
       playback_device_config_get_channels(&config->devices.playback));
 
+  // Connect callbacks to feed captured/playback data chunks into history buffers
   core->on_chunk_captured = engine_on_chunk_captured_callback;
   core->on_chunk_captured_ctx = engine->capture_buffer;
   core->on_chunk_processed = engine_on_chunk_processed_callback;
   core->on_chunk_processed_ctx = engine->playback_buffer;
 
+  // Start the audio engine core (spawns capture & playback loops/threads)
   audio_backend_error_t start_err;
   if (!dsp_engine_core_start(core, &start_err)) {
     dsp_engine_core_free(core);
@@ -142,6 +170,7 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
   engine->has_last_stop_reason = false;
   return true;
 }
+
 
 bool dsp_engine_set_config(dsp_engine_t* engine, const char* json,
                            audio_backend_error_t* err) {
@@ -665,6 +694,17 @@ static void iface_set_config_path(void* ctx, const char* path) {
   if (ctx) dsp_engine_set_config_path((dsp_engine_t*)ctx, path);
 }
 
+/**
+ * @brief Checks if the running audio threads have requested the engine to stop.
+ *
+ * Querying the atomic flag `should_stop` from the core's shared state informs the main engine
+ * thread that a thread has failed (e.g. buffer underrun/overrun, device disconnected, etc.)
+ * and the engine needs to halt processing.
+ *
+ * @param engine Pointer to the dsp_engine_t instance.
+ * @param out_reason Pointer to write the stop reason details into (optional).
+ * @return true if a stop has been requested, false otherwise.
+ */
 static bool dsp_engine_check_stop_requested(dsp_engine_t* engine, processing_stop_reason_t* out_reason) {
   if (!engine || !engine->core || !engine->core->shared) return false;
   bool req = atomic_load_explicit(&engine->core->shared->should_stop, memory_order_acquire);
@@ -687,6 +727,12 @@ void dsp_engine_set_state_file(dsp_engine_t* engine, const char* path) {
   pthread_mutex_unlock(&engine->state_mutex);
 }
 
+/**
+ * @brief Thread-safe getter for the state file path.
+ *
+ * @param engine Pointer to the dsp_engine_t instance.
+ * @return The state file path string, or NULL if none set.
+ */
 static const char* dsp_engine_get_state_file(const dsp_engine_t* engine) {
   if (!engine) return NULL;
   pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
@@ -695,6 +741,12 @@ static const char* dsp_engine_get_state_file(const dsp_engine_t* engine) {
   return path;
 }
 
+/**
+ * @brief Thread-safe check to see if there are unsaved state changes (dirty flag).
+ *
+ * @param engine Pointer to the dsp_engine_t instance.
+ * @return true if there are unsaved fader/config path updates, false otherwise.
+ */
 static bool dsp_engine_is_state_dirty(const dsp_engine_t* engine) {
   if (!engine) return false;
   pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
@@ -703,6 +755,12 @@ static bool dsp_engine_is_state_dirty(const dsp_engine_t* engine) {
   return dirty;
 }
 
+/**
+ * @brief Thread-safe setter for the unsaved changes dirty flag.
+ *
+ * @param engine Pointer to the dsp_engine_t instance.
+ * @param dirty Whether the engine has unsaved changes.
+ */
 static void dsp_engine_set_state_dirty(dsp_engine_t* engine, bool dirty) {
   if (!engine) return;
   pthread_mutex_lock(&engine->state_mutex);
@@ -724,6 +782,12 @@ void dsp_engine_set_config_path(dsp_engine_t* engine, const char* path) {
   pthread_mutex_unlock(&engine->state_mutex);
 }
 
+/**
+ * @brief Thread-safe getter for the active configuration file path.
+ *
+ * @param engine Pointer to the dsp_engine_t instance.
+ * @return An allocated copy of the active config path, or NULL. Must be freed by caller.
+ */
 static char* dsp_engine_get_config_path(const dsp_engine_t* engine) {
   if (!engine) return NULL;
   pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
@@ -738,13 +802,17 @@ static char* dsp_engine_get_config_path(const dsp_engine_t* engine) {
 void dsp_engine_poll(dsp_engine_t* engine) {
   if (!engine) return;
 
-  // 1. Process stop request from loop threads
+  // 1. Process asynchronous stop requests from the loop threads (e.g. ALSA errors).
+  // If the background thread encountered a fatal error and requested a stop, we stop and free
+  // the core resources here on the main controller thread.
   processing_stop_reason_t stop_reason;
   if (dsp_engine_check_stop_requested(engine, &stop_reason)) {
     dsp_engine_stop(engine);
   }
 
-  // 2. Save state file if dirty
+  // 2. State persistence serialization:
+  // If any fader positions or configuration path values have changed since the last poll,
+  // serialize them to the configured state file so the state is restored on engine restart.
   pthread_mutex_lock(&engine->state_mutex);
   bool dirty = engine->unsaved_state_changes;
   bool has_state = engine->has_state_file_path;

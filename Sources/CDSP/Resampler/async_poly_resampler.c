@@ -75,6 +75,9 @@ async_poly_resampler_t* async_poly_resampler_create(
   // Set initial index based on number of points.
   resampler->last_index = -((double)resampler->interpolator_len / 2.0);
 
+  /* Compute a conservative upper bound on output frames for the worst-case (highest) resampling ratio.
+     This bounds the size of scratch space and prevents dynamic reallocation.
+     'most_neg_last_index' occurs when the tracking index starts as far left as possible. */
   double most_neg_last_index = -((double)resampler->interpolator_len / 2.0);
   double max_ratio_abs = resampler->base_ratio * max_relative_ratio;
   double raw_max =
@@ -131,6 +134,15 @@ size_t async_poly_resampler_get_channels(
   return resampler ? resampler->channels : 0;
 }
 
+/**
+ * @brief Computes the number of output frames expected for the current block.
+ *
+ * It uses the average ratio between current and target resampling ratios,
+ * and accounts for the current index offset (`last_index`) and filter group delay.
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @return Estimated number of output frames.
+ */
 static inline size_t get_next_output_frames(
     const async_poly_resampler_t* resampler) {
   // Calculate output size for input
@@ -144,6 +156,15 @@ static inline size_t get_next_output_frames(
   return (size_t)floor(raw);
 }
 
+/**
+ * @brief Performs linear polynomial interpolation on input buffer.
+ *
+ * Loops over channels and output frames, interpolating between the two nearest samples.
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @param output_frames Number of output frames to generate.
+ * @param output Output chunk to store interpolated samples.
+ */
 static void run_linear(async_poly_resampler_t* resampler, size_t output_frames,
                        audio_chunk_t* output) {
   size_t n_len = resampler->interpolator_len;
@@ -165,6 +186,13 @@ static void run_linear(async_poly_resampler_t* resampler, size_t output_frames,
   }
 }
 
+/**
+ * @brief Performs cubic polynomial interpolation (4-point Lagrange/Newton form).
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @param output_frames Number of output frames to generate.
+ * @param output Output chunk to store interpolated samples.
+ */
 static void run_cubic(async_poly_resampler_t* resampler, size_t output_frames,
                       audio_chunk_t* output) {
   size_t n_len = resampler->interpolator_len;  // 4
@@ -194,6 +222,13 @@ static void run_cubic(async_poly_resampler_t* resampler, size_t output_frames,
   }
 }
 
+/**
+ * @brief Performs quintic polynomial interpolation (6-point Lagrange/Newton form).
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @param output_frames Number of output frames to generate.
+ * @param output Output chunk to store interpolated samples.
+ */
 static void run_quintic(async_poly_resampler_t* resampler, size_t output_frames,
                         audio_chunk_t* output) {
   size_t n_len = resampler->interpolator_len;  // 6
@@ -234,6 +269,15 @@ static void run_quintic(async_poly_resampler_t* resampler, size_t output_frames,
   }
 }
 
+/**
+ * @brief Performs septic polynomial interpolation (8-point Lagrange/Newton form).
+ *
+ * Uses Horner's method to evaluate the polynomial coefficients efficiently.
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @param output_frames Number of output frames to generate.
+ * @param output Output chunk to store interpolated samples.
+ */
 static void run_septic(async_poly_resampler_t* resampler, size_t output_frames,
                        audio_chunk_t* output) {
   size_t n_len = resampler->interpolator_len;  // 8
@@ -303,6 +347,9 @@ resampler_error_t async_poly_resampler_process(
   size_t two_n_len = 2 * n_len;
 
   // Shift buffer + write new chunk wait-free and crash-safe.
+  /* Shift the historical samples from the end of the previous chunk (of length 2 * n_len)
+     to the beginning of the buffer. This history buffer is necessary for interpolators 
+     requiring lookback (e.g. cubic or quintic interpolation look at historical points). */
   for (size_t ch = 0; ch < resampler->channels; ch++) {
     double* base = audio_buffers_get_channel(resampler->input_buffer, ch);
     if (!base) continue;
@@ -316,7 +363,12 @@ resampler_error_t async_poly_resampler_process(
            resampler->chunk_size * sizeof(double));
   }
 
-  // Pre-compute idx and frac per output frame.
+  /* Pre-compute idx and frac per output frame.
+     Interpolate/ramp the time increments smoothly across the block.
+     t_ratio is the current sample step duration. We step through the block, updating the
+     virtual time index `idx` by the current `t_ratio`.
+     To optimize inner channel loops, we pre-calculate integer offsets (start_idx_scratch)
+     and fractional phases (frac_scratch), avoiding redundant floor() and casting in the channel loops. */
   double t_ratio_start = 1.0 / resampler->resample_ratio;
   double t_ratio_end = 1.0 / resampler->target_ratio;
   double t_ratio_increment =

@@ -22,25 +22,48 @@ struct vdsp_real_fft {
   double* scratch_im;
 };
 
+/**
+ * @brief Wrapper for vdsp_real_fft_forward to match the real_fft_backend_t interface.
+ *
+ * @param ctx Pointer to the vdsp_real_fft_t context.
+ * @param real_in Input waveform containing real samples.
+ * @param spec_re Output waveform for the real part of the spectrum.
+ * @param spec_im Output waveform for the imaginary part of the spectrum.
+ */
 static void vdsp_real_fft_forward_wrapper(void* ctx, waveform_t real_in,
                                           mutable_waveform_t spec_re,
                                           mutable_waveform_t spec_im) {
   vdsp_real_fft_forward((vdsp_real_fft_t*)ctx, real_in, spec_re, spec_im);
 }
 
+/**
+ * @brief Wrapper for vdsp_real_fft_inverse to match the real_fft_backend_t interface.
+ *
+ * @param ctx Pointer to the vdsp_real_fft_t context.
+ * @param spec_re Input waveform for the real part of the spectrum.
+ * @param spec_im Input waveform for the imaginary part of the spectrum.
+ * @param real_out Output waveform for the reconstructed real samples.
+ */
 static void vdsp_real_fft_inverse_wrapper(void* ctx, waveform_t spec_re,
                                           waveform_t spec_im,
                                           mutable_waveform_t real_out) {
   vdsp_real_fft_inverse((vdsp_real_fft_t*)ctx, spec_re, spec_im, real_out);
 }
 
+/**
+ * @brief Wrapper for vdsp_real_fft_free to match the real_fft_backend_t interface.
+ *
+ * @param ctx Pointer to the vdsp_real_fft_t context.
+ */
 static void vdsp_real_fft_free_wrapper(void* ctx) {
   vdsp_real_fft_free((vdsp_real_fft_t*)ctx);
 }
 
 vdsp_real_fft_t* vdsp_real_fft_create(size_t length) {
+  // vDSP FFT requires length to be a power of 2 and >= 8.
   if (length < 8 || (length & (length - 1)) != 0) return NULL;
 
+  // Calculate log2(length) as required by vDSP setup.
   vDSP_Length log2n = 0;
   size_t temp = length;
   while (temp > 1) {

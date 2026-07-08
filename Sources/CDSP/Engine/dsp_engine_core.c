@@ -35,23 +35,42 @@
 #include "Logging/app_logger.h"
 #include "Config/config_diff.h"
 
+/**
+ * @brief Thread entry point wrapper for the audio capture loop.
+ *
+ * @param arg Pointer to the engine_capture_loop_t instance.
+ * @return NULL.
+ */
 static void* capture_thread_func(void* arg) {
   engine_capture_loop_t* loop = (engine_capture_loop_t*)arg;
   engine_capture_loop_run(loop);
   return NULL;
 }
 
+/**
+ * @brief Thread entry point wrapper for the DSP processing pipeline loop.
+ *
+ * @param arg Pointer to the engine_processing_loop_t instance.
+ * @return NULL.
+ */
 static void* processing_thread_func(void* arg) {
   engine_processing_loop_t* loop = (engine_processing_loop_t*)arg;
   engine_processing_loop_run(loop);
   return NULL;
 }
 
+/**
+ * @brief Thread entry point wrapper for the audio playback loop.
+ *
+ * @param arg Pointer to the engine_playback_loop_t instance.
+ * @return NULL.
+ */
 static void* playback_thread_func(void* arg) {
   engine_playback_loop_t* loop = (engine_playback_loop_t*)arg;
   engine_playback_loop_run(loop);
   return NULL;
 }
+
 
 // MARK: - Init
 
@@ -132,6 +151,12 @@ const processing_stop_reason_t* dsp_engine_core_get_stop_reason(
 
 // MARK: - Lifecycle
 
+/**
+ * @brief Maps internal device-specific backend error codes to the public audio backend error types.
+ *
+ * @param type The internal backend_error_type_t error type.
+ * @return The mapped audio_backend_error_type_t public error type.
+ */
 static audio_backend_error_type_t map_backend_error(backend_error_type_t type) {
   switch (type) {
     case BACKEND_ERROR_DEVICE_NOT_FOUND:
@@ -142,6 +167,7 @@ static audio_backend_error_type_t map_backend_error(backend_error_type_t type) {
       return AUDIO_BACKEND_ERR_COMMAND_SEND;
   }
 }
+
 
 bool dsp_engine_core_start(dsp_engine_core_t* core,
                            audio_backend_error_t* err) {
@@ -167,13 +193,18 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   // with a non-1:1 base ratio. When unset both rates collapse
   // to `samplerate` and any resampler runs at 1:1 (used solely
   // as a drift-correction surface for rate-adjust).
+  // 1. Resolve sampling rates.
+  // The capture device can run at a different sample rate than the DSP pipeline.
+  // If `capture_samplerate` is specified, we configure the resampler to handle the conversion.
+  // If not, both collapse to the pipeline's rate and resampler runs 1:1 (or is bypassed).
   size_t pipeline_rate = core->current_config->devices.samplerate;
   size_t capture_rate = core->current_config->devices.has_capture_samplerate
                             ? core->current_config->devices.capture_samplerate
                             : pipeline_rate;
 
-  // Create the resampler first so we can adopt its (possibly
-  // rounded) chunk size before opening the audio devices.
+  // 2. Create the resampler.
+  // This is done before opening the capture backend because the resampler might
+  // round the chunk size to a valid multiple (e.g., synchronous resampler).
   if (core->current_config->devices.has_resampler) {
     core->resampler = audio_resampler_create_from_config(
         &core->current_config->devices.resampler, capture_rate, pipeline_rate,
@@ -184,12 +215,8 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
     core->resampler = NULL;
   }
 
-  // Adopt the resampler's input chunk size. `SynchronousResampler`
-  // rounds the requested size up to the smallest valid multiple
-  // of `inputRate / gcd(in, out)`; the rest of the engine has to
-  // honour that rounded value or `process(input:into:)` will
-  // throw `inputSizeMismatch`. The async resamplers don't round,
-  // so this is a no-op for them.
+  // 3. Adopt the chunk sizes.
+  // We size our capture and playback buffers based on the resampler's inputs/outputs.
   size_t requested_chunk_size = core->current_config->devices.chunksize;
   size_t capture_chunk_size =
       core->resampler ? audio_resampler_get_chunk_size(core->resampler)
@@ -207,6 +234,9 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
                 log_arg_none());
   }
 
+  // 4. Check for ASIO Full-Duplex.
+  // If both backends are ASIO and target the exact same device, we tell the backends
+  // to run in full-duplex mode to prevent opening the device driver twice (which is illegal in ASIO).
   bool full_duplex = false;
 #if defined(ENABLE_ASIO)
   if (core->current_config->devices.capture.type == AUDIO_BACKEND_TYPE_ASIO &&
@@ -219,6 +249,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   }
 #endif
 
+  // 5. Create and open capture/playback backends.
   backend_error_t berr;
   backend_error_init(&berr, BACKEND_ERROR_NONE, "");
   core->capture = create_capture_backend(
@@ -257,10 +288,10 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
     return false;
   }
 
-  // Pre-fill the playback ring with zeros so the CoreAudio render
-  // thread has a buffer of silence to drain during startup. If
-  // rate adjust is enabled we match its target level; otherwise
-  // we pre-fill a safe 4-chunk headroom.
+  // 6. Prefill the playback buffer.
+  // Pre-filling with silent frames ensures that the playback thread has data
+  // to feed the DAC immediately on start, preventing immediate buffer underrun errors.
+  // If rate adjust is enabled, we match its target level; otherwise, we pre-fill 4 chunks.
   size_t prefill_frames =
       (core->current_config->devices.has_enable_rate_adjust &&
        core->current_config->devices.enable_rate_adjust &&
@@ -273,8 +304,8 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   }
   playback_backend_prefill_silence(core->playback, prefill_frames, &berr);
 
-  // Pre-allocate scratch buffers sized for the worst case across
-  // the configured rate-adjust range.
+  // 7. Allocate scratch chunks.
+  // Allocate chunks for temporary data storage during processing/resampling.
   core->resampler_scratch = audio_chunk_create(
       core->resampler ? audio_resampler_get_max_output_frames(core->resampler)
                       : capture_chunk_size,
@@ -286,6 +317,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
                                &core->current_config->devices.playback));
   audio_chunk_set_valid_frames(core->pipeline_scratch, 0);
 
+  // 8. Create the DSP processing pipeline.
   config_error_t cerr;
   memset(&cerr, 0, sizeof(cerr));
   core->pipeline =
@@ -300,7 +332,9 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
     return false;
   }
 
-  // Pre-allocate chunk pools owned by dsp_engine_core
+  // 9. Pre-allocate chunk pools.
+  // Allocate memory for chunk pools ahead of time to guarantee that the capture
+  // and processing loop threads never perform dynamic memory allocations on the hot path.
   size_t capture_pool_cap = spsc_queue_get_capacity(core->shared->captured_queue) + 4;
   core->capture_chunk_pool = round_robin_chunk_pool_create(
       capture_pool_cap, capture_chunk_size,
@@ -320,6 +354,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
     return false;
   }
 
+  // 10. Instantiate the loop orchestrators.
   core->capture_loop = engine_capture_loop_create(
       core->shared, core->state_machine, core->capture, core->playback,
       core->processing_params, core->dop_decoder,
@@ -371,6 +406,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
     return false;
   }
 
+
   // MARK: - Private: thread spawn
   /// Wrap `Thread` construction so each spawn shares the same QoS,
   /// name pattern, and exit-group bookkeeping.
@@ -403,6 +439,8 @@ void dsp_engine_core_stop(dsp_engine_core_t* core,
   logger_t logger = logger_create("dsp.engine.core");
   logger_info(&logger, "Stopping engine", log_arg_none(), log_arg_none(),
               log_arg_none(), log_arg_none());
+  
+  // Signal to the three background loops that they should exit their execution loops.
   atomic_store_explicit(&core->shared->should_stop, true, memory_order_release);
 
   // Wake the loops out of their semaphore waits so they can
@@ -410,6 +448,7 @@ void dsp_engine_core_stop(dsp_engine_core_t* core,
   engine_sem_signal(core->shared->captured_semaphore);
   engine_sem_signal(core->shared->processed_semaphore);
 
+  // Wait for all audio threads to finish.
   if (core->threads_created) {
     pthread_join(core->capture_thread, NULL);
     pthread_join(core->processing_thread, NULL);
@@ -498,7 +537,8 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
     return true;
   }
 
-  // 1. Perform configuration diffing
+  // 1. Perform configuration diffing.
+  // Evaluate the changes between the running config and the new config.
   config_change_t* change = config_change_create();
   if (!change) return false;
   config_change_type_t change_type = config_diff(old_config, new_config, change);
@@ -511,7 +551,11 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
   }
 
   if (change_type == CONFIG_CHANGE_FILTER_PARAMETERS || change_type == CONFIG_CHANGE_MIXER_PARAMETERS) {
-    // 2. Perform in-place parameter update
+    // 2. Perform in-place parameter update.
+    // If only parameters changed (e.g. gain values, coefficients), we can perform an
+    // in-place reload. We package the updates into a `pending_update_t` structure and
+    // enqueue it to the processing loop thread. The thread will swap the parameters
+    // atomically during a quiet period between buffer processings.
     if (core->processing_loop) {
       size_t filters_count = 0;
       char** filters = config_change_take_filters(change, &filters_count);
@@ -542,7 +586,10 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
     }
   }
 
-  // 3. Fall back to structural change (rebuilding pipeline)
+  // 3. Fall back to structural change (rebuilding pipeline).
+  // If structural changes occurred (e.g., adding or removing filters), we must
+  // rebuild the entire pipeline structure. We create the new pipeline and instruct
+  // the processing loop thread to swap it. This avoids audio backend restarts.
   config_change_free(change);
 
   config_error_t cerr;

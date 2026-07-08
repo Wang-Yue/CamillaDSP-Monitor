@@ -45,6 +45,9 @@ void engine_state_machine_free(engine_state_machine_t* sm) {
 processing_state_t engine_state_machine_get_state(
     const engine_state_machine_t* sm) {
   if (!sm) return PROCESSING_STATE_INACTIVE;
+  // Use acquire memory order to ensure that any reads of other shared state
+  // (like stop_reason) after this call will see the values written before
+  // the corresponding release-store in set_state.
   uint8_t raw = atomic_load_explicit(&sm->state_raw,
                                      memory_order_acquire);
   return processing_state_from_raw_byte(raw);
@@ -57,6 +60,9 @@ void engine_state_machine_set_state(engine_state_machine_t* sm,
                                     processing_state_t new_state) {
   if (!sm) return;
   uint8_t raw = processing_state_to_raw_byte(new_state);
+  // Use release memory order to ensure that all prior writes (specifically,
+  // the stop_reason written in begin_stop) are visible to any thread that
+  // reads the state with acquire ordering and observes this new state.
   atomic_store_explicit(&sm->state_raw, raw, memory_order_release);
 }
 
@@ -80,10 +86,16 @@ bool engine_state_machine_begin_stop(engine_state_machine_t* sm,
                                      processing_stop_reason_t reason) {
   if (!sm) return false;
   bool expected = false;
+  // Use compare-exchange (CAS) to ensure that only the first thread to request
+  // a stop succeeds. We use acq_rel ordering because we are performing a
+  // read-modify-write operation that needs to synchronize with other threads.
   bool exchanged = atomic_compare_exchange_strong_explicit(
       &sm->stop_once, &expected, true, memory_order_acq_rel,
       memory_order_acquire);
   if (!exchanged) return false;
+  
+  // The winner thread writes the stop reason. This write is synchronized with
+  // other threads via the state change to INACTIVE using set_state(..., INACTIVE).
   sm->stop_reason = reason;
   return true;
 }

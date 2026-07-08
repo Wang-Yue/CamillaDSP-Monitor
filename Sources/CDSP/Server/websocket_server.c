@@ -18,6 +18,15 @@ typedef uint32_t CC_LONG;
 
 #define SHA1_ROL(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
+/**
+ * @brief Performs a SHA-1 block transformation.
+ *
+ * Core SHA-1 compression function. Processes a single 64-byte block to update the 160-bit state.
+ * Used for WebSocket handshake key generation on non-macOS systems.
+ *
+ * @param state SHA-1 state vector (5 words).
+ * @param buffer 64-byte block buffer to process.
+ */
 static void sha1_transform(uint32_t state[5], const unsigned char buffer[64]) {
   uint32_t block[80];
   for (int i = 0; i < 16; i++) {
@@ -59,6 +68,16 @@ static void sha1_transform(uint32_t state[5], const unsigned char buffer[64]) {
   state[4] += e;
 }
 
+/**
+ * @brief Computes SHA-1 hash of the given data buffer.
+ *
+ * Provides a fallback SHA-1 implementation on systems that do not offer CommonCrypto (like Linux).
+ * Outputs a 20-byte digest.
+ *
+ * @param data Pointer to the input data buffer.
+ * @param len Length of input data in bytes.
+ * @param digest Output buffer to store the 20-byte SHA-1 digest.
+ */
 static void CC_SHA1(const void* data, CC_LONG len, unsigned char* digest) {
   uint32_t state[5] = {0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476,
                        0xC3D2C1F0};
@@ -105,17 +124,39 @@ static void CC_SHA1(const void* data, CC_LONG len, unsigned char* digest) {
 #include <sys/socket.h>
 #include <unistd.h>
 
+/**
+ * @brief Converts a decibel (dB) value to a linear amplitude ratio.
+ *
+ * @param db Value in dB. Values <= -1000.0 are treated as silence (0.0 amplitude).
+ * @return Linear amplitude ratio.
+ */
 static double db_to_amplitude(double db) {
   if (db <= -1000.0) return 0.0;
   return pow(10.0, db / 20.0);
 }
 
+/**
+ * @brief Converts a linear amplitude ratio to a decibel (dB) value.
+ *
+ * @param amp Linear amplitude ratio. Values <= 0.0 return -1000.0 dB.
+ * @return Value in dB. Min value is capped at -1000.0 dB.
+ */
 static double amplitude_to_db(double amp) {
   if (amp <= 0.0) return -1000.0;
   double db = 20.0 * log10(amp);
   return db < -1000.0 ? -1000.0 : db;
 }
 
+/**
+ * @brief Appends a new level sample to the history ring buffer.
+ *
+ * If the channel count changes, the history is cleared and re-initialized.
+ *
+ * @param history Pointer to the level history structure.
+ * @param levels Array of levels per channel.
+ * @param channels Number of channels.
+ * @param now_ms Current timestamp in milliseconds.
+ */
 static void level_history_append(level_history_t* history, const double* levels,
                                  size_t channels, uint64_t now_ms) {
   if (history->channels != channels) {
@@ -145,6 +186,15 @@ static void level_history_append(level_history_t* history, const double* levels,
   }
 }
 
+/**
+ * @brief Finds the peak (maximum) level for each channel since a given timestamp.
+ *
+ * Searches the level history ring buffer backward starting from the head.
+ *
+ * @param history Pointer to the level history structure.
+ * @param since_ms Start timestamp in milliseconds.
+ * @param out_levels Output array to store the peak levels per channel (initialized to -1000.0 dB).
+ */
 static void level_history_get_max_since(const level_history_t* history,
                                         uint64_t since_ms, double* out_levels) {
   size_t channels = history->channels;
@@ -165,6 +215,15 @@ static void level_history_get_max_since(const level_history_t* history,
   }
 }
 
+/**
+ * @brief Calculates the root-mean-square (RMS) level for each channel since a given timestamp.
+ *
+ * Aggregates values in the level history ring buffer backward from the head.
+ *
+ * @param history Pointer to the level history structure.
+ * @param since_ms Start timestamp in milliseconds.
+ * @param out_levels Output array to store the RMS levels per channel in dB.
+ */
 static void level_history_get_rms_since(const level_history_t* history,
                                         uint64_t since_ms, double* out_levels) {
   size_t channels = history->channels;
@@ -194,6 +253,13 @@ static void level_history_get_rms_since(const level_history_t* history,
   free(sums);
 }
 
+/**
+ * @brief Calculates the smoothing factor (alpha) for an exponential moving average.
+ *
+ * @param delta_ms Time elapsed since the last update in milliseconds.
+ * @param time_constant_ms The response time constant in milliseconds.
+ * @return The smoothing factor alpha (between 0.0 and 1.0). Returns 1.0 if time constant is <= 0.
+ */
 static double smoothing_alpha(double delta_ms, double time_constant_ms) {
   if (time_constant_ms <= 0.0) return 1.0;
   double delta_sec = delta_ms / 1000.0;
@@ -224,12 +290,26 @@ void websocket_server_set_engine(websocket_server_t* server,
   }
 }
 
+/**
+ * @brief Gets the current system time in milliseconds.
+ *
+ * @return Current timestamp in milliseconds.
+ */
 static uint64_t get_time_ms(void) {
   struct timeval tv;
   gettimeofday(&tv, NULL);
   return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
 }
 
+/**
+ * @brief Formats a processing stop reason into a quoted JSON string.
+ *
+ * Writes a description of why processing stopped (e.g. format change, error) into the output buffer.
+ *
+ * @param reason Pointer to the stop reason structure.
+ * @param out Output buffer to write the string into.
+ * @param max_len Maximum length of the output buffer.
+ */
 static void stop_reason_to_string(const processing_stop_reason_t* reason,
                                   char* out, size_t max_len) {
   if (!reason || !out || max_len == 0) return;
@@ -263,6 +343,16 @@ static void stop_reason_to_string(const processing_stop_reason_t* reason,
   }
 }
 
+/**
+ * @brief Formats the payload for a state event into a JSON object string.
+ *
+ * Generates an object like: `{"state":"Running","stop_reason":"None"}`.
+ *
+ * @param state The current processing state.
+ * @param reason The stop reason.
+ * @param out Output buffer.
+ * @param max_len Maximum length of the output buffer.
+ */
 static void format_state_event_payload(processing_state_t state,
                                        const processing_stop_reason_t* reason,
                                        char* out, size_t max_len) {
@@ -272,6 +362,12 @@ static void format_state_event_payload(processing_state_t state,
            processing_state_to_string(state), reason_str);
 }
 
+/**
+ * @brief Maps an audio backend error type to a WebSocket control protocol error key.
+ *
+ * @param type The audio backend error type.
+ * @return The corresponding error name string.
+ */
 static const char* get_websocket_error_key(audio_backend_error_type_t type) {
   switch (type) {
     case AUDIO_BACKEND_ERR_CONFIG_PARSE:
@@ -285,6 +381,17 @@ static const char* get_websocket_error_key(audio_backend_error_type_t type) {
   }
 }
 
+/**
+ * @brief Constructs a standard JSON reply string for the control protocol.
+ *
+ * Formats a reply of the form: `{"Command":{"result":RESULT_STR,"value":VALUE_STR}}`.
+ *
+ * @param cmd The command name.
+ * @param res_str The result status string (e.g. `"Ok"` or error string).
+ * @param val_str Optional payload value string (can be NULL or empty).
+ * @param out Output buffer.
+ * @param max_len Maximum length of the output buffer.
+ */
 static void json_reply(const char* cmd, const char* res_str,
                        const char* val_str, char* out, size_t max_len) {
   if (val_str && val_str[0]) {
@@ -295,6 +402,12 @@ static void json_reply(const char* cmd, const char* res_str,
   }
 }
 
+/**
+ * @brief Reads a file into a dynamically allocated string (server helper).
+ *
+ * @param path Path to the file.
+ * @return Pointer to the allocated string containing the file contents, or NULL if reading fails.
+ */
 static char* server_read_file_to_string(const char* path) {
   FILE* fp = fopen(path, "rb");
   if (!fp) return NULL;
@@ -316,6 +429,17 @@ static char* server_read_file_to_string(const char* path) {
   return buf;
 }
 
+/**
+ * @brief Extracts a string value from a flat JSON object by its key.
+ *
+ * Helper to quickly read simple string fields from JSON without manual cJSON traversal.
+ *
+ * @param json The JSON string.
+ * @param key The key to look up.
+ * @param out_buf Output buffer to copy the string into.
+ * @param max_len Size of the output buffer.
+ * @return true if the key was found and value copied, false otherwise.
+ */
 static bool extract_json_string_value(const char* json, const char* key,
                                       char* out_buf, size_t max_len) {
   if (!json || !key || !out_buf || max_len == 0) return false;
@@ -332,6 +456,18 @@ static bool extract_json_string_value(const char* json, const char* key,
   return success;
 }
 
+/**
+ * @brief Locates a cJSON node matching a RFC 6901 JSON pointer.
+ *
+ * Recursively navigates through JSON objects and arrays matching segments of the pointer.
+ *
+ * @param root The root cJSON node.
+ * @param pointer The JSON pointer string (e.g. "/devices/playback/device").
+ * @param out_parent Optional output pointer to store the located node's parent.
+ * @param out_key Optional output pointer to store the key matching the node in its parent.
+ * @param out_index Optional output pointer to store the index matching the node in its parent array.
+ * @return The located cJSON node, or NULL if not found.
+ */
 static cJSON* cjson_locate_pointer(cJSON* root, const char* pointer,
                                    cJSON** out_parent, const char** out_key,
                                    int* out_index) {
@@ -384,6 +520,15 @@ static cJSON* cjson_locate_pointer(cJSON* root, const char* pointer,
   return curr;
 }
 
+/**
+ * @brief Extracts the JSON fragment at the specified JSON pointer as a string.
+ *
+ * @param json The source JSON string.
+ * @param pointer JSON pointer.
+ * @param out_val Output buffer to copy the printed JSON fragment.
+ * @param max_len Size of the output buffer.
+ * @return true if successful, false otherwise.
+ */
 static bool server_get_value_at_pointer(const char* json, const char* pointer,
                                         char* out_val, size_t max_len) {
   cJSON* root = cJSON_Parse(json);
@@ -405,6 +550,17 @@ static bool server_get_value_at_pointer(const char* json, const char* pointer,
   return false;
 }
 
+/**
+ * @brief Replaces or inserts a JSON value at the specified JSON pointer location.
+ *
+ * Parses the new value string, locates the parent at the pointer, and replaces the element.
+ * Returns a newly allocated string containing the updated JSON.
+ *
+ * @param json The source JSON string.
+ * @param pointer JSON pointer.
+ * @param new_val_str The new value as a JSON fragment string.
+ * @return A newly allocated string containing the serialized updated JSON, or NULL on failure.
+ */
 static char* server_set_value_at_pointer_str(const char* json,
                                              const char* pointer,
                                              const char* new_val_str) {
@@ -442,6 +598,15 @@ static char* server_set_value_at_pointer_str(const char* json,
   return updated_json;
 }
 
+/**
+ * @brief Applies a JSON Merge Patch (RFC 7396) to a target cJSON object.
+ *
+ * Modifies the target cJSON object in-place according to the rules of JSON Merge Patch.
+ * Null values in the patch delete corresponding fields in the target.
+ *
+ * @param target The target cJSON object to patch.
+ * @param patch The patch cJSON object.
+ */
 static void cjson_merge_patch(cJSON* target, const cJSON* patch) {
   if (!target || !patch) return;
   if (!cJSON_IsObject(target) || !cJSON_IsObject(patch)) return;
@@ -477,6 +642,16 @@ static void cjson_merge_patch(cJSON* target, const cJSON* patch) {
   }
 }
 
+/**
+ * @brief Formats an array of doubles as a JSON array string.
+ *
+ * Outputs a string like: `[-3.14, 0.0, 1.23]`.
+ *
+ * @param arr Array of doubles.
+ * @param count Number of elements in the array.
+ * @param out Output buffer.
+ * @param max_len Maximum length of the output buffer.
+ */
 static void format_double_array(const double* arr, size_t count, char* out,
                                 size_t max_len) {
   if (count == 0) {
@@ -492,6 +667,15 @@ static void format_double_array(const double* arr, size_t count, char* out,
   snprintf(out + offset, max_len - offset, "]");
 }
 
+/**
+ * @brief Serializes an audio device descriptor struct into its JSON representation.
+ *
+ * Formats details of the device's name, capabilities, sample rates, formats and channels.
+ *
+ * @param desc Pointer to the device descriptor.
+ * @param out Output buffer.
+ * @param max_len Maximum length of the output buffer.
+ */
 static void format_device_descriptor(const audio_device_descriptor_t* desc,
                                      char* out, size_t max_len) {
   if (!desc) {
@@ -529,6 +713,15 @@ static void format_device_descriptor(const audio_device_descriptor_t* desc,
   snprintf(out + offset, max_len - offset, "]}");
 }
 
+/**
+ * @brief Serializes a frequency spectrum structure into a JSON object string.
+ *
+ * Formats frequencies and magnitudes arrays.
+ *
+ * @param spec Pointer to the spectrum structure.
+ * @param out Output buffer.
+ * @param max_len Maximum length of the output buffer.
+ */
 static void format_spectrum(const spectrum_t* spec, char* out, size_t max_len) {
   if (!spec || spec->count == 0) {
     snprintf(out, max_len, "null");
@@ -548,6 +741,22 @@ static void format_spectrum(const spectrum_t* spec, char* out, size_t max_len) {
   snprintf(out + offset, max_len - offset, "]}");
 }
 
+/**
+ * @brief Helper to handle volume adjustments (relative change) on a specific fader.
+ *
+ * Validates the current running status, fetches processing parameters, computes
+ * the new volume clamped to the bounds, applies it, and formats the JSON response.
+ *
+ * @param server Pointer to the WebSocket server.
+ * @param fader The fader index to adjust.
+ * @param delta The volume change in dB.
+ * @param min_vol Minimum volume limit in dB.
+ * @param max_vol Maximum volume limit in dB.
+ * @param out_response Output buffer for the JSON reply.
+ * @param max_len Maximum length of the response buffer.
+ * @param cmd_name Command name used for the reply key.
+ * @return true if handled, false otherwise.
+ */
 static bool server_handle_adjust_volume_fader(
     websocket_server_t* server, fader_t fader, double delta, double min_vol,
     double max_vol, char* out_response, size_t max_len, const char* cmd_name) {
@@ -2330,6 +2539,15 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
   cJSON_Delete(root);
 }
 
+/**
+ * @brief Sends a WebSocket text frame to a client file descriptor.
+ *
+ * Packages the payload into a standard RFC 6455 WebSocket text frame (opcode 0x81),
+ * handles payload length fields (up to 64-bit lengths), and writes to the socket.
+ *
+ * @param fd The client socket file descriptor.
+ * @param response The null-terminated payload string to send.
+ */
 static void send_websocket_frame(int fd, const char* response) {
   size_t resp_len = strlen(response);
   char frame[16384];
@@ -2365,6 +2583,16 @@ static void send_websocket_frame(int fd, const char* response) {
   }
 }
 
+/**
+ * @brief Thread entry point for the WebSocket server.
+ *
+ * Handles the polling loop for accepting new client connections, receiving
+ * WebSocket frames, decoding masking key, executing commands, and pushing periodic updates
+ * (VU levels, signal levels, spectrum) to subscribed clients.
+ *
+ * @param arg Pointer to the websocket_server_t structure.
+ * @return Always NULL.
+ */
 static void* server_thread_func(void* arg) {
   websocket_server_t* server = (websocket_server_t*)arg;
   int client_fds[32];

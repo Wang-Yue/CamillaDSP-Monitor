@@ -42,16 +42,15 @@
  * @brief Error codes returned by mixer processing functions.
  */
 typedef enum {
-  MIXER_OK = 0,
-  /// `input.validFrames` is larger than the chunkSize the mixer was constructed
-  /// with.
-  MIXER_ERR_INPUT_SIZE_MISMATCH = -1,
-  /// Caller's output AudioChunk doesn't have enough capacity per channel.
-  MIXER_ERR_OUTPUT_BUFFER_TOO_SMALL = -2,
-  /// Caller's output AudioChunk has the wrong channel count for this mixer.
-  MIXER_ERR_CHANNEL_COUNT_MISMATCH = -3
+  MIXER_OK = 0,                           /**< Success. */
+  MIXER_ERR_INPUT_SIZE_MISMATCH = -1,     /**< `input.validFrames` is larger than the chunkSize the mixer was constructed with. */
+  MIXER_ERR_OUTPUT_BUFFER_TOO_SMALL = -2, /**< Caller's output AudioChunk doesn't have enough capacity per channel. */
+  MIXER_ERR_CHANNEL_COUNT_MISMATCH = -3   /**< Caller's output AudioChunk has the wrong channel count for this mixer. */
 } mixer_error_t;
 
+/**
+ * @brief Opaque struct representing an audio mixer instance.
+ */
 typedef struct audio_mixer_t audio_mixer_t;
 
 /**
@@ -67,13 +66,24 @@ audio_mixer_t* audio_mixer_create(const char* name,
                                   const mixer_config_t* config,
                                   size_t chunk_size);
 
-/// Zero-allocation API. The caller pre-allocates `output` with
-/// `output.channels == channelsOut` and `output.frames >= input.validFrames`.
-/// The mixer writes the mixed samples directly and sets `output.validFrames`.
-///
-/// `input` and `output` must reference distinct buffers — the mixer
-/// accumulates into the output and reads input concurrently, so aliasing
-/// would corrupt the result.
+/**
+ * @brief Zero-allocation API for mixing an audio chunk.
+ *
+ * The caller must pre-allocate the `output` chunk with:
+ * - `output->channels == channelsOut`
+ * - `output->frames >= input->validFrames`
+ *
+ * The mixer writes the mixed samples directly to the output and updates `output->validFrames`.
+ *
+ * @note `input` and `output` must reference distinct buffers. The mixer accumulates
+ * into the output and reads from the input concurrently; aliasing (in-place processing)
+ * will corrupt the result.
+ *
+ * @param mixer Pointer to the audio mixer instance.
+ * @param input Pointer to the input audio chunk.
+ * @param output Pointer to the pre-allocated output audio chunk.
+ * @return A mixer_error_t code representing success or failure.
+ */
 mixer_error_t audio_mixer_process(audio_mixer_t* mixer,
                                   const audio_chunk_t* input,
                                   audio_chunk_t* output);

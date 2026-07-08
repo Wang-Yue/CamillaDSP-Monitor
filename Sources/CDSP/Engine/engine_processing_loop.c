@@ -79,6 +79,15 @@ pending_update_t* pending_update_create(
 
 #ifndef __APPLE__
 #define CLOCK_UPTIME_RAW CLOCK_MONOTONIC
+
+/**
+ * @brief Helper to get the current time in nanoseconds for non-Apple platforms.
+ *
+ * Provides an equivalent to Apple's clock_gettime_nsec_np for measuring elapsed time.
+ *
+ * @param clock_id The clock identifier to use (e.g., CLOCK_MONOTONIC).
+ * @return The current time in nanoseconds.
+ */
 static inline uint64_t clock_gettime_nsec_np(int clock_id) {
   struct timespec ts;
   clock_gettime(clock_id, &ts);
@@ -212,7 +221,9 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       }
 
 
-      // Apply any pending parameter updates before processing this chunk
+      // Apply any pending parameter updates before processing this chunk.
+      // This ensures that parameter updates (like filter coefficients or mixer gains)
+      // are applied synchronously at chunk boundaries, preventing audio artifacts.
       pending_update_t* update = NULL;
       while ((update = (pending_update_t*)spsc_queue_dequeue(
                   loop->update_queue)) != NULL) {
@@ -279,6 +290,9 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
         continue;
       }
 
+      // Retrieve a pre-allocated scratch chunk from the round-robin pool.
+      // We must use a pool because the pipeline output chunk is passed down the queue
+      // to the playback thread, and we cannot reuse it immediately.
       audio_chunk_t* current_scratch =
           round_robin_chunk_pool_next(loop->scratch_pool);
       uint64_t pipe_start = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -297,6 +311,10 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       }
       chunk = current_scratch;
 
+      // Calculate CPU load of the DSP pipeline and resampler.
+      // The load is the ratio of processing time (in nanoseconds) to the
+      // physical duration of the audio chunk. A load > 1.0 means we cannot
+      // process in real-time and will cause dropouts.
       if (loop->processing_params) {
         size_t frames = audio_chunk_get_valid_frames(chunk);
         if (frames > 0) {
@@ -319,7 +337,8 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
           }
         }
 
-        // Check for clipped samples on the output chunk
+        // Scan the output chunk for clipped samples (outside [-1.0, 1.0] range).
+        // This is done before DoP encoding.
         size_t channels = audio_chunk_get_channels(chunk);
         size_t c_frames = audio_chunk_get_valid_frames(chunk);
         uint64_t clipped = 0;
@@ -349,6 +368,9 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
         dop_encoder_encode(loop->dop_encoder, chunk);
       }
 
+      // Enqueue the processed chunk to the playback queue.
+      // If the queue is full (playback thread falling behind), we block-wait
+      // using a short sleep to avoid spinning and wasting CPU.
       while (!spsc_queue_enqueue(loop->shared->processed_queue, chunk)) {
         if (atomic_load_explicit(&loop->shared->should_stop,
                                  memory_order_acquire))

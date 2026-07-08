@@ -11,18 +11,34 @@
 #ifdef __APPLE__
 #include <dispatch/dispatch.h>
 typedef dispatch_semaphore_t app_logger_sem_t;
+/**
+ * @brief Initializes a semaphore wrapper.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void __attribute__((unused)) app_logger_sem_init(
     app_logger_sem_t* sem) {
   *sem = dispatch_semaphore_create(0);
 }
+/**
+ * @brief Destroys a semaphore wrapper.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void __attribute__((unused)) app_logger_sem_destroy(
     app_logger_sem_t* sem) {
   dispatch_release(*sem);
 }
+/**
+ * @brief Signals a semaphore wrapper.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void __attribute__((unused)) app_logger_sem_signal(
     app_logger_sem_t* sem) {
   dispatch_semaphore_signal(*sem);
 }
+/**
+ * @brief Waits on a semaphore wrapper.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void __attribute__((unused)) app_logger_sem_wait(
     app_logger_sem_t* sem) {
   dispatch_semaphore_wait(*sem, DISPATCH_TIME_FOREVER);
@@ -30,18 +46,34 @@ static inline void __attribute__((unused)) app_logger_sem_wait(
 #else
 #include <semaphore.h>
 typedef sem_t app_logger_sem_t;
+/**
+ * @brief Initializes a semaphore wrapper.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void __attribute__((unused)) app_logger_sem_init(
     app_logger_sem_t* sem) {
   sem_init(sem, 0, 0);
 }
+/**
+ * @brief Destroys a semaphore wrapper.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void __attribute__((unused)) app_logger_sem_destroy(
     app_logger_sem_t* sem) {
   sem_destroy(sem);
 }
+/**
+ * @brief Signals a semaphore wrapper.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void __attribute__((unused)) app_logger_sem_signal(
     app_logger_sem_t* sem) {
   sem_post(sem);
 }
+/**
+ * @brief Waits on a semaphore wrapper.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void __attribute__((unused)) app_logger_sem_wait(
     app_logger_sem_t* sem) {
   sem_wait(sem);
@@ -77,6 +109,19 @@ void app_logger_set_level(log_level_t level) {
                         memory_order_release);
 }
 
+/**
+ * @brief Safely formats a log message with up to 4 arguments.
+ *
+ * This function parses a format string similar to printf, but restricts parsing
+ * to a maximum of 4 pre-packaged arguments (log_argument_t). It avoids standard
+ * stdarg/varargs to allow safe deferral of string formatting to the background
+ * worker thread. It supports integer, double, and string formats.
+ *
+ * @param out Buffer to write the formatted string to.
+ * @param out_cap Capacity of the output buffer.
+ * @param msg The printf-like format string.
+ * @param args Array of exactly 4 log arguments.
+ */
 static void format_log_message(char* out, size_t out_cap, const char* msg,
                                const log_argument_t args[4]) {
   if (!out || out_cap == 0) return;
@@ -261,6 +306,15 @@ static void format_log_message(char* out, size_t out_cap, const char* msg,
   }
 }
 
+/**
+ * @brief Background worker thread that drains and prints log records.
+ *
+ * The worker blocks on a semaphore until logs are available. It then performs
+ * a lock-free read from the ring buffer using atomic index updates.
+ *
+ * @param arg Pointer to the app_logger_t instance.
+ * @return NULL.
+ */
 static void* worker_thread_func(void* arg) {
   app_logger_t* logger = (app_logger_t*)arg;
   while (!atomic_load_explicit(&logger->should_exit, memory_order_acquire)) {
@@ -270,14 +324,19 @@ static void* worker_thread_func(void* arg) {
     }
 
     while (true) {
+      // Load indices. write_index is loaded with acquire semantics to ensure
+      // that elements in logger->storage written by app_logger_log are visible.
       uint64_t r =
           atomic_load_explicit(&logger->read_index, memory_order_relaxed);
       uint64_t w =
           atomic_load_explicit(&logger->write_index, memory_order_acquire);
       if (r == w) break;
 
+      // Extract the record from the slot matching the current read index.
       size_t slot = (size_t)(r & logger->mask);
       log_record_t rec = logger->storage[slot];
+      // Increment the read index with release semantics to signal to the producer
+      // that this slot has been processed.
       atomic_store_explicit(&logger->read_index, r + 1, memory_order_release);
 
       const char* lvl_str = "INFO";
@@ -312,6 +371,11 @@ static void* worker_thread_func(void* arg) {
   return NULL;
 }
 
+/**
+ * @brief Initializes the singleton logger instance.
+ *
+ * Called via pthread_once to ensure thread safety.
+ */
 static void init_shared_logger(void) {
   // Intentionally empty/default-init to guarantee safe singleton instance
   // publication before thread activation.
@@ -339,6 +403,8 @@ void app_logger_log(app_logger_t* logger, log_level_t level, const char* label,
                     log_argument_t arg2, log_argument_t arg3,
                     log_argument_t arg4) {
   if (!logger || level > app_logger_get_level()) return;
+  // Lazily start the background worker thread when the first log occurs.
+  // Use compare-and-swap to ensure only one thread starts the worker.
   bool expected = false;
   if (atomic_compare_exchange_strong_explicit(&logger->is_started, &expected,
                                               true, memory_order_acq_rel,
@@ -347,10 +413,16 @@ void app_logger_log(app_logger_t* logger, log_level_t level, const char* label,
     pthread_create(&logger->worker_thread, NULL, worker_thread_func, logger);
     pthread_mutex_unlock(&logger->worker_mutex);
   }
+  // Check if ring buffer is full.
+  // read_index is loaded with acquire semantics to ensure the writer sees the
+  // latest reads completed by the background worker.
   uint64_t w = atomic_load_explicit(&logger->write_index, memory_order_relaxed);
   uint64_t r = atomic_load_explicit(&logger->read_index, memory_order_acquire);
-  if (w - r >= logger->capacity) return;
+  if (w - r >= logger->capacity) return; // Drop log if full (non-blocking)
 
+  // Populate slot. Note: if string args are pointers to temporary stack,
+  // this can cause issues. User of the logger should pass static or heap-allocated strings,
+  // or strings that survive the background log processing.
   size_t slot = (size_t)(w & logger->mask);
   logger->storage[slot].level = level;
   logger->storage[slot].label = label;
@@ -360,6 +432,7 @@ void app_logger_log(app_logger_t* logger, log_level_t level, const char* label,
   logger->storage[slot].arg3 = arg3;
   logger->storage[slot].arg4 = arg4;
 
+  // Publish the written slot to the worker thread.
   atomic_store_explicit(&logger->write_index, w + 1, memory_order_release);
   app_logger_sem_signal(&logger->semaphore);
 }

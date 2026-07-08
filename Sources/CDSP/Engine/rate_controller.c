@@ -104,6 +104,10 @@ pi_rate_controller_t* pi_rate_controller_create_default(int samplerate,
 double pi_rate_controller_next(pi_rate_controller_t* pi, double level) {
   if (!pi) return 1.0;
 
+  // Smooth target transition (ramp-in) to handle large level deviations.
+  // If the relative error exceeds `ramp_trigger_limit`, we trigger a ramp
+  // starting from the current level and ending at target_level over `ramp_steps` intervals.
+  // This prevents step-response shocks and reduces audible pitch changes.
   if (pi->ramp_step >= pi->ramp_steps &&
       fabs((pi->target_level - level) / pi->target_level) >
           pi->ramp_trigger_limit) {
@@ -117,6 +121,9 @@ double pi_rate_controller_next(pi_rate_controller_t* pi, double level) {
   double current_target;
   if (pi->ramp_step < pi->ramp_steps) {
     pi->ramp_step += 1;
+    // quartic ease-out curve to smooth target adjustment:
+    // progress goes from 1.0 (start) down to 0.0 (end)
+    // 1 - progress^4 starts steep and flattens out near the end target.
     double progress =
         (double)(pi->ramp_steps - pi->ramp_step) / (double)pi->ramp_steps;
     current_target = pi->ramp_start + (pi->target_level - pi->ramp_start) *
@@ -192,6 +199,15 @@ bool averager_get_average(const averager_t* avg, double* out_val) {
 /// `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)`, which on Darwin is a
 /// vDSO read — no syscall, suitable for invocation on every processed
 /// audio chunk.
+/**
+ * @brief Retrieves the current monotonic system time in nanoseconds.
+ *
+ * Uses low-overhead, system-specific API to get the monotonic time.
+ * Under Darwin/macOS, it uses `clock_gettime_nsec_np` with `CLOCK_UPTIME_RAW`.
+ * Under Linux, it falls back to standard POSIX `clock_gettime` with `CLOCK_MONOTONIC`.
+ *
+ * @return The current monotonic time in nanoseconds.
+ */
 static uint64_t get_current_ns(void) {
 #ifdef __APPLE__
   return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);

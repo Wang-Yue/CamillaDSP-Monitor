@@ -1,3 +1,8 @@
+/**
+ * @file wasapi_capabilities.h
+ * @brief WASAPI device capabilities enumeration and description.
+ */
+
 #ifndef CLIB_BACKEND_WASAPI_CAPABILITIES_H
 #define CLIB_BACKEND_WASAPI_CAPABILITIES_H
 
@@ -10,18 +15,46 @@
 #include "Config/engine_config_types.h"
 #include "backend_error.h"
 
-/// Enumerate available WASAPI devices and return count.
+/**
+ * @brief Enumerate available WASAPI devices and return count.
+ *
+ * @param is_capture True to enumerate capture devices, false for playback devices.
+ * @param out_names 2D array to store the names of the devices.
+ * @param max_names Maximum number of names to store in out_names.
+ * @return The number of devices found, or a negative value on error.
+ */
 int wasapi_capabilities_available_device_names(bool is_capture,
                                                char out_names[][256],
                                                int max_names);
-/// Get the name of the default WASAPI device.
+
+/**
+ * @brief Get the name of the default WASAPI device.
+ *
+ * @param is_capture True to get default capture device, false for playback.
+ * @param out_name Pointer to buffer to store the default device name.
+ * @param max_len Maximum length of the out_name buffer.
+ * @return true if successful, false otherwise.
+ */
 bool wasapi_capabilities_default_device_name(bool is_capture, char* out_name,
                                              size_t max_len);
-/// Generate capabilities descriptor for a specific WASAPI device.
+
+/**
+ * @brief Generate capabilities descriptor for a specific WASAPI device.
+ *
+ * @param device_name Name of the device to describe.
+ * @param is_capture True if the device is a capture device, false if playback.
+ * @param err Pointer to a device_error_t to receive error details on failure.
+ * @return A pointer to the audio_device_descriptor_t, or NULL on failure.
+ */
 audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
                                                         bool is_capture,
                                                         device_error_t* err);
-/// Free descriptor memory.
+
+/**
+ * @brief Free descriptor memory.
+ *
+ * @param desc Pointer to the descriptor to free.
+ */
 void wasapi_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 
 #endif  // ENABLE_WASAPI

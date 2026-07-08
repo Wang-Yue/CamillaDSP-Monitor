@@ -51,11 +51,13 @@ int alsa_capabilities_channel_count(const char* device_name, bool is_capture) {
   snd_pcm_t* pcm = NULL;
   snd_pcm_stream_t stream =
       is_capture ? SND_PCM_STREAM_CAPTURE : SND_PCM_STREAM_PLAYBACK;
+  // Parse device name: strip any extra info like "(card description)"
   char clean_name[256];
   snprintf(clean_name, sizeof(clean_name), "%s", device_name);
   char* space = strchr(clean_name, ' ');
   if (space) *space = '\0';
 
+  // Open the PCM device in non-blocking mode to probe capabilities
   int err = snd_pcm_open(&pcm, clean_name, stream, SND_PCM_NONBLOCK);
   if (err < 0) {
     pthread_mutex_unlock(&g_alsa_mutex);
@@ -64,11 +66,13 @@ int alsa_capabilities_channel_count(const char* device_name, bool is_capture) {
 
   snd_pcm_hw_params_t* params = NULL;
   snd_pcm_hw_params_alloca(&params);
+  // Initialize hardware parameters structure
   if (snd_pcm_hw_params_any(pcm, params) < 0) {
     snd_pcm_close(pcm);
     pthread_mutex_unlock(&g_alsa_mutex);
     return 2;
   }
+  // Retrieve maximum supported channels
   unsigned int max_ch = 2;
   snd_pcm_hw_params_get_channels_max(params, &max_ch);
   snd_pcm_close(pcm);
@@ -91,6 +95,7 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
   }
   snprintf(desc->name, sizeof(desc->name), "%s", device_name);
 
+  // Parse device name to get actual ALSA device string (e.g. "hw:0")
   char clean_name[256];
   snprintf(clean_name, sizeof(clean_name), "%s", device_name);
   char* space = strchr(clean_name, ' ');
@@ -99,6 +104,7 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
   snd_pcm_stream_t stream =
       is_capture ? SND_PCM_STREAM_CAPTURE : SND_PCM_STREAM_PLAYBACK;
   snd_pcm_t* pcm = NULL;
+  // Open device in non-blocking mode to avoid hangs
   int open_res = snd_pcm_open(&pcm, clean_name, stream, SND_PCM_NONBLOCK);
   if (open_res < 0) {
     if (err) {
@@ -118,6 +124,7 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
 
   snd_pcm_hw_params_t* params = NULL;
   snd_pcm_hw_params_alloca(&params);
+  // Get full capability space
   if (snd_pcm_hw_params_any(pcm, params) < 0) {
     goto error_cleanup;
   }
@@ -126,44 +133,39 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
   snd_pcm_hw_params_get_channels_min(params, &min_ch);
   snd_pcm_hw_params_get_channels_max(params, &max_ch);
 
-  // Let's create one capability set
+  // Allocate capability set. We represent ALSA capabilities in one set.
   desc->capability_sets_count = 1;
   desc->capability_sets =
       (device_capability_set_t*)calloc(1, sizeof(device_capability_set_t));
 
   device_capability_set_t* set = &desc->capability_sets[0];
-  // Probe channel sizes. If min_ch != max_ch, we report both or a range.
-  // Let's create capabilities for all channel counts from min_ch to max_ch (up
-  // to 32)
+  // Probe channel sizes by testing constraints.
+  // We allocate space for every channel count from min to max.
   size_t cap_idx = 0;
   size_t cap_alloc = (max_ch - min_ch + 1);
   set->capabilities =
       (channel_capability_t*)calloc(cap_alloc, sizeof(channel_capability_t));
 
   for (unsigned int ch = min_ch; ch <= max_ch; ch++) {
-    // Test if this channel count is supported
-
     channel_capability_t* cap = &set->capabilities[cap_idx];
     cap->channels = (int)ch;
 
-    // Build list of supported sample rates
+    // Allocate memory for sample rates to probe. We probe from the static list ALSA_PROBE_RATES.
     cap->samplerates = (samplerate_capability_t*)calloc(
         ALSA_PROBE_RATES_COUNT, sizeof(samplerate_capability_t));
     size_t rate_idx = 0;
 
     for (size_t r = 0; r < ALSA_PROBE_RATES_COUNT; r++) {
       int test_rate = ALSA_PROBE_RATES[r];
-      // Test if test_rate is supported for this channel count
+      // Reset hw params to full space and constrain channels first, then test sample rate support
       snd_pcm_hw_params_any(pcm, params);
       snd_pcm_hw_params_set_channels(pcm, params, ch);
       if (snd_pcm_hw_params_set_rate(pcm, params, test_rate, 0) >= 0) {
-        // Rate is supported! Now probe which formats are supported for this
-        // rate and channel count
+        // Sample rate supported for this channel count. Now probe formats.
         samplerate_capability_t* rate_cap = &cap->samplerates[rate_idx];
         rate_cap->samplerate = test_rate;
 
-        // Formats we support: S16_LE, S24_3_LE, S24_4_LE, S32_LE, F32_LE,
-        // F64_LE
+        // Formats we want to probe
         const snd_pcm_format_t test_formats[] = {
             SND_PCM_FORMAT_S16_LE,   SND_PCM_FORMAT_S24_3LE,
             SND_PCM_FORMAT_S24_LE,   SND_PCM_FORMAT_S32_LE,
@@ -177,11 +179,12 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
         size_t fmt_idx = 0;
 
         for (size_t f = 0; f < test_formats_count; f++) {
+          // Reset params and constrain channel -> rate -> format
           snd_pcm_hw_params_any(pcm, params);
           snd_pcm_hw_params_set_channels(pcm, params, ch);
           snd_pcm_hw_params_set_rate(pcm, params, test_rate, 0);
           if (snd_pcm_hw_params_set_format(pcm, params, test_formats[f]) >= 0) {
-            // Check if we already added this format name
+            // Deduplicate format names (just in case)
             bool duplicate = false;
             for (size_t d = 0; d < fmt_idx; d++) {
               if (strcmp(rate_cap->formats[d], format_names[f]) == 0) {

@@ -117,6 +117,16 @@ struct fftw_real_fft_ctx {
   fftw_plan plan_inverse;
 };
 
+/**
+ * @brief Forward FFT implementation using FFTW.
+ *
+ * Copies input to FFTW input buffer, executes plan, and copies results to output.
+ *
+ * @param ctx Pointer to the fftw_real_fft_ctx.
+ * @param real_in Input real waveform.
+ * @param spec_re Output real part of the spectrum.
+ * @param spec_im Output imaginary part of the spectrum.
+ */
 static void fftw_real_fft_forward(void* ctx, waveform_t real_in,
                                   mutable_waveform_t spec_re,
                                   mutable_waveform_t spec_im) {
@@ -129,6 +139,16 @@ static void fftw_real_fft_forward(void* ctx, waveform_t real_in,
   }
 }
 
+/**
+ * @brief Inverse FFT implementation using FFTW.
+ *
+ * Copies input spectrum to FFTW complex buffer, executes plan, and copies results to output.
+ *
+ * @param ctx Pointer to the fftw_real_fft_ctx.
+ * @param spec_re Input real part of the spectrum.
+ * @param spec_im Input imaginary part of the spectrum.
+ * @param real_out Output real waveform.
+ */
 static void fftw_real_fft_inverse(void* ctx, waveform_t spec_re,
                                   waveform_t spec_im,
                                   mutable_waveform_t real_out) {
@@ -141,6 +161,13 @@ static void fftw_real_fft_inverse(void* ctx, waveform_t spec_re,
   memcpy(real_out, fft->in_real, fft->length * sizeof(double));
 }
 
+/**
+ * @brief Free FFTW resources.
+ *
+ * Destroys plans and frees allocated buffers.
+ *
+ * @param ctx Pointer to the fftw_real_fft_ctx.
+ */
 static void fftw_real_fft_free(void* ctx) {
   struct fftw_real_fft_ctx* fft = (struct fftw_real_fft_ctx*)ctx;
   if (!fft) return;

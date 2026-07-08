@@ -69,6 +69,11 @@ race_processor_t* race_processor_create(const char* name,
 
   delay_unit_t unit =
       params->has_delay_unit ? params->delay_unit : DELAY_UNIT_MS;
+
+  /* Calculate the duration of one sample in the requested delay units.
+     This is used to compensate for the implicit 1-sample delay introduced
+     by the recursive feedback structure in the process loop.
+     For MM (millimeters), we assume speed of sound is 343 m/s. */
   double sample_period = 1.0;
   switch (unit) {
     case DELAY_UNIT_US:
@@ -87,6 +92,11 @@ race_processor_t* race_processor_create(const char* name,
       sample_period = 1000.0 / (double)sample_rate;
       break;
   }
+
+  /* Compensate for the 1-sample pipeline delay in the feedback path.
+     Since the feedback signal is applied in the next sample period, we must
+     subtract one sample period from the target delay line length.
+     Clamp to 0.0 if target delay is smaller than one sample. */
   double comp_delay = params->delay - sample_period;
   if (comp_delay < 0.0) comp_delay = 0.0;
 
@@ -185,6 +195,11 @@ void race_processor_update_parameters(race_processor_t* processor,
 
   delay_unit_t unit =
       params->has_delay_unit ? params->delay_unit : DELAY_UNIT_MS;
+
+  /* Calculate the duration of one sample in the requested delay units.
+     This is used to compensate for the implicit 1-sample delay introduced
+     by the recursive feedback structure in the process loop.
+     For MM (millimeters), we assume speed of sound is 343 m/s. */
   double sample_period = 1.0;
   switch (unit) {
     case DELAY_UNIT_US:
@@ -203,6 +218,11 @@ void race_processor_update_parameters(race_processor_t* processor,
       sample_period = 1000.0 / (double)sample_rate;
       break;
   }
+
+  /* Compensate for the 1-sample pipeline delay in the feedback path.
+     Since the feedback signal is applied in the next sample period, we must
+     subtract one sample period from the target delay line length.
+     Clamp to 0.0 if target delay is smaller than one sample. */
   double comp_delay = params->delay - sample_period;
   if (comp_delay < 0.0) comp_delay = 0.0;
 

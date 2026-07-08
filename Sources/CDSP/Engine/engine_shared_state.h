@@ -1,62 +1,89 @@
 #ifndef CLIB_ENGINE_ENGINE_SHARED_STATE_H
 #define CLIB_ENGINE_ENGINE_SHARED_STATE_H
 
-// Inter-thread state for the DSP engine's three audio-priority loops
-// (capture / processing / playback). Every field here is either a
-// lock-free atomic, a wait-free SPSC queue, or a kernel signaling
-// primitive (`DispatchSemaphore`). No mutexes, no `NSLock`, no
-// `@unchecked` reads of shared mutable references — so any of the
-// three loops can read or write any of these fields without
-// coordinating with the others.
-//
-// Concurrency model
-// -----------------
-//   shouldStop          — written by `stop()` / read by all three loops
-//                         every iteration. Atomic<Bool> w/ release-acquire
-//                         so a stop request becomes promptly visible.
-//   capturedQueue       — SPSC, single producer = capture, single
-//                         consumer = processing.
-//   processedQueue      — SPSC, single producer = processing, single
-//                         consumer = playback.
-//   capturedSemaphore   — capture signals, processing waits.
-//   processedSemaphore  — processing signals, playback waits.
-//   resamplerRatio      — playback writes (rate-adjust controller),
-//                         processing reads (per chunk). 64-bit atomic.
-//
-// `DispatchSemaphore` is included to be transparent: a semaphore is a
-// kernel signaling primitive, not a lock. Producers signal after
-// enqueue; consumers wait, then drain. There is never a critical
-// section — a single signal can wake the consumer for any number of
-// queued items, and the consumer drains until empty before waiting
-// again.
+/**
+ * @file engine_shared_state.h
+ * @brief Inter-thread state for the DSP engine's audio-priority loops.
+ *
+ * Coordinates state between the capture, processing, and playback loops.
+ * Every field is either a lock-free atomic, a wait-free SPSC queue, or a kernel
+ * signaling primitive (`DispatchSemaphore`/semaphore/Event). No mutexes are used,
+ * allowing the loops to read/write fields without coordinating locks.
+ *
+ * @section concurrency_model Concurrency model
+ * - `should_stop`: Written by `stop()`, read by all three loops every iteration.
+ *   Uses release-acquire atomic semantics.
+ * - `captured_queue`: SPSC, producer = capture, consumer = processing.
+ * - `processed_queue`: SPSC, producer = processing, consumer = playback.
+ * - `captured_semaphore`: Capture signals, processing waits.
+ * - `processed_semaphore`: Processing signals, playback waits.
+ * - `resampler_ratio`: Playback writes (rate-adjust), processing reads (per chunk).
+ *   64-bit atomic.
+ *
+ * @section semaphores Semaphores
+ * Semaphores are used for kernel-level signaling (not locking). Producers signal after
+ * enqueueing, and consumers wait then drain.
+ */
 
 #include "Audio/audio_chunk.h"
 #include "Audio/lock_free_ring_buffer.h"
 #ifdef __APPLE__
 #include <dispatch/dispatch.h>
+/**
+ * @brief Platform-specific semaphore wrapper.
+ */
 typedef dispatch_semaphore_t engine_semaphore_t;
+/**
+ * @brief Initializes the semaphore.
+ * @param sem Pointer to the semaphore wrapper.
+ * @return true on success, false on failure.
+ */
 static inline bool engine_sem_init(engine_semaphore_t* sem) {
   *sem = dispatch_semaphore_create(0);
   return *sem != NULL;
 }
+/**
+ * @brief Destroys the semaphore.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void engine_sem_destroy(engine_semaphore_t* sem) {
   if (*sem) dispatch_release(*sem);
 }
+/**
+ * @brief Signals the semaphore.
+ * @param sem The semaphore.
+ */
 static inline void engine_sem_signal(engine_semaphore_t sem) {
   if (sem) dispatch_semaphore_signal(sem);
 }
+/**
+ * @brief Waits on the semaphore.
+ * @param sem The semaphore.
+ */
 static inline void engine_sem_wait(engine_semaphore_t sem) {
   if (sem) dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
 }
 #elif defined(__linux__)
 #include <semaphore.h>
 #include <stdlib.h>
+/**
+ * @brief Platform-specific semaphore wrapper.
+ */
 typedef sem_t* engine_semaphore_t;
+/**
+ * @brief Initializes the semaphore.
+ * @param sem Pointer to the semaphore wrapper.
+ * @return true on success, false on failure.
+ */
 static inline bool engine_sem_init(engine_semaphore_t* sem) {
   *sem = (sem_t*)malloc(sizeof(sem_t));
   if (!*sem) return false;
   return sem_init(*sem, 0, 0) == 0;
 }
+/**
+ * @brief Destroys the semaphore.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void engine_sem_destroy(engine_semaphore_t* sem) {
   if (*sem) {
     sem_destroy(*sem);
@@ -64,28 +91,56 @@ static inline void engine_sem_destroy(engine_semaphore_t* sem) {
     *sem = NULL;
   }
 }
+/**
+ * @brief Signals the semaphore.
+ * @param sem The semaphore.
+ */
 static inline void engine_sem_signal(engine_semaphore_t sem) {
   if (sem) sem_post(sem);
 }
+/**
+ * @brief Waits on the semaphore.
+ * @param sem The semaphore.
+ */
 static inline void engine_sem_wait(engine_semaphore_t sem) {
   if (sem) sem_wait(sem);
 }
 #elif defined(_WIN32)
 #include <windows.h>
+/**
+ * @brief Platform-specific semaphore wrapper.
+ */
 typedef HANDLE engine_semaphore_t;
+/**
+ * @brief Initializes the semaphore.
+ * @param sem Pointer to the semaphore wrapper.
+ * @return true on success, false on failure.
+ */
 static inline bool engine_sem_init(engine_semaphore_t* sem) {
   *sem = CreateSemaphore(NULL, 0, 32767, NULL);
   return *sem != NULL;
 }
+/**
+ * @brief Destroys the semaphore.
+ * @param sem Pointer to the semaphore wrapper.
+ */
 static inline void engine_sem_destroy(engine_semaphore_t* sem) {
   if (*sem) {
     CloseHandle(*sem);
     *sem = NULL;
   }
 }
+/**
+ * @brief Signals the semaphore.
+ * @param sem The semaphore.
+ */
 static inline void engine_sem_signal(engine_semaphore_t sem) {
   if (sem) ReleaseSemaphore(sem, 1, NULL);
 }
+/**
+ * @brief Waits on the semaphore.
+ * @param sem The semaphore.
+ */
 static inline void engine_sem_wait(engine_semaphore_t sem) {
   if (sem) WaitForSingleObject(sem, INFINITE);
 }
@@ -95,50 +150,89 @@ static inline void engine_sem_wait(engine_semaphore_t sem) {
 #include <stdint.h>
 #include "Config/engine_config_types.h"
 
-/// Genuinely `Sendable` — every stored field is itself `Sendable`
-/// (the SPSC queues, the kernel `DispatchSemaphore`s, and the
-/// atomics). Producers and consumers may freely access these from
-/// any thread without coordination beyond what each individual
-/// field's API requires.
+/**
+ * @brief Shared state between the engine threads.
+ *
+ * Genuinely `Sendable` — every stored field is itself `Sendable`
+ * (the SPSC queues, the kernel semaphores, and the atomics).
+ * Producers and consumers may freely access these from any thread
+ * without coordination beyond what each individual field's API requires.
+ */
 typedef struct {
-  /// Bounded SPSC FIFO from the capture thread to the processing
-  /// thread. `enqueue` returns `false` when full; the producer drops
-  /// the chunk rather than allocate.
+  /**
+   * @brief Bounded SPSC FIFO from the capture thread to the processing thread.
+   * `enqueue` returns `false` when full; the producer drops the chunk rather than allocate.
+   */
   spsc_queue_t* captured_queue;
 
-  /// Bounded SPSC FIFO from the processing thread to the playback
-  /// thread.
+  /**
+   * @brief Bounded SPSC FIFO from the processing thread to the playback thread.
+   */
   spsc_queue_t* processed_queue;
 
-  /// Wakeup signal for the processing thread. The capture thread
-  /// signals after every successful `enqueue`.
+  /**
+   * @brief Wakeup signal for the processing thread.
+   * The capture thread signals after every successful `enqueue`.
+   */
   engine_semaphore_t captured_semaphore;
 
-  /// Wakeup signal for the playback thread. The processing thread
-  /// signals after every successful `enqueue`.
+  /**
+   * @brief Wakeup signal for the playback thread.
+   * The processing thread signals after every successful `enqueue`.
+   */
   engine_semaphore_t processed_semaphore;
 
-  /// Stop flag. Written exactly once (false → true) per engine run.
-  /// Each loop polls between iterations and exits when set.
+  /**
+   * @brief Stop flag.
+   * Written exactly once (false → true) per engine run.
+   * Each loop polls between iterations and exits when set.
+   */
   _Atomic bool should_stop;
 
-  /// Guard flag to ensure stop_reason is only written once (no write-write race).
+  /**
+   * @brief Guard flag to ensure stop_reason is only written once (no write-write race).
+   */
   _Atomic bool stop_reason_written;
 
-  /// Stop reason explaining why the loop stopped (e.g. format change).
+  /**
+   * @brief Stop reason explaining why the loop stopped (e.g. format change).
+   */
   processing_stop_reason_t stop_reason;
 
-  /// Resampler relative-ratio (≈ 1.0). Published by the playback
-  /// thread (rate-adjust controller); consumed by the processing
-  /// thread once per chunk via `setRelativeRatio`.
+  /**
+   * @brief Resampler relative-ratio (≈ 1.0).
+   * Published by the playback thread (rate-adjust controller); consumed by
+   * the processing thread once per chunk via `setRelativeRatio`.
+   */
   atomic_double_t* resampler_ratio;
 
 } engine_shared_state_t;
 
+/**
+ * @brief Creates a new engine shared state instance.
+ *
+ * @param captured_queue_depth Depth of the captured SPSC queue.
+ * @param processed_queue_depth Depth of the processed SPSC queue.
+ * @return Pointer to the created shared state instance, or NULL on failure.
+ */
 engine_shared_state_t* engine_shared_state_create(size_t captured_queue_depth,
                                                   size_t processed_queue_depth);
+
+/**
+ * @brief Frees the engine shared state instance.
+ *
+ * @param state Pointer to the shared state instance to free.
+ */
 void engine_shared_state_free(engine_shared_state_t* state);
 
+/**
+ * @brief Requests the engine loops to stop.
+ *
+ * Sets the `should_stop` flag and sets the stop reason.
+ *
+ * @param state Pointer to the shared state.
+ * @param reason The reason for stopping.
+ */
 void engine_shared_state_request_stop(engine_shared_state_t* state,
                                       processing_stop_reason_t reason);
 

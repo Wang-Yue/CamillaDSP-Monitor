@@ -64,6 +64,12 @@
  */
 typedef struct race_processor race_processor_t;
 
+/**
+ * @brief Gets the name of the RACE processor.
+ *
+ * @param processor Pointer to the RACE processor.
+ * @return The unique name of the processor instance.
+ */
 const char* race_processor_get_name(const race_processor_t* processor);
 
 /**

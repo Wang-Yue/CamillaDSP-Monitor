@@ -199,6 +199,15 @@ size_t async_sinc_resampler_get_channels(
   return resampler ? resampler->channels : 0;
 }
 
+/**
+ * @brief Calculates the number of output frames that will be generated in the next process call.
+ *
+ * This function estimates the output frame count based on the average of the current resample ratio
+ * and the target ratio, the chunk size, the sinc filter length, and the last index from the previous chunk.
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @return The number of output frames expected.
+ */
 static inline size_t get_next_output_frames(
     const async_sinc_resampler_t* resampler) {
   // Calculate output size for input
@@ -217,8 +226,18 @@ typedef struct {
   int sub;
 } adjust_point_t;
 
-/// Fetch the (index, subindex) pair for a given (start, frac, sub) triple.
-/// Wrap-around logic.
+/**
+ * @brief Adjusts the input buffer index and fractional subindex for oversampling lookup.
+ *
+ * Handles wrap-around logic when the subindex (fractional part + offset) goes out of bounds
+ * of the oversampling factor.
+ *
+ * @param start The starting integer index in the input buffer.
+ * @param frac The current fractional index (0 to factor - 1).
+ * @param sub The offset to apply to the fractional index (e.g., -1, 0, 1, 2 for cubic interp).
+ * @param factor The oversampling factor.
+ * @return An adjust_point_t struct containing the adjusted integer index and subindex.
+ */
 static inline adjust_point_t adjust_point(int start, int frac, int sub,
                                           int factor) {
   int index = start;
@@ -233,6 +252,16 @@ static inline adjust_point_t adjust_point(int start, int frac, int sub,
   return (adjust_point_t){index, subindex};
 }
 
+/**
+ * @brief Resamples the input using nearest-neighbor interpolation.
+ *
+ * This is the fastest but lowest quality interpolation mode. It uses the closest sinc filter phase
+ * without interpolating between phases.
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @param output_frames Number of output frames to generate.
+ * @param output Pointer to the output audio chunk.
+ */
 static void run_nearest(async_sinc_resampler_t* resampler, size_t output_frames,
                         audio_chunk_t* output) {
   size_t s_len = resampler->sinc_len;
@@ -263,6 +292,15 @@ static void run_nearest(async_sinc_resampler_t* resampler, size_t output_frames,
   }
 }
 
+/**
+ * @brief Resamples the input using cubic interpolation across four adjacent sinc filter phases.
+ *
+ * This is the highest quality but slowest interpolation mode.
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @param output_frames Number of output frames to generate.
+ * @param output Pointer to the output audio chunk.
+ */
 static void run_cubic(async_sinc_resampler_t* resampler, size_t output_frames,
                       audio_chunk_t* output) {
   size_t s_len = resampler->sinc_len;
@@ -312,6 +350,15 @@ static void run_cubic(async_sinc_resampler_t* resampler, size_t output_frames,
   }
 }
 
+/**
+ * @brief Resamples the input using quadratic interpolation across three adjacent sinc filter phases.
+ *
+ * Balances speed and quality.
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @param output_frames Number of output frames to generate.
+ * @param output Pointer to the output audio chunk.
+ */
 static void run_quadratic(async_sinc_resampler_t* resampler,
                           size_t output_frames, audio_chunk_t* output) {
   size_t s_len = resampler->sinc_len;
@@ -356,6 +403,13 @@ static void run_quadratic(async_sinc_resampler_t* resampler,
   }
 }
 
+/**
+ * @brief Resamples the input using linear interpolation between two adjacent sinc filter phases.
+ *
+ * @param resampler Pointer to the resampler instance.
+ * @param output_frames Number of output frames to generate.
+ * @param output Pointer to the output audio chunk.
+ */
 static void run_linear(async_sinc_resampler_t* resampler, size_t output_frames,
                        audio_chunk_t* output) {
   size_t s_len = resampler->sinc_len;
@@ -411,13 +465,16 @@ resampler_error_t async_sinc_resampler_process(
   size_t s_len = resampler->sinc_len;
   size_t two_s_len = 2 * s_len;
 
+  // We maintain 2 * sinc_len samples of history from the previous chunk.
+  // This is because the windowed-sinc filter requires samples before and after the
+  // target interpolation point.
   for (size_t ch = 0; ch < resampler->channels; ch++) {
     double* base = audio_buffers_get_channel(resampler->input_buffer, ch);
     if (!base) continue;
-    // Copy [chunkSize..chunkSize + 2*sincLen] to [0..2*sincLen]
-    // (shift remaining data to the beginning).
+    // Shift the last 2*sinc_len samples of the previous chunk to the start of the buffer.
     memmove(base, base + resampler->chunk_size, two_s_len * sizeof(double));
   }
+  // Copy the new input chunk data immediately after the history.
   for (size_t ch = 0; ch < resampler->channels; ch++) {
     const double* src_ptr = audio_chunk_get_channel(input, ch);
     double* dst_ptr = audio_buffers_get_channel(resampler->input_buffer, ch);
@@ -426,11 +483,12 @@ resampler_error_t async_sinc_resampler_process(
            resampler->chunk_size * sizeof(double));
   }
 
-  // Pre-compute per-frame `idx` and `fracOffset`. Prologue of
-  // the per-frame loop:
-  //   t_ratio += t_ratio_increment;
-  //   idx += t_ratio;
-  //   frac = idx*factor - (idx*factor).floor();
+  // Pre-compute per-frame `idx` and `fracOffset` (fractional offset for interpolation).
+  // Doing this once per chunk avoids redundant calculation in the multi-channel loop,
+  // improving cache locality and performance since channels can be processed independently.
+  //
+  // The resampling ratio is ramped linearly from resample_ratio to target_ratio
+  // over the course of the output frames to smoothly handle dynamic ratio changes.
   double t_ratio_start = 1.0 / resampler->resample_ratio;
   double t_ratio_end = 1.0 / resampler->target_ratio;
   double t_ratio_increment =

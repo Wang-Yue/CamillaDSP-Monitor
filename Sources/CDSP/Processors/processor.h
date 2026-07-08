@@ -73,13 +73,29 @@ dsp_processor_t* dsp_processor_wrap_noise_gate(noise_gate_processor_t* p);
  */
 dsp_processor_t* dsp_processor_wrap_race(race_processor_t* p);
 
-/// Apply the processor to all channels of `chunk` in place.
+/**
+ * @brief Applies the processor to all channels of the audio chunk in place.
+ *
+ * @param proc Pointer to the generic processor wrapper.
+ * @param chunk Audio chunk to process in place.
+ */
 void dsp_processor_process(dsp_processor_t* proc, audio_chunk_t* chunk);
 
-/// Update the processor parameters dynamically.
+/**
+ * @brief Updates the processor parameters dynamically.
+ *
+ * @param proc Pointer to the generic processor wrapper.
+ * @param config New processor configuration.
+ * @param sample_rate Audio sample rate in Hz.
+ */
 void dsp_processor_update_parameters(dsp_processor_t* proc, const processor_config_t* config, int sample_rate);
 
-/// The unique name of this processor instance.
+/**
+ * @brief Gets the unique name of this processor instance.
+ *
+ * @param proc Pointer to the generic processor wrapper.
+ * @return The unique name of the processor instance.
+ */
 const char* dsp_processor_get_name(const dsp_processor_t* proc);
 
 /**

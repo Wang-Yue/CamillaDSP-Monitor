@@ -20,15 +20,31 @@ struct loudness_filter {
 // RME ADI-2 DAC Loudness Curves
 // https://www.rme-audio.de/downloads/adi2dac_e.pdf
 
+/**
+ * @brief Recomputes the low-shelf and high-shelf filter coefficients based on the current volume.
+ * 
+ * Implements the RME ADI-2 DAC Loudness Curve logic:
+ * - A reference volume level is compared against the current volume.
+ * - The difference determines a boost factor between 0.0 (no boost) and 1.0 (maximum configured boost).
+ * - Low and high frequencies are boosted proportionally.
+ * - Optionally, midband attenuation can be used instead of frequency boosts to prevent clipping.
+ * 
+ * @param filter The loudness filter instance.
+ * @param volume The current volume in dB.
+ */
 static void recompute_shelves(loudness_filter_t* filter, double volume) {
   double ref = filter->params.has_reference_level
                    ? filter->params.reference_level
                    : -25.0;
+  
+  // Calculate boost factor. 1.0 boost factor corresponds to 20 dB or more attenuation
+  // below the reference level.
   double diff = (ref - volume) / 20.0;
   double boost_factor = diff < 0.0 ? 0.0 : (diff > 1.0 ? 1.0 : diff);
 
   filter->is_processing_active = boost_factor > 0.001;
 
+  // Calculate target low and high boosts.
   double low_boost =
       (filter->params.has_low_boost ? filter->params.low_boost : 10.0) *
       boost_factor;
@@ -36,6 +52,9 @@ static void recompute_shelves(loudness_filter_t* filter, double volume) {
       (filter->params.has_high_boost ? filter->params.high_boost : 10.0) *
       boost_factor;
 
+  // If attenuate_mid is enabled, we lower the overall gain (attenuate midband) by the
+  // maximum boost instead of boosting the shelves. This keeps the peak gain at 0 dB,
+  // preventing digital clipping.
   if (filter->params.attenuate_mid) {
     double max_boost = low_boost > high_boost ? low_boost : high_boost;
     filter->midband_attenuation_db = -max_boost;
@@ -106,20 +125,26 @@ void loudness_filter_process(loudness_filter_t* filter,
 
   double current_vol = processing_parameters_get_current_volume_for_fader(
       filter->processing_parameters, filter->params.fader);
-  // Recompute coefficients if volume changed significantly
+  
+  // Recompute filter coefficients only if the volume has changed significantly.
+  // This avoids expensive filter re-calculation (and potential audio glitches)
+  // for tiny volume fluctuations.
   if (fabs(current_vol - filter->last_volume) > 0.01 ||
       !filter->is_processing_active) {
     filter->last_volume = current_vol;
     recompute_shelves(filter, current_vol);
   }
 
+  // If the volume is high enough that loudness compensation is not needed,
+  // bypass processing.
   if (!filter->is_processing_active) return;
 
-  // Apply filters in order
+  // Apply high-shelf and low-shelf filters.
   biquad_filter_process(filter->high_shelf_filter, waveform, count);
   biquad_filter_process(filter->low_shelf_filter, waveform, count);
 
-  // Apply midband attenuation if enabled
+  // Apply midband attenuation if enabled to simulate bass/treble boost 
+  // without exceeding 0 dBFS peak gain.
   if (filter->params.attenuate_mid &&
       fabs(filter->midband_attenuation_db) > 0.001) {
     double factor = double_from_db(filter->midband_attenuation_db);

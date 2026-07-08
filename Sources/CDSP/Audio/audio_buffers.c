@@ -34,11 +34,16 @@ audio_buffers_t* audio_buffers_create(size_t channels, size_t capacity) {
   buf->channels = channels;
   buf->capacity = capacity;
 
+  // Allocate a single contiguous block of memory for all channels to improve
+  // cache locality and reduce memory fragmentation.
   size_t total = channels * capacity;
   buf->storage = (double*)calloc(total, sizeof(double));
+  
+  // Allocate the array of pointers that will point to the start of each channel's buffer.
   buf->channel_buffers =
       (mutable_waveform_t*)malloc(channels * sizeof(mutable_waveform_t));
 
+  // Set up pointers to point into the contiguous block.
   for (size_t ch = 0; ch < channels; ch++) {
     buf->channel_buffers[ch] = buf->storage + (ch * capacity);
   }
@@ -50,6 +55,8 @@ audio_buffers_t* audio_buffers_copy_from(const double* const* waveforms,
                                          const size_t* channel_lengths,
                                          size_t channels) {
   if (channels == 0) return NULL;
+  
+  // Find the maximum length among all channels to determine the capacity of the new buffer.
   size_t max_cap = 0;
   for (size_t ch = 0; ch < channels; ch++) {
     if (channel_lengths[ch] > max_cap) max_cap = channel_lengths[ch];
@@ -59,6 +66,7 @@ audio_buffers_t* audio_buffers_copy_from(const double* const* waveforms,
   audio_buffers_t* buf = audio_buffers_create(channels, max_cap);
   if (!buf) return NULL;
 
+  // Copy data from the potentially non-contiguous source waveforms into our contiguous storage.
   for (size_t ch = 0; ch < channels; ch++) {
     size_t len = channel_lengths[ch];
     if (len > 0 && waveforms[ch]) {

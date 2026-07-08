@@ -13,6 +13,11 @@
 
 #include "Logging/app_logger.h"
 
+/**
+ * @brief Helper to get monotonic time in nanoseconds.
+ * 
+ * @return Monotonic time in nanoseconds.
+ */
 static uint64_t get_time_ns(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -62,6 +67,12 @@ typedef struct {
   uint32_t data_start_offset;
 } wav_info_t;
 
+/**
+ * @brief Get the size in bytes of a sample for a given format.
+ * 
+ * @param format The binary sample format.
+ * @return Size in bytes, or 0 if format is invalid.
+ */
 static size_t get_sample_size(binary_sample_format_t format) {
   switch (format) {
     case BINARY_SAMPLE_FORMAT_S16_LE:
@@ -83,6 +94,18 @@ static size_t get_sample_size(binary_sample_format_t format) {
   }
 }
 
+/**
+ * @brief Parse WAV header from a file.
+ * 
+ * Extracts sample rate, channels, format, and data chunk size/offset.
+ * Handles files where the 'data' chunk is not immediately after the 'fmt ' chunk.
+ * 
+ * @param f File pointer.
+ * @param info Output structure to store parsed WAV info.
+ * @param err_msg Output buffer for error message if parsing fails.
+ * @param err_msg_len Size of err_msg buffer.
+ * @return true if parsing succeeded, false otherwise.
+ */
 static bool parse_wav_header(FILE* f, wav_info_t* info, char* err_msg,
                              size_t err_msg_len) {
   uint8_t header[44];
@@ -147,6 +170,8 @@ static bool parse_wav_header(FILE* f, wav_info_t* info, char* err_msg,
     return true;
   }
 
+  // If the 'data' chunk is not immediately at offset 36 (e.g., there are other
+  // chunks like 'LIST' or 'fact' before 'data'), we search for it sequentially.
   fseek(f, 36, SEEK_SET);
   uint8_t chunk_id[4];
   uint32_t chunk_size;
@@ -167,6 +192,17 @@ static bool parse_wav_header(FILE* f, wav_info_t* info, char* err_msg,
   return false;
 }
 
+/**
+ * @brief Write a standard 44-byte WAV header to the file.
+ * 
+ * Used for file playback when WAV header is requested.
+ * 
+ * @param f File pointer.
+ * @param channels Number of channels.
+ * @param format Sample format.
+ * @param sample_rate Sample rate.
+ * @param data_bytes Size of data payload in bytes.
+ */
 static void write_wav_header_to_file(FILE* f, size_t channels,
                                      binary_sample_format_t format,
                                      uint32_t sample_rate,
@@ -215,6 +251,15 @@ static void write_wav_header_to_file(FILE* f, size_t channels,
   fwrite(header, 1, 44, f);
 }
 
+/**
+ * @brief Decode a binary sample to double in range [-1.0, 1.0].
+ * 
+ * Handles sign extension for 24-bit formats.
+ * 
+ * @param src Pointer to the binary sample data.
+ * @param format The sample format.
+ * @return Decoded sample value as a double.
+ */
 static inline double decode_sample(const uint8_t* src,
                                    binary_sample_format_t format) {
   switch (format) {
@@ -224,11 +269,13 @@ static inline double decode_sample(const uint8_t* src,
     }
     case BINARY_SAMPLE_FORMAT_S24_3_LE: {
       int32_t val = src[0] | (src[1] << 8) | (src[2] << 16);
+      // Sign extend 24-bit signed integer to 32-bit.
       if (val & 0x800000) val |= ~0xFFFFFF;
       return (double)val / 8388608.0;
     }
     case BINARY_SAMPLE_FORMAT_S24_4_RJ_LE: {
       int32_t val = src[0] | (src[1] << 8) | (src[2] << 16);
+      // Sign extend 24-bit signed integer to 32-bit (Right Justified).
       if (val & 0x800000) val |= ~0xFFFFFF;
       return (double)val / 8388608.0;
     }
@@ -255,8 +302,19 @@ static inline double decode_sample(const uint8_t* src,
   }
 }
 
+/**
+ * @brief Encode a double sample in range [-1.0, 1.0] to binary format.
+ * 
+ * Clips values outside [-1.0, 1.0].
+ * 
+ * @param dst Pointer to destination buffer.
+ * @param value The double sample value.
+ * @param format The target sample format.
+ */
 static inline void encode_sample(uint8_t* dst, double value,
                                  binary_sample_format_t format) {
+  // Hard clip the input double value to the valid range [-1.0, 1.0]
+  // to prevent overflow when converting to integer formats.
   if (value > 1.0)
     value = 1.0;
   else if (value < -1.0)
@@ -316,31 +374,40 @@ static inline void encode_sample(uint8_t* dst, double value,
 
 // MARK: - File Capture Backend implementation
 
+/** @brief Vtable wrapper for file_capture_open. */
 static bool cap_vtable_open(void* ctx, backend_error_t* err) {
   return file_capture_open((file_capture_t*)ctx, err);
 }
+/** @brief Vtable wrapper for file_capture_read. */
 static bool cap_vtable_read(void* ctx, size_t frames, audio_chunk_t* chunk,
                             backend_error_t* err) {
   return file_capture_read((file_capture_t*)ctx, frames, chunk, err);
 }
+/** @brief Vtable wrapper for file_capture_close. */
 static void cap_vtable_close(void* ctx) {
   file_capture_close((file_capture_t*)ctx);
 }
+/** @brief Vtable wrapper for file_capture_get_pending_rate_change. */
 static bool cap_vtable_get_pending_rate_change(void* ctx, double* out_rate) {
   return file_capture_get_pending_rate_change((file_capture_t*)ctx, out_rate);
 }
+/** @brief Vtable wrapper for file_capture_pitch_control_supported. */
 static bool cap_vtable_is_pitch_control_supported(void* ctx) {
   return file_capture_pitch_control_supported((file_capture_t*)ctx);
 }
+/** @brief Vtable wrapper for file_capture_set_pitch. */
 static void cap_vtable_set_pitch(void* ctx, double multiplier) {
   file_capture_set_pitch((file_capture_t*)ctx, multiplier);
 }
+/** @brief Vtable wrapper for file_capture_wait. */
 static bool cap_vtable_wait_for_data(void* ctx, uint32_t timeout_ms) {
   return file_capture_wait((file_capture_t*)ctx, timeout_ms);
 }
+/** @brief Vtable wrapper for file_capture_destroy. */
 static void cap_vtable_destroy(void* ctx) {
   file_capture_destroy((file_capture_t*)ctx);
 }
+/** @brief Vtable wrapper for file_capture_set_is_paused. */
 static void cap_vtable_set_is_paused(void* ctx, bool paused) {
   file_capture_set_is_paused((file_capture_t*)ctx, paused);
 }
@@ -539,6 +606,9 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
   }
 
   // Check EOF and generate extra samples if configured
+  // If we read fewer frames than requested (e.g., EOF), and we have configured
+  // extra samples to generate, append silence up to the requested number of frames
+  // or until the extra samples limit is reached.
   if (frames_read < frames) {
     size_t remaining_frames = frames - frames_read;
     size_t extra_to_generate =
@@ -609,32 +679,41 @@ void file_capture_set_is_paused(file_capture_t* capture, bool paused) {
 
 // MARK: - File Playback Backend implementation
 
+/** @brief Vtable wrapper for file_playback_open. */
 static bool play_vtable_open(void* ctx, backend_error_t* err) {
   return file_playback_open((file_playback_t*)ctx, err);
 }
+/** @brief Vtable wrapper for file_playback_write. */
 static bool play_vtable_write(void* ctx, const audio_chunk_t* chunk,
                               backend_error_t* err) {
   return file_playback_write((file_playback_t*)ctx, chunk, err);
 }
+/** @brief Vtable wrapper for file_playback_close. */
 static void play_vtable_close(void* ctx) {
   file_playback_close((file_playback_t*)ctx);
 }
+/** @brief Vtable wrapper for file_playback_get_buffer_level. */
 static size_t play_vtable_get_buffer_level(void* ctx) {
   return file_playback_get_buffer_level((file_playback_t*)ctx);
 }
+/** @brief Vtable wrapper for file_playback_get_pending_rate_change. */
 static bool play_vtable_get_pending_rate_change(void* ctx, double* out_rate) {
   return file_playback_get_pending_rate_change((file_playback_t*)ctx, out_rate);
 }
+/** @brief Vtable wrapper for file_playback_prefill_silence. */
 static bool play_vtable_prefill_silence(void* ctx, size_t frames,
                                         backend_error_t* err) {
   return file_playback_prefill_silence((file_playback_t*)ctx, frames, err);
 }
+/** @brief Vtable wrapper for file_playback_get_is_paused. */
 static bool play_vtable_get_is_paused(void* ctx) {
   return file_playback_get_is_paused((file_playback_t*)ctx);
 }
+/** @brief Vtable wrapper for file_playback_set_is_paused. */
 static void play_vtable_set_is_paused(void* ctx, bool paused) {
   file_playback_set_is_paused((file_playback_t*)ctx, paused);
 }
+/** @brief Vtable wrapper for file_playback_destroy. */
 static void play_vtable_destroy(void* ctx) {
   file_playback_destroy((file_playback_t*)ctx);
 }
@@ -734,6 +813,8 @@ bool file_playback_write(file_playback_t* playback, const audio_chunk_t* chunk,
   size_t sample_size = get_sample_size(playback->format);
 
   // Allocate larger buffer if chunk size exceeds chunk_size
+  // Dynamically reallocate the raw buffer if the incoming chunk has more frames
+  // than our pre-allocated capacity (which was based on chunk_size).
   size_t required_bytes = frames * playback->channels * sample_size;
   if (required_bytes > playback->raw_buf_capacity) {
     playback->raw_buf = (uint8_t*)realloc(playback->raw_buf, required_bytes);

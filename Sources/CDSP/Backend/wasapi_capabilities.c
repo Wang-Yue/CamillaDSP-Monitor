@@ -229,6 +229,9 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
 
   snprintf(desc->name, sizeof(desc->name), "%s", device_name);
 
+  // Define the set of channels, rates, and formats we want to probe.
+  // We use this trial-and-error approach because WASAPI does not provide
+  // a direct API to query all supported configurations.
   const int PROBE_CHANNELS[] = {2, 8};
   const size_t PROBE_CHANNELS_COUNT =
       sizeof(PROBE_CHANNELS) / sizeof(PROBE_CHANNELS[0]);
@@ -253,6 +256,7 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
 
   size_t valid_channels_count = 0;
 
+  // Probe each channel count.
   for (size_t c_idx = 0; c_idx < PROBE_CHANNELS_COUNT; c_idx++) {
     int channels = PROBE_CHANNELS[c_idx];
     channel_capability_t* chan_cap = &set->capabilities[valid_channels_count];
@@ -262,6 +266,7 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
 
     size_t valid_rates_count = 0;
 
+    // Probe each sample rate for the current channel count.
     for (size_t r_idx = 0; r_idx < PROBE_RATES_COUNT; r_idx++) {
       int rate = PROBE_RATES[r_idx];
       samplerate_capability_t* rate_cap =
@@ -271,9 +276,11 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
 
       size_t valid_formats_count = 0;
 
+      // Probe each sample format for the current channel count and sample rate.
       for (size_t f_idx = 0; f_idx < PROBE_FORMATS_COUNT; f_idx++) {
         wasapi_sample_format_t fmt = PROBE_FORMATS[f_idx];
 
+        // Configure WAVEFORMATEXTENSIBLE for probing.
         WAVEFORMATEXTENSIBLE wfx;
         memset(&wfx, 0, sizeof(wfx));
         wfx.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
@@ -293,6 +300,7 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
                             : KSDATAFORMAT_SUBTYPE_PCM;
 
         WAVEFORMATEX* closest = NULL;
+        // Query WASAPI if the format is supported in shared mode.
         hr = IAudioClient_IsFormatSupported(client, AUDCLNT_SHAREMODE_SHARED,
                                             (WAVEFORMATEX*)&wfx, &closest);
         if (closest) CoTaskMemFree(closest);
@@ -303,6 +311,7 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
         }
       }
 
+      // If at least one format was supported, this rate is valid.
       if (valid_formats_count > 0) {
         rate_cap->formats_count = valid_formats_count;
         valid_rates_count++;
@@ -311,6 +320,7 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
       }
     }
 
+    // If at least one rate was supported, this channel count is valid.
     if (valid_rates_count > 0) {
       chan_cap->samplerates_count = valid_rates_count;
       valid_channels_count++;

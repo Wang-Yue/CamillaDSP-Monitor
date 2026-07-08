@@ -24,6 +24,14 @@ struct volume_filter {
 
 #ifndef __APPLE__
 #define CLOCK_UPTIME_RAW CLOCK_MONOTONIC
+/**
+ * @brief Helper to get the current time in nanoseconds.
+ *
+ * Used for checking if volume ramp requests are stale.
+ *
+ * @param clock_id The clock ID to query.
+ * @return The current time in nanoseconds.
+ */
 static inline uint64_t clock_gettime_nsec_np(int clock_id) {
   struct timespec ts;
   clock_gettime(clock_id, &ts);
@@ -31,6 +39,15 @@ static inline uint64_t clock_gettime_nsec_np(int clock_id) {
 }
 #endif
 
+/**
+ * @brief Pre-calculates the gain values for the current step of a volume ramp.
+ *
+ * This function calculates linear gain coefficients for each sample in the
+ * current chunk to smoothly transition from the start volume to the target
+ * volume over the ramp duration.
+ *
+ * @param filter Pointer to the volume filter instance.
+ */
 static void fill_ramp(volume_filter_t* filter) {
   if (filter->chunk_size == 0 || filter->ramptime_in_chunks <= 0) return;
   double target_vol = filter->mute ? -100.0 : filter->target_volume;
@@ -115,6 +132,9 @@ void volume_filter_prepare_chunk(volume_filter_t* filter) {
     uint64_t set_at = processing_parameters_get_target_volume_set_at_for_fader(
         filter->processing_parameters, filter->fader);
     uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    // Determine if the volume change request is stale.
+    // If the request is stale (e.g. after a long pause or block), we skip the
+    // ramp to prevent volume changes from lagging behind user interaction.
     bool ramp_is_stale =
         (now > set_at) ? ((now - set_at) > filter->stale_ramp_threshold_ns)
                        : false;
@@ -142,6 +162,7 @@ void volume_filter_process(volume_filter_t* filter, mutable_waveform_t waveform,
                            size_t count) {
   if (!filter || !waveform || count == 0) return;
   if (filter->ramp_step == 0) {
+    // Optimization: avoid multiplication if gain is 1.0, or clear if 0.0.
     if (filter->target_linear_gain == 1.0) {
       // No-op
     } else if (filter->target_linear_gain == 0.0) {
@@ -150,8 +171,11 @@ void volume_filter_process(volume_filter_t* filter, mutable_waveform_t waveform,
       dsp_ops_scalar_multiply(waveform, filter->target_linear_gain, count);
     }
   } else {
+    // Apply the ramping gains.
     size_t limit = count < filter->chunk_size ? count : filter->chunk_size;
     dsp_ops_multiply(filter->current_ramp_gains, waveform, limit);
+    // If there is leftover data in the chunk beyond the ramping buffer,
+    // apply the target linear gain to it.
     if (limit < count) {
       double final_gain =
           filter->mute ? 0.0 : double_from_db(filter->target_volume);
@@ -165,6 +189,8 @@ void volume_filter_process(volume_filter_t* filter, mutable_waveform_t waveform,
 void volume_filter_advance_ramp(volume_filter_t* filter) {
   if (!filter || filter->ramp_step <= 0) return;
   if (filter->chunk_size > 0) {
+    // Update current volume based on the last computed gain sample of the chunk.
+    // Clamp to a tiny value to prevent log10(0) returning -inf.
     double last_gain = filter->current_ramp_gains[filter->chunk_size - 1];
     double val = last_gain > 1e-150 ? last_gain : 1e-150;
     filter->current_volume = 20.0 * log10(val);

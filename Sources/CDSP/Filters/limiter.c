@@ -37,11 +37,19 @@ void limiter_filter_process(limiter_filter_t* filter,
   if (filter->soft_clip) {
     double inv_limit = 1.0 / filter->clip_limit;
     for (size_t i = 0; i < count; i++) {
+      // Scale waveform to range relative to clip limit.
       double scaled = waveform[i] * inv_limit;
+      
+      // Clamp scaled value to [-1.5, 1.5]. The soft clipping function 
+      // f(x) = x - x^3 / 6.75 is designed for this range, mapping it 
+      // smoothly to [-1.0, 1.0] with a flat slope at the boundaries.
       if (scaled < -1.5)
         scaled = -1.5;
       else if (scaled > 1.5)
         scaled = 1.5;
+        
+      // Apply the cubic soft-clipping polynomial: f(x) = x - x^3 / 6.75
+      // and scale it back to the original clip limit.
       waveform[i] =
           (scaled - (scaled * scaled * scaled) / 6.75) * filter->clip_limit;
     }

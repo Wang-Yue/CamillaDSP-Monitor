@@ -187,16 +187,24 @@ double* make_sinc_table(size_t sinc_len, size_t oversampling_factor,
   double* y = (double*)calloc(totpoints, sizeof(double));
   if (!y) return NULL;
 
+  // Generate the high-resolution prototype sinc filter.
+  // The filter is centered to ensure linear phase (symmetric kernel).
   for (size_t i = 0; i < totpoints; i++) {
     double centred = (double)i - (double)(totpoints / 2);
+    // Scale the index by oversampling factor to evaluate the continuous sinc function
+    // at the high-resolution fractional positions.
     double x_scaled = centred * fc / (double)oversampling_factor;
     // sinc(x) = (x * PI).sin() / (x * PI) — argument order
     // matters for the (rare) f64 ULP differences this avoids.
     double arg = x_scaled * M_PI;
+    // Handle the division by zero at the center of the sinc.
     double sinc = (fabs(x_scaled) < 1e-10) ? 1.0 : sin(arg) / arg;
     y[i] = sinc * window_value(window, i, totpoints);
   }
 
+  // Calculate the DC gain of the polyphase filter bank.
+  // The sum of the prototype filter is divided by the oversampling factor
+  // because the output of each sub-filter is effectively scaled by 1/factor.
   double y_sum = 0.0;
   for (size_t i = 0; i < totpoints; i++) {
     y_sum += y[i];
@@ -209,6 +217,11 @@ double* make_sinc_table(size_t sinc_len, size_t oversampling_factor,
     return NULL;
   }
 
+  // Decimate the prototype filter into the polyphase sub-filters.
+  // The table is structured as an array of 'oversampling_factor' sub-filters (phases),
+  // each containing 'sinc_len' coefficients.
+  // The phases are stored in reverse order (oversampling_factor - n - 1) to match
+  // the convolution indexing behavior of the fractional delay resampler.
   for (size_t p = 0; p < sinc_len; p++) {
     for (size_t n = 0; n < oversampling_factor; n++) {
       size_t s = oversampling_factor - n - 1;

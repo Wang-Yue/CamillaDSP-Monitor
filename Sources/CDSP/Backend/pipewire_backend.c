@@ -63,6 +63,16 @@ struct pipewire_playback {
 
 // MARK: - PipeWire Callbacks
 
+/**
+ * @brief PipeWire stream process callback for capture.
+ * 
+ * Called by the PipeWire thread loop when new capture data is available.
+ * Dequeues the buffer, copies data to the internal SPSC ring buffer, and queues it back.
+ * 
+ * @note Runs in a real-time thread context. Must be non-blocking.
+ * 
+ * @param data Pointer to pipewire_capture_t.
+ */
 static void on_capture_process(void* data) {
   pipewire_capture_t* c = (pipewire_capture_t*)data;
   struct pw_buffer* b = pw_stream_dequeue_buffer(c->stream);
@@ -87,6 +97,17 @@ static const struct pw_stream_events capture_stream_events = {
     .process = on_capture_process,
 };
 
+/**
+ * @brief PipeWire stream process callback for playback.
+ * 
+ * Called by the PipeWire thread loop when the stream needs more data for playback.
+ * Dequeues the buffer, fills it from the internal SPSC ring buffer, and queues it back.
+ * Fills with silence in case of buffer underflow.
+ * 
+ * @note Runs in a real-time thread context. Must be non-blocking.
+ * 
+ * @param data Pointer to pipewire_playback_t.
+ */
 static void on_playback_process(void* data) {
   pipewire_playback_t* p = (pipewire_playback_t*)data;
   struct pw_buffer* b = pw_stream_dequeue_buffer(p->stream);
@@ -122,29 +143,37 @@ static const struct pw_stream_events playback_stream_events = {
 
 // MARK: - Capture Backend implementation
 
+/** @brief Vtable wrapper for pipewire_capture_open. */
 static bool cap_vtable_open(void* ctx, backend_error_t* err) {
   return pipewire_capture_open((pipewire_capture_t*)ctx, err);
 }
+/** @brief Vtable wrapper for pipewire_capture_read. */
 static bool cap_vtable_read(void* ctx, size_t frames, audio_chunk_t* chunk,
                             backend_error_t* err) {
   return pipewire_capture_read((pipewire_capture_t*)ctx, frames, chunk, err);
 }
+/** @brief Vtable wrapper for pipewire_capture_close. */
 static void cap_vtable_close(void* ctx) {
   pipewire_capture_close((pipewire_capture_t*)ctx);
 }
+/** @brief Vtable wrapper for pipewire_capture_get_pending_rate_change. */
 static bool cap_vtable_get_pending_rate_change(void* ctx, double* out_rate) {
   return pipewire_capture_get_pending_rate_change((pipewire_capture_t*)ctx,
                                                   out_rate);
 }
+/** @brief Vtable wrapper for pipewire_capture_pitch_control_supported. */
 static bool cap_vtable_is_pitch_control_supported(void* ctx) {
   return pipewire_capture_pitch_control_supported((pipewire_capture_t*)ctx);
 }
+/** @brief Vtable wrapper for pipewire_capture_set_pitch. */
 static void cap_vtable_set_pitch(void* ctx, double multiplier) {
   pipewire_capture_set_pitch((pipewire_capture_t*)ctx, multiplier);
 }
+/** @brief Vtable wrapper for pipewire_capture_wait. */
 static bool cap_vtable_wait_for_data(void* ctx, uint32_t timeout_ms) {
   return pipewire_capture_wait((pipewire_capture_t*)ctx, timeout_ms);
 }
+/** @brief Vtable wrapper for pipewire_capture_destroy. */
 static void cap_vtable_destroy(void* ctx) {
   pipewire_capture_destroy((pipewire_capture_t*)ctx);
 }
@@ -439,34 +468,43 @@ void pipewire_capture_destroy(pipewire_capture_t* capture) { free(capture); }
 
 // MARK: - Playback Backend implementation
 
+/** @brief Vtable wrapper for pipewire_playback_open. */
 static bool play_vtable_open(void* ctx, backend_error_t* err) {
   return pipewire_playback_open((pipewire_playback_t*)ctx, err);
 }
+/** @brief Vtable wrapper for pipewire_playback_write. */
 static bool play_vtable_write(void* ctx, const audio_chunk_t* chunk,
                               backend_error_t* err) {
   return pipewire_playback_write((pipewire_playback_t*)ctx, chunk, err);
 }
+/** @brief Vtable wrapper for pipewire_playback_close. */
 static void play_vtable_close(void* ctx) {
   pipewire_playback_close((pipewire_playback_t*)ctx);
 }
+/** @brief Vtable wrapper for pipewire_playback_get_buffer_level. */
 static size_t play_vtable_get_buffer_level(void* ctx) {
   return pipewire_playback_get_buffer_level((pipewire_playback_t*)ctx);
 }
+/** @brief Vtable wrapper for pipewire_playback_get_pending_rate_change. */
 static bool play_vtable_get_pending_rate_change(void* ctx, double* out_rate) {
   return pipewire_playback_get_pending_rate_change((pipewire_playback_t*)ctx,
                                                    out_rate);
 }
+/** @brief Vtable wrapper for pipewire_playback_prefill_silence. */
 static bool play_vtable_prefill_silence(void* ctx, size_t frames,
                                         backend_error_t* err) {
   return pipewire_playback_prefill_silence((pipewire_playback_t*)ctx, frames,
                                            err);
 }
+/** @brief Vtable wrapper for pipewire_playback_get_is_paused. */
 static bool play_vtable_get_is_paused(void* ctx) {
   return pipewire_playback_get_is_paused((pipewire_playback_t*)ctx);
 }
+/** @brief Vtable wrapper for pipewire_playback_set_is_paused. */
 static void play_vtable_set_is_paused(void* ctx, bool paused) {
   pipewire_playback_set_is_paused((pipewire_playback_t*)ctx, paused);
 }
+/** @brief Vtable wrapper for pipewire_playback_destroy. */
 static void play_vtable_destroy(void* ctx) {
   pipewire_playback_destroy((pipewire_playback_t*)ctx);
 }
@@ -683,8 +721,9 @@ bool pipewire_playback_write(pipewire_playback_t* playback,
     }
   }
 
-  // Wait until there is space in the SPSC ring buffer (to prevent overwriting
-  // oldest data)
+  // Wait until there is space in the SPSC ring buffer to prevent overwriting
+  // oldest data. This blocks the writer thread (with a timeout) if the consumer
+  // (PipeWire thread) is slower.
   int retries = 100;
   while (spsc_audio_ring_buffer_get_available_to_read(playback->ring) +
              requested >
@@ -703,7 +742,8 @@ bool pipewire_playback_write(pipewire_playback_t* playback,
 
 void pipewire_playback_close(pipewire_playback_t* playback) {
   if (playback->loop) {
-    // Wait for ring buffer to drain
+    // Wait for the ring buffer to drain before closing the stream,
+    // ensuring all remaining audio is played back.
     int retries = 200;  // wait up to 200ms
     while (spsc_audio_ring_buffer_get_available_to_read(playback->ring) > 0 &&
            retries-- > 0) {

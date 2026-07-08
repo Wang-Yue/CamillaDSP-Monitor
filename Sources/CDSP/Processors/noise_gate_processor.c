@@ -131,7 +131,7 @@ void noise_gate_processor_process(noise_gate_processor_t* processor,
   if (count == 0 || processor->monitor_channels_count == 0) return;
 
   // Step 1: Sum monitored channels into scratch buffer to evaluate overall
-  // signal level
+  // signal level (creating a mono sum for sidechain level detection).
   int ch0 = processor->monitor_channels[0];
   const double* src0_base = audio_chunk_get_channel(chunk, ch0);
   if (!src0_base) return;
@@ -142,6 +142,7 @@ void noise_gate_processor_process(noise_gate_processor_t* processor,
     int ch = processor->monitor_channels[ch_idx];
     const double* src_base = audio_chunk_get_channel(chunk, ch);
     if (!src_base) continue;
+    // Perform vector addition to sum the channel's samples into scratch.
 #ifdef ENABLE_ACCELERATE
     vDSP_vaddD(processor->scratch, 1, src_base, 1, processor->scratch, 1,
                count);
@@ -154,28 +155,34 @@ void noise_gate_processor_process(noise_gate_processor_t* processor,
 
   // Step 2: Envelope Detection (Loudness Estimation with Attack/Release
   // Smoothing)
+  // We process sample-by-sample, smoothing the loudness envelope in dB.
   double prev = processor->prev_loudness;
   for (size_t i = 0; i < count; i++) {
+    // Convert absolute amplitude to dB. 1e-9 avoids log10(0) which is -inf.
     double val = 20.0 * log10(fabs(processor->scratch[i]) + 1e-9);
     if (val >= prev) {
-      // Signal level rising: apply attack time constant
+      // Signal level rising: apply attack time constant.
+      // attack coefficient determines how quickly the envelope responds to level increases.
       val = processor->attack * prev + (1.0 - processor->attack) * val;
     } else {
-      // Signal level falling: apply release time constant
+      // Signal level falling: apply release time constant.
+      // release coefficient determines how slowly the envelope decays back down.
       val = processor->release * prev + (1.0 - processor->release) * val;
     }
     prev = val;
     processor->scratch[i] = val;
   }
+  // Store final envelope level for the next chunk's processing.
   processor->prev_loudness = prev;
 
   // Step 3: Gate Threshold Logic
+  // For each sample, compare the smoothed envelope level against the threshold.
   for (size_t i = 0; i < count; i++) {
     if (processor->scratch[i] < processor->threshold) {
-      // Below threshold: gate closed, apply linear attenuation factor
+      // Below threshold: gate closed, apply the pre-calculated linear attenuation factor.
       processor->scratch[i] = processor->factor;
     } else {
-      // Above or equal to threshold: gate open, unity gain (1.0)
+      // Above or equal to threshold: gate open, pass signal through (unity gain).
       processor->scratch[i] = 1.0;
     }
   }

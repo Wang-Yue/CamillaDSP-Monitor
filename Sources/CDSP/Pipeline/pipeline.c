@@ -61,6 +61,14 @@ struct pipeline_s {
   size_t last_error_got;
 };
 
+/**
+ * @brief Helper function to check if a string list contains a specific name.
+ *
+ * @param list The list of strings to search.
+ * @param count The number of elements in the list.
+ * @param name The string to search for.
+ * @return true if the name is found in the list, else false.
+ */
 static bool string_list_contains(const char* const* list, size_t count,
                                  const char* name) {
   if (!list || !name) return false;
@@ -174,9 +182,15 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
 
   size_t total_exec_steps = 0;
   size_t num_mixers = 0;
-  // Track current channel count as we walk pipeline steps
+  // Track current channel count as we walk pipeline steps. Channel count can
+  // change after passing through a mixer.
   size_t current_channels = pipeline->expected_in_channels;
 
+  // First pass: Calculate the exact number of execution steps and mixers needed.
+  // This is required because a single config step (e.g. a filter applied to
+  // multiple channels) may expand to multiple execution steps (one per channel).
+  // Pre-allocating the execution steps array avoids dynamic allocation during
+  // initialization of those steps.
   if (config->pipeline && config->pipeline_count > 0) {
     for (size_t i = 0; i < config->pipeline_count; i++) {
       const pipeline_step_t* step = &config->pipeline[i];
@@ -263,7 +277,9 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
             channels_count = current_channels;
           }
 
-          // Create a separate filter chain for each target channel
+          // Create a separate filter chain for each target channel.
+          // Each channel must have its own instance of filter state (e.g., history
+          // buffers for IIR/FIR filters) to avoid crosstalk and incorrect filtering.
           for (size_t c = 0; c < channels_count; c++) {
             int ch = channels_to_apply[c];
             pipeline_exec_step_t* exec = &pipeline->steps[exec_idx++];
@@ -463,6 +479,9 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
       case EXEC_STEP_MIXER: {
         if (mixer_idx >= pipeline->scratches_for_mixers_count) continue;
         audio_chunk_t* scratch = pipeline->scratches_for_mixers[mixer_idx];
+        // Mixers process input from current_chunk and write to a pre-allocated
+        // scratch buffer. This scratch buffer becomes the new current_chunk
+        // for subsequent steps, handling potential channel count changes.
         mixer_error_t err =
             audio_mixer_process(step->mixer, current_chunk, scratch);
         if (err != MIXER_OK) {

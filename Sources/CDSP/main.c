@@ -18,11 +18,22 @@
 
 static volatile sig_atomic_t keep_running = 1;
 
+/**
+ * @brief Signal handler to catch termination signals (SIGINT, SIGTERM).
+ *
+ * Sets the global keep_running flag to 0, which initiates a graceful shutdown of the
+ * main processing loop.
+ *
+ * @param sig The signal number.
+ */
 static void sig_handler(int sig) {
   (void)sig;
   keep_running = 0;
 }
 
+/**
+ * @brief Prints the command-line usage information of the application to standard output.
+ */
 static void print_usage(void) {
   printf(
       "Usage: dsp-cli [CONFIGFILE] [OPTIONS]\n"
@@ -107,6 +118,14 @@ static void print_usage(void) {
       "File, Stdout\n");
 }
 
+/**
+ * @brief Reads the contents of a file into a dynamically allocated string.
+ *
+ * The caller is responsible for freeing the returned buffer.
+ *
+ * @param path Path to the file.
+ * @return A null-terminated string containing the file contents, or NULL if reading fails.
+ */
 static char* read_file_to_string(const char* path) {
   FILE* fp = fopen(path, "rb");
   if (!fp) return NULL;

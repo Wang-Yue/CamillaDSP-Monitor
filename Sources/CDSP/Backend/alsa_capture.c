@@ -40,35 +40,59 @@ struct alsa_capture {
   size_t interleaved_buf_size;
 };
 
+/**
+ * @brief Wrapper for opening the ALSA capture backend.
+ */
 static bool vtable_open(void* ctx, backend_error_t* err) {
   return alsa_capture_open((alsa_capture_t*)ctx, err);
 }
 
+/**
+ * @brief Wrapper for reading audio frames from ALSA.
+ */
 static bool vtable_read(void* ctx, size_t frames, audio_chunk_t* chunk,
                         backend_error_t* err) {
   return alsa_capture_read((alsa_capture_t*)ctx, frames, chunk, err);
 }
 
+/**
+ * @brief Wrapper for closing the ALSA capture backend.
+ */
 static void vtable_close(void* ctx) {
   alsa_capture_close((alsa_capture_t*)ctx);
 }
 
+/**
+ * @brief Wrapper for querying pending rate changes.
+ */
 static bool vtable_get_rate(void* ctx, double* out_rate) {
   return alsa_capture_get_pending_rate_change((alsa_capture_t*)ctx, out_rate);
 }
 
+/**
+ * @brief Wrapper for checking if pitch control is supported.
+ */
 static bool vtable_pitch_supp(void* ctx) {
   return alsa_capture_pitch_control_supported((alsa_capture_t*)ctx);
 }
 
+/**
+ * @brief Wrapper for setting pitch multiplier.
+ */
 static void vtable_set_pitch(void* ctx, double mult) {
   alsa_capture_set_pitch((alsa_capture_t*)ctx, mult);
 }
 
+/**
+ * @brief Wrapper for waiting for capture data to be available.
+ */
 static bool vtable_wait(void* ctx, uint32_t t) {
   return alsa_capture_wait((alsa_capture_t*)ctx, t);
 }
 
+/**
+ * @brief Wrapper for destroying the ALSA capture backend instance.
+ */
 static void vtable_destroy(void* ctx) {
   alsa_capture_destroy((alsa_capture_t*)ctx);
 }
@@ -124,6 +148,15 @@ capture_backend_t* alsa_capture_create(const capture_device_config_t* config,
   return backend;
 }
 
+/**
+ * @brief Helper to query the volume of a mixer element in decibels.
+ *
+ * Retrieves the current playback or capture volume of the given mixer element,
+ * and converts the raw integer volume range to decibels.
+ *
+ * @param elem The ALSA mixer element.
+ * @return Volume in decibels, or -100.0 if muted/extremely quiet, or 0.0 if not supported.
+ */
 static double get_elem_volume_db(snd_mixer_elem_t* elem) {
   if (!elem) return 0.0;
   long val = 0;
@@ -152,6 +185,15 @@ static double get_elem_volume_db(snd_mixer_elem_t* elem) {
   return 20.0 * log10(ratio);
 }
 
+/**
+ * @brief Helper to set the volume of a mixer element in decibels.
+ *
+ * Converts the decibel value and updates the playback or capture volume on
+ * all channels of the given mixer element.
+ *
+ * @param elem The ALSA mixer element.
+ * @param db_val Volume in decibels.
+ */
 static void set_elem_volume_db(snd_mixer_elem_t* elem, double db_val) {
   if (!elem) return;
   long raw_db = (long)(db_val * 100.0);
@@ -162,6 +204,14 @@ static void set_elem_volume_db(snd_mixer_elem_t* elem, double db_val) {
   }
 }
 
+/**
+ * @brief Helper to query the mute status of a mixer element.
+ *
+ * Checks if the switch for playback or capture is off (muted).
+ *
+ * @param elem The ALSA mixer element.
+ * @return True if muted, false otherwise.
+ */
 static bool get_elem_mute(snd_mixer_elem_t* elem) {
   if (!elem) return false;
   int val = 1;
@@ -173,6 +223,14 @@ static bool get_elem_mute(snd_mixer_elem_t* elem) {
   return val == 0;
 }
 
+/**
+ * @brief Helper to set the mute status of a mixer element.
+ *
+ * Sets the switch for playback or capture on all channels.
+ *
+ * @param elem The ALSA mixer element.
+ * @param mute True to mute (turn switch off), false to unmute.
+ */
 static void set_elem_mute(snd_mixer_elem_t* elem, bool mute) {
   if (!elem) return;
   int val = mute ? 0 : 1;
@@ -183,6 +241,15 @@ static void set_elem_mute(snd_mixer_elem_t* elem, bool mute) {
   }
 }
 
+/**
+ * @brief Initialize ALSA control and mixer interfaces for volume/mute linking.
+ *
+ * Subscribes to control events to listen for hardware changes, attaches
+ * the mixer, and looks up the specified volume, mute, and pitch control elements.
+ * Initial values are synchronized to the engine.
+ *
+ * @param capture Pointer to the ALSA capture backend instance.
+ */
 static void alsa_capture_init_controls(alsa_capture_t* capture) {
   if (!capture->pcm) return;
 
@@ -249,6 +316,15 @@ static void alsa_capture_init_controls(alsa_capture_t* capture) {
   }
 }
 
+/**
+ * @brief Synchronize mixer settings between the engine and ALSA hardware.
+ *
+ * Processes pending ALSA control events. Checks if the hardware mixer settings
+ * (volume/mute) changed and updates the engine. Conversely, if engine target faders
+ * changed, updates the hardware mixer values.
+ *
+ * @param capture Pointer to the ALSA capture backend instance.
+ */
 static void alsa_capture_sync_controls(alsa_capture_t* capture) {
   if (!capture->mixer) return;
 
@@ -297,6 +373,7 @@ static void alsa_capture_sync_controls(alsa_capture_t* capture) {
 bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
   pthread_mutex_lock(&g_alsa_mutex);
   int rc;
+  // Open the ALSA PCM capture device
   rc = snd_pcm_open(&capture->pcm, capture->device_name, SND_PCM_STREAM_CAPTURE,
                     0);
   if (rc < 0) {
@@ -317,6 +394,7 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
+  // Set access type to interleaved read/write
   rc = snd_pcm_hw_params_set_access(capture->pcm, params,
                                     SND_PCM_ACCESS_RW_INTERLEAVED);
   if (rc < 0) {
@@ -326,6 +404,8 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
+  // Probe supported formats, trying requested format first, then falling back to defaults.
+  // We prefer float, then S32, S24_3, S16.
   snd_pcm_format_t formats[5];
   size_t num_formats = 0;
   if (capture->has_format) {
@@ -372,6 +452,7 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
+  // Set channel count
   rc = snd_pcm_hw_params_set_channels(capture->pcm, params, capture->channels);
   if (rc < 0) {
     if (err)
@@ -380,6 +461,7 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
+  // Set sample rate (accepting nearest rate supported by hardware)
   unsigned int val = capture->sample_rate;
   int dir = 0;
   rc = snd_pcm_hw_params_set_rate_near(capture->pcm, params, &val, &dir);
@@ -390,6 +472,7 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
+  // Set period size (chunk size) near target
   snd_pcm_uframes_t period_size = capture->chunk_size;
   rc = snd_pcm_hw_params_set_period_size_near(capture->pcm, params,
                                               &period_size, &dir);
@@ -400,6 +483,7 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
+  // Set buffer size to 4x period size to avoid xruns
   snd_pcm_uframes_t buffer_size = period_size * 4;
   rc = snd_pcm_hw_params_set_buffer_size_near(capture->pcm, params,
                                               &buffer_size);
@@ -418,6 +502,7 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
+  // Set ALSA software parameters (e.g. start threshold, minimum available frames)
   snd_pcm_sw_params_t* sw_params;
   snd_pcm_sw_params_alloca(&sw_params);
   rc = snd_pcm_sw_params_current(capture->pcm, sw_params);
@@ -434,6 +519,7 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     }
   }
 
+  // Determine sample size in bytes for the interleaved buffer allocation
   size_t sample_size = 4;
   if (capture->format == SND_PCM_FORMAT_S16_LE) {
     sample_size = 2;
@@ -466,15 +552,18 @@ bool alsa_capture_read(alsa_capture_t* capture, size_t frames,
                        audio_chunk_t* chunk, backend_error_t* err) {
   if (!capture->pcm) return false;
 
+  // Sync volume/mute between hardware and engine before reading
   alsa_capture_sync_controls(capture);
 
   if (frames > (size_t)capture->chunk_size) {
     frames = capture->chunk_size;
   }
 
+  // Read interleaved frames from ALSA
   snd_pcm_sframes_t rc =
       snd_pcm_readi(capture->pcm, capture->interleaved_buf, frames);
   if (rc < 0) {
+    // Attempt recovery on error (e.g., EPIPE for overrun) and retry read
     rc = snd_pcm_recover(capture->pcm, rc, 0);
     if (rc >= 0) {
       rc = snd_pcm_readi(capture->pcm, capture->interleaved_buf, frames);
@@ -489,6 +578,8 @@ bool alsa_capture_read(alsa_capture_t* capture, size_t frames,
   size_t read_frames = rc;
   audio_chunk_set_valid_frames(chunk, read_frames);
 
+  // Convert and de-interleave samples to the output audio chunk.
+  // Normalizes integer types to double [-1.0, 1.0].
   if (capture->format == SND_PCM_FORMAT_FLOAT_LE) {
     float* src = (float*)capture->interleaved_buf;
     for (size_t f = 0; f < read_frames; f++) {
@@ -507,13 +598,16 @@ bool alsa_capture_read(alsa_capture_t* capture, size_t frames,
       }
     }
   } else if (capture->format == SND_PCM_FORMAT_S24_3LE) {
+    // Handle 24-bit 3-byte format (requires sign extension)
     uint8_t* src = (uint8_t*)capture->interleaved_buf;
     double scale = 1.0 / 8388608.0;
     for (size_t f = 0; f < read_frames; f++) {
       for (size_t c = 0; c < (size_t)capture->channels; c++) {
         size_t offset = (f * capture->channels + c) * 3;
+        // Pack 3 bytes into a 32-bit int
         int32_t val =
             (src[offset] | (src[offset + 1] << 8) | (src[offset + 2] << 16));
+        // Sign extend from 24-bit to 32-bit
         if (val & 0x800000) {
           val |= 0xFF000000;
         }

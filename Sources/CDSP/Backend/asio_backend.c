@@ -213,6 +213,25 @@ static asio_shared_state_t g_asio_shared = {.lock = SRWLOCK_INIT,
                                             .initialized = false,
                                             .iasio = NULL};
 
+/**
+ * @brief Coordinates ASIO initialization for full-duplex setups.
+ *
+ * Registers either the capture or playback side and waits for the other side to
+ * register. Once both are ready, it allocates combined buffers and starts the ASIO
+ * stream. For the second arriving side, it waits for the first side to complete setup.
+ *
+ * @param is_input True if registering for capture, false for playback.
+ * @param driver_name Name of the ASIO driver.
+ * @param sample_rate Requested sample rate.
+ * @param channels Number of channels.
+ * @param format Audio sample format.
+ * @param out_iasio Pointer to receive the shared IASIO interface.
+ * @param out_buffer_infos Pointer to receive the buffer info array.
+ * @param out_channel_infos Pointer to receive the channel info array.
+ * @param out_buf_size Pointer to receive the buffer size.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool register_and_wait_asio(bool is_input, const char* driver_name,
                                    int sample_rate, int channels,
                                    asio_sample_format_t format,
@@ -452,6 +471,16 @@ static bool register_and_wait_asio(bool is_input, const char* driver_name,
   return true;
 }
 
+/**
+ * @brief Releases the shared ASIO driver instance in full-duplex mode.
+ *
+ * Decrements the active usage count. When count drops to 1, stops the stream.
+ * When count drops to 0, disposes of buffers and releases the COM interface,
+ * resetting the shared state.
+ *
+ * @param is_input True if releasing from the capture side, false for playback.
+ * @param iasio The IASIO driver interface.
+ */
 static void release_shared_asio(bool is_input, IASIO* iasio) {
   (void)is_input;
   AcquireSRWLockExclusive(&g_asio_shared.lock);
@@ -478,6 +507,19 @@ static void release_shared_asio(bool is_input, IASIO* iasio) {
   ReleaseSRWLockExclusive(&g_asio_shared.lock);
 }
 
+/**
+ * @brief Forces a sample rate change on some problematic ASIO drivers.
+ *
+ * Certain ASIO drivers do not apply sample rate changes until a stream cycle
+ * has been initiated. This function runs a short dummy cycle (creates a buffer,
+ * starts, sleeps, stops, destroys, recreates the driver) to enforce the rate.
+ *
+ * @param driver_name Name of the ASIO driver.
+ * @param p_iasio Pointer to the IASIO driver interface pointer (may be recreated).
+ * @param rate Target sample rate.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool force_sample_rate_with_dummy_cycle(const char* driver_name,
                                                IASIO** p_iasio, double rate,
                                                backend_error_t* err) {
@@ -592,6 +634,13 @@ static bool force_sample_rate_with_dummy_cycle(const char* driver_name,
   return true;
 }
 
+/**
+ * @brief Searches the Windows Registry to find the CLSID of an ASIO driver by name.
+ *
+ * @param driver_name Name of the ASIO driver.
+ * @param out_clsid Pointer to a CLSID structure to receive the result.
+ * @return true if the CLSID was successfully found, false otherwise.
+ */
 static bool find_asio_driver_clsid(const char* driver_name, CLSID* out_clsid) {
   HKEY hk;
   if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "Software\\ASIO", 0, KEY_READ, &hk) !=
@@ -630,6 +679,18 @@ static bool find_asio_driver_clsid(const char* driver_name, CLSID* out_clsid) {
 }
 
 // ASIO Callback implementation
+/**
+ * @brief ASIO buffer switch callback.
+ *
+ * Called by the ASIO driver when a buffer needs to be processed.
+ * It reads playback data from the playback ring buffer, converts it to the native
+ * ASIO format, and copies it to the active ASIO driver buffer.
+ * It also reads capture data from the active ASIO driver buffer, converts it to
+ * float, and writes it to the capture ring buffer.
+ *
+ * @param doubleBufferIndex Index of the active buffer (0 or 1).
+ * @param directProcess Indicates if the driver is in direct process mode.
+ */
 static void asio_buffer_switch(long doubleBufferIndex, ASIOBool directProcess) {
   (void)directProcess;
 
@@ -652,6 +713,7 @@ static void asio_buffer_switch(long doubleBufferIndex, ASIOBool directProcess) {
                                                     &num_in, &num_out);
 
       for (int c = 0; c < channels; c++) {
+        // Output channel indexes start after the input channels in ASIO.
         int buf_idx = num_in + c;
         void* dst =
             g_active_playback->buffer_infos[buf_idx].buffers[doubleBufferIndex];
@@ -659,11 +721,13 @@ static void asio_buffer_switch(long doubleBufferIndex, ASIOBool directProcess) {
 
         for (long f = 0; f < frames; f++) {
           float val = interleaved_buf[f * channels + c];
+          // Clip float sample to [-1.0, 1.0] before conversion.
           if (val > 1.0f)
             val = 1.0f;
           else if (val < -1.0f)
             val = -1.0f;
 
+          // Convert sample based on the ASIO channel's native format.
           if (type == ASIOSTInt16LSB) {
             ((int16_t*)dst)[f] = (int16_t)(val * 32767.0f);
           } else if (type == ASIOSTInt32LSB || type == ASIOSTInt32LSB16 ||
@@ -675,6 +739,7 @@ static void asio_buffer_switch(long doubleBufferIndex, ASIOBool directProcess) {
           } else if (type == ASIOSTFloat64LSB) {
             ((double*)dst)[f] = (double)val;
           } else if (type == ASIOSTInt24LSB) {
+            // ASIOSTInt24LSB uses packed 3-byte samples.
             int32_t ival = (int32_t)(val * 8388607.0f);
             uint8_t* p = &((uint8_t*)dst)[f * 3];
             p[0] = ival & 0xFF;
@@ -700,6 +765,7 @@ static void asio_buffer_switch(long doubleBufferIndex, ASIOBool directProcess) {
 
         for (long f = 0; f < frames; f++) {
           float val = 0.0f;
+          // Convert the native ASIO channel's samples to float.
           if (type == ASIOSTInt16LSB) {
             val = ((int16_t*)src)[f] / 32768.0f;
           } else if (type == ASIOSTInt32LSB || type == ASIOSTInt32LSB16 ||
@@ -711,6 +777,7 @@ static void asio_buffer_switch(long doubleBufferIndex, ASIOBool directProcess) {
           } else if (type == ASIOSTFloat64LSB) {
             val = (float)(((double*)src)[f]);
           } else if (type == ASIOSTInt24LSB) {
+            // ASIOSTInt24LSB uses packed 3-byte samples. Sign-extend the value.
             uint8_t* p = &((uint8_t*)src)[f * 3];
             int32_t ival = (p[0]) | (p[1] << 8) | (p[2] << 16);
             if (ival & 0x800000) ival |= 0xFF000000;
@@ -727,8 +794,24 @@ static void asio_buffer_switch(long doubleBufferIndex, ASIOBool directProcess) {
   }
 }
 
+/**
+ * @brief ASIO sample rate change notification callback.
+ *
+ * @param sRate The new sample rate.
+ */
 static void asio_sample_rate_did_change(ASIOSampleRate sRate) { (void)sRate; }
 
+/**
+ * @brief ASIO driver message callback.
+ *
+ * Handles control messages from the ASIO driver (e.g. reset requests, buffer size changes).
+ *
+ * @param selector Message type selector.
+ * @param value Selector-specific value.
+ * @param message Selector-specific pointer.
+ * @param opt Optional selector-specific parameter.
+ * @return Response code specific to the message.
+ */
 static long asio_message(long selector, long value, void* message,
                          double* opt) {
   (void)message;
@@ -769,6 +852,16 @@ static long asio_message(long selector, long value, void* message,
   }
 }
 
+/**
+ * @brief ASIO buffer switch time info callback.
+ *
+ * Wrapper callback that invokes asio_buffer_switch.
+ *
+ * @param params User parameters.
+ * @param doubleBufferIndex Index of the active buffer (0 or 1).
+ * @param directProcess Indicates if the driver is in direct process mode.
+ * @return User parameters.
+ */
 static void* asio_buffer_switch_time_info(void* params, long doubleBufferIndex,
                                           ASIOBool directProcess) {
   asio_buffer_switch(doubleBufferIndex, directProcess);
@@ -783,6 +876,17 @@ static ASIOCallbacks asio_callbacks = {
 // Capture Backend Methods
 // ==========================================
 
+/**
+ * @brief Internal method to open the ASIO capture stream.
+ *
+ * Initializes COM, creates and initializes the ASIO driver, sets sample rate,
+ * allocates channel/buffer info arrays, creates buffers, and starts the driver
+ * (if not in full-duplex mode where start is synchronized).
+ *
+ * @param ctx Pointer to the asio_capture_t context.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool asio_capture_open_internal(void* ctx, backend_error_t* err) {
   asio_capture_t* capture = (asio_capture_t*)ctx;
   HRESULT init_hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
@@ -930,6 +1034,18 @@ error_cleanup:
   return false;
 }
 
+/**
+ * @brief Internal method to read samples from the ASIO capture stream.
+ *
+ * Consumes decoded float samples from the ring buffer and copies them to the public
+ * audio_chunk_t structure. Blocks on g_capture_event if enough data is not yet available.
+ *
+ * @param ctx Pointer to the asio_capture_t context.
+ * @param frames Number of frames to read.
+ * @param chunk Target audio chunk.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool asio_capture_read_internal(void* ctx, size_t frames,
                                        audio_chunk_t* chunk,
                                        backend_error_t* err) {
@@ -968,6 +1084,14 @@ static bool asio_capture_read_internal(void* ctx, size_t frames,
   return true;
 }
 
+/**
+ * @brief Internal method to close the ASIO capture stream.
+ *
+ * Stops and disposes of buffers (or releases shared ASIO if full-duplex),
+ * and frees ring buffers, events, and COM.
+ *
+ * @param ctx Pointer to the asio_capture_t context.
+ */
 static void asio_capture_close_internal(void* ctx) {
   asio_capture_t* capture = (asio_capture_t*)ctx;
   if (capture->iasio) {
@@ -1008,11 +1132,27 @@ static void asio_capture_close_internal(void* ctx) {
   }
 }
 
+/**
+ * @brief Internal method to wait for capture data.
+ *
+ * Blocks on g_capture_event until the driver writes data to the ring buffer.
+ *
+ * @param ctx Pointer to the asio_capture_t context.
+ * @param timeout_ms Timeout in milliseconds.
+ * @return true if data became available, false if timed out.
+ */
 static bool asio_capture_wait_for_data(void* ctx, uint32_t timeout_ms) {
   (void)ctx;
   return WaitForSingleObject(g_capture_event, timeout_ms) == WAIT_OBJECT_0;
 }
 
+/**
+ * @brief Internal method to destroy the ASIO capture context.
+ *
+ * Closes the capture stream and frees context memory.
+ *
+ * @param ctx Pointer to the asio_capture_t context.
+ */
 static void asio_capture_destroy_internal(void* ctx) {
   asio_capture_close_internal(ctx);
   free(ctx);
@@ -1059,6 +1199,13 @@ capture_backend_t* asio_capture_new(const capture_device_config_t* config,
 // Playback Backend Methods
 // ==========================================
 
+/**
+ * @brief Internal method to open the ASIO playback stream.
+ *
+ * @param ctx Pointer to the asio_playback_t context.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool asio_playback_open_internal(void* ctx, backend_error_t* err) {
   asio_playback_t* playback = (asio_playback_t*)ctx;
   HRESULT init_hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
@@ -1216,6 +1363,17 @@ error_cleanup:
   return false;
 }
 
+/**
+ * @brief Internal method to write samples to the ASIO playback stream.
+ *
+ * Encodes double format samples to flat float array, and writes to the playback
+ * ring buffer. Blocks (sleeps) if the ring buffer does not have enough capacity.
+ *
+ * @param ctx Pointer to the asio_playback_t context.
+ * @param chunk Audio chunk to write.
+ * @param err Pointer to backend_error_t to receive error details.
+ * @return true if successful, false otherwise.
+ */
 static bool asio_playback_write_internal(void* ctx, const audio_chunk_t* chunk,
                                          backend_error_t* err) {
   (void)err;
@@ -1256,6 +1414,11 @@ static bool asio_playback_write_internal(void* ctx, const audio_chunk_t* chunk,
   return true;
 }
 
+/**
+ * @brief Internal method to close the ASIO playback stream.
+ *
+ * @param ctx Pointer to the asio_playback_t context.
+ */
 static void asio_playback_close_internal(void* ctx) {
   asio_playback_t* playback = (asio_playback_t*)ctx;
   if (playback->iasio) {
@@ -1292,6 +1455,14 @@ static void asio_playback_close_internal(void* ctx) {
   }
 }
 
+/**
+ * @brief Internal method to get the current buffer level of the playback stream.
+ *
+ * Returns the amount of unconsumed audio frames currently in the ring buffer.
+ *
+ * @param ctx Pointer to the asio_playback_t context.
+ * @return Number of frames.
+ */
 static size_t asio_playback_get_buffer_level(void* ctx) {
   asio_playback_t* playback = (asio_playback_t*)ctx;
   return playback->ring_buffer ? (spsc_audio_ring_buffer_get_available_to_read(
@@ -1300,6 +1471,11 @@ static size_t asio_playback_get_buffer_level(void* ctx) {
                                : 0;
 }
 
+/**
+ * @brief Internal method to destroy the ASIO playback context.
+ *
+ * @param ctx Pointer to the asio_playback_t context.
+ */
 static void asio_playback_destroy_internal(void* ctx) {
   asio_playback_close_internal(ctx);
   free(ctx);

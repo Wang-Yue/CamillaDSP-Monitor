@@ -14,6 +14,14 @@ struct config_change {
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @brief Compares two double arrays for equality.
+ * @param a First double array.
+ * @param a_count Number of elements in first array.
+ * @param b Second double array.
+ * @param b_count Number of elements in second array.
+ * @return true if arrays are equal in size and elements, false otherwise.
+ */
 static bool double_arrays_equal(const double* a, size_t a_count,
                                 const double* b, size_t b_count) {
   if (a_count != b_count) return false;
@@ -25,6 +33,14 @@ static bool double_arrays_equal(const double* a, size_t a_count,
   return true;
 }
 
+/**
+ * @brief Compares two integer arrays for equality.
+ * @param a First integer array.
+ * @param a_count Number of elements in first array.
+ * @param b Second integer array.
+ * @param b_count Number of elements in second array.
+ * @return true if arrays are equal in size and elements, false otherwise.
+ */
 static bool int_arrays_equal(const int* a, size_t a_count,
                              const int* b, size_t b_count) {
   if (a_count != b_count) return false;
@@ -36,6 +52,14 @@ static bool int_arrays_equal(const int* a, size_t a_count,
   return true;
 }
 
+/**
+ * @brief Compares two string arrays for equality.
+ * @param a First string array.
+ * @param a_count Number of elements in first array.
+ * @param b Second string array.
+ * @param b_count Number of elements in second array.
+ * @return true if arrays are equal in size and strings, false otherwise.
+ */
 static bool string_arrays_equal(char** a, size_t a_count,
                                 char** b, size_t b_count) {
   if (a_count != b_count) return false;
@@ -48,6 +72,12 @@ static bool string_arrays_equal(char** a, size_t a_count,
   return true;
 }
 
+/**
+ * @brief Compares two biquad parameter structures for equality.
+ * @param a Pointer to first biquad parameters.
+ * @param b Pointer to second biquad parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool biquad_parameters_equal(const biquad_parameters_t* a,
                                     const biquad_parameters_t* b) {
   if (a->type != b->type) return false;
@@ -70,6 +100,12 @@ static bool biquad_parameters_equal(const biquad_parameters_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two volume parameter structures for equality.
+ * @param a Pointer to first volume parameters.
+ * @param b Pointer to second volume parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool volume_parameters_equal(const volume_parameters_t* a,
                                     const volume_parameters_t* b) {
   if (a->ramp_time != b->ramp_time) return false;
@@ -80,6 +116,12 @@ static bool volume_parameters_equal(const volume_parameters_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two loudness parameter structures for equality.
+ * @param a Pointer to first loudness parameters.
+ * @param b Pointer to second loudness parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool loudness_parameters_equal(const loudness_parameters_t* a,
                                       const loudness_parameters_t* b) {
   if (a->reference_level != b->reference_level) return false;
@@ -93,6 +135,12 @@ static bool loudness_parameters_equal(const loudness_parameters_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two convolution parameter structures for equality.
+ * @param a Pointer to first convolution parameters.
+ * @param b Pointer to second convolution parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool conv_parameters_equal(const conv_parameters_t* a,
                                   const conv_parameters_t* b) {
   if (a->type != b->type) return false;
@@ -108,6 +156,12 @@ static bool conv_parameters_equal(const conv_parameters_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two delay parameter structures for equality.
+ * @param a Pointer to first delay parameters.
+ * @param b Pointer to second delay parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool delay_parameters_equal(const delay_parameters_t* a,
                                    const delay_parameters_t* b) {
   if (a->delay != b->delay) return false;
@@ -116,6 +170,12 @@ static bool delay_parameters_equal(const delay_parameters_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two biquad combo parameter structures for equality.
+ * @param a Pointer to first biquad combo parameters.
+ * @param b Pointer to second biquad combo parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool biquad_combo_parameters_equal(const biquad_combo_parameters_t* a,
                                           const biquad_combo_parameters_t* b) {
   if (a->type != b->type) return false;
@@ -153,6 +213,12 @@ static bool biquad_combo_parameters_equal(const biquad_combo_parameters_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two difference equation parameter structures for equality.
+ * @param a Pointer to first difference equation parameters.
+ * @param b Pointer to second difference equation parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool diff_eq_parameters_equal(const diff_eq_parameters_t* a,
                                      const diff_eq_parameters_t* b) {
   if (!double_arrays_equal(a->a, a->a_count, b->a, b->a_count)) return false;
@@ -160,6 +226,12 @@ static bool diff_eq_parameters_equal(const diff_eq_parameters_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two dither parameter structures for equality.
+ * @param a Pointer to first dither parameters.
+ * @param b Pointer to second dither parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool dither_parameters_equal(const dither_parameters_t* a,
                                     const dither_parameters_t* b) {
   if (a->type != b->type) return false;
@@ -169,6 +241,12 @@ static bool dither_parameters_equal(const dither_parameters_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two limiter parameter structures for equality.
+ * @param a Pointer to first limiter parameters.
+ * @param b Pointer to second limiter parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool limiter_parameters_equal(const limiter_parameters_t* a,
                                      const limiter_parameters_t* b) {
   if (a->clip_limit != b->clip_limit) return false;
@@ -176,6 +254,12 @@ static bool limiter_parameters_equal(const limiter_parameters_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two lookahead limiter parameter structures for equality.
+ * @param a Pointer to first lookahead limiter parameters.
+ * @param b Pointer to second lookahead limiter parameters.
+ * @return true if parameters are equal, false otherwise.
+ */
 static bool lookahead_limiter_parameters_equal(
     const lookahead_limiter_parameters_t* a,
     const lookahead_limiter_parameters_t* b) {
@@ -186,6 +270,12 @@ static bool lookahead_limiter_parameters_equal(
   return true;
 }
 
+/**
+ * @brief Compares two filter configurations for equality.
+ * @param a Pointer to first filter configuration.
+ * @param b Pointer to second filter configuration.
+ * @return true if configurations are equal, false otherwise.
+ */
 static bool filter_config_equal(const filter_config_t* a,
                                 const filter_config_t* b) {
   if (a->type != b->type) return false;
@@ -227,6 +317,12 @@ static bool filter_config_equal(const filter_config_t* a,
   }
 }
 
+/**
+ * @brief Compares two mixer configurations for equality.
+ * @param a Pointer to first mixer configuration.
+ * @param b Pointer to second mixer configuration.
+ * @return true if configurations are equal, false otherwise.
+ */
 static bool mixer_config_equal(const mixer_config_t* a,
                                const mixer_config_t* b) {
   if (a->channels_in != b->channels_in) return false;
@@ -250,6 +346,12 @@ static bool mixer_config_equal(const mixer_config_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two processor configurations for equality.
+ * @param a Pointer to first processor configuration.
+ * @param b Pointer to second processor configuration.
+ * @return true if configurations are equal, false otherwise.
+ */
 static bool processor_config_equal(const processor_config_t* a,
                                    const processor_config_t* b) {
   if (a->type != b->type) return false;
@@ -334,6 +436,12 @@ static bool processor_config_equal(const processor_config_t* a,
   }
 }
 
+/**
+ * @brief Compares two resampler configurations for equality.
+ * @param a Pointer to first resampler configuration.
+ * @param b Pointer to second resampler configuration.
+ * @return true if configurations are equal, false otherwise.
+ */
 static bool resampler_config_equal(const resampler_config_t* a,
                                   const resampler_config_t* b) {
   if (a->type != b->type) return false;
@@ -365,6 +473,12 @@ static bool resampler_config_equal(const resampler_config_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two devices configurations for equality.
+ * @param a Pointer to first devices configuration.
+ * @param b Pointer to second devices configuration.
+ * @return true if configurations are equal, false otherwise.
+ */
 static bool devices_config_equal(const devices_config_t* a,
                                  const devices_config_t* b) {
   if (a->samplerate != b->samplerate) return false;
@@ -453,6 +567,12 @@ static bool devices_config_equal(const devices_config_t* a,
   return true;
 }
 
+/**
+ * @brief Compares two pipeline step configurations for equality.
+ * @param a Pointer to first pipeline step configuration.
+ * @param b Pointer to second pipeline step configuration.
+ * @return true if steps are equal, false otherwise.
+ */
 static bool pipeline_step_equal(const pipeline_step_t* a,
                                 const pipeline_step_t* b) {
   if (a->type != b->type) return false;
@@ -479,11 +599,14 @@ config_change_type_t config_diff(const dsp_config_t* current,
     return CONFIG_CHANGE_DEVICES;
   }
 
+  // If devices config (sample rate, chunk size, backend config) changes,
+  // we must rebuild the entire audio backend and pipeline.
   if (!devices_config_equal(&current->devices, &new_conf->devices)) {
     out_change->type = CONFIG_CHANGE_DEVICES;
     return CONFIG_CHANGE_DEVICES;
   }
 
+  // If pipeline steps count or details change, we must rebuild the pipeline.
   if (current->pipeline_count != new_conf->pipeline_count) {
     out_change->type = CONFIG_CHANGE_PIPELINE;
     return CONFIG_CHANGE_PIPELINE;
@@ -495,6 +618,7 @@ config_change_type_t config_diff(const dsp_config_t* current,
     }
   }
 
+  // If the count of filters, mixers, or processors changes, it indicates structural change.
   if (current->filters_count != new_conf->filters_count ||
       current->mixers_count != new_conf->mixers_count ||
       current->processors_count != new_conf->processors_count) {
@@ -502,6 +626,7 @@ config_change_type_t config_diff(const dsp_config_t* current,
     return CONFIG_CHANGE_PIPELINE;
   }
 
+  // If names of filters/mixers/processors at specific slots change, it's also a structural change.
   for (size_t i = 0; i < current->filters_count; i++) {
     if (strcmp(current->filters[i].name, new_conf->filters[i].name) != 0) {
       out_change->type = CONFIG_CHANGE_PIPELINE;
@@ -521,6 +646,8 @@ config_change_type_t config_diff(const dsp_config_t* current,
     }
   }
 
+  // If we reach here, the structure of the pipeline is identical.
+  // We check which individual components had their parameters modified.
   char** changed_filters = malloc(sizeof(char*) * current->filters_count);
   size_t cf_count = 0;
   for (size_t i = 0; i < current->filters_count; i++) {
@@ -548,6 +675,7 @@ config_change_type_t config_diff(const dsp_config_t* current,
     }
   }
 
+  // If no parameters changed, we have no changes at all.
   if (cf_count == 0 && cm_count == 0 && cp_count == 0) {
     free(changed_filters);
     free(changed_mixers);
@@ -563,6 +691,8 @@ config_change_type_t config_diff(const dsp_config_t* current,
   out_change->processors = changed_processors;
   out_change->processors_count = cp_count;
 
+  // Mixer parameter changes require special handling (sometimes thread safety logic),
+  // so we separate them from normal filter parameter updates.
   if (cm_count > 0) {
     out_change->type = CONFIG_CHANGE_MIXER_PARAMETERS;
   } else {

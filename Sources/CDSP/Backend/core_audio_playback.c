@@ -49,6 +49,18 @@ struct core_audio_playback {
   _Atomic bool is_paused;
 };
 
+/**
+ * @brief CoreAudio listener callback for device liveness.
+ * 
+ * Called by CoreAudio when the alive state of the device changes (e.g., disconnection).
+ * Updates the internal atomic flag `is_device_alive`.
+ *
+ * @param inObjectID The AudioObjectID of the device.
+ * @param inNumberAddresses The number of addresses in inAddresses.
+ * @param inAddresses The addresses of the properties that changed.
+ * @param inClientData Pointer to the core_audio_playback_t instance.
+ * @return OSStatus noErr on success, or an error code.
+ */
 static OSStatus playback_alive_listener_callback(
     AudioObjectID inObjectID, UInt32 inNumberAddresses,
     const AudioObjectPropertyAddress* inAddresses, void* inClientData) {
@@ -70,8 +82,26 @@ static OSStatus playback_alive_listener_callback(
   return noErr;
 }
 
-/// CoreAudio render callback for playback. Hot path: must not lock,
-/// allocate, or call into Swift runtime in a way that could block.
+/**
+ * @brief CoreAudio render callback for playback.
+ * 
+ * This callback is called by the CoreAudio real-time thread to pull audio data
+ * from the internal ring buffers and write it to the output device's buffers.
+ * 
+ * @note This function runs on a real-time thread. It must be wait-free and must not:
+ *       - Allocate or free memory.
+ *       - Take locks (mutexes).
+ *       - Call any blocking APIs.
+ *       - Call into the Swift runtime.
+ *
+ * @param inRefCon Pointer to the core_audio_playback_t instance.
+ * @param ioActionFlags Action flags for the render operation.
+ * @param inTimeStamp Time stamp of the render cycle.
+ * @param inBusNumber The bus number.
+ * @param inNumberFrames The number of sample frames requested.
+ * @param ioData The buffer list to fill with audio data.
+ * @return OSStatus noErr on success.
+ */
 static OSStatus playback_callback(void* inRefCon,
                                   AudioUnitRenderActionFlags* ioActionFlags,
                                   const AudioTimeStamp* inTimeStamp,
@@ -104,33 +134,42 @@ static OSStatus playback_callback(void* inRefCon,
   return noErr;
 }
 
+/** @brief Vtable wrapper for core_audio_playback_open. */
 static bool vtable_open(void* ctx, backend_error_t* err) {
   return core_audio_playback_open((core_audio_playback_t*)ctx, err);
 }
+/** @brief Vtable wrapper for core_audio_playback_write. */
 static bool vtable_write(void* ctx, const audio_chunk_t* chunk,
                          backend_error_t* err) {
   return core_audio_playback_write((core_audio_playback_t*)ctx, chunk, err);
 }
+/** @brief Vtable wrapper for core_audio_playback_close. */
 static void vtable_close(void* ctx) {
   core_audio_playback_close((core_audio_playback_t*)ctx);
 }
+/** @brief Vtable wrapper for core_audio_playback_get_buffer_level. */
 static size_t vtable_get_level(void* ctx) {
   return core_audio_playback_get_buffer_level((core_audio_playback_t*)ctx);
 }
+/** @brief Vtable wrapper for core_audio_playback_get_pending_rate_change. */
 static bool vtable_get_rate(void* ctx, double* out_rate) {
   return core_audio_playback_get_pending_rate_change(
       (core_audio_playback_t*)ctx, out_rate);
 }
+/** @brief Vtable wrapper for core_audio_playback_prefill_silence. */
 static bool vtable_prefill(void* ctx, size_t frames, backend_error_t* err) {
   return core_audio_playback_prefill_silence((core_audio_playback_t*)ctx,
                                              frames, err);
 }
+/** @brief Vtable wrapper for core_audio_playback_get_is_paused. */
 static bool vtable_get_paused(void* ctx) {
   return core_audio_playback_get_is_paused((core_audio_playback_t*)ctx);
 }
+/** @brief Vtable wrapper for core_audio_playback_set_is_paused. */
 static void vtable_set_paused(void* ctx, bool paused) {
   core_audio_playback_set_is_paused((core_audio_playback_t*)ctx, paused);
 }
+/** @brief Vtable wrapper for core_audio_playback_destroy. */
 static void vtable_destroy(void* ctx) {
   core_audio_playback_destroy((core_audio_playback_t*)ctx);
 }
@@ -285,6 +324,8 @@ bool core_audio_playback_open(core_audio_playback_t* playback,
     AudioUnitSetProperty(playback->audio_unit,
                          kAudioOutputUnitProperty_CurrentDevice,
                          kAudioUnitScope_Global, 0, &dev_id, sizeof(dev_id));
+    // Attempt to acquire Hog Mode if exclusive access is requested.
+    // Hog mode prevents other processes from using the device.
     if (playback->exclusive) {
       pid_t hog_pid = getpid();
       AudioObjectPropertyAddress hog_addr = {
@@ -296,6 +337,9 @@ bool core_audio_playback_open(core_audio_playback_t* playback,
         playback->did_acquire_hog_mode = true;
       }
     }
+    // Set the device format. If a specific sample format was requested, we try to find
+    // a matching physical format on the device. Otherwise, we just set the nominal
+    // sample rate and let the system handle format conversion if necessary.
     bool physical_format_set = false;
     if (playback->has_sample_format) {
       if (core_audio_device_set_matching_physical_format(
@@ -349,6 +393,10 @@ bool core_audio_playback_open(core_audio_playback_t* playback,
     goto cleanup;
   }
 
+  // Configure the maximum frames per slice. This informs the AudioUnit of the
+  // maximum buffer size it will be asked to render. We check the device's actual
+  // buffer frame size to ensure we don't under-allocate if the device is configured
+  // for a larger buffer than our chunk size.
   UInt32 max_frames = (UInt32)playback->chunk_size;
   if (dev_id != 0) {
     uint32_t actual_size = 0;
@@ -411,6 +459,9 @@ bool core_audio_playback_write(core_audio_playback_t* playback,
                             ? playback->channels
                             : (int)audio_chunk_get_channels(chunk);
 
+  // Wait for space to become available in the ring buffers for all channels.
+  // This is a blocking wait from the writer's perspective, using a sleep loop
+  // to yield CPU. The consumer (CoreAudio render thread) remains lock-free.
   uint32_t elapsed_ms = 0;
   while (true) {
     bool space_available = true;
@@ -426,18 +477,24 @@ bool core_audio_playback_write(core_audio_playback_t* playback,
       break;
     }
 
+    // Sleep for 1ms to yield CPU.
     struct timespec req = {.tv_sec = 0, .tv_nsec = 1000000L};  // 1ms sleep
     nanosleep(&req, NULL);
     elapsed_ms += 1;
 
+    // Timeout after 1 second to prevent infinite blocking if playback stalls.
     if (elapsed_ms >= 1000) {
       return false;  // Timeout 1s
     }
 
+    // Abort if the device was disconnected.
     if (!atomic_load_explicit(&playback->is_device_alive,
                               memory_order_acquire)) {
       return false;
     }
+    // If paused, we fake a successful write to avoid blocking the caller.
+    // The caller might want to keep sending data, which will be discarded
+    // or accumulate depending on buffer state.
     if (atomic_load_explicit(&playback->is_paused, memory_order_acquire)) {
       return true;
     }

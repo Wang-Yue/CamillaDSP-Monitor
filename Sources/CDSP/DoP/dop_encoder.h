@@ -1,28 +1,31 @@
+/**
+ * @file dop_encoder.h
+ * @brief PCM to DoP (DSD-over-PCM) encoder.
+ *
+ * Converts a chunk of PCM audio at the carrier rate into DSD-over-PCM, in place.
+ * For each input frame it:
+ * 1. Interpolates 16x to the DSD rate using a 511-tap beta=11 Kaiser-windowed
+ *    polyphase sinc (same shape as the decoder, normalized per phase
+ *    for unit DC gain).
+ * 2. Modulates the oversampled signal with a per-channel sigma-delta
+ *    modulator (using the configured `SDMFilter`, defaulting to `sdm-6`).
+ * 3. Packs the 16 resulting DSD bits into the lower 16 bits of a 24-bit
+ *    container, with an alternating `0x05` / `0xFA` marker in the upper byte.
+ *
+ * The encoded chunk satisfies the strict-alternation detection state
+ * machine in `DoPDecoder` and round-trips through any DAC that natively
+ * understands DoP. To preserve the bit pattern through CoreAudio the
+ * playback format must be S24 or S32 (F32 will quantize the marker
+ * away); the encoder itself just emits float-normalised 24-bit values
+ * and trusts the playback backend to forward them losslessly.
+ *
+ * SDM state per channel is carried by an embedded `SigmaDeltaModulator`;
+ * the polyphase coefficient table is shared across channels and built
+ * once at init.
+ */
+
 #ifndef CLIB_DOP_DOP_ENCODER_H
 #define CLIB_DOP_DOP_ENCODER_H
-
-// PCM → DoP encoder. Inverse of `DoPDecoder`: converts a chunk of PCM
-// audio at the carrier rate into DSD-over-PCM, in place. For each input
-// frame we
-//   1. interpolate 16× to the DSD rate using a 511-tap β=11 Kaiser-windowed
-//      polyphase sinc (same shape as the decoder, normalized per phase
-//      for unit DC gain),
-//   2. modulate the oversampled signal with a per-channel sigma-delta
-//      modulator (using the configured `SDMFilter`, defaulting to `sdm-6`), and
-//   3. pack the 16 resulting DSD bits into the lower 16 bits of a 24-bit
-//      container, with an alternating `0x05` / `0xFA` marker in the
-//      upper byte.
-//
-// The encoded chunk satisfies the strict-alternation detection state
-// machine in `DoPDecoder` and round-trips through any DAC that natively
-// understands DoP. To preserve the bit pattern through CoreAudio the
-// playback format must be S24 or S32 (F32 will quantize the marker
-// away); the encoder itself just emits float-normalised 24-bit values
-// and trusts the playback backend to forward them losslessly.
-//
-// SDM state per channel is carried by an embedded `SigmaDeltaModulator`;
-// the polyphase coefficient table is shared across channels and built
-// once at init.
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -32,79 +35,86 @@
 #include "Config/engine_config_types.h"
 #include "sigma_delta_modulator.h"
 
+/**
+ * @brief State for a single DoP encoder channel.
+ */
 typedef struct {
-  double fifo[64];  // 32 * 2 doubles
+  /** FIFO buffer for interpolation. Holds 32 * 2 doubles. */
+  double fifo[64];
+  /** Current position in the FIFO buffer. */
   int fifo_pos;
+  /** Alternating DoP marker byte (0x05 or 0xFA). */
   uint8_t marker;
+  /** Sigma-delta modulator instance for this channel. */
   sigma_delta_modulator_t* modulator;
 } dop_encoder_channel_state_t;
 
-/// PCM → DoP encoder. Inverse of `DoPDecoder`: converts a chunk of PCM
-/// audio at the carrier rate into DSD-over-PCM, in place. For each input
-/// frame we
-///   1. interpolate 16× to the DSD rate using a 511-tap β=11 Kaiser-windowed
-///      polyphase sinc (same shape as the decoder, normalized per phase
-///      for unit DC gain),
-///   2. modulate the oversampled signal with a per-channel sigma-delta
-///      modulator (using the configured `SDMFilter`, defaulting to `sdm-6`),
-///      and
-///   3. pack the 16 resulting DSD bits into the lower 16 bits of a 24-bit
-///      container, with an alternating `0x05` / `0xFA` marker in the
-///      upper byte.
-///
-/// The encoded chunk satisfies the strict-alternation detection state
-/// machine in `DoPDecoder` and round-trips through any DAC that natively
-/// understands DoP. To preserve the bit pattern through CoreAudio the
-/// playback format must be S24 or S32 (F32 will quantize the marker
-/// away); the encoder itself just emits float-normalised 24-bit values
-/// and trusts the playback backend to forward them losslessly.
-///
-/// SDM state per channel is carried by an embedded `SigmaDeltaModulator`;
-/// the polyphase coefficient table is shared across channels and built
-/// once at init.
+/**
+ * @brief DoP encoder context.
+ */
 typedef struct {
+  /** Number of audio channels. */
   int channels;
-  /// `true` iff the constructor was asked to encode AND the carrier rate
-  /// is in `supportedCarrierRates`. `encode(...)` is an unconditional
-  /// no-op when this is `false`.
+  /**
+   * True if the encoder is enabled (i.e. constructor was asked to encode
+   * AND the carrier rate is supported).
+   */
   bool enabled;
+  /** Array of channel states. */
   dop_encoder_channel_state_t* channel_states;
-  /// Polyphase coefficient table laid out as `coeffs[phase * subFilterTaps +
-  /// tap]`. Each phase is normalized to unit DC gain; with a constant input
-  /// sequence the interpolated output equals the input value, so the SDM input
-  /// scale matches the PCM input scale. Built unconditionally — at unsupported
-  /// rates the table is harmless dead weight (~4 KB) but keeping the
-  /// allocation unconditional simplifies the deinit path.
-  double* coeffs;  // 16 * 32 doubles = 512 doubles
+  /**
+   * Polyphase coefficient table laid out as `coeffs[phase * subFilterTaps + tap]`.
+   * Each phase is normalized to unit DC gain.
+   */
+  double* coeffs;
 } dop_encoder_t;
 
-/// Construct an encoder. Always succeeds, but only actually encodes
-/// when `output_dop` is `true` *and* `sample_rate` is one of
-/// `supportedCarrierRates`. The mismatched case reduces `encode(...)` to a
-/// no-op.
-///
-/// - Parameters:
-///   - channels: Number of audio channels.
-///   - sample_rate: The PCM sample rate (carrier rate).
-///   - output_dop: If true, enables DoP encoding.
-///   - filter_name: Noise-shaper filter name (defaults to `.sdm6`).
-///   - cutoff_hz: Passband cutoff of the interpolation filter (default 20 kHz).
-///     Lower values trade ultrasonic passband for sharper image rejection.
-///     Ignored when `enabled` is false.
+/**
+ * @brief Construct a DoP encoder.
+ *
+ * Always succeeds, but only actually encodes when `output_dop` is true and
+ * `sample_rate` is a supported carrier rate. Otherwise, the encoder is
+ * disabled and `dop_encoder_encode` becomes a no-op.
+ *
+ * @param channels Number of audio channels.
+ * @param sample_rate The PCM sample rate (carrier rate).
+ * @param output_dop If true, enables DoP encoding.
+ * @param filter_name Noise-shaper filter name.
+ * @param cutoff_hz Passband cutoff of the interpolation filter.
+ *                  Ignored when `enabled` is false.
+ * @return Pointer to the created dop_encoder_t instance.
+ */
 dop_encoder_t* dop_encoder_create(int channels, double sample_rate,
                                   bool output_dop, sdm_filter_t filter_name,
                                   double cutoff_hz);
-/// Encode the chunk's `validFrames` PCM samples into DoP, in place.
-/// No-op when `enabled` is `false`, the chunk is empty, or the channel
-/// count doesn't match what the encoder was constructed with.
+
+/**
+ * @brief Encode the chunk's PCM samples into DoP, in place.
+ *
+ * No-op when `enabled` is false, the chunk is empty, or the channel
+ * count doesn't match what the encoder was constructed with.
+ *
+ * @param encoder Pointer to the encoder instance.
+ * @param chunk Pointer to the audio chunk to encode.
+ */
 void dop_encoder_encode(dop_encoder_t* encoder, audio_chunk_t* chunk);
+
+/**
+ * @brief Free the DoP encoder and its resources.
+ *
+ * @param encoder Pointer to the encoder instance to free.
+ */
 void dop_encoder_free(dop_encoder_t* encoder);
 
-/// Carrier sample rates that produce a valid DoP stream — DSD64/128/256
-/// over the 44.1 kHz and 48 kHz rate families. Anything outside this set
-/// can't be DoP-encoded: the modulator's filter table only has entries
-/// for these specific DSD rates, and a downstream DAC won't recognize
-/// the marker pattern at any other carrier rate.
+/**
+ * @brief Check if a carrier rate is supported for DoP encoding.
+ *
+ * Carrier sample rates that produce a valid DoP stream are DSD64/128/256
+ * over the 44.1 kHz and 48 kHz rate families.
+ *
+ * @param rate The carrier rate to check.
+ * @return True if the rate is supported, false otherwise.
+ */
 bool dop_encoder_is_supported_carrier_rate(int rate);
 
 #endif  // CLIB_DOP_DOP_ENCODER_H
