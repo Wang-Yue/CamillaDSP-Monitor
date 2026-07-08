@@ -18,6 +18,14 @@
 #include "Config/configuration.h"
 #include "Config/engine_config_types.h"
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+typedef SOCKET socket_t;
+#else
+typedef int socket_t;
+#endif
+
 /**
  * @brief Opaque structure representing a WebSocket server.
  */
@@ -177,7 +185,7 @@ struct websocket_server {
   dsp_engine_interface_t* engine;
 
   /** Server socket file descriptor. */
-  int server_fd;
+  socket_t server_fd;
   /** Atomic flag indicating if the server is running. */
   _Atomic bool running;
   /** Thread handle for the server runloop. */

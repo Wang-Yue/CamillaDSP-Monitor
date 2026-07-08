@@ -7,8 +7,28 @@
 
 static const logger_t server_logger = {"dsp.server.websocket"};
 
-#ifndef _WIN32
-#include <sys/time.h>
+#ifdef _WIN32
+#include <ws2tcpip.h>
+#define CLOSE_SOCKET(s) closesocket(s)
+#define INVALID_SOCKET_VAL INVALID_SOCKET
+#define IS_INVALID_SOCKET(s) ((s) == INVALID_SOCKET)
+#define IS_SOCKET_ERROR(r) ((r) == SOCKET_ERROR)
+#define GET_SOCKET_ERROR() WSAGetLastError()
+#define poll_sockets WSAPoll
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <poll.h>
+#include <errno.h>
+#define CLOSE_SOCKET(s) close(s)
+#define INVALID_SOCKET_VAL (-1)
+#define IS_INVALID_SOCKET(s) ((s) < 0)
+#define IS_SOCKET_ERROR(r) ((r) < 0)
+#define GET_SOCKET_ERROR() errno
+#define poll_sockets poll
+#endif
 
 #include "Audio/processing_parameters.h"
 #include "Config/cJSON.h"
@@ -117,17 +137,13 @@ static void CC_SHA1(const void* data, CC_LONG len, unsigned char* digest) {
   }
 }
 #endif
-#include <arpa/inet.h>
 #include <math.h>
-#include <netinet/in.h>
-#include <poll.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#include <time.h>
 
 /**
  * @brief Converts a decibel (dB) value to a linear amplitude ratio.
@@ -288,7 +304,7 @@ websocket_server_t* websocket_server_create(uint16_t port, const char* host) {
   } else {
     strncpy(server->host, "127.0.0.1", sizeof(server->host) - 1);
   }
-  server->server_fd = -1;
+  server->server_fd = INVALID_SOCKET_VAL;
   server->update_interval = 100;
   atomic_init(&server->running, false);
   return server;
@@ -307,9 +323,9 @@ void websocket_server_set_engine(websocket_server_t* server,
  * @return Current timestamp in milliseconds.
  */
 static uint64_t get_time_ms(void) {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
 }
 
 /**
@@ -2587,7 +2603,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
  * @param fd The client socket file descriptor.
  * @param response The null-terminated payload string to send.
  */
-static void send_websocket_frame(int fd, const char* response) {
+static void send_websocket_frame(socket_t fd, const char* response) {
   size_t resp_len = strlen(response);
   char frame[16384];
   frame[0] = (char)0x81;
@@ -2608,7 +2624,7 @@ static void send_websocket_frame(int fd, const char* response) {
   }
   if (header_len + resp_len <= sizeof(frame)) {
     memcpy(&frame[header_len], response, resp_len);
-    send(fd, frame, header_len + resp_len, 0);
+    send(fd, frame, (int)(header_len + resp_len), 0);
   } else {
     char* dyn_frame = (char*)malloc(header_len + resp_len);
     if (dyn_frame) {
@@ -2616,7 +2632,7 @@ static void send_websocket_frame(int fd, const char* response) {
       dyn_frame[1] = frame[1];
       memcpy(&dyn_frame[2], &frame[2], header_len - 2);
       memcpy(&dyn_frame[header_len], response, resp_len);
-      send(fd, dyn_frame, header_len + resp_len, 0);
+      send(fd, dyn_frame, (int)(header_len + resp_len), 0);
       free(dyn_frame);
     }
   }
@@ -2634,7 +2650,7 @@ static void send_websocket_frame(int fd, const char* response) {
  */
 static void* server_thread_func(void* arg) {
   websocket_server_t* server = (websocket_server_t*)arg;
-  int client_fds[32];
+  socket_t client_fds[32];
   char last_state[32][64];
   int num_clients = 0;
 
@@ -2648,7 +2664,7 @@ static void* server_thread_func(void* arg) {
       fds[i + 1].fd = client_fds[i];
       fds[i + 1].events = POLLIN;
     }
-    int ret = poll(fds, num_clients + 1, 50);
+    int ret = poll_sockets(fds, num_clients + 1, 50);
 
     // Periodic broadcast tick
     uint64_t now = get_time_ms();
@@ -2962,8 +2978,8 @@ static void* server_thread_func(void* arg) {
 
     if (ret > 0) {
       if (fds[0].revents & POLLIN) {
-        int cfd = accept(server->server_fd, NULL, NULL);
-        if (cfd >= 0 && num_clients < 32) {
+        socket_t cfd = accept(server->server_fd, NULL, NULL);
+        if (!IS_INVALID_SOCKET(cfd) && num_clients < 32) {
           client_fds[num_clients] = cfd;
           last_state[num_clients][0] = '\0';
 
@@ -2976,17 +2992,16 @@ static void* server_thread_func(void* arg) {
           session->last_pb_rms_time = now_ms;
 
           num_clients++;
-        } else if (cfd >= 0) {
-          close(cfd);
+        } else if (!IS_INVALID_SOCKET(cfd)) {
+          CLOSE_SOCKET(cfd);
         }
       }
       for (int i = 0; i < num_clients; i++) {
         if (fds[i + 1].revents & (POLLIN | POLLERR | POLLHUP)) {
           char buf[4096];
-          ssize_t n = recv(client_fds[i], buf, sizeof(buf) - 1, 0);
+          int n = recv(client_fds[i], buf, sizeof(buf) - 1, 0);
           if (n <= 0) {
-            close(client_fds[i]);
-
+            CLOSE_SOCKET(client_fds[i]);
             if (server->client_sessions[i].vu_pb_rms)
               free(server->client_sessions[i].vu_pb_rms);
             if (server->client_sessions[i].vu_pb_peak)
@@ -3047,7 +3062,7 @@ static void* server_thread_func(void* arg) {
                          "websocket\r\nConnection: "
                          "Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
                          b64_hash);
-                send(client_fds[i], reply, strlen(reply), 0);
+                send(client_fds[i], reply, (int)strlen(reply), 0);
               }
               continue;
             }
@@ -3057,7 +3072,7 @@ static void* server_thread_func(void* arg) {
               unsigned char first_byte = (unsigned char)buf[offset];
               if (first_byte == 0x81 || (first_byte & 0x0F) == 0x08) {
                 if ((first_byte & 0x0F) == 0x08) {
-                  close(client_fds[i]);
+                  CLOSE_SOCKET(client_fds[i]);
                   if (server->client_sessions[i].vu_pb_rms)
                     free(server->client_sessions[i].vu_pb_rms);
                   if (server->client_sessions[i].vu_pb_peak)
@@ -3137,7 +3152,7 @@ static void* server_thread_func(void* arg) {
                   logger_debug(&server_logger, "Sending raw TCP response: %s",
                                log_arg_string(response), log_arg_none(),
                                log_arg_none(), log_arg_none());
-                  send(client_fds[i], response, strlen(response), 0);
+                  send(client_fds[i], response, (int)strlen(response), 0);
                 }
                 break;
               }
@@ -3148,7 +3163,7 @@ static void* server_thread_func(void* arg) {
     }
   }
   for (int i = 0; i < num_clients; i++) {
-    close(client_fds[i]);
+    CLOSE_SOCKET(client_fds[i]);
   }
   return NULL;
 }
@@ -3158,11 +3173,28 @@ bool websocket_server_start(websocket_server_t* server) {
   if (!server || atomic_load_explicit(&server->running, memory_order_acquire))
     return false;
 
+#ifdef _WIN32
+  WSADATA wsaData;
+  if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+    return false;
+  }
+#endif
+
   server->server_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (server->server_fd < 0) return false;
+  if (IS_INVALID_SOCKET(server->server_fd)) {
+#ifdef _WIN32
+    WSACleanup();
+#endif
+    return false;
+  }
 
   int opt = 1;
+#ifdef _WIN32
+  setsockopt(server->server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt,
+             sizeof(opt));
+#else
   setsockopt(server->server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+#endif
 
   struct sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
@@ -3170,23 +3202,33 @@ bool websocket_server_start(websocket_server_t* server) {
   addr.sin_port = htons(server->port);
   inet_pton(AF_INET, server->host, &addr.sin_addr);
 
-  if (bind(server->server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-    close(server->server_fd);
-    server->server_fd = -1;
+  if (IS_SOCKET_ERROR(
+          bind(server->server_fd, (struct sockaddr*)&addr, sizeof(addr)))) {
+    CLOSE_SOCKET(server->server_fd);
+    server->server_fd = INVALID_SOCKET_VAL;
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return false;
   }
 
-  if (listen(server->server_fd, 10) < 0) {
-    close(server->server_fd);
-    server->server_fd = -1;
+  if (IS_SOCKET_ERROR(listen(server->server_fd, 10))) {
+    CLOSE_SOCKET(server->server_fd);
+    server->server_fd = INVALID_SOCKET_VAL;
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return false;
   }
 
   atomic_store_explicit(&server->running, true, memory_order_release);
   if (pthread_create(&server->thread, NULL, server_thread_func, server) != 0) {
     atomic_store_explicit(&server->running, false, memory_order_release);
-    close(server->server_fd);
-    server->server_fd = -1;
+    CLOSE_SOCKET(server->server_fd);
+    server->server_fd = INVALID_SOCKET_VAL;
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return false;
   }
 
@@ -3199,10 +3241,13 @@ void websocket_server_stop(websocket_server_t* server) {
     return;
   atomic_store_explicit(&server->running, false, memory_order_release);
   pthread_join(server->thread, NULL);
-  if (server->server_fd >= 0) {
-    close(server->server_fd);
-    server->server_fd = -1;
+  if (!IS_INVALID_SOCKET(server->server_fd)) {
+    CLOSE_SOCKET(server->server_fd);
+    server->server_fd = INVALID_SOCKET_VAL;
   }
+#ifdef _WIN32
+  WSACleanup();
+#endif
 }
 
 /// Destroy and free the WebSocket server.
@@ -3240,36 +3285,3 @@ void websocket_server_free(websocket_server_t* server) {
 
   free(server);
 }
-#else
-// Stub implementations for Windows target
-websocket_server_t* websocket_server_create(uint16_t port, const char* host) {
-  (void)port;
-  (void)host;
-  return NULL;
-}
-void websocket_server_set_engine(websocket_server_t* server,
-                                 dsp_engine_interface_t* engine) {
-  (void)server;
-  (void)engine;
-}
-void websocket_server_set_state_file(websocket_server_t* server,
-                                     const char* state_file_path) {
-  (void)server;
-  (void)state_file_path;
-}
-bool websocket_server_start(websocket_server_t* server) {
-  (void)server;
-  return false;
-}
-void websocket_server_stop(websocket_server_t* server) { (void)server; }
-void websocket_server_free(websocket_server_t* server) { (void)server; }
-void websocket_server_handle_command(websocket_server_t* server, int client_idx,
-                                     const char* command_text,
-                                     char* out_response, size_t max_len) {
-  (void)server;
-  (void)client_idx;
-  (void)command_text;
-  (void)out_response;
-  (void)max_len;
-}
-#endif

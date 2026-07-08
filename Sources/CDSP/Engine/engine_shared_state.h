@@ -106,6 +106,7 @@ static inline void engine_sem_wait(engine_semaphore_t sem) {
   if (sem) sem_wait(sem);
 }
 #elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 /**
  * @brief Platform-specific semaphore wrapper.
