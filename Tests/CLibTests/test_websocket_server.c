@@ -57,15 +57,22 @@ static bool mock_get_device_capabilities(
   return true;
 }
 
+static bool simulate_set_config_error = false;
+static char* received_config_json = NULL;
+
 static bool mock_set_config_json(void* ctx, const char* json_str,
                                  audio_backend_error_t* out_err) {
   (void)ctx;
-  (void)json_str;
-  if (out_err) {
-    out_err->type = simulated_error_type;
-    snprintf(out_err->message, sizeof(out_err->message), "%s", simulated_error_message);
+  if (simulate_set_config_error) {
+    if (out_err) {
+      out_err->type = simulated_error_type;
+      snprintf(out_err->message, sizeof(out_err->message), "%s", simulated_error_message);
+    }
+    return false;
   }
-  return false;
+  if (received_config_json) free(received_config_json);
+  received_config_json = strdup(json_str);
+  return true;
 }
 
 static void mock_set_fader_volume(void* ctx, fader_t fader, float db, bool instant) {
@@ -284,6 +291,7 @@ TEST(test_websocket_error_translation) {
   websocket_server_t* server =
       websocket_server_create(54323, "127.0.0.1");
   websocket_server_set_engine(server, &mock_engine);
+  simulate_set_config_error = true;
 
   char resp[4096];
 
@@ -343,6 +351,62 @@ TEST(test_websocket_error_translation) {
   ASSERT_TRUE(strstr(resp, "hw:0 bad driver") != NULL);
 
   simulate_cap_error = false;
+  simulate_set_config_error = false;
+
+  websocket_server_free(server);
+}
+
+TEST(test_websocket_patch_config) {
+  websocket_server_t* server =
+      websocket_server_create(54323, "127.0.0.1");
+  websocket_server_set_engine(server, &mock_engine);
+
+  mock_active_config = strdup(
+      "{\n"
+      "  \"devices\": {\n"
+      "    \"samplerate\": 44100,\n"
+      "    \"chunksize\": 1024,\n"
+      "    \"capture\": {\"type\": \"File\", \"channels\": 2},\n"
+      "    \"playback\": {\"type\": \"File\", \"channels\": 2}\n"
+      "  },\n"
+      "  \"filters\": {\n"
+      "    \"mygain\": {\n"
+      "      \"type\": \"Gain\",\n"
+      "      \"parameters\": {\"gain\": -6.0}\n"
+      "    }\n"
+      "  }\n"
+      "}");
+
+  char resp[4096];
+  const char* patch_cmd =
+      "{\"PatchConfig\":{"
+      "  \"filters\":{"
+      "    \"mygain\":{"
+      "      \"parameters\":{\"gain\":-3.0}"
+      "    }"
+      "  }"
+      "}}";
+
+  if (received_config_json) {
+    free(received_config_json);
+    received_config_json = NULL;
+  }
+
+  websocket_server_handle_command(server, 0, patch_cmd, resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"PatchConfig\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
+
+  ASSERT_TRUE(received_config_json != NULL);
+  ASSERT_TRUE(strstr(received_config_json, "\"gain\":-3") != NULL ||
+              strstr(received_config_json, "\"gain\": -3") != NULL);
+
+  free(mock_active_config);
+  mock_active_config = NULL;
+
+  if (received_config_json) {
+    free(received_config_json);
+    received_config_json = NULL;
+  }
 
   websocket_server_free(server);
 }

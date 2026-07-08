@@ -33,6 +33,7 @@
 #include <string.h>
 
 #include "Logging/app_logger.h"
+#include "Config/config_diff.h"
 
 static void* capture_thread_func(void* arg) {
   engine_capture_loop_t* loop = (engine_capture_loop_t*)arg;
@@ -453,16 +454,63 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
                                    audio_backend_error_t* err) {
   if (!core || !new_config) return false;
   logger_t logger = logger_create("dsp.engine.core");
-  if (core->current_config && core->current_config != new_config) {
-    dsp_config_free(core->current_config);
+
+  dsp_config_t* old_config = core->current_config;
+
+  if (dsp_engine_core_get_state(core) == PROCESSING_STATE_INACTIVE) {
+    if (old_config && old_config != new_config) {
+      dsp_config_free(old_config);
+    }
+    core->current_config = new_config;
+    return true;
   }
-  core->current_config = new_config;
 
-  if (dsp_engine_core_get_state(core) == PROCESSING_STATE_INACTIVE) return true;
+  // 1. Perform configuration diffing
+  config_change_t change;
+  config_change_type_t change_type = config_diff(old_config, new_config, &change);
 
-  // Check if we can do an in-place parameter update instead of rebuilding the
-  // pipeline. Force rebuild if any mixer channel count changed (since they are
-  // immutable in Swift AudioMixer)
+  if (change_type == CONFIG_CHANGE_NONE) {
+    logger_info(&logger, "No changes in config.", log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
+    dsp_config_free(new_config); // new config is identical, discard it
+    config_change_free(&change);
+    return true;
+  }
+
+  if (change_type == CONFIG_CHANGE_FILTER_PARAMETERS || change_type == CONFIG_CHANGE_MIXER_PARAMETERS) {
+    // 2. Perform in-place parameter update
+    if (core->processing_loop) {
+      pending_update_t* update = malloc(sizeof(pending_update_t));
+      update->config = new_config;
+      update->filters = change.filters;
+      update->filters_count = change.filters_count;
+      update->mixers = change.mixers;
+      update->mixers_count = change.mixers_count;
+      update->processors = change.processors;
+      update->processors_count = change.processors_count;
+
+      // Transfer ownership of name arrays to the update object
+      change.filters = NULL;
+      change.mixers = NULL;
+      change.processors = NULL;
+      config_change_free(&change);
+
+      engine_processing_loop_enqueue_update(core->processing_loop, update);
+
+      // Core saves the new config as its current_config.
+      core->current_config = new_config;
+      // We can safely free the old config now, because the loop thread will switch to using update->config on the next iteration.
+      if (old_config && old_config != new_config) {
+        dsp_config_free(old_config);
+      }
+
+      logger_info(&logger, "Pipeline parameters updated in-place", log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
+      return true;
+    }
+  }
+
+  // 3. Fall back to structural change (rebuilding pipeline)
+  config_change_free(&change);
+
   config_error_t cerr;
   memset(&cerr, 0, sizeof(cerr));
   pipeline_t* new_pipeline =
@@ -476,11 +524,18 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
     }
     return false;
   }
+
   if (core->processing_loop) {
     engine_processing_loop_set_pipeline(core->processing_loop, new_pipeline);
   } else {
     pipeline_free(new_pipeline);
   }
+
+  core->current_config = new_config;
+  if (old_config && old_config != new_config) {
+    dsp_config_free(old_config);
+  }
+
   logger_info(&logger, "Pipeline rebuilt without audio-device restart",
               log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
   return true;

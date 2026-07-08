@@ -189,6 +189,149 @@ TEST(DSPEngineSetConfigAndReload) {
   dsp_engine_free(engine);
 }
 
+TEST(DSPEngineHotParameterReload) {
+  dsp_engine_t* engine = dsp_engine_create();
+  ASSERT_TRUE(engine != NULL);
+
+#if defined(__linux__)
+  const char* json1 =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Alsa\",\n"
+      "            \"device\": \"null\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Alsa\",\n"
+      "            \"device\": \"null\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    },\n"
+      "    \"filters\": {\n"
+      "        \"mygain\": {\n"
+      "            \"type\": \"Gain\",\n"
+      "            \"parameters\": {\n"
+      "                \"gain\": -6.0\n"
+      "            }\n"
+      "        }\n"
+      "    },\n"
+      "    \"pipeline\": [{\n"
+      "        \"type\": \"Filter\",\n"
+      "        \"channel\": 0,\n"
+      "        \"names\": [\"mygain\"]\n"
+      "    }]\n"
+      "}";
+
+  const char* json2 =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Alsa\",\n"
+      "            \"device\": \"null\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Alsa\",\n"
+      "            \"device\": \"null\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    },\n"
+      "    \"filters\": {\n"
+      "        \"mygain\": {\n"
+      "            \"type\": \"Gain\",\n"
+      "            \"parameters\": {\n"
+      "                \"gain\": -3.0\n"
+      "            }\n"
+      "        }\n"
+      "    },\n"
+      "    \"pipeline\": [{\n"
+      "        \"type\": \"Filter\",\n"
+      "        \"channel\": 0,\n"
+      "        \"names\": [\"mygain\"]\n"
+      "    }]\n"
+      "}";
+#else
+  const char* json1 =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    },\n"
+      "    \"filters\": {\n"
+      "        \"mygain\": {\n"
+      "            \"type\": \"Gain\",\n"
+      "            \"parameters\": {\n"
+      "                \"gain\": -6.0\n"
+      "            }\n"
+      "        }\n"
+      "    },\n"
+      "    \"pipeline\": [{\n"
+      "        \"type\": \"Filter\",\n"
+      "        \"channel\": 0,\n"
+      "        \"names\": [\"mygain\"]\n"
+      "    }]\n"
+      "}";
+
+  const char* json2 =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"CoreAudio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    },\n"
+      "    \"filters\": {\n"
+      "        \"mygain\": {\n"
+      "            \"type\": \"Gain\",\n"
+      "            \"parameters\": {\n"
+      "                \"gain\": -3.0\n"
+      "            }\n"
+      "        }\n"
+      "    },\n"
+      "    \"pipeline\": [{\n"
+      "        \"type\": \"Filter\",\n"
+      "        \"channel\": 0,\n"
+      "        \"names\": [\"mygain\"]\n"
+      "    }]\n"
+      "}";
+#endif
+
+  audio_backend_error_t err;
+  memset(&err, 0, sizeof(err));
+  bool success1 = dsp_engine_set_config(engine, json1, &err);
+  ASSERT_TRUE(success1);
+
+  bool success2 = dsp_engine_set_config(engine, json2, &err);
+  ASSERT_TRUE(success2);
+
+  const dsp_config_t* active = dsp_engine_get_active_config(engine);
+  ASSERT_TRUE(active != NULL);
+  ASSERT_EQ(1, active->filters_count);
+  ASSERT_EQ(-3.0, active->filters[0].filter.parameters.gain.gain);
+
+  dsp_engine_stop(engine);
+  dsp_engine_free(engine);
+}
+
 TEST(DSPEngineSetConfigStruct) {
   dsp_engine_t* engine = dsp_engine_create();
   ASSERT_TRUE(engine != NULL);

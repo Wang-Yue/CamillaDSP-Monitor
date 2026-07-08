@@ -96,7 +96,6 @@ void engine_processing_loop_free(engine_processing_loop_t* loop) {
 
 void pending_update_free(pending_update_t* update) {
   if (!update) return;
-  if (update->config) dsp_config_free(update->config);
   if (update->filters) {
     for (size_t i = 0; i < update->filters_count; i++) free(update->filters[i]);
     free(update->filters);
@@ -146,7 +145,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       pool_cap, audio_chunk_get_frames(loop->pipeline_scratch),
       audio_chunk_get_channels(loop->pipeline_scratch));
 
-  int processed_count = 0;
 
   while (
       !atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
@@ -166,7 +164,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
         round_robin_chunk_pool_free(scratch_pool);
         return;
       }
-      processed_count++;
+
 
       // Apply any pending parameter updates before processing this chunk
       pending_update_t* update = NULL;
