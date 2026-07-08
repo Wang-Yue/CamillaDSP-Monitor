@@ -48,7 +48,7 @@ static OSStatus input_data_proc(
   size_t frames_to_provide = needed < available ? needed : available;
   *ioNumberDataPackets = (UInt32)frames_to_provide;
 
-  size_t chans = audio_chunk_get_channels(context);
+  size_t chans = audio_buffers_get_channels(context->buffers);
   for (size_t ch = 0; ch < ioData->mNumberBuffers && ch < chans; ch++) {
     double* base = audio_buffers_get_channel(context->buffers, ch);
     if (!base) return -1;
@@ -235,7 +235,7 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
 
   apple_resampler_fill_context_t* context = resampler->fill_context;
   // Check if we have space in ringBuffers
-  size_t available_space = audio_chunk_get_frames(context) - context->write_offset;
+  size_t available_space = audio_buffers_get_capacity(context->buffers) - context->write_offset;
   if (available_space < resampler->chunk_size) {
     // Shift data to front if needed
     if (context->read_offset > 0) {
@@ -249,7 +249,7 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
       context->read_offset = 0;
     }
     // If still not enough space, we fail.
-    if (audio_chunk_get_frames(context) - context->write_offset <
+    if (audio_buffers_get_capacity(context->buffers) - context->write_offset <
         resampler->chunk_size) {
       return RESAMPLER_ERR_INVALID_PARAMETER;  // Overflow
     }
