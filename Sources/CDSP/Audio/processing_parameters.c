@@ -239,13 +239,13 @@ static double update_levels_internal(const audio_chunk_t* chunk,
     waveform_t buffer = audio_chunk_get_channel(chunk, i);
     if (!buffer) continue;
 
-    double peak_db = doubleo_db(dsp_ops_peak_absolute(buffer, frame_count));
+    double peak_db = double_to_db(dsp_ops_peak_absolute(buffer, frame_count));
     atomic_double_set(&peak_storage[i], peak_db);
     if (peak_db > max_peak) {
       max_peak = peak_db;
     }
 
-    double rms_db = doubleo_db(dsp_ops_rms(buffer, frame_count));
+    double rms_db = double_to_db(dsp_ops_rms(buffer, frame_count));
     atomic_double_set(&rms_storage[i], rms_db);
   }
   return max_peak;

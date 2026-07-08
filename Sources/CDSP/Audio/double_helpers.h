@@ -50,7 +50,7 @@ static inline double double_from_db(double db) { return pow(10.0, db / 20.0); }
  * @param linear Linear gain value.
  * @return Value in decibels. Returns -1000.0 for zero/negative input.
  */
-static inline double doubleo_db(double linear) {
+static inline double double_to_db(double linear) {
   if (linear <= 0.0) return -1000.0;
   return 20.0 * log10(linear);
 }
