@@ -2,6 +2,14 @@
 
 #include "apple_resampler.h"
 
+#if defined(ENABLE_COREAUDIO)
+
+#include "Audio/audio_buffers.h"
+#include <stddef.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
 struct apple_resampler_fill_context {
   audio_buffers_t* buffers;
   size_t read_offset;
@@ -19,12 +27,6 @@ struct apple_resampler {
   size_t max_output_frames;
 };
 
-#if defined(ENABLE_COREAUDIO)
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-
-#if defined(ENABLE_COREAUDIO)
 static OSStatus input_data_proc(
     AudioConverterRef inAudioConverter, UInt32* ioNumberDataPackets,
     AudioBufferList* ioData,
@@ -61,7 +63,6 @@ static OSStatus input_data_proc(
   context->read_offset += frames_to_provide;
   return noErr;
 }
-#endif
 
 apple_resampler_t* apple_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,

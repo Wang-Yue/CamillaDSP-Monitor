@@ -3,9 +3,10 @@
 #define WIN32_LEAN_AND_MEAN
 #include "wasapi_backend.h"
 
+#include <initguid.h>
+
 #include <audioclient.h>
 #include <functiondiscoverykeys_devpkey.h>
-#include <initguid.h>
 #include <ksmedia.h>
 #include <mmdeviceapi.h>
 #include <stdio.h>

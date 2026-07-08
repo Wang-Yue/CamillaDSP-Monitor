@@ -316,19 +316,6 @@ static char* server_read_file_to_string(const char* path) {
   return buf;
 }
 
-static char* extract_json_string_value_dyn(const char* json, const char* key) {
-  if (!json || !key) return NULL;
-  cJSON* root = cJSON_Parse(json);
-  if (!root) return NULL;
-  cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key);
-  char* result = NULL;
-  if (cJSON_IsString(item) && item->valuestring) {
-    result = strdup(item->valuestring);
-  }
-  cJSON_Delete(root);
-  return result;
-}
-
 static bool extract_json_string_value(const char* json, const char* key,
                                       char* out_buf, size_t max_len) {
   if (!json || !key || !out_buf || max_len == 0) return false;
@@ -339,36 +326,6 @@ static bool extract_json_string_value(const char* json, const char* key,
   if (cJSON_IsString(item) && item->valuestring) {
     strncpy(out_buf, item->valuestring, max_len - 1);
     out_buf[max_len - 1] = '\0';
-    success = true;
-  }
-  cJSON_Delete(root);
-  return success;
-}
-
-static bool extract_json_double_value(const char* json, const char* key,
-                                      double* out_val) {
-  if (!json || !key || !out_val) return false;
-  cJSON* root = cJSON_Parse(json);
-  if (!root) return false;
-  cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key);
-  bool success = false;
-  if (cJSON_IsNumber(item)) {
-    *out_val = item->valuedouble;
-    success = true;
-  }
-  cJSON_Delete(root);
-  return success;
-}
-
-static bool extract_json_bool_value(const char* json, const char* key,
-                                    bool* out_val) {
-  if (!json || !key || !out_val) return false;
-  cJSON* root = cJSON_Parse(json);
-  if (!root) return false;
-  cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key);
-  bool success = false;
-  if (cJSON_IsBool(item)) {
-    *out_val = cJSON_IsTrue(item);
     success = true;
   }
   cJSON_Delete(root);

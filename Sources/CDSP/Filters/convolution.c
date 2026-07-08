@@ -91,8 +91,6 @@ static double* load_wav_file(const char* path, int channel, size_t* out_count) {
 
   uint16_t audio_format = header[20] | (header[21] << 8);
   uint16_t channels = header[22] | (header[23] << 8);
-  uint32_t sample_rate =
-      header[24] | (header[25] << 8) | (header[26] << 16) | (header[27] << 24);
   uint16_t bits_per_sample = header[34] | (header[35] << 8);
 
   if (audio_format != 1 && audio_format != 3) {

@@ -181,23 +181,23 @@ capture_backend_t* pipewire_capture_create(
   capture->chunk_size = chunk_size;
 
   if (config->cfg.pipewire.has_node_name) {
-    strncpy(capture->node_name, config->cfg.pipewire.node_name,
-            sizeof(capture->node_name) - 1);
+    snprintf(capture->node_name, sizeof(capture->node_name), "%s",
+             config->cfg.pipewire.node_name);
     capture->has_node_name = true;
   }
   if (config->cfg.pipewire.has_node_description) {
-    strncpy(capture->node_description, config->cfg.pipewire.node_description,
-            sizeof(capture->node_description) - 1);
+    snprintf(capture->node_description, sizeof(capture->node_description), "%s",
+             config->cfg.pipewire.node_description);
     capture->has_node_description = true;
   }
   if (config->cfg.pipewire.has_node_group_name) {
-    strncpy(capture->node_group_name, config->cfg.pipewire.node_group_name,
-            sizeof(capture->node_group_name) - 1);
+    snprintf(capture->node_group_name, sizeof(capture->node_group_name), "%s",
+             config->cfg.pipewire.node_group_name);
     capture->has_node_group_name = true;
   }
   if (config->cfg.pipewire.has_autoconnect_to) {
-    strncpy(capture->autoconnect_to, config->cfg.pipewire.autoconnect_to,
-            sizeof(capture->autoconnect_to) - 1);
+    snprintf(capture->autoconnect_to, sizeof(capture->autoconnect_to), "%s",
+             config->cfg.pipewire.autoconnect_to);
     capture->has_autoconnect_to = true;
   }
 
@@ -504,23 +504,23 @@ playback_backend_t* pipewire_playback_create(
   playback->chunk_size = chunk_size;
 
   if (config->cfg.pipewire.has_node_name) {
-    strncpy(playback->node_name, config->cfg.pipewire.node_name,
-            sizeof(playback->node_name) - 1);
+    snprintf(playback->node_name, sizeof(playback->node_name), "%s",
+             config->cfg.pipewire.node_name);
     playback->has_node_name = true;
   }
   if (config->cfg.pipewire.has_node_description) {
-    strncpy(playback->node_description, config->cfg.pipewire.node_description,
-            sizeof(playback->node_description) - 1);
+    snprintf(playback->node_description, sizeof(playback->node_description), "%s",
+             config->cfg.pipewire.node_description);
     playback->has_node_description = true;
   }
   if (config->cfg.pipewire.has_node_group_name) {
-    strncpy(playback->node_group_name, config->cfg.pipewire.node_group_name,
-            sizeof(playback->node_group_name) - 1);
+    snprintf(playback->node_group_name, sizeof(playback->node_group_name), "%s",
+             config->cfg.pipewire.node_group_name);
     playback->has_node_group_name = true;
   }
   if (config->cfg.pipewire.has_autoconnect_to) {
-    strncpy(playback->autoconnect_to, config->cfg.pipewire.autoconnect_to,
-            sizeof(playback->autoconnect_to) - 1);
+    snprintf(playback->autoconnect_to, sizeof(playback->autoconnect_to), "%s",
+             config->cfg.pipewire.autoconnect_to);
     playback->has_autoconnect_to = true;
   }
 

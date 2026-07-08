@@ -428,7 +428,7 @@ bool file_capture_open(file_capture_t* capture, backend_error_t* err) {
     capture->f = fopen(capture->filename, "rb");
     if (!capture->f) {
       if (err) {
-        char err_msg[512];
+        char err_msg[1024];
         snprintf(err_msg, sizeof(err_msg), "Failed to open input file '%s': %s",
                  capture->filename, strerror(errno));
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, err_msg);
@@ -654,6 +654,7 @@ playback_backend_t* file_playback_create(const playback_device_config_t* config,
                                          int sample_rate, int chunk_size,
                                          processing_parameters_t* params,
                                          backend_error_t* err) {
+  (void)sample_rate;
   (void)params;
   (void)err;
   file_playback_t* playback =
@@ -692,7 +693,7 @@ bool file_playback_open(file_playback_t* playback, backend_error_t* err) {
     playback->f = fopen(playback->filename, "wb");
     if (!playback->f) {
       if (err) {
-        char err_msg[512];
+        char err_msg[1024];
         snprintf(err_msg, sizeof(err_msg),
                  "Failed to open output file '%s': %s", playback->filename,
                  strerror(errno));

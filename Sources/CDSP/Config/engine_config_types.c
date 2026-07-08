@@ -687,9 +687,11 @@ binary_sample_format_t capture_device_config_get_file_format(
       if (!config->is_wav) {
         return config->cfg.raw_file.format;
       }
+      break;
     default:
-      return BINARY_SAMPLE_FORMAT_INVALID;
+      break;
   }
+  return BINARY_SAMPLE_FORMAT_INVALID;
 }
 
 int capture_device_config_get_extra_samples(
@@ -712,9 +714,11 @@ int capture_device_config_get_skip_bytes(
       if (!config->is_wav) {
         return config->cfg.raw_file.skip_bytes;
       }
+      break;
     default:
-      return 0;
+      break;
   }
+  return 0;
 }
 
 int capture_device_config_get_read_bytes(
@@ -724,9 +728,11 @@ int capture_device_config_get_read_bytes(
       if (!config->is_wav) {
         return config->cfg.raw_file.read_bytes;
       }
+      break;
     default:
-      return 0;
+      break;
   }
+  return 0;
 }
 
 generator_signal_t capture_device_config_get_generator(
