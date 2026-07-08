@@ -203,21 +203,6 @@ internal final class DSPEngineCore {
   internal func reloadConfig(_ newConfig: DSPConfiguration) throws {
     let oldConfig = currentConfig
     currentConfig = newConfig
-    let captureRateForDoP = Double(
-      newConfig.devices.captureSamplerate ?? newConfig.devices.samplerate)
-    dopDecoder = DoPDecoder(
-      channels: newConfig.devices.capture.channels ?? 0,
-      sampleRate: captureRateForDoP,
-      bypassDoP: newConfig.devices.capture.bypassDoP ?? false,
-      cutoffHz: newConfig.devices.capture.dopCutoffHz ?? 20_000.0
-    )
-    let playbackRate = Double(newConfig.devices.samplerate)
-    dopEncoder = DoPEncoder(
-      channels: newConfig.devices.playback.channels,
-      sampleRate: playbackRate,
-      outputDoP: newConfig.devices.playback.outputDoP ?? false,
-      filterName: newConfig.devices.playback.dopEncoderFilter ?? .sdm6
-    )
 
     guard state != .inactive else { return }
 

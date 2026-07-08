@@ -466,29 +466,6 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
   }
   core->current_config = new_config;
 
-  double capture_rate = (double)(new_config->devices.has_capture_samplerate
-                                     ? new_config->devices.capture_samplerate
-                                     : new_config->devices.samplerate);
-  if (core->dop_decoder) dop_decoder_free(core->dop_decoder);
-  core->dop_decoder = dop_decoder_create(
-      capture_device_config_get_channels(&new_config->devices.capture),
-      capture_rate,
-      capture_device_config_get_bypass_dop(&new_config->devices.capture),
-      capture_device_config_get_dop_cutoff_hz(&new_config->devices.capture));
-
-  double playback_rate = (double)new_config->devices.samplerate;
-  if (core->dop_encoder) dop_encoder_free(core->dop_encoder);
-  sdm_filter_t dop_filter = playback_device_config_get_dop_encoder_filter(
-      &new_config->devices.playback);
-  if (dop_filter == SDM_FILTER_INVALID) {
-    dop_filter = SDM_FILTER_SDM6;
-  }
-  core->dop_encoder = dop_encoder_create(
-      playback_device_config_get_channels(&new_config->devices.playback),
-      playback_rate,
-      playback_device_config_get_output_dop(&new_config->devices.playback),
-      dop_filter, 20000.0);
-
   if (dsp_engine_core_get_state(core) == PROCESSING_STATE_INACTIVE) return true;
 
   // Check if we can do an in-place parameter update instead of rebuilding the
