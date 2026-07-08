@@ -2,6 +2,9 @@
 // Provides runtime control API compatible with the control protocol
 
 #include "websocket_server.h"
+#include "Logging/app_logger.h"
+
+static const logger_t server_logger = {"dsp.server.websocket"};
 
 #ifndef _WIN32
 #include <sys/time.h>
@@ -2962,6 +2965,7 @@ static void* server_thread_func(void* arg) {
               strcpy(last_state[j], last_state[j + 1]);
               server->client_sessions[j] = server->client_sessions[j + 1];
             }
+            memset(&server->client_sessions[num_clients - 1], 0, sizeof(client_session_t));
             num_clients--;
             i--;
           } else {
@@ -3011,61 +3015,92 @@ static void* server_thread_func(void* arg) {
               continue;
             }
 
-            if ((unsigned char)buf[0] == 0x81 ||
-                ((unsigned char)buf[0] & 0x7F) == 0x08) {
-              if (((unsigned char)buf[0] & 0x7F) == 0x08) {
-                close(client_fds[i]);
-                if (server->client_sessions[i].vu_pb_rms)
-                  free(server->client_sessions[i].vu_pb_rms);
-                if (server->client_sessions[i].vu_pb_peak)
-                  free(server->client_sessions[i].vu_pb_peak);
-                if (server->client_sessions[i].vu_cap_rms)
-                  free(server->client_sessions[i].vu_cap_rms);
-                if (server->client_sessions[i].vu_cap_peak)
-                  free(server->client_sessions[i].vu_cap_peak);
-                for (int j = i; j < num_clients - 1; j++) {
-                  client_fds[j] = client_fds[j + 1];
-                  strcpy(last_state[j], last_state[j + 1]);
-                  server->client_sessions[j] = server->client_sessions[j + 1];
+            int offset = 0;
+            while (offset < n) {
+              unsigned char first_byte = (unsigned char)buf[offset];
+              if (first_byte == 0x81 || (first_byte & 0x0F) == 0x08) {
+                if ((first_byte & 0x0F) == 0x08) {
+                  close(client_fds[i]);
+                  if (server->client_sessions[i].vu_pb_rms)
+                    free(server->client_sessions[i].vu_pb_rms);
+                  if (server->client_sessions[i].vu_pb_peak)
+                    free(server->client_sessions[i].vu_pb_peak);
+                  if (server->client_sessions[i].vu_cap_rms)
+                    free(server->client_sessions[i].vu_cap_rms);
+                  if (server->client_sessions[i].vu_cap_peak)
+                    free(server->client_sessions[i].vu_cap_peak);
+                  for (int j = i; j < num_clients - 1; j++) {
+                    client_fds[j] = client_fds[j + 1];
+                    strcpy(last_state[j], last_state[j + 1]);
+                    server->client_sessions[j] = server->client_sessions[j + 1];
+                  }
+                  memset(&server->client_sessions[num_clients - 1], 0, sizeof(client_session_t));
+                  num_clients--;
+                  i--;
+                  break;
                 }
-                num_clients--;
-                i--;
-                continue;
-              }
-              unsigned char len_byte = (unsigned char)buf[1];
-              int payload_len = len_byte & 0x7F;
-              int mask_offset = 2;
-              if (payload_len == 126) {
-                payload_len =
-                    ((unsigned char)buf[2] << 8) | (unsigned char)buf[3];
-                mask_offset = 4;
-              } else if (payload_len == 127) {
-                mask_offset = 10;
-              }
-              unsigned char* mask = (unsigned char*)&buf[mask_offset];
-              char* payload = &buf[mask_offset + 4];
-              for (int p = 0; p < payload_len && (mask_offset + 4 + p) < n;
-                   p++) {
-                payload[p] ^= mask[p % 4];
-              }
-              payload[payload_len] = '\0';
+                if (offset + 2 > n) break;
+                unsigned char len_byte = (unsigned char)buf[offset + 1];
+                int payload_len = len_byte & 0x7F;
+                int mask_offset = 2;
+                if (payload_len == 126) {
+                  if (offset + 4 > n) break;
+                  payload_len =
+                      ((unsigned char)buf[offset + 2] << 8) | (unsigned char)buf[offset + 3];
+                  mask_offset = 4;
+                } else if (payload_len == 127) {
+                  if (offset + 10 > n) break;
+                  payload_len = 0;
+                  for (int j = 0; j < 8; j++) {
+                    payload_len = (payload_len << 8) | (unsigned char)buf[offset + 2 + j];
+                  }
+                  mask_offset = 10;
+                }
+                if (offset + mask_offset + 4 + payload_len > n) break;
+                
+                unsigned char* mask = (unsigned char*)&buf[offset + mask_offset];
+                char* payload = &buf[offset + mask_offset + 4];
+                for (int p = 0; p < payload_len; p++) {
+                  payload[p] ^= mask[p % 4];
+                }
+                char saved_char = payload[payload_len];
+                payload[payload_len] = '\0';
 
-              char response[16384];
-              response[0] = '\0';
-              websocket_server_handle_command(server, i, payload, response,
-                                              sizeof(response));
-              if (response[0] != '\0') {
-                send_websocket_frame(client_fds[i], response);
-              }
-              continue;
-            }
+                logger_debug(&server_logger, "Received WS frame: %s",
+                             log_arg_string(payload), log_arg_none(),
+                             log_arg_none(), log_arg_none());
 
-            char response[16384];
-            response[0] = '\0';
-            websocket_server_handle_command(server, i, buf, response,
-                                            sizeof(response));
-            if (response[0] != '\0') {
-              send(client_fds[i], response, strlen(response), 0);
+                char response[16384];
+                response[0] = '\0';
+                websocket_server_handle_command(server, i, payload, response,
+                                                sizeof(response));
+                
+                payload[payload_len] = saved_char;
+
+                if (response[0] != '\0') {
+                  logger_debug(&server_logger, "Sending WS response: %s",
+                               log_arg_string(response), log_arg_none(),
+                               log_arg_none(), log_arg_none());
+                  send_websocket_frame(client_fds[i], response);
+                }
+                offset += mask_offset + 4 + payload_len;
+              } else {
+                logger_debug(&server_logger, "Received raw TCP: %s",
+                             log_arg_string(&buf[offset]), log_arg_none(),
+                             log_arg_none(), log_arg_none());
+
+                char response[16384];
+                response[0] = '\0';
+                websocket_server_handle_command(server, i, &buf[offset], response,
+                                                sizeof(response));
+                if (response[0] != '\0') {
+                  logger_debug(&server_logger, "Sending raw TCP response: %s",
+                               log_arg_string(response), log_arg_none(),
+                               log_arg_none(), log_arg_none());
+                  send(client_fds[i], response, strlen(response), 0);
+                }
+                break;
+              }
             }
           }
         }

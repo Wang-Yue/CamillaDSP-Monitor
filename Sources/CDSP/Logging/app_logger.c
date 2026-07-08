@@ -366,6 +366,7 @@ static void* worker_thread_func(void* arg) {
                          args);
       printf("[%s] %s: %s\n", lvl_str, rec.label ? rec.label : "",
              formatted_msg);
+      fflush(stdout);
     }
   }
   return NULL;
