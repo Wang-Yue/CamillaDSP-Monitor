@@ -199,7 +199,7 @@ static inline void atomic_double_init(atomic_double_t* a, double value) {
 
 static inline double atomic_double_load(const atomic_double_t* a,
                                         memory_order order) {
-  uint64_t u = atomic_load_explicit((_Atomic uint64_t*)&a->bits, order);
+  uint64_t u = atomic_load_explicit(&a->bits, order);
   double d;
   memcpy(&d, &u, sizeof(double));
   return d;

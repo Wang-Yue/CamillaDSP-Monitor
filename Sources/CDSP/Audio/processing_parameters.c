@@ -94,7 +94,7 @@ uint64_t processing_parameters_get_target_volume_set_at_for_fader(
     const processing_parameters_t* params, fader_t fader) {
   if (!params || fader < 0 || fader >= FADER_COUNT) return 0ULL;
   return atomic_load_explicit(
-      (_Atomic uint64_t*)&params->target_volume_set_at[fader],
+      &params->target_volume_set_at[fader],
       memory_order_acquire);
 }
 
@@ -113,7 +113,7 @@ void processing_parameters_set_current_volume_for_fader(
 bool processing_parameters_is_muted_for_fader(
     const processing_parameters_t* params, fader_t fader) {
   if (!params || fader < 0 || fader >= FADER_COUNT) return false;
-  return atomic_load_explicit((_Atomic bool*)&params->muted[fader],
+  return atomic_load_explicit(&params->muted[fader],
                               memory_order_acquire);
 }
 

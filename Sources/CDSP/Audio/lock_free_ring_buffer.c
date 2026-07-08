@@ -22,24 +22,24 @@ struct spsc_queue {
 
 uint64_t spsc_audio_ring_buffer_get_total_samples_written(
     const spsc_audio_ring_buffer_t* ring) {
-  return atomic_load_explicit((_Atomic uint64_t*)&ring->write_index,
+  return atomic_load_explicit(&ring->write_index,
                               memory_order_relaxed);
 }
 
 size_t spsc_audio_ring_buffer_get_available_to_read(
     const spsc_audio_ring_buffer_t* ring) {
-  uint64_t w = atomic_load_explicit((_Atomic uint64_t*)&ring->write_index,
+  uint64_t w = atomic_load_explicit(&ring->write_index,
                                     memory_order_acquire);
-  uint64_t r = atomic_load_explicit((_Atomic uint64_t*)&ring->read_index,
+  uint64_t r = atomic_load_explicit(&ring->read_index,
                                     memory_order_relaxed);
   return (size_t)(w - r);
 }
 
 size_t spsc_audio_ring_buffer_get_available_to_write(
     const spsc_audio_ring_buffer_t* ring) {
-  uint64_t w = atomic_load_explicit((_Atomic uint64_t*)&ring->write_index,
+  uint64_t w = atomic_load_explicit(&ring->write_index,
                                     memory_order_relaxed);
-  uint64_t r = atomic_load_explicit((_Atomic uint64_t*)&ring->read_index,
+  uint64_t r = atomic_load_explicit(&ring->read_index,
                                     memory_order_acquire);
   size_t occupied = (size_t)(w - r);
   if (occupied >= ring->capacity) {
@@ -53,9 +53,9 @@ size_t spsc_audio_ring_buffer_get_capacity(const spsc_audio_ring_buffer_t* ring)
 }
 
 size_t spsc_queue_get_count(const spsc_queue_t* queue) {
-  uint64_t w = atomic_load_explicit((_Atomic uint64_t*)&queue->write_index,
+  uint64_t w = atomic_load_explicit(&queue->write_index,
                                     memory_order_acquire);
-  uint64_t r = atomic_load_explicit((_Atomic uint64_t*)&queue->read_index,
+  uint64_t r = atomic_load_explicit(&queue->read_index,
                                     memory_order_relaxed);
   return (size_t)(w - r);
 }
@@ -256,7 +256,7 @@ bool spsc_audio_ring_buffer_read_latest_at(const spsc_audio_ring_buffer_t* ring,
 bool spsc_audio_ring_buffer_read_latest(const spsc_audio_ring_buffer_t* ring,
                                         float* dest, size_t count) {
   if (!ring) return false;
-  uint64_t written = atomic_load_explicit((_Atomic uint64_t*)&ring->write_index,
+  uint64_t written = atomic_load_explicit(&ring->write_index,
                                           memory_order_acquire);
   return spsc_audio_ring_buffer_read_latest_at(ring, dest, count, written);
 }

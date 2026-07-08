@@ -45,7 +45,7 @@ void engine_state_machine_free(engine_state_machine_t* sm) {
 processing_state_t engine_state_machine_get_state(
     const engine_state_machine_t* sm) {
   if (!sm) return PROCESSING_STATE_INACTIVE;
-  uint8_t raw = atomic_load_explicit((_Atomic uint8_t*)&sm->state_raw,
+  uint8_t raw = atomic_load_explicit(&sm->state_raw,
                                      memory_order_acquire);
   return processing_state_from_raw_byte(raw);
 }
