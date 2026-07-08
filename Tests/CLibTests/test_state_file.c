@@ -32,12 +32,15 @@ TEST(test_state_file_round_trip) {
 
   // Check config path
   ASSERT_TRUE(dsp_state_has_config_path(loaded));
-  ASSERT_STR_EQ(dsp_state_get_config_path(original), dsp_state_get_config_path(loaded));
+  ASSERT_STR_EQ(dsp_state_get_config_path(original),
+                dsp_state_get_config_path(loaded));
 
   // Check mutes and volumes
   for (int i = 0; i < 5; i++) {
-    ASSERT_TRUE(dsp_state_get_mute(original, i) == dsp_state_get_mute(loaded, i));
-    ASSERT_NEAR(dsp_state_get_volume(original, i), dsp_state_get_volume(loaded, i), 1e-6);
+    ASSERT_TRUE(dsp_state_get_mute(original, i) ==
+                dsp_state_get_mute(loaded, i));
+    ASSERT_NEAR(dsp_state_get_volume(original, i),
+                dsp_state_get_volume(loaded, i), 1e-6);
   }
 
   dsp_state_free(original);
@@ -77,8 +80,10 @@ TEST(test_state_file_no_config_path) {
 
   // Check mutes and volumes
   for (int i = 0; i < 5; i++) {
-    ASSERT_TRUE(dsp_state_get_mute(original, i) == dsp_state_get_mute(loaded, i));
-    ASSERT_NEAR(dsp_state_get_volume(original, i), dsp_state_get_volume(loaded, i), 1e-6);
+    ASSERT_TRUE(dsp_state_get_mute(original, i) ==
+                dsp_state_get_mute(loaded, i));
+    ASSERT_NEAR(dsp_state_get_volume(original, i),
+                dsp_state_get_volume(loaded, i), 1e-6);
   }
 
   dsp_state_free(original);

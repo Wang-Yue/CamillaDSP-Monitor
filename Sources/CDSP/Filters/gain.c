@@ -21,12 +21,12 @@ gain_filter_t* gain_filter_create(const char* name,
   }
   filter->muted = params ? params->mute : false;
   double gain_val = (params && params->has_gain) ? params->gain : 0.0;
-  
+
   // Convert dB to linear gain if necessary, otherwise use linear gain directly.
   double computed_gain = (params && params->scale == GAIN_SCALE_LINEAR)
                              ? gain_val
                              : double_from_db(gain_val);
-                             
+
   // Apply phase inversion if configured.
   if (params && params->inverted) {
     computed_gain *= -1.0;

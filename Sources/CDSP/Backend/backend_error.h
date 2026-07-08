@@ -18,20 +18,20 @@
  * @brief Errors raised by the audio I/O backends (capture and playback).
  */
 typedef enum {
-  BACKEND_ERROR_NONE = 0,               /**< No error. */
-  BACKEND_ERROR_DEVICE_NOT_FOUND,       /**< Audio device was not found. */
-  BACKEND_ERROR_DEVICE_BUSY,            /**< Audio device is busy. */
-  BACKEND_ERROR_INITIALIZATION_FAILED,  /**< Backend initialization failed. */
-  BACKEND_ERROR_READ_ERROR,             /**< Error reading from device. */
-  BACKEND_ERROR_WRITE_ERROR             /**< Error writing to device. */
+  BACKEND_ERROR_NONE = 0,              /**< No error. */
+  BACKEND_ERROR_DEVICE_NOT_FOUND,      /**< Audio device was not found. */
+  BACKEND_ERROR_DEVICE_BUSY,           /**< Audio device is busy. */
+  BACKEND_ERROR_INITIALIZATION_FAILED, /**< Backend initialization failed. */
+  BACKEND_ERROR_READ_ERROR,            /**< Error reading from device. */
+  BACKEND_ERROR_WRITE_ERROR            /**< Error writing to device. */
 } backend_error_type_t;
 
 /**
  * @brief Structure representing a backend error.
  */
 typedef struct {
-  backend_error_type_t type;            /**< The type of the error. */
-  char message[256];                    /**< Detailed error message. */
+  backend_error_type_t type; /**< The type of the error. */
+  char message[256];         /**< Detailed error message. */
 } backend_error_t;
 
 /**
@@ -63,18 +63,18 @@ const char* backend_error_description(const backend_error_t* err, char* out_buf,
  * These match Rust's DeviceError enum.
  */
 typedef enum {
-  DEVICE_ERROR_NOT_FOUND = 0,   /**< Device not found. */
-  DEVICE_ERROR_BUSY,            /**< Device is busy. */
-  DEVICE_ERROR_OTHER            /**< Other error. */
+  DEVICE_ERROR_NOT_FOUND = 0, /**< Device not found. */
+  DEVICE_ERROR_BUSY,          /**< Device is busy. */
+  DEVICE_ERROR_OTHER          /**< Other error. */
 } device_error_type_t;
 
 /**
  * @brief Structure representing a device error.
  */
 typedef struct {
-  device_error_type_t type;     /**< The type of the device error. */
-  char message[256];            /**< Detailed error message. */
-  bool is_error;                /**< Flag indicating if this represents an error. */
+  device_error_type_t type; /**< The type of the device error. */
+  char message[256];        /**< Detailed error message. */
+  bool is_error;            /**< Flag indicating if this represents an error. */
 } device_error_t;
 
 /**

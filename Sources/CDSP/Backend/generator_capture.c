@@ -14,9 +14,9 @@
 #if defined(_WIN32)
 /**
  * @brief Simple thread-safe random number generator helper for Windows.
- * 
+ *
  * Replaces POSIX rand_r.
- * 
+ *
  * @param seed Pointer to the seed.
  * @return Pseudo-random integer.
  */
@@ -41,7 +41,7 @@ struct generator_capture {
 
 /**
  * @brief Helper to get monotonic time in nanoseconds.
- * 
+ *
  * @return Monotonic time in nanoseconds.
  */
 static uint64_t get_time_ns(void) {
@@ -52,7 +52,7 @@ static uint64_t get_time_ns(void) {
 
 /**
  * @brief Convert decibels to linear amplitude multiplier.
- * 
+ *
  * @param db Value in dB.
  * @return Linear amplitude multiplier.
  */

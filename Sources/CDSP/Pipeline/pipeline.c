@@ -186,11 +186,11 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
   // change after passing through a mixer.
   size_t current_channels = pipeline->expected_in_channels;
 
-  // First pass: Calculate the exact number of execution steps and mixers needed.
-  // This is required because a single config step (e.g. a filter applied to
-  // multiple channels) may expand to multiple execution steps (one per channel).
-  // Pre-allocating the execution steps array avoids dynamic allocation during
-  // initialization of those steps.
+  // First pass: Calculate the exact number of execution steps and mixers
+  // needed. This is required because a single config step (e.g. a filter
+  // applied to multiple channels) may expand to multiple execution steps (one
+  // per channel). Pre-allocating the execution steps array avoids dynamic
+  // allocation during initialization of those steps.
   if (config->pipeline && config->pipeline_count > 0) {
     for (size_t i = 0; i < config->pipeline_count; i++) {
       const pipeline_step_t* step = &config->pipeline[i];
@@ -278,8 +278,9 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
           }
 
           // Create a separate filter chain for each target channel.
-          // Each channel must have its own instance of filter state (e.g., history
-          // buffers for IIR/FIR filters) to avoid crosstalk and incorrect filtering.
+          // Each channel must have its own instance of filter state (e.g.,
+          // history buffers for IIR/FIR filters) to avoid crosstalk and
+          // incorrect filtering.
           for (size_t c = 0; c < channels_count; c++) {
             int ch = channels_to_apply[c];
             pipeline_exec_step_t* exec = &pipeline->steps[exec_idx++];
@@ -495,7 +496,8 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
             pipeline->last_error_got = audio_chunk_get_frames(scratch);
             return PIPELINE_ERR_OUTPUT_BUFFER_TOO_SMALL;
           }
-          pipeline->last_error_needed = audio_mixer_get_channels_in(step->mixer);
+          pipeline->last_error_needed =
+              audio_mixer_get_channels_in(step->mixer);
           pipeline->last_error_got = audio_chunk_get_channels(current_chunk);
           return PIPELINE_ERR_CHANNEL_COUNT_MISMATCH;
         }
@@ -554,8 +556,7 @@ void pipeline_update_parameters(pipeline_t* pipeline,
         const char* m_name = audio_mixer_get_name(step->mixer);
         if (step->mixer && m_name &&
             string_list_contains(mixers, mixers_count, m_name)) {
-          mixer_config_t* m_cfg =
-              dsp_config_get_mixer(config, m_name);
+          mixer_config_t* m_cfg = dsp_config_get_mixer(config, m_name);
           if (m_cfg) {
             audio_mixer_update_parameters(step->mixer, m_cfg);
           }
@@ -569,7 +570,7 @@ void pipeline_update_parameters(pipeline_t* pipeline,
           processor_config_t* p_cfg = dsp_config_get_processor(config, p_name);
           if (p_cfg) {
             dsp_processor_update_parameters(step->processor, p_cfg,
-                                             pipeline->rate);
+                                            pipeline->rate);
           }
         }
         break;

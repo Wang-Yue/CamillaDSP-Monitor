@@ -34,10 +34,10 @@ struct noise_gate_processor {
                          ///< loudness.
 };
 
-const char* noise_gate_processor_get_name(const noise_gate_processor_t* processor) {
+const char* noise_gate_processor_get_name(
+    const noise_gate_processor_t* processor) {
   return processor ? processor->name : "";
 }
-
 
 #include <math.h>
 #include <stdlib.h>
@@ -162,11 +162,13 @@ void noise_gate_processor_process(noise_gate_processor_t* processor,
     double val = 20.0 * log10(fabs(processor->scratch[i]) + 1e-9);
     if (val >= prev) {
       // Signal level rising: apply attack time constant.
-      // attack coefficient determines how quickly the envelope responds to level increases.
+      // attack coefficient determines how quickly the envelope responds to
+      // level increases.
       val = processor->attack * prev + (1.0 - processor->attack) * val;
     } else {
       // Signal level falling: apply release time constant.
-      // release coefficient determines how slowly the envelope decays back down.
+      // release coefficient determines how slowly the envelope decays back
+      // down.
       val = processor->release * prev + (1.0 - processor->release) * val;
     }
     prev = val;
@@ -179,10 +181,12 @@ void noise_gate_processor_process(noise_gate_processor_t* processor,
   // For each sample, compare the smoothed envelope level against the threshold.
   for (size_t i = 0; i < count; i++) {
     if (processor->scratch[i] < processor->threshold) {
-      // Below threshold: gate closed, apply the pre-calculated linear attenuation factor.
+      // Below threshold: gate closed, apply the pre-calculated linear
+      // attenuation factor.
       processor->scratch[i] = processor->factor;
     } else {
-      // Above or equal to threshold: gate open, pass signal through (unity gain).
+      // Above or equal to threshold: gate open, pass signal through (unity
+      // gain).
       processor->scratch[i] = 1.0;
     }
   }

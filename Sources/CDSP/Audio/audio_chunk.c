@@ -23,7 +23,8 @@ size_t audio_chunk_get_channels(const audio_chunk_t* chunk) {
   return chunk ? audio_buffers_get_channels(chunk->buffers) : 0;
 }
 
-mutable_waveform_t audio_chunk_get_channel(const audio_chunk_t* chunk, size_t ch) {
+mutable_waveform_t audio_chunk_get_channel(const audio_chunk_t* chunk,
+                                           size_t ch) {
   return chunk ? audio_buffers_get_channel(chunk->buffers, ch) : NULL;
 }
 

@@ -3,7 +3,8 @@
  * @brief Dot product calculations for the windowed-sinc resampler.
  *
  * Inlined and regular functions to perform dot product calculations used
- * by the windowed-sinc resampler inner loop. Optimized for compiler vectorization.
+ * by the windowed-sinc resampler inner loop. Optimized for compiler
+ * vectorization.
  */
 
 #ifndef CLIB_RESAMPLER_SINC_DOT_PRODUCT_H

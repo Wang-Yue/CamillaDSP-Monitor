@@ -32,16 +32,18 @@ static bool mock_get_processing_parameters(void* ctx, void** out_params) {
   return true;
 }
 
-static audio_backend_error_type_t simulated_error_type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+static audio_backend_error_type_t simulated_error_type =
+    AUDIO_BACKEND_ERR_COMMAND_SEND;
 static const char* simulated_error_message = "Simulated error message";
 
 static device_error_type_t simulated_cap_error_type = DEVICE_ERROR_OTHER;
 static const char* simulated_cap_error_message = "Simulated cap error";
 static bool simulate_cap_error = false;
 
-static bool mock_get_device_capabilities(
-    void* ctx, const char* backend, const char* device, bool is_capture,
-    audio_device_descriptor_t** out_desc, device_error_t* out_err) {
+static bool mock_get_device_capabilities(void* ctx, const char* backend,
+                                         const char* device, bool is_capture,
+                                         audio_device_descriptor_t** out_desc,
+                                         device_error_t* out_err) {
   (void)ctx;
   (void)backend;
   (void)device;
@@ -50,7 +52,8 @@ static bool mock_get_device_capabilities(
 
   if (simulate_cap_error) {
     if (out_err) {
-      device_error_init(out_err, simulated_cap_error_type, simulated_cap_error_message);
+      device_error_init(out_err, simulated_cap_error_type,
+                        simulated_cap_error_message);
     }
     return false;
   }
@@ -66,7 +69,8 @@ static bool mock_set_config_json(void* ctx, const char* json_str,
   if (simulate_set_config_error) {
     if (out_err) {
       out_err->type = simulated_error_type;
-      snprintf(out_err->message, sizeof(out_err->message), "%s", simulated_error_message);
+      snprintf(out_err->message, sizeof(out_err->message), "%s",
+               simulated_error_message);
     }
     return false;
   }
@@ -75,12 +79,15 @@ static bool mock_set_config_json(void* ctx, const char* json_str,
   return true;
 }
 
-static void mock_set_fader_volume(void* ctx, fader_t fader, float db, bool instant) {
+static void mock_set_fader_volume(void* ctx, fader_t fader, float db,
+                                  bool instant) {
   (void)ctx;
   if (mock_params) {
-    processing_parameters_set_target_volume_for_fader(mock_params, (double)db, fader);
+    processing_parameters_set_target_volume_for_fader(mock_params, (double)db,
+                                                      fader);
     if (instant) {
-      processing_parameters_set_current_volume_for_fader(mock_params, (double)db, fader);
+      processing_parameters_set_current_volume_for_fader(mock_params,
+                                                         (double)db, fader);
     }
   }
 }
@@ -150,8 +157,7 @@ static dsp_engine_interface_t mock_engine = {
     .get_previous_config_json = mock_get_previous_config_json};
 
 TEST(test_websocket_commands) {
-  websocket_server_t* server =
-      websocket_server_create(54321, "127.0.0.1");
+  websocket_server_t* server = websocket_server_create(54321, "127.0.0.1");
   ASSERT_TRUE(server != NULL);
   websocket_server_set_engine(server, &mock_engine);
 
@@ -202,8 +208,7 @@ TEST(test_websocket_commands) {
 
 TEST(test_websocket_handle_command_direct) {
   mock_config_path = strdup("/tmp/config.json");
-  websocket_server_t* server =
-      websocket_server_create(54322, "127.0.0.1");
+  websocket_server_t* server = websocket_server_create(54322, "127.0.0.1");
   websocket_server_set_engine(server, &mock_engine);
 
   char resp[4096];
@@ -240,8 +245,10 @@ TEST(test_websocket_handle_command_direct) {
 
   // Test GetChannelLabels
   mock_active_config = strdup(
-      "{\"devices\":{\"playback\":{\"labels\":[\"Left\",\"Right\"]},\"capture\":{\"labels\":[\"Mic\"]}}}");
-  websocket_server_handle_command(server, 0, "\"GetChannelLabels\"", resp, sizeof(resp));
+      "{\"devices\":{\"playback\":{\"labels\":[\"Left\",\"Right\"]},"
+      "\"capture\":{\"labels\":[\"Mic\"]}}}");
+  websocket_server_handle_command(server, 0, "\"GetChannelLabels\"", resp,
+                                  sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"GetChannelLabels\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"playback\":[\"Left\",\"Right\"]") != NULL);
@@ -250,7 +257,8 @@ TEST(test_websocket_handle_command_direct) {
   mock_active_config = NULL;
 
   // Test SubscribeVuLevels (simple)
-  websocket_server_handle_command(server, 0, "\"SubscribeVuLevels\"", resp, sizeof(resp));
+  websocket_server_handle_command(server, 0, "\"SubscribeVuLevels\"", resp,
+                                  sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"SubscribeVuLevels\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
   ASSERT_TRUE(server->client_sessions[0].vu_subscribed);
@@ -260,8 +268,10 @@ TEST(test_websocket_handle_command_direct) {
 
   // Test SubscribeVuLevels (with arguments)
   server->client_sessions[0].vu_subscribed = false;
-  websocket_server_handle_command(
-      server, 0, "{\"SubscribeVuLevels\":{\"max_rate\":100.0,\"attack\":10.0,\"release\":100.0}}", resp, sizeof(resp));
+  websocket_server_handle_command(server, 0,
+                                  "{\"SubscribeVuLevels\":{\"max_rate\":100.0,"
+                                  "\"attack\":10.0,\"release\":100.0}}",
+                                  resp, sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"SubscribeVuLevels\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
   ASSERT_TRUE(server->client_sessions[0].vu_subscribed);
@@ -288,8 +298,7 @@ TEST(test_backend_error_description) {
 }
 
 TEST(test_websocket_error_translation) {
-  websocket_server_t* server =
-      websocket_server_create(54323, "127.0.0.1");
+  websocket_server_t* server = websocket_server_create(54323, "127.0.0.1");
   websocket_server_set_engine(server, &mock_engine);
   simulate_set_config_error = true;
 
@@ -298,8 +307,8 @@ TEST(test_websocket_error_translation) {
   // 1. Test ConfigValidationError translation
   simulated_error_type = AUDIO_BACKEND_ERR_CONFIG_PARSE;
   simulated_error_message = "Failed to parse JSON";
-  websocket_server_handle_command(
-      server, 0, "{\"SetConfigJson\":\"{}\"}", resp, sizeof(resp));
+  websocket_server_handle_command(server, 0, "{\"SetConfigJson\":\"{}\"}", resp,
+                                  sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"SetConfigJson\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"ConfigValidationError\"") != NULL);
   ASSERT_TRUE(strstr(resp, "Failed to parse JSON") != NULL);
@@ -307,8 +316,8 @@ TEST(test_websocket_error_translation) {
   // 2. Test DeviceNotFoundError translation
   simulated_error_type = AUDIO_BACKEND_ERR_DEVICE_NOT_FOUND;
   simulated_error_message = "hw:0 not found";
-  websocket_server_handle_command(
-      server, 0, "{\"SetConfigJson\":\"{}\"}", resp, sizeof(resp));
+  websocket_server_handle_command(server, 0, "{\"SetConfigJson\":\"{}\"}", resp,
+                                  sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"SetConfigJson\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"DeviceNotFoundError\"") != NULL);
   ASSERT_TRUE(strstr(resp, "hw:0 not found") != NULL);
@@ -316,8 +325,8 @@ TEST(test_websocket_error_translation) {
   // 3. Test DeviceBusyError translation
   simulated_error_type = AUDIO_BACKEND_ERR_DEVICE_BUSY;
   simulated_error_message = "hw:0 in use";
-  websocket_server_handle_command(
-      server, 0, "{\"SetConfigJson\":\"{}\"}", resp, sizeof(resp));
+  websocket_server_handle_command(server, 0, "{\"SetConfigJson\":\"{}\"}", resp,
+                                  sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"SetConfigJson\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"DeviceBusyError\"") != NULL);
   ASSERT_TRUE(strstr(resp, "hw:0 in use") != NULL);
@@ -327,7 +336,8 @@ TEST(test_websocket_error_translation) {
   simulated_cap_error_type = DEVICE_ERROR_NOT_FOUND;
   simulated_cap_error_message = "hw:0 not found";
   websocket_server_handle_command(
-      server, 0, "{\"GetCaptureDeviceCapabilities\":[\"alsa\", \"hw:0\"]}", resp, sizeof(resp));
+      server, 0, "{\"GetCaptureDeviceCapabilities\":[\"alsa\", \"hw:0\"]}",
+      resp, sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"GetCaptureDeviceCapabilities\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"DeviceNotFoundError\"") != NULL);
   ASSERT_TRUE(strstr(resp, "hw:0 not found") != NULL);
@@ -336,7 +346,8 @@ TEST(test_websocket_error_translation) {
   simulated_cap_error_type = DEVICE_ERROR_BUSY;
   simulated_cap_error_message = "hw:0 busy";
   websocket_server_handle_command(
-      server, 0, "{\"GetCaptureDeviceCapabilities\":[\"alsa\", \"hw:0\"]}", resp, sizeof(resp));
+      server, 0, "{\"GetCaptureDeviceCapabilities\":[\"alsa\", \"hw:0\"]}",
+      resp, sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"GetCaptureDeviceCapabilities\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"DeviceBusyError\"") != NULL);
   ASSERT_TRUE(strstr(resp, "hw:0 busy") != NULL);
@@ -345,7 +356,8 @@ TEST(test_websocket_error_translation) {
   simulated_cap_error_type = DEVICE_ERROR_OTHER;
   simulated_cap_error_message = "hw:0 bad driver";
   websocket_server_handle_command(
-      server, 0, "{\"GetCaptureDeviceCapabilities\":[\"alsa\", \"hw:0\"]}", resp, sizeof(resp));
+      server, 0, "{\"GetCaptureDeviceCapabilities\":[\"alsa\", \"hw:0\"]}",
+      resp, sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"GetCaptureDeviceCapabilities\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"DeviceError\"") != NULL);
   ASSERT_TRUE(strstr(resp, "hw:0 bad driver") != NULL);
@@ -357,8 +369,7 @@ TEST(test_websocket_error_translation) {
 }
 
 TEST(test_websocket_patch_config) {
-  websocket_server_t* server =
-      websocket_server_create(54323, "127.0.0.1");
+  websocket_server_t* server = websocket_server_create(54323, "127.0.0.1");
   websocket_server_set_engine(server, &mock_engine);
 
   mock_active_config = strdup(

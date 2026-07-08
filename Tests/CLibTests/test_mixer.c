@@ -54,7 +54,8 @@ TEST(MixerConstruction2to4) {
   audio_chunk_t* output = audio_mixer_process_chunk(mixer, input);
   ASSERT_TRUE(output != NULL);
   ASSERT_EQ(4, audio_chunk_get_channels(output));
-  ASSERT_EQ(audio_chunk_get_valid_frames(input), audio_chunk_get_valid_frames(output));
+  ASSERT_EQ(audio_chunk_get_valid_frames(input),
+            audio_chunk_get_valid_frames(output));
 
   double expected_linear = double_from_db(0.0);
   for (size_t ch = 0; ch < 4; ch++) {
@@ -476,7 +477,8 @@ TEST(MixerInoutAPI_MatchesAllocatingAPI) {
   audio_chunk_set_valid_frames(preallocated, 0);
   mixer_error_t err = audio_mixer_process(mixerB, input, preallocated);
   ASSERT_EQ(MIXER_OK, err);
-  ASSERT_EQ(audio_chunk_get_valid_frames(out_alloc), audio_chunk_get_valid_frames(preallocated));
+  ASSERT_EQ(audio_chunk_get_valid_frames(out_alloc),
+            audio_chunk_get_valid_frames(preallocated));
 
   for (size_t ch = 0; ch < 3; ch++) {
     waveform_t oA = audio_chunk_get_channel(out_alloc, ch);

@@ -20,25 +20,25 @@
  * @brief Represents a source channel in a mixer mapping.
  */
 typedef struct {
-  size_t channel;      /**< The input channel index. */
-  double gain;         /**< Gain value. Optional (defaults to 0.0 dB when omitted). */
-  bool has_gain;       /**< Flag indicating if gain is specified. */
-  bool inverted;       /**< Flag indicating if the phase is inverted. */
-  bool mute;           /**< Flag indicating if the source is muted. */
-  gain_scale_t scale;  /**< The scale type for the gain value. */
+  size_t channel; /**< The input channel index. */
+  double gain;   /**< Gain value. Optional (defaults to 0.0 dB when omitted). */
+  bool has_gain; /**< Flag indicating if gain is specified. */
+  bool inverted; /**< Flag indicating if the phase is inverted. */
+  bool mute;     /**< Flag indicating if the source is muted. */
+  gain_scale_t scale; /**< The scale type for the gain value. */
 } mixer_source_t;
 
 /**
  * @brief Represents a mapping of source channels to a destination channel.
  */
 typedef struct {
-  size_t dest;         /**< The destination channel index. */
+  size_t dest; /**< The destination channel index. */
   union {
-    size_t sources_count;  /**< Number of source channels. */
-    size_t num_sources;    /**< Alias for sources_count. */
+    size_t sources_count; /**< Number of source channels. */
+    size_t num_sources;   /**< Alias for sources_count. */
   };
   mixer_source_t* sources; /**< Array of source channels. */
-  bool mute;               /**< Flag indicating if the destination channel is muted. */
+  bool mute; /**< Flag indicating if the destination channel is muted. */
 } mixer_mapping_t;
 
 /**
@@ -49,11 +49,11 @@ typedef struct {
  */
 typedef struct {
   union {
-    size_t channels_in;     /**< Number of input channels (flat/nested format). */
+    size_t channels_in; /**< Number of input channels (flat/nested format). */
     size_t num_channels_in; /**< Alias for channels_in. */
   };
   union {
-    size_t channels_out;     /**< Number of output channels (flat/nested format). */
+    size_t channels_out; /**< Number of output channels (flat/nested format). */
     size_t num_channels_out; /**< Alias for channels_out. */
   };
   union {
@@ -82,7 +82,8 @@ double mixer_source_gain_value(const mixer_source_t* src);
  * a single dest no source channel appears twice.
  *
  * @param mixer Pointer to the mixer configuration.
- * @param err Pointer to config_error_t to store error details if validation fails.
+ * @param err Pointer to config_error_t to store error details if validation
+ * fails.
  * @return 0 if valid, non-zero error code otherwise.
  */
 int mixer_config_validate(const mixer_config_t* mixer, config_error_t* err);

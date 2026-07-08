@@ -25,9 +25,9 @@
  * @brief Type of pipeline step.
  */
 typedef enum {
-  PIPELINE_STEP_TYPE_FILTER = 0,    /**< Step applies a filter. */
-  PIPELINE_STEP_TYPE_MIXER,         /**< Step applies a mixer. */
-  PIPELINE_STEP_TYPE_PROCESSOR      /**< Step applies a processor. */
+  PIPELINE_STEP_TYPE_FILTER = 0, /**< Step applies a filter. */
+  PIPELINE_STEP_TYPE_MIXER,      /**< Step applies a mixer. */
+  PIPELINE_STEP_TYPE_PROCESSOR   /**< Step applies a processor. */
 } pipeline_step_type_t;
 
 /**
@@ -38,31 +38,31 @@ typedef enum {
  */
 typedef struct {
   pipeline_step_type_t type; /**< The type of pipeline step. */
-  int channel;               /**< The channel to apply the filter to (if single channel). */
-  bool has_channel;          /**< True if `channel` is valid. */
-  int* channels;             /**< Array of channels (if multi-channel). */
-  size_t channels_count;     /**< Number of channels in `channels`. */
-  char name[128];            /**< Name of the filter, mixer, or processor. */
-  bool has_name;             /**< True if `name` is valid. */
-  char** names;              /**< Array of names (if multi-name). */
-  size_t names_count;        /**< Number of names in `names`. */
-  bool bypassed;             /**< True if this step is bypassed. */
+  int channel; /**< The channel to apply the filter to (if single channel). */
+  bool has_channel;      /**< True if `channel` is valid. */
+  int* channels;         /**< Array of channels (if multi-channel). */
+  size_t channels_count; /**< Number of channels in `channels`. */
+  char name[128];        /**< Name of the filter, mixer, or processor. */
+  bool has_name;         /**< True if `name` is valid. */
+  char** names;          /**< Array of names (if multi-name). */
+  size_t names_count;    /**< Number of names in `names`. */
+  bool bypassed;         /**< True if this step is bypassed. */
 } pipeline_step_t;
 
 /**
  * @brief Named filter configuration.
  */
 typedef struct {
-  char name[128];            /**< Name of the filter. */
-  filter_config_t filter;    /**< Filter configuration. */
+  char name[128];         /**< Name of the filter. */
+  filter_config_t filter; /**< Filter configuration. */
 } named_filter_config_t;
 
 /**
  * @brief Named mixer configuration.
  */
 typedef struct {
-  char name[128];            /**< Name of the mixer. */
-  mixer_config_t mixer;      /**< Mixer configuration. */
+  char name[128];       /**< Name of the mixer. */
+  mixer_config_t mixer; /**< Mixer configuration. */
 } named_mixer_config_t;
 
 /**
@@ -77,24 +77,27 @@ typedef struct {
  * @brief Top-level configuration consumed by the DSP engine.
  */
 typedef struct {
-  devices_config_t devices;                 /**< Audio devices configuration. */
-  named_filter_config_t* filters;           /**< Array of named filters. */
-  size_t filters_count;                     /**< Number of filters. */
-  named_mixer_config_t* mixers;             /**< Array of named mixers. */
-  size_t mixers_count;                      /**< Number of mixers. */
-  named_processor_config_t* processors;     /**< Array of named processors. */
-  size_t processors_count;                  /**< Number of processors. */
-  pipeline_step_t* pipeline;                /**< Array of pipeline steps defining the processing flow. */
-  size_t pipeline_count;                    /**< Number of pipeline steps. */
+  devices_config_t devices;             /**< Audio devices configuration. */
+  named_filter_config_t* filters;       /**< Array of named filters. */
+  size_t filters_count;                 /**< Number of filters. */
+  named_mixer_config_t* mixers;         /**< Array of named mixers. */
+  size_t mixers_count;                  /**< Number of mixers. */
+  named_processor_config_t* processors; /**< Array of named processors. */
+  size_t processors_count;              /**< Number of processors. */
+  pipeline_step_t*
+      pipeline; /**< Array of pipeline steps defining the processing flow. */
+  size_t pipeline_count; /**< Number of pipeline steps. */
 } dsp_config_t;
 
 /**
  * @brief Validates the DSP configuration.
  *
- * Checks schema validity and performs a pipeline walk to verify channel layouts.
+ * Checks schema validity and performs a pipeline walk to verify channel
+ * layouts.
  *
  * @param config Pointer to the configuration to validate.
- * @param err Pointer to a config_error_t struct to receive error details if validation fails.
+ * @param err Pointer to a config_error_t struct to receive error details if
+ * validation fails.
  * @return 0 if valid, non-zero if invalid.
  */
 int dsp_config_validate(const dsp_config_t* config, config_error_t* err);
@@ -105,8 +108,10 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err);
  * Allocates and populates a dsp_config_t structure.
  *
  * @param json The JSON string to parse.
- * @param out_config Pointer to a pointer to receive the allocated configuration.
- * @param err Pointer to a config_error_t struct to receive error details if parsing fails.
+ * @param out_config Pointer to a pointer to receive the allocated
+ * configuration.
+ * @param err Pointer to a config_error_t struct to receive error details if
+ * parsing fails.
  * @return 0 on success, non-zero on failure.
  */
 int dsp_config_parse_json(const char* json, dsp_config_t** out_config,

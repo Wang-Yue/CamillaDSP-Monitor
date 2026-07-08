@@ -22,9 +22,10 @@
  * @brief Parse a DSP configuration from JSON and run full validation.
  *
  * @param[in] json The JSON string representing the DSP configuration.
- * @param[out] out_config Pointer to a pointer to receive the parsed configuration.
- *                        Must be freed by the caller.
- * @param[out] err Pointer to a config error struct to receive error details on failure.
+ * @param[out] out_config Pointer to a pointer to receive the parsed
+ * configuration. Must be freed by the caller.
+ * @param[out] err Pointer to a config error struct to receive error details on
+ * failure.
  * @return 0 on success, non-zero on failure.
  */
 int config_loader_parse(const char* json, dsp_config_t** out_config,

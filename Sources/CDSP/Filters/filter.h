@@ -49,9 +49,9 @@ typedef enum {
  * Filters operate on one channel at a time.
  */
 typedef struct {
-  char name[64];                /**< The unique name of this filter instance. */
-  filter_instance_type_t type;  /**< The type of the filter instance. */
-  void* instance;               /**< Pointer to the concrete filter instance data. */
+  char name[64];               /**< The unique name of this filter instance. */
+  filter_instance_type_t type; /**< The type of the filter instance. */
+  void* instance; /**< Pointer to the concrete filter instance data. */
 } filter_t;
 
 /**

@@ -475,9 +475,9 @@ static inline void stage_radix7(mixed_radix_fft_t* fft, int m,
 /**
  * @brief Apply radix-8 butterflies.
  *
- * The inner DFT is computed via DIT decomposition into two radix-4s (even-indexed
- * and odd-indexed), then combined with the trivial 8th-root twiddles
- * `W_8^k = exp(-2πi·k/8)`. Multiplications cost only the constant
+ * The inner DFT is computed via DIT decomposition into two radix-4s
+ * (even-indexed and odd-indexed), then combined with the trivial 8th-root
+ * twiddles `W_8^k = exp(-2πi·k/8)`. Multiplications cost only the constant
  * `√2/2` for the k=1 and k=3 inner twiddles — k=0 is free, k=2 is
  * `-i` (free), so no real-coefficient multiplies on the inner DFT
  * beyond the two `√2/2` cross-terms.

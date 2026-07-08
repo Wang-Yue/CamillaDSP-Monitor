@@ -13,7 +13,8 @@
  * @file alsa_playback.h
  * @brief ALSA playback backend implementation.
  *
- * Implements the playback backend interface for ALSA (Advanced Linux Sound Architecture) devices.
+ * Implements the playback backend interface for ALSA (Advanced Linux Sound
+ * Architecture) devices.
  */
 
 /**
@@ -32,7 +33,8 @@ typedef struct processing_parameters processing_parameters_t;
  * @param chunk_size The size of each audio chunk in frames.
  * @param params Opaque processing parameters pointer.
  * @param[out] err Pointer to store error details if creation fails.
- * @return A pointer to the created playback_backend_t interface wrapper, or NULL on error.
+ * @return A pointer to the created playback_backend_t interface wrapper, or
+ * NULL on error.
  */
 playback_backend_t* alsa_playback_create(const playback_device_config_t* config,
                                          int sample_rate, int chunk_size,
@@ -84,7 +86,8 @@ size_t alsa_playback_get_buffer_level(alsa_playback_t* playback);
  * @brief Check if there is a pending sample rate change on the ALSA device.
  *
  * @param playback Pointer to the ALSA playback instance.
- * @param[out] out_rate Pointer to store the new sample rate if a change is pending.
+ * @param[out] out_rate Pointer to store the new sample rate if a change is
+ * pending.
  * @return true if a rate change was detected, false otherwise.
  */
 bool alsa_playback_get_pending_rate_change(alsa_playback_t* playback,
@@ -94,7 +97,8 @@ bool alsa_playback_get_pending_rate_change(alsa_playback_t* playback,
  * @brief Prefill the ALSA playback buffer with silence.
  *
  * Writes the specified number of silence frames to the ALSA buffer.
- * This is used to prevent early underruns and establish an initial buffer level.
+ * This is used to prevent early underruns and establish an initial buffer
+ * level.
  *
  * @param playback Pointer to the ALSA playback instance.
  * @param frames Number of silence frames to write.
@@ -121,7 +125,8 @@ bool alsa_playback_get_is_paused(alsa_playback_t* playback);
 void alsa_playback_set_is_paused(alsa_playback_t* playback, bool paused);
 
 /**
- * @brief Check if the ALSA playback backend supports pitch (clock rate) control.
+ * @brief Check if the ALSA playback backend supports pitch (clock rate)
+ * control.
  *
  * @param playback Pointer to the ALSA playback instance.
  * @return true if supported, false otherwise.
@@ -148,4 +153,3 @@ void alsa_playback_destroy(alsa_playback_t* playback);
 #endif  // ENABLE_ALSA
 
 #endif  // CLIB_BACKEND_ALSA_PLAYBACK_H
-

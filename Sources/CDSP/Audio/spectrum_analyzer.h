@@ -39,10 +39,12 @@ typedef struct {
  * unchanged.
  */
 typedef enum {
-  SPECTRUM_OK = 0,                    /**< Operation completed successfully. */
-  SPECTRUM_ERROR_EMPTY = -1,          /**< Not enough samples buffered to fill the FFT window. */
-  SPECTRUM_ERROR_INVALID_PARAM = -2,  /**< Invalid parameters passed to the analyzer. */
-  SPECTRUM_ERROR_OUT_OF_RANGE = -3    /**< Channel index is out of range. */
+  SPECTRUM_OK = 0, /**< Operation completed successfully. */
+  SPECTRUM_ERROR_EMPTY =
+      -1, /**< Not enough samples buffered to fill the FFT window. */
+  SPECTRUM_ERROR_INVALID_PARAM =
+      -2, /**< Invalid parameters passed to the analyzer. */
+  SPECTRUM_ERROR_OUT_OF_RANGE = -3 /**< Channel index is out of range. */
 } spectrum_status_t;
 
 /**
@@ -53,7 +55,8 @@ typedef struct spectrum_analyzer spectrum_analyzer_t;
 /**
  * @brief Creates a new spectrum analyzer instance.
  *
- * @return Pointer to the allocated spectrum_analyzer_t structure, or NULL on failure.
+ * @return Pointer to the allocated spectrum_analyzer_t structure, or NULL on
+ * failure.
  */
 spectrum_analyzer_t* spectrum_analyzer_create(void);
 
@@ -67,8 +70,8 @@ void spectrum_analyzer_free(spectrum_analyzer_t* analyzer);
 /**
  * @brief Compute a spectrum on demand (consumer side).
  *
- * This function extracts audio data from the provided history buffer for the specified
- * channel, performs windowing and FFT, and calculates the magnitudes.
+ * This function extracts audio data from the provided history buffer for the
+ * specified channel, performs windowing and FFT, and calculates the magnitudes.
  *
  * @param analyzer Pointer to the spectrum analyzer.
  * @param buffer Pointer to the audio history buffer containing the source data.
@@ -77,7 +80,8 @@ void spectrum_analyzer_free(spectrum_analyzer_t* analyzer);
  * @param max_freq The maximum frequency of interest.
  * @param n_bins The desired number of frequency bins in the output.
  * @param samplerate The sample rate of the audio data.
- * @param out_result Pointer to a spectrum_result_t structure to receive the results.
+ * @param out_result Pointer to a spectrum_result_t structure to receive the
+ * results.
  * @return SPECTRUM_OK on success, or an error code on failure.
  */
 spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,

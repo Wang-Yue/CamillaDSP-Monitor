@@ -101,7 +101,8 @@ struct IASIO {
 };
 
 /**
- * @brief Searches the Windows Registry to find the CLSID of an ASIO driver by name.
+ * @brief Searches the Windows Registry to find the CLSID of an ASIO driver by
+ * name.
  *
  * @param driver_name Name of the ASIO driver.
  * @param out_clsid Pointer to a CLSID structure to receive the result.
@@ -276,7 +277,8 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
   chan_info.isInput = is_capture ? ASIOTrue : ASIOFalse;
   iasio->lpVtbl->getChannelInfo(iasio, &chan_info);
 
-  // Map the ASIO-specific sample format to our internal format string representation.
+  // Map the ASIO-specific sample format to our internal format string
+  // representation.
   const char* native_fmt_name = "S32_LE";  // fallback
   if (chan_info.type == ASIOSTInt16LSB)
     native_fmt_name = "S16_LE";

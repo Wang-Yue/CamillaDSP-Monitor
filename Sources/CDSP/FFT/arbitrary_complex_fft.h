@@ -3,7 +3,8 @@
 
 /**
  * @file arbitrary_complex_fft.h
- * @brief Shared interface for complex-input/output Discrete Fourier Transform (DFT) engines.
+ * @brief Shared interface for complex-input/output Discrete Fourier Transform
+ * (DFT) engines.
  *
  * The `ComplexInnerRealFFT` real-FFT backend takes one of these as its
  * inner transform; `RealFFT.init` does the priority-based
@@ -19,10 +20,13 @@
  *
  * @param ctx Pointer to the FFT implementation context.
  * @param real_in Input array representing the real part of the complex input.
- * @param imag_in Input array representing the imaginary part of the complex input.
+ * @param imag_in Input array representing the imaginary part of the complex
+ * input.
  * @param real_out Output array to store the real part of the complex output.
- * @param imag_out Output array to store the imaginary part of the complex output.
- * @param inverse True to perform an inverse FFT (IFFT), false for a forward FFT.
+ * @param imag_out Output array to store the imaginary part of the complex
+ * output.
+ * @param inverse True to perform an inverse FFT (IFFT), false for a forward
+ * FFT.
  */
 typedef void (*arbitrary_complex_fft_execute_fn)(void* ctx, waveform_t real_in,
                                                  waveform_t imag_in,
@@ -52,9 +56,11 @@ typedef void (*arbitrary_complex_fft_free_fn)(void* ctx);
  * interchangeable as `ComplexInnerRealFFT.inner`.
  */
 typedef struct {
-  void* ctx;                                 /**< Implementation-specific context pointer. */
-  arbitrary_complex_fft_execute_fn execute; /**< Function pointer to execute the FFT. */
-  arbitrary_complex_fft_free_fn free;       /**< Function pointer to free the context. */
+  void* ctx; /**< Implementation-specific context pointer. */
+  arbitrary_complex_fft_execute_fn
+      execute; /**< Function pointer to execute the FFT. */
+  arbitrary_complex_fft_free_fn
+      free; /**< Function pointer to free the context. */
 } arbitrary_complex_fft_t;
 
 /**

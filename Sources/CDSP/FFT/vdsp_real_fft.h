@@ -52,8 +52,10 @@ vdsp_real_fft_t* vdsp_real_fft_create(size_t length);
  *
  * @param fft The FFT context.
  * @param real_in Input real signal array of size `length`.
- * @param spec_re Output array for the real parts of the spectrum (size `length/2 + 1`).
- * @param spec_im Output array for the imaginary parts of the spectrum (size `length/2 + 1`).
+ * @param spec_re Output array for the real parts of the spectrum (size
+ * `length/2 + 1`).
+ * @param spec_im Output array for the imaginary parts of the spectrum (size
+ * `length/2 + 1`).
  */
 void vdsp_real_fft_forward(vdsp_real_fft_t* fft, waveform_t real_in,
                            mutable_waveform_t spec_re,
@@ -63,8 +65,10 @@ void vdsp_real_fft_forward(vdsp_real_fft_t* fft, waveform_t real_in,
  * @brief Executes an inverse real FFT.
  *
  * @param fft The FFT context.
- * @param spec_re Input array for the real parts of the spectrum (size `length/2 + 1`).
- * @param spec_im Input array for the imaginary parts of the spectrum (size `length/2 + 1`).
+ * @param spec_re Input array for the real parts of the spectrum (size `length/2
+ * + 1`).
+ * @param spec_im Input array for the imaginary parts of the spectrum (size
+ * `length/2 + 1`).
  * @param real_out Output real signal array of size `length`.
  */
 void vdsp_real_fft_inverse(vdsp_real_fft_t* fft, waveform_t spec_re,
@@ -78,7 +82,8 @@ void vdsp_real_fft_inverse(vdsp_real_fft_t* fft, waveform_t spec_re,
 void vdsp_real_fft_free(vdsp_real_fft_t* fft);
 
 /**
- * @brief Casts the vDSP real FFT context to a generic real FFT backend interface.
+ * @brief Casts the vDSP real FFT context to a generic real FFT backend
+ * interface.
  *
  * @param fft The context to cast.
  * @return A pointer to the generic real FFT backend interface.
@@ -90,4 +95,3 @@ static inline real_fft_backend_t* vdsp_real_fft_as_backend(
 #endif  // ENABLE_ACCELERATE
 
 #endif  // CLIB_FFT_VDSPREALFFT_H
-

@@ -37,7 +37,8 @@ typedef struct round_robin_chunk_pool round_robin_chunk_pool_t;
 audio_chunk_t* audio_chunk_create(size_t frames, size_t channels);
 
 /**
- * @brief Create an audio chunk that adopts the given audio_buffers_t. Zero-copy.
+ * @brief Create an audio chunk that adopts the given audio_buffers_t.
+ * Zero-copy.
  *
  * @param buffers The audio buffers to adopt.
  * @param valid_frames Number of valid frames in the buffers.
@@ -81,7 +82,8 @@ size_t audio_chunk_get_channels(const audio_chunk_t* chunk);
  * @param ch Channel index.
  * @return Mutable pointer to the channel's audio data.
  */
-mutable_waveform_t audio_chunk_get_channel(const audio_chunk_t* chunk, size_t ch);
+mutable_waveform_t audio_chunk_get_channel(const audio_chunk_t* chunk,
+                                           size_t ch);
 
 /**
  * @brief Get the number of valid frames in the chunk.

@@ -88,7 +88,9 @@ void dsp_processor_process(dsp_processor_t* proc, audio_chunk_t* chunk);
  * @param config New processor configuration.
  * @param sample_rate Audio sample rate in Hz.
  */
-void dsp_processor_update_parameters(dsp_processor_t* proc, const processor_config_t* config, int sample_rate);
+void dsp_processor_update_parameters(dsp_processor_t* proc,
+                                     const processor_config_t* config,
+                                     int sample_rate);
 
 /**
  * @brief Gets the unique name of this processor instance.

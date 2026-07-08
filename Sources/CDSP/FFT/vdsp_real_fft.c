@@ -23,7 +23,8 @@ struct vdsp_real_fft {
 };
 
 /**
- * @brief Wrapper for vdsp_real_fft_forward to match the real_fft_backend_t interface.
+ * @brief Wrapper for vdsp_real_fft_forward to match the real_fft_backend_t
+ * interface.
  *
  * @param ctx Pointer to the vdsp_real_fft_t context.
  * @param real_in Input waveform containing real samples.
@@ -37,7 +38,8 @@ static void vdsp_real_fft_forward_wrapper(void* ctx, waveform_t real_in,
 }
 
 /**
- * @brief Wrapper for vdsp_real_fft_inverse to match the real_fft_backend_t interface.
+ * @brief Wrapper for vdsp_real_fft_inverse to match the real_fft_backend_t
+ * interface.
  *
  * @param ctx Pointer to the vdsp_real_fft_t context.
  * @param spec_re Input waveform for the real part of the spectrum.
@@ -51,7 +53,8 @@ static void vdsp_real_fft_inverse_wrapper(void* ctx, waveform_t spec_re,
 }
 
 /**
- * @brief Wrapper for vdsp_real_fft_free to match the real_fft_backend_t interface.
+ * @brief Wrapper for vdsp_real_fft_free to match the real_fft_backend_t
+ * interface.
  *
  * @param ctx Pointer to the vdsp_real_fft_t context.
  */

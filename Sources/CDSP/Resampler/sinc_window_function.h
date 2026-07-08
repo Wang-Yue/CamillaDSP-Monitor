@@ -1,6 +1,7 @@
 /**
  * @file sinc_window_function.h
- * @brief Window functions and cutoff frequency calculations for the windowed-sinc resampler kernel.
+ * @brief Window functions and cutoff frequency calculations for the
+ * windowed-sinc resampler kernel.
  */
 
 #ifndef CLIB_RESAMPLER_SINC_WINDOW_FUNCTION_H
@@ -14,8 +15,8 @@
  * @brief Window functions usable for sinc-filter kernel design.
  *
  * The `*2` variants represent the squared versions of the periodic base window.
- * Squaring the window function results in a wider main lobe but provides stronger
- * stopband attenuation.
+ * Squaring the window function results in a wider main lobe but provides
+ * stronger stopband attenuation.
  */
 typedef enum {
   /** Hann window. */
@@ -36,7 +37,8 @@ typedef enum {
  * @brief Parses a window function from its string representation.
  *
  * @param str The string name of the window function (e.g., "Hann", "Blackman").
- * @param default_val The default value to return if the string does not match any known window function.
+ * @param default_val The default value to return if the string does not match
+ * any known window function.
  * @return The corresponding window_function_t value, or default_val.
  */
 window_function_t window_function_from_string(const char* str,
@@ -51,10 +53,12 @@ window_function_t window_function_from_string(const char* str,
 const char* window_function_to_string(window_function_t wf);
 
 /**
- * @brief Calculates the value of a periodic window function at a specific sample index.
+ * @brief Calculates the value of a periodic window function at a specific
+ * sample index.
  *
- * Each harmonic is computed in a specific order: `cos(2k * pi * i / n)` computed
- * as `((2k * pi) * i) / n` to maintain consistency and bit-equivalence with Swift's implementation.
+ * Each harmonic is computed in a specific order: `cos(2k * pi * i / n)`
+ * computed as `((2k * pi) * i) / n` to maintain consistency and bit-equivalence
+ * with Swift's implementation.
  *
  * @param window The window function to evaluate.
  * @param i The sample index.
@@ -64,11 +68,12 @@ const char* window_function_to_string(window_function_t wf);
 double window_value(window_function_t window, size_t i, size_t n);
 
 /**
- * @brief Calculates the cutoff frequency using 32-bit floating point arithmetic.
+ * @brief Calculates the cutoff frequency using 32-bit floating point
+ * arithmetic.
  *
- * Although the main audio path runs in f64 (double precision), the cutoff frequency
- * calculations match f32 calculations for bit-equivalence with kernel-derived
- * constants in other implementations.
+ * Although the main audio path runs in f64 (double precision), the cutoff
+ * frequency calculations match f32 calculations for bit-equivalence with
+ * kernel-derived constants in other implementations.
  *
  * @param sinc_len The length of the sinc filter.
  * @param window The window function used.
@@ -77,9 +82,11 @@ double window_value(window_function_t window, size_t i, size_t n);
 float calculate_cutoff_f32(size_t sinc_len, window_function_t window);
 
 /**
- * @brief Calculates a suitable relative cutoff frequency for the given sinc length and window.
+ * @brief Calculates a suitable relative cutoff frequency for the given sinc
+ * length and window.
  *
- * This function uses a cubic fit `1 / (k1/n + k2/n^2 + k3/n^3 + 1)` calibrated per window.
+ * This function uses a cubic fit `1 / (k1/n + k2/n^2 + k3/n^3 + 1)` calibrated
+ * per window.
  *
  * @param sinc_len The length of the sinc filter.
  * @param window The window function used.

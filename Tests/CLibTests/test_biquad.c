@@ -187,8 +187,11 @@ TEST(Highshelf) {
 }
 
 TEST(Lowshelf) {
-  biquad_parameters_t params = {
-      .type = BIQUAD_TYPE_LOWSHELF, .freq = 100.0, .gain = -24.0, .slope = 6.0, .steepness_type = STEEPNESS_TYPE_SLOPE};
+  biquad_parameters_t params = {.type = BIQUAD_TYPE_LOWSHELF,
+                                .freq = 100.0,
+                                .gain = -24.0,
+                                .slope = 6.0,
+                                .steepness_type = STEEPNESS_TYPE_SLOPE};
   biquad_coefficients_t coeffs = make_coeffs(&params, 44100);
   double gf0, pf0, gf0h, pf0h, gf0l, pf0l, ghf, phf, glf, plf;
   gain_and_phase(&coeffs, 100.0, 44100.0, &gf0, &pf0);
@@ -242,8 +245,10 @@ TEST(HighshelfSlopeVsQ) {
 }
 
 TEST(BandpassBWvsQ) {
-  biquad_parameters_t pBW = {
-      .type = BIQUAD_TYPE_BANDPASS, .freq = 100.0, .bandwidth = 1.0, .steepness_type = STEEPNESS_TYPE_BANDWIDTH};
+  biquad_parameters_t pBW = {.type = BIQUAD_TYPE_BANDPASS,
+                             .freq = 100.0,
+                             .bandwidth = 1.0,
+                             .steepness_type = STEEPNESS_TYPE_BANDWIDTH};
   biquad_parameters_t pQ = {
       .type = BIQUAD_TYPE_BANDPASS, .freq = 100.0, .q = sqrt(2.0)};
   biquad_coefficients_t cBW = make_coeffs(&pBW, 44100);
@@ -256,8 +261,10 @@ TEST(BandpassBWvsQ) {
 }
 
 TEST(NotchBWvsQ) {
-  biquad_parameters_t pBW = {
-      .type = BIQUAD_TYPE_NOTCH, .freq = 100.0, .bandwidth = 1.0, .steepness_type = STEEPNESS_TYPE_BANDWIDTH};
+  biquad_parameters_t pBW = {.type = BIQUAD_TYPE_NOTCH,
+                             .freq = 100.0,
+                             .bandwidth = 1.0,
+                             .steepness_type = STEEPNESS_TYPE_BANDWIDTH};
   biquad_parameters_t pQ = {
       .type = BIQUAD_TYPE_NOTCH, .freq = 100.0, .q = sqrt(2.0)};
   biquad_coefficients_t cBW = make_coeffs(&pBW, 44100);
@@ -270,8 +277,10 @@ TEST(NotchBWvsQ) {
 }
 
 TEST(AllpassBWvsQ) {
-  biquad_parameters_t pBW = {
-      .type = BIQUAD_TYPE_ALLPASS, .freq = 100.0, .bandwidth = 1.0, .steepness_type = STEEPNESS_TYPE_BANDWIDTH};
+  biquad_parameters_t pBW = {.type = BIQUAD_TYPE_ALLPASS,
+                             .freq = 100.0,
+                             .bandwidth = 1.0,
+                             .steepness_type = STEEPNESS_TYPE_BANDWIDTH};
   biquad_parameters_t pQ = {
       .type = BIQUAD_TYPE_ALLPASS, .freq = 100.0, .q = sqrt(2.0)};
   biquad_coefficients_t cBW = make_coeffs(&pBW, 44100);

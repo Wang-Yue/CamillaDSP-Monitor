@@ -23,8 +23,10 @@ typedef struct diffeq_filter diffeq_filter_t;
  * @brief Create a new difference equation filter.
  *
  * @param name The name of the filter.
- * @param params The difference equation parameters (coefficients feedforward 'b' and feedback 'a').
- * @return A pointer to the created difference equation filter, or NULL on failure.
+ * @param params The difference equation parameters (coefficients feedforward
+ * 'b' and feedback 'a').
+ * @return A pointer to the created difference equation filter, or NULL on
+ * failure.
  */
 diffeq_filter_t* diffeq_filter_create(const char* name,
                                       const diff_eq_parameters_t* params);
@@ -51,11 +53,11 @@ void diffeq_filter_update_parameters(diffeq_filter_t* filter,
                                      int sample_rate);
 
 /**
- * @brief Free the difference equation filter instance and its associated resources.
+ * @brief Free the difference equation filter instance and its associated
+ * resources.
  *
  * @param filter The difference equation filter instance to free.
  */
 void diffeq_filter_free(diffeq_filter_t* filter);
 
 #endif  // CLIB_FILTERS_DIFFEQ_H
-

@@ -17,15 +17,14 @@ dsp_state_t* dsp_state_create(void) {
   return state;
 }
 
-void dsp_state_free(dsp_state_t* state) {
-  free(state);
-}
+void dsp_state_free(dsp_state_t* state) { free(state); }
 
 /**
- * @brief Helper function to trim trailing whitespace and newline characters from a string.
+ * @brief Helper function to trim trailing whitespace and newline characters
+ * from a string.
  *
- * Modifies the input string in-place by replacing trailing whitespace, carriage returns,
- * and line feeds with null terminators.
+ * Modifies the input string in-place by replacing trailing whitespace, carriage
+ * returns, and line feeds with null terminators.
  *
  * @param str The string to trim.
  */
@@ -64,7 +63,8 @@ bool dsp_state_load(const char* filename, dsp_state_t* out_state) {
 
     // YAML-like parser: Check indentation to determine if we exited a list.
     // List elements are expected to be indented (e.g. by 2 spaces).
-    // If indentation is less than 2 spaces, we assume we have returned to the root level.
+    // If indentation is less than 2 spaces, we assume we have returned to the
+    // root level.
     int indent = 0;
     while (line[indent] == ' ' || line[indent] == '\t') {
       indent++;

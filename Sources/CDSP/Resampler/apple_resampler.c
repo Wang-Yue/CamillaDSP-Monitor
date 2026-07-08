@@ -4,11 +4,12 @@
 
 #if defined(ENABLE_COREAUDIO)
 
-#include "Audio/audio_buffers.h"
-#include <stddef.h>
 #include <math.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "Audio/audio_buffers.h"
 
 struct apple_resampler_fill_context {
   audio_buffers_t* buffers;
@@ -30,15 +31,20 @@ struct apple_resampler {
 /**
  * @brief Callback function to feed input data to Apple's AudioConverter.
  *
- * This function is called by AudioConverterFillComplexBuffer when it needs more input data
- * to produce output packets. It copies data from the resampler's internal ring buffer
- * (described by apple_resampler_fill_context_t) into the audio buffer list provided by the system.
+ * This function is called by AudioConverterFillComplexBuffer when it needs more
+ * input data to produce output packets. It copies data from the resampler's
+ * internal ring buffer (described by apple_resampler_fill_context_t) into the
+ * audio buffer list provided by the system.
  *
  * @param inAudioConverter The AudioConverter requesting data.
- * @param ioNumberDataPackets On input, the number of packets requested. On output, the number of packets actually provided.
- * @param ioData The AudioBufferList where the provided audio data pointers are placed.
- * @param outDataPacketDescription Unused, as we are dealing with non-interleaved double PCM data.
- * @param inUserData Pointer to the apple_resampler_fill_context_t instance containing the input buffers.
+ * @param ioNumberDataPackets On input, the number of packets requested. On
+ * output, the number of packets actually provided.
+ * @param ioData The AudioBufferList where the provided audio data pointers are
+ * placed.
+ * @param outDataPacketDescription Unused, as we are dealing with
+ * non-interleaved double PCM data.
+ * @param inUserData Pointer to the apple_resampler_fill_context_t instance
+ * containing the input buffers.
  * @return OSStatus noErr on success, or an error code.
  */
 static OSStatus input_data_proc(
@@ -114,8 +120,9 @@ apple_resampler_t* apple_resampler_create(
   }
 
   /* Dynamically size the AudioBufferList storage based on channel count.
-     AudioBufferList has a variable size array at the end: AudioBuffer mBuffers[1].
-     If channels > 1, we need to allocate additional size for (channels - 1) buffers. */
+     AudioBufferList has a variable size array at the end: AudioBuffer
+     mBuffers[1]. If channels > 1, we need to allocate additional size for
+     (channels - 1) buffers. */
   size_t storage_size =
       sizeof(AudioBufferList) +
       (channels > 0 ? (channels - 1) * sizeof(AudioBuffer) : 0);
@@ -128,8 +135,9 @@ apple_resampler_t* apple_resampler_create(
   }
 
   /* Setup AudioStreamBasicDescription for non-interleaved double PCM format.
-     This is critical for high quality audio processing since we operate on float64/double format
-     and keep channels in separate pointers (non-interleaved) to match our internal representation. */
+     This is critical for high quality audio processing since we operate on
+     float64/double format and keep channels in separate pointers
+     (non-interleaved) to match our internal representation. */
   AudioStreamBasicDescription in_desc = {0};
   in_desc.mSampleRate = (double)input_rate;
   in_desc.mFormatID = kAudioFormatLinearPCM;
@@ -256,11 +264,13 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
 
   apple_resampler_fill_context_t* context = resampler->fill_context;
   // Check if we have space in ringBuffers
-  size_t available_space = audio_buffers_get_capacity(context->buffers) - context->write_offset;
+  size_t available_space =
+      audio_buffers_get_capacity(context->buffers) - context->write_offset;
   if (available_space < resampler->chunk_size) {
-    /* Shift remaining unread data to the beginning of the buffer to free up capacity
-       for incoming chunk size. This avoids using a circular ring buffer index
-       and allows feeding contiguous memory chunks to Apple's AudioConverter callback. */
+    /* Shift remaining unread data to the beginning of the buffer to free up
+       capacity for incoming chunk size. This avoids using a circular ring
+       buffer index and allows feeding contiguous memory chunks to Apple's
+       AudioConverter callback. */
     if (context->read_offset > 0) {
       size_t remaining = context->write_offset - context->read_offset;
       for (size_t ch = 0; ch < resampler->channels; ch++) {
@@ -288,9 +298,10 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
   }
   context->write_offset += resampler->chunk_size;
 
-  /* To avoid excessive AudioConverter overhead and ensure it has enough context to run
-     its internal resampling filter, we accumulate at least 4096 frames before invoking
-     the converter. If we don't have enough yet, return OK with 0 valid frames. */
+  /* To avoid excessive AudioConverter overhead and ensure it has enough context
+     to run its internal resampling filter, we accumulate at least 4096 frames
+     before invoking the converter. If we don't have enough yet, return OK with
+     0 valid frames. */
   if (context->write_offset < 4096) {
     audio_chunk_set_valid_frames(output, 0);
     return RESAMPLER_OK;

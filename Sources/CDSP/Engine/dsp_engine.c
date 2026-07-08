@@ -9,7 +9,8 @@
 #include "Pipeline/config_loader.h"
 #include "Pipeline/state_file.h"
 
-static bool dsp_engine_check_stop_requested(dsp_engine_t* engine, processing_stop_reason_t* out_reason);
+static bool dsp_engine_check_stop_requested(
+    dsp_engine_t* engine, processing_stop_reason_t* out_reason);
 static const char* dsp_engine_get_state_file(const dsp_engine_t* engine);
 static bool dsp_engine_is_state_dirty(const dsp_engine_t* engine);
 static void dsp_engine_set_state_dirty(dsp_engine_t* engine, bool dirty);
@@ -29,8 +30,8 @@ static void engine_on_chunk_captured_callback(void* ctx,
 }
 
 /**
- * @brief Callback triggered when a chunk is processed (played back) by the audio engine core.
- * Appends the chunk to the playback history buffer.
+ * @brief Callback triggered when a chunk is processed (played back) by the
+ * audio engine core. Appends the chunk to the playback history buffer.
  *
  * @param ctx Pointer to the audio_history_buffer_t playback buffer.
  * @param chunk Pointer to the processed audio_chunk_t.
@@ -40,7 +41,6 @@ static void engine_on_chunk_processed_callback(void* ctx,
   audio_history_buffer_t* buf = (audio_history_buffer_t*)ctx;
   if (buf && chunk) audio_history_buffer_append(buf, chunk);
 }
-
 
 dsp_engine_t* dsp_engine_create(void) {
   dsp_engine_t* engine = (dsp_engine_t*)calloc(1, sizeof(dsp_engine_t));
@@ -85,7 +85,8 @@ void dsp_engine_free(dsp_engine_t* engine) {
   free(engine);
 }
 
-static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine, dsp_config_t* config,
+static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine,
+                                                dsp_config_t* config,
                                                 audio_backend_error_t* err);
 
 bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
@@ -97,7 +98,8 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
   return res;
 }
 
-static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine, dsp_config_t* config,
+static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine,
+                                                dsp_config_t* config,
                                                 audio_backend_error_t* err) {
   if (!engine || !config) return false;
   if (engine->core) {
@@ -105,9 +107,10 @@ static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine, dsp_config
   }
 
   // 1. Hot Reload attempt:
-  // If the engine core is currently running, and the new configuration's device properties
-  // (e.g. backend, sample rate, channels, buffer sizes) match the running configuration,
-  // we can reload the filters/routing pipeline dynamically without tearing down audio threads.
+  // If the engine core is currently running, and the new configuration's device
+  // properties (e.g. backend, sample rate, channels, buffer sizes) match the
+  // running configuration, we can reload the filters/routing pipeline
+  // dynamically without tearing down audio threads.
   if (engine->core &&
       dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
     if (memcmp(&engine->core->current_config->devices, &config->devices,
@@ -128,8 +131,9 @@ static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine, dsp_config
   }
 
   // 2. Cold Reload:
-  // If hot reload is not possible (device configuration changed or core is not running),
-  // we must stop and destroy the existing core, which shuts down the capture/playback loops.
+  // If hot reload is not possible (device configuration changed or core is not
+  // running), we must stop and destroy the existing core, which shuts down the
+  // capture/playback loops.
   if (engine->core &&
       dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
     dsp_engine_core_stop(engine->core,
@@ -171,7 +175,8 @@ static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine, dsp_config
       engine->playback_buffer,
       playback_device_config_get_channels(&config->devices.playback));
 
-  // Connect callbacks to feed captured/playback data chunks into history buffers
+  // Connect callbacks to feed captured/playback data chunks into history
+  // buffers
   core->on_chunk_captured = engine_on_chunk_captured_callback;
   core->on_chunk_captured_ctx = engine->capture_buffer;
   core->on_chunk_processed = engine_on_chunk_processed_callback;
@@ -189,7 +194,6 @@ static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine, dsp_config
   engine->has_last_stop_reason = false;
   return true;
 }
-
 
 static bool dsp_engine_set_config_locked(dsp_engine_t* engine, const char* json,
                                          audio_backend_error_t* err);
@@ -265,8 +269,8 @@ void dsp_engine_stop(dsp_engine_t* engine) {
   pthread_mutex_unlock(&engine->state_mutex);
 }
 
-void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader,
-                                 float db, bool instant) {
+void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader, float db,
+                                 bool instant) {
   if (!engine || fader < 0 || fader >= FADER_COUNT) return;
   pthread_mutex_lock(&engine->state_mutex);
   engine->desired_fader_volumes[fader] = (double)db;
@@ -408,10 +412,9 @@ void dsp_engine_free_vu_levels(vu_levels_t* levels) {
   memset(levels, 0, sizeof(vu_levels_t));
 }
 
-static spectrum_status_t dsp_engine_get_spectrum_locked(dsp_engine_t* engine, bool is_capture,
-                                                 int channel, double min_freq,
-                                                 double max_freq, size_t n_bins,
-                                                 spectrum_result_t* out_result);
+static spectrum_status_t dsp_engine_get_spectrum_locked(
+    dsp_engine_t* engine, bool is_capture, int channel, double min_freq,
+    double max_freq, size_t n_bins, spectrum_result_t* out_result);
 
 spectrum_status_t dsp_engine_get_spectrum(dsp_engine_t* engine, bool is_capture,
                                           int channel, double min_freq,
@@ -419,17 +422,16 @@ spectrum_status_t dsp_engine_get_spectrum(dsp_engine_t* engine, bool is_capture,
                                           spectrum_result_t* out_result) {
   if (!engine) return SPECTRUM_ERROR_EMPTY;
   pthread_mutex_lock(&engine->state_mutex);
-  spectrum_status_t res = dsp_engine_get_spectrum_locked(engine, is_capture, channel, min_freq, max_freq, n_bins, out_result);
+  spectrum_status_t res = dsp_engine_get_spectrum_locked(
+      engine, is_capture, channel, min_freq, max_freq, n_bins, out_result);
   pthread_mutex_unlock(&engine->state_mutex);
   return res;
 }
 
-static spectrum_status_t dsp_engine_get_spectrum_locked(dsp_engine_t* engine, bool is_capture,
-                                                 int channel, double min_freq,
-                                                 double max_freq, size_t n_bins,
-                                                 spectrum_result_t* out_result) {
-  if (!engine->core || !engine->spectrum)
-    return SPECTRUM_ERROR_EMPTY;
+static spectrum_status_t dsp_engine_get_spectrum_locked(
+    dsp_engine_t* engine, bool is_capture, int channel, double min_freq,
+    double max_freq, size_t n_bins, spectrum_result_t* out_result) {
+  if (!engine->core || !engine->spectrum) return SPECTRUM_ERROR_EMPTY;
   audio_history_buffer_t* buf =
       is_capture ? engine->capture_buffer : engine->playback_buffer;
   size_t samplerate = engine->core->current_config->devices.samplerate;
@@ -437,23 +439,24 @@ static spectrum_status_t dsp_engine_get_spectrum_locked(dsp_engine_t* engine, bo
                                    max_freq, n_bins, samplerate, out_result);
 }
 
-static audio_samples_t* dsp_engine_get_samples_locked(dsp_engine_t* engine, bool is_capture,
-                                               size_t n_frames,
-                                               audio_backend_error_t* err);
+static audio_samples_t* dsp_engine_get_samples_locked(
+    dsp_engine_t* engine, bool is_capture, size_t n_frames,
+    audio_backend_error_t* err);
 
 audio_samples_t* dsp_engine_get_samples(dsp_engine_t* engine, bool is_capture,
                                         size_t n_frames,
                                         audio_backend_error_t* err) {
   if (!engine) return NULL;
   pthread_mutex_lock(&engine->state_mutex);
-  audio_samples_t* res = dsp_engine_get_samples_locked(engine, is_capture, n_frames, err);
+  audio_samples_t* res =
+      dsp_engine_get_samples_locked(engine, is_capture, n_frames, err);
   pthread_mutex_unlock(&engine->state_mutex);
   return res;
 }
 
-static audio_samples_t* dsp_engine_get_samples_locked(dsp_engine_t* engine, bool is_capture,
-                                               size_t n_frames,
-                                               audio_backend_error_t* err) {
+static audio_samples_t* dsp_engine_get_samples_locked(
+    dsp_engine_t* engine, bool is_capture, size_t n_frames,
+    audio_backend_error_t* err) {
   if (!engine->core) {
     if (err) {
       err->type = AUDIO_BACKEND_ERR_ENGINE_NOT_RUNNING;
@@ -678,7 +681,8 @@ processing_parameters_t* dsp_engine_get_processing_parameters(
     const dsp_engine_t* engine) {
   if (!engine) return NULL;
   pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
-  processing_parameters_t* res = engine->core ? engine->core->processing_params : NULL;
+  processing_parameters_t* res =
+      engine->core ? engine->core->processing_params : NULL;
   pthread_mutex_unlock((pthread_mutex_t*)&engine->state_mutex);
   return res;
 }
@@ -775,7 +779,8 @@ static const dsp_config_t* iface_get_active_config(void* ctx) {
   if (!ctx) return NULL;
   return dsp_engine_get_active_config((dsp_engine_t*)ctx);
 }
-static void iface_set_fader_volume(void* ctx, fader_t fader, float db, bool instant) {
+static void iface_set_fader_volume(void* ctx, fader_t fader, float db,
+                                   bool instant) {
   if (ctx) dsp_engine_set_fader_volume((dsp_engine_t*)ctx, fader, db, instant);
 }
 static void iface_set_fader_mute(void* ctx, fader_t fader, bool mute) {
@@ -798,17 +803,20 @@ static void iface_set_config_path(void* ctx, const char* path) {
 /**
  * @brief Checks if the running audio threads have requested the engine to stop.
  *
- * Querying the atomic flag `should_stop` from the core's shared state informs the main engine
- * thread that a thread has failed (e.g. buffer underrun/overrun, device disconnected, etc.)
- * and the engine needs to halt processing.
+ * Querying the atomic flag `should_stop` from the core's shared state informs
+ * the main engine thread that a thread has failed (e.g. buffer
+ * underrun/overrun, device disconnected, etc.) and the engine needs to halt
+ * processing.
  *
  * @param engine Pointer to the dsp_engine_t instance.
  * @param out_reason Pointer to write the stop reason details into (optional).
  * @return true if a stop has been requested, false otherwise.
  */
-static bool dsp_engine_check_stop_requested(dsp_engine_t* engine, processing_stop_reason_t* out_reason) {
+static bool dsp_engine_check_stop_requested(
+    dsp_engine_t* engine, processing_stop_reason_t* out_reason) {
   if (!engine || !engine->core || !engine->core->shared) return false;
-  bool req = atomic_load_explicit(&engine->core->shared->should_stop, memory_order_acquire);
+  bool req = atomic_load_explicit(&engine->core->shared->should_stop,
+                                  memory_order_acquire);
   if (req && out_reason) {
     *out_reason = engine->core->shared->stop_reason;
   }
@@ -837,13 +845,15 @@ void dsp_engine_set_state_file(dsp_engine_t* engine, const char* path) {
 static const char* dsp_engine_get_state_file(const dsp_engine_t* engine) {
   if (!engine) return NULL;
   pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
-  const char* path = engine->has_state_file_path ? engine->state_file_path : NULL;
+  const char* path =
+      engine->has_state_file_path ? engine->state_file_path : NULL;
   pthread_mutex_unlock((pthread_mutex_t*)&engine->state_mutex);
   return path;
 }
 
 /**
- * @brief Thread-safe check to see if there are unsaved state changes (dirty flag).
+ * @brief Thread-safe check to see if there are unsaved state changes (dirty
+ * flag).
  *
  * @param engine Pointer to the dsp_engine_t instance.
  * @return true if there are unsaved fader/config path updates, false otherwise.
@@ -873,7 +883,8 @@ void dsp_engine_set_config_path(dsp_engine_t* engine, const char* path) {
   if (!engine) return;
   pthread_mutex_lock(&engine->state_mutex);
   if (path && path[0]) {
-    strncpy(engine->active_config_path, path, sizeof(engine->active_config_path) - 1);
+    strncpy(engine->active_config_path, path,
+            sizeof(engine->active_config_path) - 1);
     engine->has_active_config_path = true;
   } else {
     engine->active_config_path[0] = '\0';
@@ -887,7 +898,8 @@ void dsp_engine_set_config_path(dsp_engine_t* engine, const char* path) {
  * @brief Thread-safe getter for the active configuration file path.
  *
  * @param engine Pointer to the dsp_engine_t instance.
- * @return An allocated copy of the active config path, or NULL. Must be freed by caller.
+ * @return An allocated copy of the active config path, or NULL. Must be freed
+ * by caller.
  */
 static char* dsp_engine_get_config_path(const dsp_engine_t* engine) {
   if (!engine) return NULL;
@@ -909,9 +921,10 @@ void dsp_engine_poll(dsp_engine_t* engine) {
   }
   pthread_mutex_unlock(&engine->state_mutex);
 
-  // 1. Process asynchronous stop requests from the loop threads (e.g. ALSA errors).
-  // If the background thread encountered a fatal error and requested a stop, we stop and free
-  // the core resources here on the main controller thread.
+  // 1. Process asynchronous stop requests from the loop threads (e.g. ALSA
+  // errors). If the background thread encountered a fatal error and requested a
+  // stop, we stop and free the core resources here on the main controller
+  // thread.
   pthread_mutex_lock(&engine->state_mutex);
   processing_stop_reason_t stop_reason;
   if (dsp_engine_check_stop_requested(engine, &stop_reason)) {
@@ -920,8 +933,9 @@ void dsp_engine_poll(dsp_engine_t* engine) {
   pthread_mutex_unlock(&engine->state_mutex);
 
   // 2. State persistence serialization:
-  // If any fader positions or configuration path values have changed since the last poll,
-  // serialize them to the configured state file so the state is restored on engine restart.
+  // If any fader positions or configuration path values have changed since the
+  // last poll, serialize them to the configured state file so the state is
+  // restored on engine restart.
   pthread_mutex_lock(&engine->state_mutex);
   bool dirty = engine->unsaved_state_changes;
   bool has_state = engine->has_state_file_path;

@@ -335,8 +335,8 @@ static void* worker_thread_func(void* arg) {
       // Extract the record from the slot matching the current read index.
       size_t slot = (size_t)(r & logger->mask);
       log_record_t rec = logger->storage[slot];
-      // Increment the read index with release semantics to signal to the producer
-      // that this slot has been processed.
+      // Increment the read index with release semantics to signal to the
+      // producer that this slot has been processed.
       atomic_store_explicit(&logger->read_index, r + 1, memory_order_release);
 
       const char* lvl_str = "INFO";
@@ -419,11 +419,12 @@ void app_logger_log(app_logger_t* logger, log_level_t level, const char* label,
   // latest reads completed by the background worker.
   uint64_t w = atomic_load_explicit(&logger->write_index, memory_order_relaxed);
   uint64_t r = atomic_load_explicit(&logger->read_index, memory_order_acquire);
-  if (w - r >= logger->capacity) return; // Drop log if full (non-blocking)
+  if (w - r >= logger->capacity) return;  // Drop log if full (non-blocking)
 
   // Populate slot. Note: if string args are pointers to temporary stack,
-  // this can cause issues. User of the logger should pass static or heap-allocated strings,
-  // or strings that survive the background log processing.
+  // this can cause issues. User of the logger should pass static or
+  // heap-allocated strings, or strings that survive the background log
+  // processing.
   size_t slot = (size_t)(w & logger->mask);
   logger->storage[slot].level = level;
   logger->storage[slot].label = label;

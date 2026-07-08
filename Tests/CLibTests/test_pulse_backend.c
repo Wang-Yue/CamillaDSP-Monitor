@@ -16,7 +16,8 @@ TEST(PulsePlaybackBasic) {
   play_cfg.type = AUDIO_BACKEND_TYPE_PULSE_AUDIO;
   play_cfg.cfg.pulse.channels = 2;
   // use default device
-  snprintf(play_cfg.cfg.pulse.device, sizeof(play_cfg.cfg.pulse.device), "default");
+  snprintf(play_cfg.cfg.pulse.device, sizeof(play_cfg.cfg.pulse.device),
+           "default");
 
   backend_error_t err;
   playback_backend_t* playback =
@@ -55,7 +56,8 @@ TEST(PulseCaptureBasic) {
   memset(&cap_cfg, 0, sizeof(cap_cfg));
   cap_cfg.type = AUDIO_BACKEND_TYPE_PULSE_AUDIO;
   cap_cfg.cfg.pulse.channels = 2;
-  snprintf(cap_cfg.cfg.pulse.device, sizeof(cap_cfg.cfg.pulse.device), "default");
+  snprintf(cap_cfg.cfg.pulse.device, sizeof(cap_cfg.cfg.pulse.device),
+           "default");
 
   backend_error_t err;
   capture_backend_t* capture =

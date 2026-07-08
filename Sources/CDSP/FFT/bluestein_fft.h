@@ -57,7 +57,8 @@ typedef struct bluestein_fft bluestein_fft_t;
 bluestein_fft_t* bluestein_fft_create(size_t n);
 
 /**
- * @brief Computes the N-point DFT (forward or inverse) using Bluestein's algorithm.
+ * @brief Computes the N-point DFT (forward or inverse) using Bluestein's
+ * algorithm.
  *
  * Computes the unnormalised forward DFT
  *   `X[k] = Σₙ x[n] · exp(-2πi · n · k / N)`
@@ -90,7 +91,8 @@ void bluestein_fft_execute(bluestein_fft_t* fft, waveform_t real_in,
 void bluestein_fft_free(bluestein_fft_t* fft);
 
 /**
- * @brief Casts a Bluestein FFT context to a generic arbitrary complex FFT context.
+ * @brief Casts a Bluestein FFT context to a generic arbitrary complex FFT
+ * context.
  *
  * @param fft The Bluestein FFT context.
  * @return A pointer to the arbitrary_complex_fft_t context.

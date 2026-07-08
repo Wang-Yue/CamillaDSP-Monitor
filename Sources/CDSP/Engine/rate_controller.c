@@ -106,8 +106,9 @@ double pi_rate_controller_next(pi_rate_controller_t* pi, double level) {
 
   // Smooth target transition (ramp-in) to handle large level deviations.
   // If the relative error exceeds `ramp_trigger_limit`, we trigger a ramp
-  // starting from the current level and ending at target_level over `ramp_steps` intervals.
-  // This prevents step-response shocks and reduces audible pitch changes.
+  // starting from the current level and ending at target_level over
+  // `ramp_steps` intervals. This prevents step-response shocks and reduces
+  // audible pitch changes.
   if (pi->ramp_step >= pi->ramp_steps &&
       fabs((pi->target_level - level) / pi->target_level) >
           pi->ramp_trigger_limit) {
@@ -204,7 +205,8 @@ bool averager_get_average(const averager_t* avg, double* out_val) {
  *
  * Uses low-overhead, system-specific API to get the monotonic time.
  * Under Darwin/macOS, it uses `clock_gettime_nsec_np` with `CLOCK_UPTIME_RAW`.
- * Under Linux, it falls back to standard POSIX `clock_gettime` with `CLOCK_MONOTONIC`.
+ * Under Linux, it falls back to standard POSIX `clock_gettime` with
+ * `CLOCK_MONOTONIC`.
  *
  * @return The current monotonic time in nanoseconds.
  */

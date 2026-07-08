@@ -22,10 +22,10 @@
  * @brief Pipeline error codes.
  */
 typedef enum {
-  PIPELINE_OK = 0,                             ///< No error.
-  PIPELINE_ERR_INPUT_SIZE_MISMATCH = -1,       ///< Input size mismatch.
-  PIPELINE_ERR_OUTPUT_BUFFER_TOO_SMALL = -2,   ///< Output buffer too small.
-  PIPELINE_ERR_CHANNEL_COUNT_MISMATCH = -3     ///< Channel count mismatch.
+  PIPELINE_OK = 0,                            ///< No error.
+  PIPELINE_ERR_INPUT_SIZE_MISMATCH = -1,      ///< Input size mismatch.
+  PIPELINE_ERR_OUTPUT_BUFFER_TOO_SMALL = -2,  ///< Output buffer too small.
+  PIPELINE_ERR_CHANNEL_COUNT_MISMATCH = -3    ///< Channel count mismatch.
 } pipeline_error_t;
 
 struct pipeline_s;
@@ -39,8 +39,10 @@ typedef struct pipeline_s pipeline_t;
  *
  * @param[in] config The DSP configuration to initialize the pipeline with.
  * @param[in,out] proc_params Processing parameters.
- * @param[in] explicit_chunk_size Explicit chunk size, or 0 to use config default.
- * @param[out] err Pointer to a config error struct to receive error details on failure.
+ * @param[in] explicit_chunk_size Explicit chunk size, or 0 to use config
+ * default.
+ * @param[out] err Pointer to a config error struct to receive error details on
+ * failure.
  * @return Pointer to the created pipeline, or NULL on failure.
  */
 pipeline_t* pipeline_create(const dsp_config_t* config,

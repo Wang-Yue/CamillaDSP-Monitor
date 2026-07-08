@@ -24,13 +24,15 @@
 
 /**
  * @typedef mutable_waveform_t
- * @brief A high-performance descriptive view of a single channel's mutable buffer pointer.
+ * @brief A high-performance descriptive view of a single channel's mutable
+ * buffer pointer.
  */
 typedef double* mutable_waveform_t;
 
 /**
  * @typedef waveform_t
- * @brief A high-performance descriptive view of a single channel's buffer pointer.
+ * @brief A high-performance descriptive view of a single channel's buffer
+ * pointer.
  */
 typedef const double* waveform_t;
 
@@ -147,7 +149,8 @@ static inline void dsp_ops_multiply(waveform_t a, mutable_waveform_t b,
 }
 
 /**
- * @brief Multiply-accumulate: `accumulator[i] += a[i] * scalar` for `i < count`.
+ * @brief Multiply-accumulate: `accumulator[i] += a[i] * scalar` for `i <
+ * count`.
  *
  * @param a Input vector.
  * @param scalar The scalar multiplier.
@@ -170,7 +173,8 @@ static inline void dsp_ops_multiply_add(waveform_t a, double scalar,
 }
 
 /**
- * @brief Find peak absolute value across the first `count` samples of the buffer.
+ * @brief Find peak absolute value across the first `count` samples of the
+ * buffer.
  *
  * @param buffer Input vector.
  * @param count Number of elements to process.

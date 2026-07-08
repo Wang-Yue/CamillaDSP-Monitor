@@ -6,9 +6,12 @@
  * device handles, the three audio threads — but contains no audio
  * processing logic itself. Each thread body lives in its own file:
  *
- *   - `EngineCaptureLoop`     - capture -> DoP-decode -> level meter -> SPSC queue.
- *   - `EngineProcessingLoop`  - SPSC dequeue -> resample -> pipeline -> SPSC enqueue.
- *   - `EnginePlaybackLoop`    - SPSC dequeue -> rate-adjust controller -> device write.
+ *   - `EngineCaptureLoop`     - capture -> DoP-decode -> level meter -> SPSC
+ * queue.
+ *   - `EngineProcessingLoop`  - SPSC dequeue -> resample -> pipeline -> SPSC
+ * enqueue.
+ *   - `EnginePlaybackLoop`    - SPSC dequeue -> rate-adjust controller ->
+ * device write.
  *
  * All cross-thread state (the stop flag, the SPSC queues, the
  * resampler-ratio atomic) lives in `EngineSharedState`. State

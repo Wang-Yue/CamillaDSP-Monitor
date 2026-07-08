@@ -12,7 +12,8 @@ struct audio_history_buffer {
   float* averaging_scratch;
 };
 
-size_t audio_history_buffer_get_channels(const audio_history_buffer_t* history) {
+size_t audio_history_buffer_get_channels(
+    const audio_history_buffer_t* history) {
   return history ? history->channels : 0;
 }
 #include <string.h>
@@ -119,7 +120,8 @@ audio_history_buffer_status_t audio_history_buffer_read_latest(
       min_written = w;
     }
   }
-  // If we haven't even written 'count' samples yet overall, we can't satisfy the request.
+  // If we haven't even written 'count' samples yet overall, we can't satisfy
+  // the request.
   if (min_written == UINT64_MAX || min_written < (uint64_t)count) {
     return AUDIO_HISTORY_BUFFER_OK;
   }
@@ -148,13 +150,15 @@ audio_history_buffer_status_t audio_history_buffer_read_latest(
     return AUDIO_HISTORY_BUFFER_OK;
   }
 
-  // Step 2: Read subsequent channels into scratch memory and accumulate into dest.
+  // Step 2: Read subsequent channels into scratch memory and accumulate into
+  // dest.
   for (size_t ch = 1; ch < history->channels; ch++) {
     ok = spsc_audio_ring_buffer_read_latest_at(
         history->buffers[ch], history->averaging_scratch, count, min_written);
     if (!ok) return AUDIO_HISTORY_BUFFER_OK;
 #ifdef ENABLE_ACCELERATE
-    // Use Apple's Accelerate framework for hardware-accelerated vector addition.
+    // Use Apple's Accelerate framework for hardware-accelerated vector
+    // addition.
     vDSP_vadd(dest, 1, history->averaging_scratch, 1, dest, 1, count);
 #else
     // Fallback naive loop if Accelerate is not available.

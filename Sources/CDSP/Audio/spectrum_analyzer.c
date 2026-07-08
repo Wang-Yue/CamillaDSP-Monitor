@@ -185,10 +185,11 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
 
   // 3. Compute magnitudes in dBFS directly into preallocated arrays
   float scale = 2.0f / (float)analyzer->fft_n;
-  float floor_val = 1e-10f; // Threshold to prevent log10(0)
+  float floor_val = 1e-10f;  // Threshold to prevent log10(0)
 
 #ifdef ENABLE_ACCELERATE
-  // Calculate magnitudes of complex bins [1 .. half_n - 1] via vector absolute value
+  // Calculate magnitudes of complex bins [1 .. half_n - 1] via vector absolute
+  // value
   DSPSplitComplex split_complex1 = {analyzer->realp + 1, analyzer->imagp + 1};
   vDSP_zvabs(&split_complex1, 1, analyzer->magnitudes + 1, 1,
              (vDSP_Length)(half_n - 1));
@@ -228,7 +229,8 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
 #endif
 
   // 4. Geometric Binning via Cached Plan
-  // Reallocate buffers if the requested number of bins exceeds current capacity.
+  // Reallocate buffers if the requested number of bins exceeds current
+  // capacity.
   if (n_bins > analyzer->out_capacity) {
     size_t new_cap = spsc_audio_ring_buffer_round_up_to_power_of_two(n_bins);
     float* new_freqs =
@@ -290,7 +292,8 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   }
 
   // Map FFT magnitudes to the output bins.
-  // For each output bin, we take the maximum magnitude within its mapped FFT bin range.
+  // For each output bin, we take the maximum magnitude within its mapped FFT
+  // bin range.
   for (size_t i = 0; i < n_bins; i++) {
     bin_range_t range = analyzer->plan.ranges[i];
     int start = range.low_k > 0 ? range.low_k : 0;
@@ -310,8 +313,8 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
 #endif
       analyzer->out_magnitudes[i] = max_val;
     } else {
-      // If the range doesn't cover any FFT bin (e.g. low frequencies with small FFT),
-      // fallback to the nearest FFT bin.
+      // If the range doesn't cover any FFT bin (e.g. low frequencies with small
+      // FFT), fallback to the nearest FFT bin.
       int k = range.nearest_k;
       if (k < 0) k = 0;
       if (k > (int)half_n) k = (int)half_n;

@@ -47,16 +47,18 @@ struct engine_playback_loop {
 };
 
 /**
- * @brief Applies the calculated speed adjustment to the audio device or resampler.
+ * @brief Applies the calculated speed adjustment to the audio device or
+ * resampler.
  *
- * This function compares the new speed with the last applied speed. If the change
- * is greater than 1 ppm (part per million), it updates the speed. Depending on backend
- * capabilities, it sets the pitch on the capture backend, the playback backend, or
- * updates the resampler ratio in the shared state.
+ * This function compares the new speed with the last applied speed. If the
+ * change is greater than 1 ppm (part per million), it updates the speed.
+ * Depending on backend capabilities, it sets the pitch on the capture backend,
+ * the playback backend, or updates the resampler ratio in the shared state.
  *
  * @param loop Pointer to the playback loop structure.
  * @param speed The new speed ratio to apply.
- * @param last_speed Pointer to the last applied speed ratio (updated if changed).
+ * @param last_speed Pointer to the last applied speed ratio (updated if
+ * changed).
  * @param average The average buffer level, used for logging.
  */
 static void apply_speed(engine_playback_loop_t* loop, double speed,

@@ -18,7 +18,8 @@
 /**
  * @brief Enumerate available WASAPI devices and return count.
  *
- * @param is_capture True to enumerate capture devices, false for playback devices.
+ * @param is_capture True to enumerate capture devices, false for playback
+ * devices.
  * @param out_names 2D array to store the names of the devices.
  * @param max_names Maximum number of names to store in out_names.
  * @return The number of devices found, or a negative value on error.

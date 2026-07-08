@@ -32,7 +32,7 @@
  * @brief CoreAudio capture backend for macOS.
  *
  * This backend handles audio capture from CoreAudio devices.
- * 
+ *
  * @note Real-time discipline:
  * The render callback runs on a high-priority audio thread driven by CoreAudio.
  * It is forbidden to take locks, allocate, or call functions that might block.

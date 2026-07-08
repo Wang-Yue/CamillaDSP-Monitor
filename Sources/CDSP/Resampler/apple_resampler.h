@@ -59,8 +59,8 @@ void apple_resampler_free(apple_resampler_t* resampler);
  *
  * @param resampler Pointer to the resampler.
  * @param input Pointer to the input audio chunk.
- * @param output Pointer to the output audio chunk where resampled data will be written.
- *               The output chunk must have sufficient capacity.
+ * @param output Pointer to the output audio chunk where resampled data will be
+ * written. The output chunk must have sufficient capacity.
  * @return RESAMPLER_SUCCESS on success, or an error code on failure.
  */
 resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
@@ -79,7 +79,8 @@ void apple_resampler_set_relative_ratio(apple_resampler_t* resampler,
                                         double multiplier);
 
 /**
- * @brief Gets the current effective resampling ratio (output_rate / input_rate).
+ * @brief Gets the current effective resampling ratio (output_rate /
+ * input_rate).
  *
  * @param resampler Pointer to the resampler.
  * @return The effective resampling ratio.
@@ -87,7 +88,8 @@ void apple_resampler_set_relative_ratio(apple_resampler_t* resampler,
 double apple_resampler_get_ratio(const apple_resampler_t* resampler);
 
 /**
- * @brief Gets the maximum number of output frames that can be generated for a chunk.
+ * @brief Gets the maximum number of output frames that can be generated for a
+ * chunk.
  *
  * @param resampler Pointer to the resampler.
  * @return The maximum number of output frames.

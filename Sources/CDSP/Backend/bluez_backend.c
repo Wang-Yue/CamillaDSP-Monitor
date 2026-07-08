@@ -56,9 +56,11 @@ static size_t get_sample_size(binary_sample_format_t format) {
 }
 
 /**
- * @brief Helper function to decode a raw sample of a given format into a double.
+ * @brief Helper function to decode a raw sample of a given format into a
+ * double.
  *
- * Decodes little-endian samples of various formats, scaling them to the range [-1.0, 1.0].
+ * Decodes little-endian samples of various formats, scaling them to the range
+ * [-1.0, 1.0].
  *
  * @param src Pointer to the raw bytes of the sample.
  * @param format The binary sample format.
@@ -138,7 +140,8 @@ static void vtable_bluez_close(void* ctx) {
 }
 
 /**
- * @brief VTable callback to check if there is a pending sample rate change request.
+ * @brief VTable callback to check if there is a pending sample rate change
+ * request.
  */
 static bool vtable_bluez_get_pending_rate_change(void* ctx, double* out_rate) {
   (void)ctx;
@@ -260,7 +263,8 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
-  // Send a synchronous method call to BlueALSA to request opening the PCM stream.
+  // Send a synchronous method call to BlueALSA to request opening the PCM
+  // stream.
   DBusMessage* msg = dbus_message_new_method_call(
       capture->service, capture->dbus_path, "org.bluealsa.PCM1", "Open");
   if (!msg) {
@@ -313,7 +317,8 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
   capture->pipe_fd = dup(pipe_fd);
   capture->ctrl_fd = dup(ctrl_fd);
 
-  // Set O_NONBLOCK to prevent read operations from hanging the thread if there is a delay.
+  // Set O_NONBLOCK to prevent read operations from hanging the thread if there
+  // is a delay.
   int flags = fcntl(capture->pipe_fd, F_GETFL, 0);
   fcntl(capture->pipe_fd, F_SETFL, flags | O_NONBLOCK);
 
@@ -330,7 +335,8 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
     return false;
   }
 
-  // Calculate the exact number of bytes needed for the requested number of frames.
+  // Calculate the exact number of bytes needed for the requested number of
+  // frames.
   size_t sample_size = get_sample_size(capture->format);
   size_t required_bytes = frames * capture->channels * sample_size;
 
@@ -349,7 +355,7 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
     pfd.events = POLLIN;
     int res = poll(&pfd, 1, 1000);
     if (res < 0) {
-      if (errno == EINTR) continue; // Interrupted by signal, retry.
+      if (errno == EINTR) continue;  // Interrupted by signal, retry.
       if (err)
         backend_error_init(err, BACKEND_ERROR_READ_ERROR,
                            "Bluez read poll failed");
@@ -365,7 +371,7 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
                      required_bytes - bytes_read);
     if (n < 0) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        continue; // No data available yet, poll again.
+        continue;  // No data available yet, poll again.
       }
       if (err)
         backend_error_init(err, BACKEND_ERROR_READ_ERROR,

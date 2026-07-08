@@ -54,7 +54,6 @@ struct engine_processing_loop {
   void* on_chunk_processed_ctx;
 };
 
-
 #include <string.h>
 #include <time.h>
 
@@ -67,7 +66,8 @@ struct engine_processing_loop {
 /**
  * @brief Helper to get the current time in nanoseconds for non-Apple platforms.
  *
- * Provides an equivalent to Apple's clock_gettime_nsec_np for measuring elapsed time.
+ * Provides an equivalent to Apple's clock_gettime_nsec_np for measuring elapsed
+ * time.
  *
  * @param clock_id The clock identifier to use (e.g., CLOCK_MONOTONIC).
  * @return The current time in nanoseconds.
@@ -84,11 +84,9 @@ engine_processing_loop_t* engine_processing_loop_create(
     processing_parameters_t* processing_params, size_t pipeline_rate,
     audio_resampler_t* resampler, pipeline_t* pipeline,
     dop_encoder_t* dop_encoder, audio_chunk_t* resampler_scratch,
-    audio_chunk_t* pipeline_scratch,
-    round_robin_chunk_pool_t* scratch_pool,
-    chunk_callback_t on_chunk_captured,
-    void* on_chunk_captured_ctx, chunk_callback_t on_chunk_processed,
-    void* on_chunk_processed_ctx) {
+    audio_chunk_t* pipeline_scratch, round_robin_chunk_pool_t* scratch_pool,
+    chunk_callback_t on_chunk_captured, void* on_chunk_captured_ctx,
+    chunk_callback_t on_chunk_processed, void* on_chunk_processed_ctx) {
   engine_processing_loop_t* loop =
       (engine_processing_loop_t*)calloc(1, sizeof(engine_processing_loop_t));
   if (!loop) return NULL;
@@ -137,8 +135,6 @@ void engine_processing_loop_set_pipeline(engine_processing_loop_t* loop,
   }
 }
 
-
-
 void engine_processing_loop_run(engine_processing_loop_t* loop) {
   if (!loop) return;
   logger_t logger = logger_create("dsp.processing");
@@ -148,9 +144,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
   set_realtime_thread_priority("Processing",
                                audio_chunk_get_frames(loop->pipeline_scratch),
                                loop->pipeline_rate);
-
-
-
 
   while (
       !atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
@@ -169,8 +162,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
                                memory_order_acquire)) {
         return;
       }
-
-
 
       uint64_t res_start = 0;
       uint64_t res_end = 0;
@@ -217,7 +208,8 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
           (pipeline_t*)spsc_queue_dequeue(loop->pipeline_queue);
       if (next_pipeline) {
         if (loop->active_pipeline) {
-          if (!spsc_queue_enqueue(loop->shared->pipeline_garbage_queue, loop->active_pipeline)) {
+          if (!spsc_queue_enqueue(loop->shared->pipeline_garbage_queue,
+                                  loop->active_pipeline)) {
             pipeline_free(loop->active_pipeline);
           }
         }
@@ -230,8 +222,8 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       }
 
       // Retrieve a pre-allocated scratch chunk from the round-robin pool.
-      // We must use a pool because the pipeline output chunk is passed down the queue
-      // to the playback thread, and we cannot reuse it immediately.
+      // We must use a pool because the pipeline output chunk is passed down the
+      // queue to the playback thread, and we cannot reuse it immediately.
       audio_chunk_t* current_scratch =
           round_robin_chunk_pool_next(loop->scratch_pool);
       uint64_t pipe_start = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -276,8 +268,8 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
           }
         }
 
-        // Scan the output chunk for clipped samples (outside [-1.0, 1.0] range).
-        // This is done before DoP encoding.
+        // Scan the output chunk for clipped samples (outside [-1.0, 1.0]
+        // range). This is done before DoP encoding.
         size_t channels = audio_chunk_get_channels(chunk);
         size_t c_frames = audio_chunk_get_valid_frames(chunk);
         uint64_t clipped = 0;
@@ -320,7 +312,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       engine_sem_signal(loop->shared->processed_semaphore);
     }
   }
-
 
   logger_info(&logger, "Processing thread stopped", log_arg_none(),
               log_arg_none(), log_arg_none(), log_arg_none());

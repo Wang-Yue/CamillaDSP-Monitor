@@ -29,7 +29,8 @@ typedef struct volume_filter volume_filter_t;
  * @param sample_rate The sample rate of the audio processing path.
  * @param chunk_size The maximum size of an audio chunk in frames.
  * @param proc_params Pointer to shared processing parameters.
- * @return A pointer to the newly created volume_filter_t instance, or NULL on failure.
+ * @return A pointer to the newly created volume_filter_t instance, or NULL on
+ * failure.
  */
 volume_filter_t* volume_filter_create(const char* name,
                                       const volume_parameters_t* params,
@@ -37,10 +38,11 @@ volume_filter_t* volume_filter_create(const char* name,
                                       processing_parameters_t* proc_params);
 
 /**
- * @brief Pre-calculates target volume levels and generates ramping array once per chunk.
+ * @brief Pre-calculates target volume levels and generates ramping array once
+ * per chunk.
  *
- * This function must be called once per audio chunk before processing individual
- * channel waveforms.
+ * This function must be called once per audio chunk before processing
+ * individual channel waveforms.
  *
  * @param filter Pointer to the volume filter instance.
  */

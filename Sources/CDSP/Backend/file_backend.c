@@ -15,7 +15,7 @@
 
 /**
  * @brief Helper to get monotonic time in nanoseconds.
- * 
+ *
  * @return Monotonic time in nanoseconds.
  */
 static uint64_t get_time_ns(void) {
@@ -69,7 +69,7 @@ typedef struct {
 
 /**
  * @brief Get the size in bytes of a sample for a given format.
- * 
+ *
  * @param format The binary sample format.
  * @return Size in bytes, or 0 if format is invalid.
  */
@@ -96,10 +96,11 @@ static size_t get_sample_size(binary_sample_format_t format) {
 
 /**
  * @brief Parse WAV header from a file.
- * 
+ *
  * Extracts sample rate, channels, format, and data chunk size/offset.
- * Handles files where the 'data' chunk is not immediately after the 'fmt ' chunk.
- * 
+ * Handles files where the 'data' chunk is not immediately after the 'fmt '
+ * chunk.
+ *
  * @param f File pointer.
  * @param info Output structure to store parsed WAV info.
  * @param err_msg Output buffer for error message if parsing fails.
@@ -194,9 +195,9 @@ static bool parse_wav_header(FILE* f, wav_info_t* info, char* err_msg,
 
 /**
  * @brief Write a standard 44-byte WAV header to the file.
- * 
+ *
  * Used for file playback when WAV header is requested.
- * 
+ *
  * @param f File pointer.
  * @param channels Number of channels.
  * @param format Sample format.
@@ -253,9 +254,9 @@ static void write_wav_header_to_file(FILE* f, size_t channels,
 
 /**
  * @brief Decode a binary sample to double in range [-1.0, 1.0].
- * 
+ *
  * Handles sign extension for 24-bit formats.
- * 
+ *
  * @param src Pointer to the binary sample data.
  * @param format The sample format.
  * @return Decoded sample value as a double.
@@ -304,9 +305,9 @@ static inline double decode_sample(const uint8_t* src,
 
 /**
  * @brief Encode a double sample in range [-1.0, 1.0] to binary format.
- * 
+ *
  * Clips values outside [-1.0, 1.0].
- * 
+ *
  * @param dst Pointer to destination buffer.
  * @param value The double sample value.
  * @param format The target sample format.
@@ -607,8 +608,8 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
 
   // Check EOF and generate extra samples if configured
   // If we read fewer frames than requested (e.g., EOF), and we have configured
-  // extra samples to generate, append silence up to the requested number of frames
-  // or until the extra samples limit is reached.
+  // extra samples to generate, append silence up to the requested number of
+  // frames or until the extra samples limit is reached.
   if (frames_read < frames) {
     size_t remaining_frames = frames - frames_read;
     size_t extra_to_generate =

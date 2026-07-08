@@ -16,7 +16,8 @@
  * @def AUDIO_HISTORY_BUFFER_CAPACITY
  * @brief Maximum number of frames retained per channel.
  *
- * At 48 kHz that's roughly 5.5 s of audio — enough headroom for an FFT down to ~5 Hz.
+ * At 48 kHz that's roughly 5.5 s of audio — enough headroom for an FFT down to
+ * ~5 Hz.
  */
 #define AUDIO_HISTORY_BUFFER_CAPACITY 262144
 
@@ -24,13 +25,15 @@
  * @enum audio_history_buffer_status
  * @brief Status codes returned by @ref audio_history_buffer_read_latest.
  *
- * The buffer is general-purpose (used by spectrum analysis *and* level/sample queries),
- * so it owns its own error/status type rather than borrowing from the spectrum analyzer.
+ * The buffer is general-purpose (used by spectrum analysis *and* level/sample
+ * queries), so it owns its own error/status type rather than borrowing from the
+ * spectrum analyzer.
  */
 typedef enum {
   /** Success. */
   AUDIO_HISTORY_BUFFER_OK = 0,
-  /** @ref audio_history_buffer_reset has not been called, or was called with `0`. */
+  /** @ref audio_history_buffer_reset has not been called, or was called with
+     `0`. */
   AUDIO_HISTORY_BUFFER_ERROR_EMPTY = -1,
   /** Caller asked for a channel index outside `0..<channels`. */
   AUDIO_HISTORY_BUFFER_ERROR_OUT_OF_RANGE = -2
@@ -41,9 +44,9 @@ typedef enum {
  * @brief Owns one @ref spsc_audio_ring_buffer_t per channel.
  *
  * Resized only between engine starts, when no audio thread is running.
- * Read by consumers via @ref audio_history_buffer_read_latest (snapshot semantics
- * — same window can be re-read for FFTs at different lengths), optionally
- * averaging across channels.
+ * Read by consumers via @ref audio_history_buffer_read_latest (snapshot
+ * semantics — same window can be re-read for FFTs at different lengths),
+ * optionally averaging across channels.
  */
 typedef struct audio_history_buffer audio_history_buffer_t;
 
@@ -57,7 +60,8 @@ audio_history_buffer_t* audio_history_buffer_create(void);
 /**
  * @brief Re-allocate buffers for a new channel layout.
  *
- * Must only be called while the engine is stopped (no producer touching the ring).
+ * Must only be called while the engine is stopped (no producer touching the
+ * ring).
  *
  * @param history Pointer to the history buffer.
  * @param channels Number of channels to allocate.

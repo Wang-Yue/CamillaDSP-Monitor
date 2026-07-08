@@ -26,4 +26,3 @@ extern pthread_mutex_t g_alsa_mutex;
 #endif  // ENABLE_ALSA
 
 #endif  // CLIB_BACKEND_ALSA_DEVICE_H
-

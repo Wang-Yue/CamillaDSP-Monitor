@@ -47,8 +47,9 @@ struct complex_inner_real_fft {
 /**
  * @brief Wrapper for the forward FFT implementation.
  *
- * This function conforms to the signature required by the real_fft_backend_t interface.
- * It casts the context pointer back to complex_inner_real_fft_t and calls the actual forward function.
+ * This function conforms to the signature required by the real_fft_backend_t
+ * interface. It casts the context pointer back to complex_inner_real_fft_t and
+ * calls the actual forward function.
  *
  * @param ctx Pointer to the complex_inner_real_fft_t context.
  * @param real_in Input real waveform.
@@ -66,8 +67,9 @@ static void complex_inner_real_fft_forward_wrapper(void* ctx,
 /**
  * @brief Wrapper for the inverse FFT implementation.
  *
- * This function conforms to the signature required by the real_fft_backend_t interface.
- * It casts the context pointer back to complex_inner_real_fft_t and calls the actual inverse function.
+ * This function conforms to the signature required by the real_fft_backend_t
+ * interface. It casts the context pointer back to complex_inner_real_fft_t and
+ * calls the actual inverse function.
  *
  * @param ctx Pointer to the complex_inner_real_fft_t context.
  * @param spec_re Input real part of the spectrum.
@@ -84,8 +86,9 @@ static void complex_inner_real_fft_inverse_wrapper(
 /**
  * @brief Wrapper for the free function.
  *
- * This function conforms to the signature required by the real_fft_backend_t interface.
- * It casts the context pointer back to complex_inner_real_fft_t and calls the actual free function.
+ * This function conforms to the signature required by the real_fft_backend_t
+ * interface. It casts the context pointer back to complex_inner_real_fft_t and
+ * calls the actual free function.
  *
  * @param ctx Pointer to the complex_inner_real_fft_t context.
  */

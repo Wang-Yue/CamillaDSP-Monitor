@@ -51,9 +51,9 @@ struct core_audio_playback {
 
 /**
  * @brief CoreAudio listener callback for device liveness.
- * 
- * Called by CoreAudio when the alive state of the device changes (e.g., disconnection).
- * Updates the internal atomic flag `is_device_alive`.
+ *
+ * Called by CoreAudio when the alive state of the device changes (e.g.,
+ * disconnection). Updates the internal atomic flag `is_device_alive`.
  *
  * @param inObjectID The AudioObjectID of the device.
  * @param inNumberAddresses The number of addresses in inAddresses.
@@ -84,11 +84,12 @@ static OSStatus playback_alive_listener_callback(
 
 /**
  * @brief CoreAudio render callback for playback.
- * 
+ *
  * This callback is called by the CoreAudio real-time thread to pull audio data
  * from the internal ring buffers and write it to the output device's buffers.
- * 
- * @note This function runs on a real-time thread. It must be wait-free and must not:
+ *
+ * @note This function runs on a real-time thread. It must be wait-free and must
+ * not:
  *       - Allocate or free memory.
  *       - Take locks (mutexes).
  *       - Call any blocking APIs.
@@ -337,9 +338,10 @@ bool core_audio_playback_open(core_audio_playback_t* playback,
         playback->did_acquire_hog_mode = true;
       }
     }
-    // Set the device format. If a specific sample format was requested, we try to find
-    // a matching physical format on the device. Otherwise, we just set the nominal
-    // sample rate and let the system handle format conversion if necessary.
+    // Set the device format. If a specific sample format was requested, we try
+    // to find a matching physical format on the device. Otherwise, we just set
+    // the nominal sample rate and let the system handle format conversion if
+    // necessary.
     bool physical_format_set = false;
     if (playback->has_sample_format) {
       if (core_audio_device_set_matching_physical_format(
@@ -394,9 +396,9 @@ bool core_audio_playback_open(core_audio_playback_t* playback,
   }
 
   // Configure the maximum frames per slice. This informs the AudioUnit of the
-  // maximum buffer size it will be asked to render. We check the device's actual
-  // buffer frame size to ensure we don't under-allocate if the device is configured
-  // for a larger buffer than our chunk size.
+  // maximum buffer size it will be asked to render. We check the device's
+  // actual buffer frame size to ensure we don't under-allocate if the device is
+  // configured for a larger buffer than our chunk size.
   UInt32 max_frames = (UInt32)playback->chunk_size;
   if (dev_id != 0) {
     uint32_t actual_size = 0;
@@ -455,9 +457,10 @@ bool core_audio_playback_write(core_audio_playback_t* playback,
   size_t frames = audio_chunk_get_valid_frames(chunk);
   if (frames == 0) return true;
 
-  int usable_channels = playback->channels < (int)audio_chunk_get_channels(chunk)
-                            ? playback->channels
-                            : (int)audio_chunk_get_channels(chunk);
+  int usable_channels =
+      playback->channels < (int)audio_chunk_get_channels(chunk)
+          ? playback->channels
+          : (int)audio_chunk_get_channels(chunk);
 
   // Wait for space to become available in the ring buffers for all channels.
   // This is a blocking wait from the writer's perspective, using a sleep loop

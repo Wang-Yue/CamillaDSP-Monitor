@@ -45,7 +45,8 @@ struct async_sinc_resampler;
 typedef struct async_sinc_resampler async_sinc_resampler_t;
 
 /**
- * @brief Creates an asynchronous windowed-sinc resampler with explicit parameters.
+ * @brief Creates an asynchronous windowed-sinc resampler with explicit
+ * parameters.
  *
  * @param channels Number of audio channels.
  * @param input_rate Input sample rate in Hz.
@@ -57,7 +58,8 @@ typedef struct async_sinc_resampler async_sinc_resampler_t;
  * @param f_cutoff Cutoff frequency.
  * @param has_f_cutoff Whether a custom cutoff frequency is used.
  * @param chunk_size Fixed number of input frames per process call.
- * @param max_relative_ratio Maximum relative ratio adjustment. Used for buffer pre-allocation.
+ * @param max_relative_ratio Maximum relative ratio adjustment. Used for buffer
+ * pre-allocation.
  * @return A new resampler instance, or NULL on failure.
  */
 async_sinc_resampler_t* async_sinc_resampler_create(
@@ -67,14 +69,16 @@ async_sinc_resampler_t* async_sinc_resampler_create(
     size_t chunk_size, double max_relative_ratio);
 
 /**
- * @brief Creates an asynchronous windowed-sinc resampler using a quality profile.
+ * @brief Creates an asynchronous windowed-sinc resampler using a quality
+ * profile.
  *
  * @param channels Number of audio channels.
  * @param input_rate Input sample rate in Hz.
  * @param output_rate Output sample rate in Hz.
  * @param profile Predefined quality profile (e.g. low, medium, high).
  * @param chunk_size Fixed number of input frames per process call.
- * @param max_relative_ratio Maximum relative ratio adjustment. Used for buffer pre-allocation.
+ * @param max_relative_ratio Maximum relative ratio adjustment. Used for buffer
+ * pre-allocation.
  * @return A new resampler instance, or NULL on failure.
  */
 async_sinc_resampler_t* async_sinc_resampler_create_from_profile(
@@ -118,7 +122,8 @@ void async_sinc_resampler_set_relative_ratio(async_sinc_resampler_t* resampler,
 double async_sinc_resampler_get_ratio(const async_sinc_resampler_t* resampler);
 
 /**
- * @brief Gets the maximum number of output frames that can be generated in one call.
+ * @brief Gets the maximum number of output frames that can be generated in one
+ * call.
  *
  * @param resampler The resampler instance.
  * @return The maximum output frame count.
@@ -145,4 +150,3 @@ size_t async_sinc_resampler_get_channels(
     const async_sinc_resampler_t* resampler);
 
 #endif  // CLIB_RESAMPLER_ASYNC_SINC_RESAMPLER_H
-

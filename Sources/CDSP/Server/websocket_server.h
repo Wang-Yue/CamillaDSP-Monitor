@@ -27,7 +27,8 @@ typedef struct websocket_server websocket_server_t;
  * @brief Interface for DSPEngine that WebSocketServer interacts with.
  *
  * This structure contains function pointers that allow the WebSocket server to
- * query status, get configurations, retrieve levels, and control the DSP engine.
+ * query status, get configurations, retrieve levels, and control the DSP
+ * engine.
  */
 typedef struct {
   /** Context pointer passed to all callback functions. */
@@ -217,7 +218,8 @@ struct websocket_server {
 websocket_server_t* websocket_server_create(uint16_t port, const char* host);
 
 /**
- * @brief Set the DSP engine interface for the WebSocket server to interact with.
+ * @brief Set the DSP engine interface for the WebSocket server to interact
+ * with.
  *
  * @param server Pointer to the WebSocket server.
  * @param engine Pointer to the DSP engine interface.
@@ -226,7 +228,8 @@ void websocket_server_set_engine(websocket_server_t* server,
                                  dsp_engine_interface_t* engine);
 
 /**
- * @brief Start the WebSocket server listening and processing connections in a background thread.
+ * @brief Start the WebSocket server listening and processing connections in a
+ * background thread.
  *
  * @param server Pointer to the WebSocket server.
  * @return true if the server started successfully, false otherwise.
@@ -234,7 +237,8 @@ void websocket_server_set_engine(websocket_server_t* server,
 bool websocket_server_start(websocket_server_t* server);
 
 /**
- * @brief Stop the WebSocket server, disconnect all clients, and join the server thread.
+ * @brief Stop the WebSocket server, disconnect all clients, and join the server
+ * thread.
  *
  * @param server Pointer to the WebSocket server.
  */
@@ -250,8 +254,8 @@ void websocket_server_free(websocket_server_t* server);
 // MARK: - Command Handler
 
 /**
- * @brief Handle a control command text (either simple quoted string or JSON object)
- * and populate out_response.
+ * @brief Handle a control command text (either simple quoted string or JSON
+ * object) and populate out_response.
  *
  * @param server Pointer to the WebSocket server.
  * @param client_idx The index of the client session that sent the command.

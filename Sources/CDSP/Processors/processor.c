@@ -34,7 +34,9 @@ void dsp_processor_process(dsp_processor_t* proc, audio_chunk_t* chunk) {
   }
 }
 
-void dsp_processor_update_parameters(dsp_processor_t* proc, const processor_config_t* config, int sample_rate) {
+void dsp_processor_update_parameters(dsp_processor_t* proc,
+                                     const processor_config_t* config,
+                                     int sample_rate) {
   if (proc && proc->update_parameters) {
     proc->update_parameters(proc, config, sample_rate);
   }
@@ -49,7 +51,6 @@ void dsp_processor_free(dsp_processor_t* proc) {
     proc->free(proc);
   }
 }
-
 
 #include <stdlib.h>
 #include <string.h>
@@ -81,7 +82,9 @@ static void comp_update(dsp_processor_t* self, const processor_config_t* config,
  * @return The name string, or empty string if implementation is NULL.
  */
 static const char* comp_get_name(const dsp_processor_t* self) {
-  return self->impl ? compressor_processor_get_name((compressor_processor_t*)self->impl) : "";
+  return self->impl ? compressor_processor_get_name(
+                          (compressor_processor_t*)self->impl)
+                    : "";
 }
 
 /**
@@ -94,13 +97,12 @@ static void comp_free(dsp_processor_t* self) {
   free(self);
 }
 
-
 dsp_processor_t* dsp_processor_wrap_compressor(compressor_processor_t* p) {
   if (!p) return NULL;
   dsp_processor_t* wrap = (dsp_processor_t*)calloc(1, sizeof(dsp_processor_t));
   if (!wrap) {
-    /* If wrapper allocation fails, ensure the passed processor instance is freed
-       to prevent resource leaks. */
+    /* If wrapper allocation fails, ensure the passed processor instance is
+       freed to prevent resource leaks. */
     compressor_processor_free(p);
     return NULL;
   }
@@ -140,7 +142,9 @@ static void gate_update(dsp_processor_t* self, const processor_config_t* config,
  * @return The name string, or empty string if implementation is NULL.
  */
 static const char* gate_get_name(const dsp_processor_t* self) {
-  return self->impl ? noise_gate_processor_get_name((noise_gate_processor_t*)self->impl) : "";
+  return self->impl ? noise_gate_processor_get_name(
+                          (noise_gate_processor_t*)self->impl)
+                    : "";
 }
 
 /**
@@ -153,13 +157,12 @@ static void gate_free(dsp_processor_t* self) {
   free(self);
 }
 
-
 dsp_processor_t* dsp_processor_wrap_noise_gate(noise_gate_processor_t* p) {
   if (!p) return NULL;
   dsp_processor_t* wrap = (dsp_processor_t*)calloc(1, sizeof(dsp_processor_t));
   if (!wrap) {
-    /* If wrapper allocation fails, ensure the passed processor instance is freed
-       to prevent resource leaks. */
+    /* If wrapper allocation fails, ensure the passed processor instance is
+       freed to prevent resource leaks. */
     noise_gate_processor_free(p);
     return NULL;
   }
@@ -199,7 +202,8 @@ static void race_update(dsp_processor_t* self, const processor_config_t* config,
  * @return The name string, or empty string if implementation is NULL.
  */
 static const char* race_get_name(const dsp_processor_t* self) {
-  return self->impl ? race_processor_get_name((race_processor_t*)self->impl) : "";
+  return self->impl ? race_processor_get_name((race_processor_t*)self->impl)
+                    : "";
 }
 
 /**
@@ -211,13 +215,12 @@ static void race_free_fn(dsp_processor_t* self) {
   free(self);
 }
 
-
 dsp_processor_t* dsp_processor_wrap_race(race_processor_t* p) {
   if (!p) return NULL;
   dsp_processor_t* wrap = (dsp_processor_t*)calloc(1, sizeof(dsp_processor_t));
   if (!wrap) {
-    /* If wrapper allocation fails, ensure the passed processor instance is freed
-       to prevent resource leaks. */
+    /* If wrapper allocation fails, ensure the passed processor instance is
+       freed to prevent resource leaks. */
     race_processor_free(p);
     return NULL;
   }

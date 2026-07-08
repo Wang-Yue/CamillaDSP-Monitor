@@ -30,8 +30,9 @@
 #include "engine_shared_state.h"
 
 #include <stdlib.h>
-#include "Pipeline/pipeline.h"
+
 #include "Engine/engine_processing_loop.h"
+#include "Pipeline/pipeline.h"
 
 engine_shared_state_t* engine_shared_state_create(
     size_t captured_queue_depth, size_t processed_queue_depth) {
@@ -66,7 +67,7 @@ void engine_shared_state_free(engine_shared_state_t* state) {
   engine_sem_destroy(&state->captured_semaphore);
   engine_sem_destroy(&state->processed_semaphore);
   if (state->resampler_ratio) atomic_double_free(state->resampler_ratio);
-  
+
   if (state->pipeline_garbage_queue) {
     void* p;
     while ((p = spsc_queue_dequeue(state->pipeline_garbage_queue)) != NULL) {
@@ -74,7 +75,7 @@ void engine_shared_state_free(engine_shared_state_t* state) {
     }
     spsc_queue_free(state->pipeline_garbage_queue);
   }
-  
+
   free(state);
 }
 
@@ -84,10 +85,12 @@ void engine_shared_state_request_stop(engine_shared_state_t* state,
   bool expected = false;
   // Atomically check if the stop reason has already been recorded.
   // We use a first-reason-wins strategy to preserve the root cause of the stop.
-  if (atomic_compare_exchange_strong(&state->stop_reason_written, &expected, true)) {
+  if (atomic_compare_exchange_strong(&state->stop_reason_written, &expected,
+                                     true)) {
     state->stop_reason = reason;
   }
   // Store should_stop with release ordering so the write becomes visible
-  // to the capture, processing, and playback loops immediately on their next check.
+  // to the capture, processing, and playback loops immediately on their next
+  // check.
   atomic_store_explicit(&state->should_stop, true, memory_order_release);
 }

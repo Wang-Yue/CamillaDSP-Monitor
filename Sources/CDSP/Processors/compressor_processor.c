@@ -44,10 +44,10 @@ struct compressor_processor {
                             ///< previous sample.
 };
 
-const char* compressor_processor_get_name(const compressor_processor_t* processor) {
+const char* compressor_processor_get_name(
+    const compressor_processor_t* processor) {
   return processor ? processor->name : "";
 }
-
 
 #include <math.h>
 #include <stdlib.h>
@@ -183,11 +183,13 @@ void compressor_processor_process(compressor_processor_t* processor,
     double val = 20.0 * log10(fabs(processor->scratch[i]) + 1e-9);
     if (val >= prev) {
       // Signal level rising: apply attack time constant.
-      // attack coefficient determines how quickly the envelope responds to level increases.
+      // attack coefficient determines how quickly the envelope responds to
+      // level increases.
       val = processor->attack * prev + (1.0 - processor->attack) * val;
     } else {
       // Signal level falling: apply release time constant.
-      // release coefficient determines how slowly the envelope decays back down.
+      // release coefficient determines how slowly the envelope decays back
+      // down.
       val = processor->release * prev + (1.0 - processor->release) * val;
     }
     prev = val;
@@ -197,7 +199,8 @@ void compressor_processor_process(compressor_processor_t* processor,
   processor->prev_loudness = prev;
 
   // Step 3: Gain Reduction Curve Calculation
-  // Calculate the gain multiplier (in linear scale) for each sample based on the envelope.
+  // Calculate the gain multiplier (in linear scale) for each sample based on
+  // the envelope.
   for (size_t i = 0; i < count; i++) {
     double val = processor->scratch[i];
     if (val > processor->threshold) {

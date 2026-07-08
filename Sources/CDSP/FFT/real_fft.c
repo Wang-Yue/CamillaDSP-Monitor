@@ -120,7 +120,8 @@ struct fftw_real_fft_ctx {
 /**
  * @brief Forward FFT implementation using FFTW.
  *
- * Copies input to FFTW input buffer, executes plan, and copies results to output.
+ * Copies input to FFTW input buffer, executes plan, and copies results to
+ * output.
  *
  * @param ctx Pointer to the fftw_real_fft_ctx.
  * @param real_in Input real waveform.
@@ -142,7 +143,8 @@ static void fftw_real_fft_forward(void* ctx, waveform_t real_in,
 /**
  * @brief Inverse FFT implementation using FFTW.
  *
- * Copies input spectrum to FFTW complex buffer, executes plan, and copies results to output.
+ * Copies input spectrum to FFTW complex buffer, executes plan, and copies
+ * results to output.
  *
  * @param ctx Pointer to the fftw_real_fft_ctx.
  * @param spec_re Input real part of the spectrum.

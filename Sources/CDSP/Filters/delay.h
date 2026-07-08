@@ -24,8 +24,8 @@ typedef struct delay_filter delay_filter_t;
  * @brief Create a new delay filter.
  *
  * Builds the subsample biquad allpass filter if fractional delay is requested.
- * 1st order Thiran allpass: coeffs a1 = coeff, b0 = coeff, b1 = 1.0, b2 = 0.0, a2 = 0.0
- * 2nd order Thiran allpass is also supported.
+ * 1st order Thiran allpass: coeffs a1 = coeff, b0 = coeff, b1 = 1.0, b2 = 0.0,
+ * a2 = 0.0 2nd order Thiran allpass is also supported.
  *
  * @param name The name of the filter.
  * @param params The delay parameters (delay value, unit, etc.).
@@ -74,4 +74,3 @@ void delay_filter_update_parameters(delay_filter_t* filter,
 void delay_filter_free(delay_filter_t* filter);
 
 #endif  // CLIB_FILTERS_DELAY_H
-

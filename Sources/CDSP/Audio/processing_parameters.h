@@ -62,21 +62,26 @@ typedef struct processing_parameters {
   size_t capture_channels;  /**< Number of capture channels. */
   size_t playback_channels; /**< Number of playback channels. */
 
-  /** Per-channel capture signal peak levels (dB). Array size: capture_channels. */
+  /** Per-channel capture signal peak levels (dB). Array size: capture_channels.
+   */
   atomic_double_t* capture_signal_peak;
-  /** Per-channel capture signal RMS levels (dB). Array size: capture_channels. */
+  /** Per-channel capture signal RMS levels (dB). Array size: capture_channels.
+   */
   atomic_double_t* capture_signal_rms;
-  /** Per-channel playback signal peak levels (dB). Array size: playback_channels. */
+  /** Per-channel playback signal peak levels (dB). Array size:
+   * playback_channels. */
   atomic_double_t* playback_signal_peak;
-  /** Per-channel playback signal RMS levels (dB). Array size: playback_channels. */
+  /** Per-channel playback signal RMS levels (dB). Array size:
+   * playback_channels. */
   atomic_double_t* playback_signal_rms;
 
   // MARK: - Telemetry
-  atomic_double_t rate_adjust;   /**< Current rate adjustment factor. */
-  atomic_double_t buffer_level;   /**< Current buffer level. */
+  atomic_double_t rate_adjust;      /**< Current rate adjustment factor. */
+  atomic_double_t buffer_level;     /**< Current buffer level. */
   _Atomic uint64_t clipped_samples; /**< Cumulative count of clipped samples. */
-  atomic_double_t processing_load; /**< Audio processing load (0.0 to 1.0). */
-  atomic_double_t resampler_load;  /**< Resampler processing load (0.0 to 1.0). */
+  atomic_double_t processing_load;  /**< Audio processing load (0.0 to 1.0). */
+  atomic_double_t
+      resampler_load; /**< Resampler processing load (0.0 to 1.0). */
 } processing_parameters_t;
 
 /**
@@ -84,7 +89,8 @@ typedef struct processing_parameters {
  *
  * @param capture_channels Number of capture channels.
  * @param playback_channels Number of playback channels.
- * @return Pointer to the allocated processing_parameters_t structure, or NULL on failure.
+ * @return Pointer to the allocated processing_parameters_t structure, or NULL
+ * on failure.
  */
 processing_parameters_t* processing_parameters_create(size_t capture_channels,
                                                       size_t playback_channels);
@@ -315,10 +321,12 @@ void processing_parameters_set_playback_signal_rms(
 // MARK: - Chunk-based updates (no-allocation, audio-thread safe)
 
 /**
- * @brief Asynchronously update the capture-side peak and RMS levels on the audio thread.
+ * @brief Asynchronously update the capture-side peak and RMS levels on the
+ * audio thread.
  *
- * This function calculates peak and RMS levels from the provided chunk and updates
- * the corresponding atomic fields in `params`. It is lock-free and does not allocate memory.
+ * This function calculates peak and RMS levels from the provided chunk and
+ * updates the corresponding atomic fields in `params`. It is lock-free and does
+ * not allocate memory.
  *
  * @param params Pointer to the processing parameters.
  * @param chunk Pointer to the audio chunk.
@@ -328,10 +336,12 @@ double processing_parameters_update_capture_levels(
     processing_parameters_t* params, const audio_chunk_t* chunk);
 
 /**
- * @brief Asynchronously update the playback-side peak and RMS levels on the audio thread.
+ * @brief Asynchronously update the playback-side peak and RMS levels on the
+ * audio thread.
  *
- * This function calculates peak and RMS levels from the provided chunk and updates
- * the corresponding atomic fields in `params`. It is lock-free and does not allocate memory.
+ * This function calculates peak and RMS levels from the provided chunk and
+ * updates the corresponding atomic fields in `params`. It is lock-free and does
+ * not allocate memory.
  *
  * @param params Pointer to the processing parameters.
  * @param chunk Pointer to the audio chunk.

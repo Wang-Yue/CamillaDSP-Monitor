@@ -20,6 +20,7 @@
 #include "engine_capture_loop.h"
 
 #include <stdio.h>
+
 #include "Audio/silence_counter.h"
 
 struct engine_capture_loop {
@@ -73,9 +74,9 @@ engine_capture_loop_t* engine_capture_loop_create(
     engine_shared_state_t* shared, engine_state_machine_t* state_machine,
     capture_backend_t* capture, playback_backend_t* playback,
     processing_parameters_t* processing_params, dop_decoder_t* dop_decoder,
-    round_robin_chunk_pool_t* chunk_pool,
-    size_t chunk_size, size_t channels, size_t samplerate,
-    double silence_threshold_db, double silence_timeout_seconds) {
+    round_robin_chunk_pool_t* chunk_pool, size_t chunk_size, size_t channels,
+    size_t samplerate, double silence_threshold_db,
+    double silence_timeout_seconds) {
   engine_capture_loop_t* loop =
       (engine_capture_loop_t*)calloc(1, sizeof(engine_capture_loop_t));
   if (!loop) return NULL;
@@ -91,8 +92,8 @@ engine_capture_loop_t* engine_capture_loop_create(
   loop->channels = channels;
   loop->samplerate = samplerate;
 
-  loop->silence_counter = silence_counter_create(silence_threshold_db,
-                                                 silence_timeout_seconds, samplerate, chunk_size);
+  loop->silence_counter = silence_counter_create(
+      silence_threshold_db, silence_timeout_seconds, samplerate, chunk_size);
   loop->watchdog_timeout_seconds = 0.5;
   loop->watchdog_last_success_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
   loop->watchdog_triggered = false;
@@ -120,9 +121,10 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
   while (
       !atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
     // 1. Hardware Sample-Rate Change Check:
-    // Check if the hardware sample rates have drifted or been explicitly modified
-    // (e.g. by another application or OS settings). An unexpected hardware rate change
-    // invalidates the processing thread pipeline, so we signal a host rebuild stop reason.
+    // Check if the hardware sample rates have drifted or been explicitly
+    // modified (e.g. by another application or OS settings). An unexpected
+    // hardware rate change invalidates the processing thread pipeline, so we
+    // signal a host rebuild stop reason.
     double rate = 0.0;
     if (capture_backend_get_pending_rate_change(loop->capture, &rate)) {
       if (!loop->has_last_observed_pending_rate ||
@@ -183,8 +185,9 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       if (atomic_load_explicit(&loop->shared->should_stop,
                                memory_order_acquire))
         break;
-      // If the engine is in a PAUSED state (no active input signal), reset the watchdog
-      // timer to avoid triggering stall warnings while waiting for signal.
+      // If the engine is in a PAUSED state (no active input signal), reset the
+      // watchdog timer to avoid triggering stall warnings while waiting for
+      // signal.
       if (engine_state_machine_get_state(loop->state_machine) ==
           PROCESSING_STATE_PAUSED) {
         loop->watchdog_last_success_ns =
@@ -193,8 +196,9 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
         continue;
       }
       // 4. Watchdog / Stall Monitor:
-      // If the engine is running but we get no data chunks from the capture device for
-      // more than watchdog_timeout_seconds, set state to STALLED and log a warning.
+      // If the engine is running but we get no data chunks from the capture
+      // device for more than watchdog_timeout_seconds, set state to STALLED and
+      // log a warning.
       if (!loop->watchdog_triggered) {
         uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         double elapsed =
@@ -208,8 +212,9 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
                       log_arg_none(), log_arg_none(), log_arg_none());
         }
       }
-      // Block/wait up to 20ms using the backend's synchronization mechanism (e.g. semaphore).
-      // This yields CPU time while maintaining real-time scheduling priority.
+      // Block/wait up to 20ms using the backend's synchronization mechanism
+      // (e.g. semaphore). This yields CPU time while maintaining real-time
+      // scheduling priority.
       capture_backend_wait(loop->capture, 20);
       continue;
     }
@@ -224,9 +229,10 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
     }
 
     // 6. DoP (DSD over PCM) Decoding:
-    // If DoP decoding is active, process the PCM chunk to detect DSD marker flags
-    // and decode them back to raw DSD samples in-place. Decoding is done before metering
-    // so RMS/Peak values reflect the actual signal instead of the carrier noise.
+    // If DoP decoding is active, process the PCM chunk to detect DSD marker
+    // flags and decode them back to raw DSD samples in-place. Decoding is done
+    // before metering so RMS/Peak values reflect the actual signal instead of
+    // the carrier noise.
     if (loop->dop_decoder) {
       dop_decoder_detect_and_process(loop->dop_decoder, chunk);
     }
@@ -236,9 +242,10 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
         loop->processing_params, chunk);
 
     // 7. Silence/Auto-pause Gate:
-    // Update the silence counter. If the signal level is below the threshold for longer
-    // than the timeout duration, desired is set to PROCESSING_STATE_PAUSED. We toggle
-    // the backends' state to paused to stop downstream devices.
+    // Update the silence counter. If the signal level is below the threshold
+    // for longer than the timeout duration, desired is set to
+    // PROCESSING_STATE_PAUSED. We toggle the backends' state to paused to stop
+    // downstream devices.
     processing_state_t desired =
         silence_counter_update(loop->silence_counter, loudest_peak);
     processing_state_t current =
@@ -248,13 +255,13 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       playback_backend_set_is_paused(loop->playback,
                                      (desired == PROCESSING_STATE_PAUSED));
       capture_backend_set_is_paused(loop->capture,
-                                     (desired == PROCESSING_STATE_PAUSED));
+                                    (desired == PROCESSING_STATE_PAUSED));
     }
 
     // 8. Enqueue Captured Chunk:
-    // If the engine is running (not paused), push the chunk pointer into the bounded
-    // lock-free SPSC queue. If the queue is full, sleep briefly to yield CPU and propagate
-    // backpressure upstream.
+    // If the engine is running (not paused), push the chunk pointer into the
+    // bounded lock-free SPSC queue. If the queue is full, sleep briefly to
+    // yield CPU and propagate backpressure upstream.
     if (engine_state_machine_get_state(loop->state_machine) !=
         PROCESSING_STATE_PAUSED) {
       while (!spsc_queue_enqueue(loop->shared->captured_queue, chunk)) {
@@ -272,4 +279,3 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
   logger_info(&logger, "Capture thread stopped", log_arg_none(), log_arg_none(),
               log_arg_none(), log_arg_none());
 }
-

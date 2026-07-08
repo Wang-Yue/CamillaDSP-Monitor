@@ -6,7 +6,8 @@
  * @brief Biquad filter coefficient computation and filtering operations.
  *
  * This file provides structures and functions for computing biquad filter
- * coefficients from high-level parameters and executing the filter on audio signals.
+ * coefficients from high-level parameters and executing the filter on audio
+ * signals.
  */
 
 #include <stdbool.h>
@@ -18,10 +19,12 @@
 
 /**
  * @struct biquad_coefficients_t
- * @brief Structure holding the transfer function coefficients of a biquad filter.
+ * @brief Structure holding the transfer function coefficients of a biquad
+ * filter.
  *
  * The transfer function is defined as:
- * \f$ H(z) = \frac{b_0 + b_1 z^{-1} + b_2 z^{-2}}{1 + a_1 z^{-1} + a_2 z^{-2}} \f$
+ * \f$ H(z) = \frac{b_0 + b_1 z^{-1} + b_2 z^{-2}}{1 + a_1 z^{-1} + a_2 z^{-2}}
+ * \f$
  */
 typedef struct {
   double b0; /**< Numerator coefficient for \f$z^0\f$ */
@@ -135,4 +138,3 @@ void biquad_filter_update_parameters(biquad_filter_t* filter,
 void biquad_filter_free(biquad_filter_t* filter);
 
 #endif  // CLIB_FILTERS_BIQUAD_H
-

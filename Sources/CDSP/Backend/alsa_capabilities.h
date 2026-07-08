@@ -24,8 +24,10 @@
  *
  * @param is_capture True to query capture devices, false for playback devices.
  * @param out_names 2D array to store the retrieved device names.
- * @param max_names Maximum number of names to retrieve (size of out_names array).
- * @return The number of device names found and copied, or a negative value on error.
+ * @param max_names Maximum number of names to retrieve (size of out_names
+ * array).
+ * @return The number of device names found and copied, or a negative value on
+ * error.
  */
 int alsa_capabilities_available_device_names(bool is_capture,
                                              char out_names[][256],
@@ -47,7 +49,8 @@ bool alsa_capabilities_default_device_name(bool is_capture, char* out_name,
  *
  * @param device_name The ALSA device name (e.g., "default", "hw:0,0").
  * @param is_capture True to query capture capabilities, false for playback.
- * @return The maximum number of channels supported, or a negative value on error.
+ * @return The maximum number of channels supported, or a negative value on
+ * error.
  */
 int alsa_capabilities_channel_count(const char* device_name, bool is_capture);
 
@@ -57,15 +60,17 @@ int alsa_capabilities_channel_count(const char* device_name, bool is_capture);
  * @param device_name The ALSA device name.
  * @param is_capture True for capture, false for playback.
  * @param err Pointer to a device_error_t to receive error details on failure.
- * @return Pointer to the allocated audio_device_descriptor_t, or NULL on failure.
- *         The returned descriptor must be freed with alsa_capabilities_free_descriptor.
+ * @return Pointer to the allocated audio_device_descriptor_t, or NULL on
+ * failure. The returned descriptor must be freed with
+ * alsa_capabilities_free_descriptor.
  */
 audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
                                                       bool is_capture,
                                                       device_error_t* err);
 
 /**
- * @brief Frees an audio device descriptor allocated by alsa_capabilities_describe.
+ * @brief Frees an audio device descriptor allocated by
+ * alsa_capabilities_describe.
  *
  * @param desc Pointer to the descriptor to free.
  */

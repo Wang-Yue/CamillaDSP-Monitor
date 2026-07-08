@@ -33,7 +33,8 @@ typedef struct asio_playback asio_playback_t;
  * @param chunk_size Buffer chunk size in frames.
  * @param full_duplex True if the engine is running in full duplex mode.
  * @param[out] err Pointer to store error details if creation fails.
- * @return A pointer to the capture_backend_t interface wrapper, or NULL on error.
+ * @return A pointer to the capture_backend_t interface wrapper, or NULL on
+ * error.
  */
 capture_backend_t* asio_capture_new(const capture_device_config_t* config,
                                     int sample_rate, int chunk_size,
@@ -47,7 +48,8 @@ capture_backend_t* asio_capture_new(const capture_device_config_t* config,
  * @param chunk_size Buffer chunk size in frames.
  * @param full_duplex True if the engine is running in full duplex mode.
  * @param[out] err Pointer to store error details if creation fails.
- * @return A pointer to the playback_backend_t interface wrapper, or NULL on error.
+ * @return A pointer to the playback_backend_t interface wrapper, or NULL on
+ * error.
  */
 playback_backend_t* asio_playback_new(const playback_device_config_t* config,
                                       int sample_rate, int chunk_size,
@@ -56,4 +58,3 @@ playback_backend_t* asio_playback_new(const playback_device_config_t* config,
 #endif  // ENABLE_ASIO
 
 #endif  // CLIB_BACKEND_ASIO_BACKEND_H
-

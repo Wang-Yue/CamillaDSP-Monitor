@@ -38,7 +38,8 @@ typedef struct vdsp_complex_dft vdsp_complex_dft_t;
  * @brief Creates a vDSP complex DFT context.
  *
  * @param n The size of the DFT.
- * @return A pointer to the created context, or `NULL` if the size is not supported.
+ * @return A pointer to the created context, or `NULL` if the size is not
+ * supported.
  */
 vdsp_complex_dft_t* vdsp_complex_dft_create(size_t n);
 
@@ -64,7 +65,8 @@ void vdsp_complex_dft_execute(vdsp_complex_dft_t* dft, waveform_t real_in,
 void vdsp_complex_dft_free(vdsp_complex_dft_t* dft);
 
 /**
- * @brief Casts the vDSP complex DFT context to an arbitrary complex FFT interface.
+ * @brief Casts the vDSP complex DFT context to an arbitrary complex FFT
+ * interface.
  *
  * @param dft The context to cast.
  * @return A pointer to the arbitrary complex FFT interface.
@@ -76,4 +78,3 @@ static inline arbitrary_complex_fft_t* vdsp_complex_dft_as_arbitrary(
 #endif  // ENABLE_ACCELERATE
 
 #endif  // CLIB_FFT_VDSPCOMPLEXDFT_H
-

@@ -66,7 +66,8 @@ mixed_radix_fft_t* mixed_radix_fft_create(size_t n);
  * @param imag_in Input buffer for the imaginary parts of the signal.
  * @param real_out Output buffer for the real parts of the result.
  * @param imag_out Output buffer for the imaginary parts of the result.
- * @param inverse false for unnormalised forward transform, true for unnormalised inverse.
+ * @param inverse false for unnormalised forward transform, true for
+ * unnormalised inverse.
  */
 void mixed_radix_fft_execute(mixed_radix_fft_t* fft, waveform_t real_in,
                              waveform_t imag_in, mutable_waveform_t real_out,
@@ -80,7 +81,8 @@ void mixed_radix_fft_execute(mixed_radix_fft_t* fft, waveform_t real_in,
 void mixed_radix_fft_free(mixed_radix_fft_t* fft);
 
 /**
- * @brief Casts the mixed-radix FFT context to a generic arbitrary complex FFT context.
+ * @brief Casts the mixed-radix FFT context to a generic arbitrary complex FFT
+ * context.
  *
  * @param fft The mixed-radix FFT context.
  * @return A pointer to the arbitrary_complex_fft_t context.

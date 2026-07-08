@@ -11,6 +11,7 @@
 #define CLIB_CONFIG_CONFIG_DIFF_H
 
 #include <stddef.h>
+
 #include "configuration.h"
 
 /**
@@ -18,11 +19,11 @@
  * @brief Identifies the type of configuration change.
  */
 typedef enum {
-  CONFIG_CHANGE_NONE = 0,             /**< No changes detected. */
-  CONFIG_CHANGE_FILTER_PARAMETERS,    /**< Filter parameters changed. */
-  CONFIG_CHANGE_MIXER_PARAMETERS,     /**< Mixer parameters changed. */
-  CONFIG_CHANGE_PIPELINE,             /**< Pipeline configuration changed. */
-  CONFIG_CHANGE_DEVICES               /**< Device configuration changed. */
+  CONFIG_CHANGE_NONE = 0,          /**< No changes detected. */
+  CONFIG_CHANGE_FILTER_PARAMETERS, /**< Filter parameters changed. */
+  CONFIG_CHANGE_MIXER_PARAMETERS,  /**< Mixer parameters changed. */
+  CONFIG_CHANGE_PIPELINE,          /**< Pipeline configuration changed. */
+  CONFIG_CHANGE_DEVICES            /**< Device configuration changed. */
 } config_change_type_t;
 
 /**
@@ -88,6 +89,7 @@ char** config_change_take_mixers(config_change_t* change, size_t* out_count);
  * @param out_count Pointer to store the number of processor names returned.
  * @return Array of string pointers containing the changed processor names.
  */
-char** config_change_take_processors(config_change_t* change, size_t* out_count);
+char** config_change_take_processors(config_change_t* change,
+                                     size_t* out_count);
 
 #endif  // CLIB_CONFIG_CONFIG_DIFF_H

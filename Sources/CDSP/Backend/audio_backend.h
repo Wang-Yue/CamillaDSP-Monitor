@@ -27,7 +27,8 @@ typedef struct playback_backend playback_backend_t;
 
 /**
  * @struct capture_backend_vtable
- * @brief Virtual table containing function pointers for audio capture operations.
+ * @brief Virtual table containing function pointers for audio capture
+ * operations.
  */
 typedef struct {
   /**
@@ -61,7 +62,8 @@ typedef struct {
    * Polled by the engine each chunk to detect if a format change occurred.
    *
    * @param ctx Pointer to the backend instance context.
-   * @param[out] out_rate Pointer to store the new sample rate if a change is pending.
+   * @param[out] out_rate Pointer to store the new sample rate if a change is
+   * pending.
    * @return true if a change was detected, false otherwise.
    */
   bool (*get_pending_rate_change)(void* ctx, double* out_rate);
@@ -69,7 +71,8 @@ typedef struct {
   /**
    * @brief Check if the capture device exposes a tunable clock.
    *
-   * Used for rate-adjust loops sending pitch corrections instead of resampling ratio nudges.
+   * Used for rate-adjust loops sending pitch corrections instead of resampling
+   * ratio nudges.
    *
    * @param ctx Pointer to the backend instance context.
    * @return true if pitch control is supported, false otherwise.
@@ -92,7 +95,8 @@ typedef struct {
   bool (*wait_for_data)(void* ctx, uint32_t timeout_ms);
 
   /**
-   * @brief Notify the capture backend of the paused state of the processing loop.
+   * @brief Notify the capture backend of the paused state of the processing
+   * loop.
    * @param ctx Pointer to the backend instance context.
    * @param paused true if the loop is paused, false otherwise.
    */
@@ -116,7 +120,8 @@ struct capture_backend {
 
 /**
  * @struct playback_backend_vtable
- * @brief Virtual table containing function pointers for audio playback operations.
+ * @brief Virtual table containing function pointers for audio playback
+ * operations.
  */
 typedef struct {
   /**
@@ -152,7 +157,8 @@ typedef struct {
   /**
    * @brief Check for pending sample rate changes on the playback device.
    * @param ctx Pointer to the backend instance context.
-   * @param[out] out_rate Pointer to store the new sample rate if a change is pending.
+   * @param[out] out_rate Pointer to store the new sample rate if a change is
+   * pending.
    * @return true if a change was detected, false otherwise.
    */
   bool (*get_pending_rate_change)(void* ctx, double* out_rate);
@@ -227,7 +233,8 @@ typedef struct processing_parameters processing_parameters_t;
  * @param full_duplex True if the engine is running in full duplex mode.
  * @param params Processing parameters.
  * @param[out] err Pointer to store error details if creation fails.
- * @return A pointer to the created capture_backend_t interface wrapper, or NULL on error.
+ * @return A pointer to the created capture_backend_t interface wrapper, or NULL
+ * on error.
  */
 capture_backend_t* create_capture_backend(const capture_device_config_t* config,
                                           int sample_rate, int chunk_size,
@@ -244,7 +251,8 @@ capture_backend_t* create_capture_backend(const capture_device_config_t* config,
  * @param full_duplex True if the engine is running in full duplex mode.
  * @param params Processing parameters.
  * @param[out] err Pointer to store error details if creation fails.
- * @return A pointer to the created playback_backend_t interface wrapper, or NULL on error.
+ * @return A pointer to the created playback_backend_t interface wrapper, or
+ * NULL on error.
  */
 playback_backend_t* create_playback_backend(
     const playback_device_config_t* config, int sample_rate, int chunk_size,
@@ -408,4 +416,3 @@ void playback_backend_set_pitch(playback_backend_t* backend, double multiplier);
 void playback_backend_free(playback_backend_t* backend);
 
 #endif  // CLIB_BACKEND_AUDIO_BACKEND_H
-

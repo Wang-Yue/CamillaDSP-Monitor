@@ -48,8 +48,7 @@ processing_state_t engine_state_machine_get_state(
   // Use acquire memory order to ensure that any reads of other shared state
   // (like stop_reason) after this call will see the values written before
   // the corresponding release-store in set_state.
-  uint8_t raw = atomic_load_explicit(&sm->state_raw,
-                                     memory_order_acquire);
+  uint8_t raw = atomic_load_explicit(&sm->state_raw, memory_order_acquire);
   return processing_state_from_raw_byte(raw);
 }
 
@@ -93,9 +92,10 @@ bool engine_state_machine_begin_stop(engine_state_machine_t* sm,
       &sm->stop_once, &expected, true, memory_order_acq_rel,
       memory_order_acquire);
   if (!exchanged) return false;
-  
+
   // The winner thread writes the stop reason. This write is synchronized with
-  // other threads via the state change to INACTIVE using set_state(..., INACTIVE).
+  // other threads via the state change to INACTIVE using set_state(...,
+  // INACTIVE).
   sm->stop_reason = reason;
   return true;
 }

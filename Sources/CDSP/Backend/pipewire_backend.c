@@ -65,12 +65,13 @@ struct pipewire_playback {
 
 /**
  * @brief PipeWire stream process callback for capture.
- * 
+ *
  * Called by the PipeWire thread loop when new capture data is available.
- * Dequeues the buffer, copies data to the internal SPSC ring buffer, and queues it back.
- * 
+ * Dequeues the buffer, copies data to the internal SPSC ring buffer, and queues
+ * it back.
+ *
  * @note Runs in a real-time thread context. Must be non-blocking.
- * 
+ *
  * @param data Pointer to pipewire_capture_t.
  */
 static void on_capture_process(void* data) {
@@ -99,13 +100,13 @@ static const struct pw_stream_events capture_stream_events = {
 
 /**
  * @brief PipeWire stream process callback for playback.
- * 
- * Called by the PipeWire thread loop when the stream needs more data for playback.
- * Dequeues the buffer, fills it from the internal SPSC ring buffer, and queues it back.
- * Fills with silence in case of buffer underflow.
- * 
+ *
+ * Called by the PipeWire thread loop when the stream needs more data for
+ * playback. Dequeues the buffer, fills it from the internal SPSC ring buffer,
+ * and queues it back. Fills with silence in case of buffer underflow.
+ *
  * @note Runs in a real-time thread context. Must be non-blocking.
- * 
+ *
  * @param data Pointer to pipewire_playback_t.
  */
 static void on_playback_process(void* data) {
@@ -547,8 +548,8 @@ playback_backend_t* pipewire_playback_create(
     playback->has_node_name = true;
   }
   if (config->cfg.pipewire.has_node_description) {
-    snprintf(playback->node_description, sizeof(playback->node_description), "%s",
-             config->cfg.pipewire.node_description);
+    snprintf(playback->node_description, sizeof(playback->node_description),
+             "%s", config->cfg.pipewire.node_description);
     playback->has_node_description = true;
   }
   if (config->cfg.pipewire.has_node_group_name) {

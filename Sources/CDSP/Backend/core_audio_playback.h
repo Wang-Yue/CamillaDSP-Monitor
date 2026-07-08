@@ -41,7 +41,8 @@ typedef struct core_audio_playback core_audio_playback_t;
  * @param sample_rate The initial sample rate in Hz.
  * @param chunk_size The size of each audio chunk in frames.
  * @param err Pointer to a backend_error_t struct to report errors.
- * @return Pointer to the created playback_backend_t instance, or NULL on failure.
+ * @return Pointer to the created playback_backend_t instance, or NULL on
+ * failure.
  */
 playback_backend_t* core_audio_playback_create(
     const playback_device_config_t* config, int sample_rate, int chunk_size,
@@ -95,7 +96,8 @@ bool core_audio_playback_get_pending_rate_change(
     core_audio_playback_t* playback, double* out_rate);
 
 /**
- * @brief Push zero samples into the playback ring buffer before real audio arrives.
+ * @brief Push zero samples into the playback ring buffer before real audio
+ * arrives.
  *
  * @param playback Pointer to the CoreAudio playback instance.
  * @param frames Number of frames of silence to prefill.

@@ -50,7 +50,8 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
     A = pow(10.0, gain / 40.0);
 
     // Compute effective Q if bandwidth or slope is present
-    // Bandwidth to Q conversion: Q = 1 / (2 * sinh(ln(2)/2 * BW * w0 / sin(w0)))
+    // Bandwidth to Q conversion: Q = 1 / (2 * sinh(ln(2)/2 * BW * w0 /
+    // sin(w0)))
     if (params->steepness_type == STEEPNESS_TYPE_BANDWIDTH) {
       double bw = params->bandwidth;
       q = 1.0 / (2.0 * sinh(log(2.0) / 2.0 * bw * w0 / sin_w0));
@@ -76,8 +77,8 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
       break;
 
     case BIQUAD_TYPE_GENERAL_NOTCH: {
-      // General notch filter allows independent control of notch frequency and pole frequency.
-      // Uses bilinear transform.
+      // General notch filter allows independent control of notch frequency and
+      // pole frequency. Uses bilinear transform.
       double freq_z = params->freq_notch > 0 ? params->freq_notch : 1000.0;
       double freq_p = params->freq_pole > 0 ? params->freq_pole : 1000.0;
       double q_p =
@@ -100,9 +101,10 @@ bool biquad_coefficients_compute(const biquad_parameters_t* params,
     }
 
     case BIQUAD_TYPE_LINKWITZ_TRANSFORM: {
-      // Linkwitz Transform compensates for the low frequency roll-off of a speaker
-      // in a sealed box and replaces it with a new target response (lower Fc, different Q).
-      // Act: actual speaker parameters. Target: desired parameters.
+      // Linkwitz Transform compensates for the low frequency roll-off of a
+      // speaker in a sealed box and replaces it with a new target response
+      // (lower Fc, different Q). Act: actual speaker parameters. Target:
+      // desired parameters.
       double freq_act = params->freq_act > 0 ? params->freq_act : 50.0;
       double q_act = params->q_act > 0 ? params->q_act : 0.707;
       double freq_target = params->freq_target > 0 ? params->freq_target : 25.0;
@@ -298,7 +300,8 @@ double biquad_coefficients_phase_rad(const biquad_coefficients_t* coeffs,
   if (den_mag_sq <= 0.0) return 0.0;
   // H(e^(jw)) = (Num_re + j*Num_im) / (Den_re + j*Den_im)
   //           = ((Num_re + j*Num_im) * (Den_re - j*Den_im)) / |Den|^2
-  //           = (Num_re*Den_re + Num_im*Den_im + j*(Num_im*Den_re - Num_re*Den_im)) / |Den|^2
+  //           = (Num_re*Den_re + Num_im*Den_im + j*(Num_im*Den_re -
+  //           Num_re*Den_im)) / |Den|^2
   double h_re = (num_re * den_re + num_im * den_im) / den_mag_sq;
   double h_im = (num_im * den_re - num_re * den_im) / den_mag_sq;
   return atan2(h_im, h_re);

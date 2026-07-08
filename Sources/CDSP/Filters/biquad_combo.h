@@ -3,10 +3,12 @@
 
 /**
  * @file biquad_combo.h
- * @brief Combined biquad filters (e.g., Linkwitz-Riley, Butterworth, Tilt EQ, Graphic EQ).
+ * @brief Combined biquad filters (e.g., Linkwitz-Riley, Butterworth, Tilt EQ,
+ * Graphic EQ).
  *
- * This file provides interfaces for creating and managing filters that are composed
- * of multiple cascaded biquads, such as higher-order crossover filters.
+ * This file provides interfaces for creating and managing filters that are
+ * composed of multiple cascaded biquads, such as higher-order crossover
+ * filters.
  */
 
 #include <stdbool.h>
@@ -92,4 +94,3 @@ void biquad_combo_filter_update_parameters(biquad_combo_filter_t* filter,
 void biquad_combo_filter_free(biquad_combo_filter_t* filter);
 
 #endif  // CLIB_FILTERS_BIQUAD_COMBO_H
-

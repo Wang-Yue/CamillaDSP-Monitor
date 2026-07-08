@@ -101,9 +101,8 @@ void processing_parameters_set_target_volume_for_fader(
 uint64_t processing_parameters_get_target_volume_set_at_for_fader(
     const processing_parameters_t* params, fader_t fader) {
   if (!params || fader < 0 || fader >= FADER_COUNT) return 0ULL;
-  return atomic_load_explicit(
-      &params->target_volume_set_at[fader],
-      memory_order_acquire);
+  return atomic_load_explicit(&params->target_volume_set_at[fader],
+                              memory_order_acquire);
 }
 
 double processing_parameters_get_current_volume_for_fader(
@@ -121,8 +120,7 @@ void processing_parameters_set_current_volume_for_fader(
 bool processing_parameters_is_muted_for_fader(
     const processing_parameters_t* params, fader_t fader) {
   if (!params || fader < 0 || fader >= FADER_COUNT) return false;
-  return atomic_load_explicit(&params->muted[fader],
-                              memory_order_acquire);
+  return atomic_load_explicit(&params->muted[fader], memory_order_acquire);
 }
 
 void processing_parameters_set_muted_for_fader(processing_parameters_t* params,
@@ -212,11 +210,12 @@ void processing_parameters_set_playback_signal_rms(
 }
 
 /**
- * @brief Lock-free helper to update audio levels (Peak and RMS) for each channel.
+ * @brief Lock-free helper to update audio levels (Peak and RMS) for each
+ * channel.
  *
  * Calculates peak and RMS values in dB for the active channels in the chunk
- * and updates the respective atomic storage. It avoids dynamic allocation, making
- * it suitable for the audio processing thread.
+ * and updates the respective atomic storage. It avoids dynamic allocation,
+ * making it suitable for the audio processing thread.
  *
  * @param chunk The audio chunk to process.
  * @param peak_storage Atomic storage array for peak levels.

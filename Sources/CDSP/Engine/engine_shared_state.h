@@ -7,22 +7,22 @@
  *
  * Coordinates state between the capture, processing, and playback loops.
  * Every field is either a lock-free atomic, a wait-free SPSC queue, or a kernel
- * signaling primitive (`DispatchSemaphore`/semaphore/Event). No mutexes are used,
- * allowing the loops to read/write fields without coordinating locks.
+ * signaling primitive (`DispatchSemaphore`/semaphore/Event). No mutexes are
+ * used, allowing the loops to read/write fields without coordinating locks.
  *
  * @section concurrency_model Concurrency model
- * - `should_stop`: Written by `stop()`, read by all three loops every iteration.
- *   Uses release-acquire atomic semantics.
+ * - `should_stop`: Written by `stop()`, read by all three loops every
+ * iteration. Uses release-acquire atomic semantics.
  * - `captured_queue`: SPSC, producer = capture, consumer = processing.
  * - `processed_queue`: SPSC, producer = processing, consumer = playback.
  * - `captured_semaphore`: Capture signals, processing waits.
  * - `processed_semaphore`: Processing signals, playback waits.
- * - `resampler_ratio`: Playback writes (rate-adjust), processing reads (per chunk).
- *   64-bit atomic.
+ * - `resampler_ratio`: Playback writes (rate-adjust), processing reads (per
+ * chunk). 64-bit atomic.
  *
  * @section semaphores Semaphores
- * Semaphores are used for kernel-level signaling (not locking). Producers signal after
- * enqueueing, and consumers wait then drain.
+ * Semaphores are used for kernel-level signaling (not locking). Producers
+ * signal after enqueueing, and consumers wait then drain.
  */
 
 #include "Audio/audio_chunk.h"
@@ -148,6 +148,7 @@ static inline void engine_sem_wait(engine_semaphore_t sem) {
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
+
 #include "Config/engine_config_types.h"
 
 /**
@@ -161,7 +162,8 @@ static inline void engine_sem_wait(engine_semaphore_t sem) {
 typedef struct {
   /**
    * @brief Bounded SPSC FIFO from the capture thread to the processing thread.
-   * `enqueue` returns `false` when full; the producer drops the chunk rather than allocate.
+   * `enqueue` returns `false` when full; the producer drops the chunk rather
+   * than allocate.
    */
   spsc_queue_t* captured_queue;
 
@@ -190,7 +192,8 @@ typedef struct {
   _Atomic bool should_stop;
 
   /**
-   * @brief Guard flag to ensure stop_reason is only written once (no write-write race).
+   * @brief Guard flag to ensure stop_reason is only written once (no
+   * write-write race).
    */
   _Atomic bool stop_reason_written;
 

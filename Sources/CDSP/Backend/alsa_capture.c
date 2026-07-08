@@ -155,7 +155,8 @@ capture_backend_t* alsa_capture_create(const capture_device_config_t* config,
  * and converts the raw integer volume range to decibels.
  *
  * @param elem The ALSA mixer element.
- * @return Volume in decibels, or -100.0 if muted/extremely quiet, or 0.0 if not supported.
+ * @return Volume in decibels, or -100.0 if muted/extremely quiet, or 0.0 if not
+ * supported.
  */
 static double get_elem_volume_db(snd_mixer_elem_t* elem) {
   if (!elem) return 0.0;
@@ -245,8 +246,8 @@ static void set_elem_mute(snd_mixer_elem_t* elem, bool mute) {
  * @brief Initialize ALSA control and mixer interfaces for volume/mute linking.
  *
  * Subscribes to control events to listen for hardware changes, attaches
- * the mixer, and looks up the specified volume, mute, and pitch control elements.
- * Initial values are synchronized to the engine.
+ * the mixer, and looks up the specified volume, mute, and pitch control
+ * elements. Initial values are synchronized to the engine.
  *
  * @param capture Pointer to the ALSA capture backend instance.
  */
@@ -320,8 +321,8 @@ static void alsa_capture_init_controls(alsa_capture_t* capture) {
  * @brief Synchronize mixer settings between the engine and ALSA hardware.
  *
  * Processes pending ALSA control events. Checks if the hardware mixer settings
- * (volume/mute) changed and updates the engine. Conversely, if engine target faders
- * changed, updates the hardware mixer values.
+ * (volume/mute) changed and updates the engine. Conversely, if engine target
+ * faders changed, updates the hardware mixer values.
  *
  * @param capture Pointer to the ALSA capture backend instance.
  */
@@ -404,8 +405,8 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
-  // Probe supported formats, trying requested format first, then falling back to defaults.
-  // We prefer float, then S32, S24_3, S16.
+  // Probe supported formats, trying requested format first, then falling back
+  // to defaults. We prefer float, then S32, S24_3, S16.
   snd_pcm_format_t formats[5];
   size_t num_formats = 0;
   if (capture->has_format) {
@@ -502,7 +503,8 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
-  // Set ALSA software parameters (e.g. start threshold, minimum available frames)
+  // Set ALSA software parameters (e.g. start threshold, minimum available
+  // frames)
   snd_pcm_sw_params_t* sw_params;
   snd_pcm_sw_params_alloca(&sw_params);
   rc = snd_pcm_sw_params_current(capture->pcm, sw_params);

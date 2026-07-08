@@ -90,7 +90,8 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
   }
   if (config->devices.has_target_level) {
     /* Target level is verified against a maximum theoretical limit.
-     * The limit is buffer-dependent and differs for ALSA due to the larger buffer requirements of the backend. */
+     * The limit is buffer-dependent and differs for ALSA due to the larger
+     * buffer requirements of the backend. */
     int qlimit =
         config->devices.has_queuelimit ? config->devices.queuelimit : 4;
     int target_limit = (2 + qlimit) * config->devices.chunksize;
@@ -144,9 +145,9 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
   }
 
   /* Validate pipeline structure and perform a channel-tracking walk.
-   * We trace the number of channels available at each step. The pipeline begins with
-   * capture channels, is mutated by mixers (which change the channel count),
-   * and must end matching the expected playback device channels. */
+   * We trace the number of channels available at each step. The pipeline begins
+   * with capture channels, is mutated by mixers (which change the channel
+   * count), and must end matching the expected playback device channels. */
   int num_channels =
       capture_device_config_get_channels(&config->devices.capture);
   for (size_t i = 0; i < config->pipeline_count; i++) {
@@ -197,8 +198,9 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
         break;
       }
       case PIPELINE_STEP_TYPE_MIXER: {
-        /* Mixers change the channel layout. Verify that the mixer's input channels
-         * match the current pipeline state, and then update the tracked channel count. */
+        /* Mixers change the channel layout. Verify that the mixer's input
+         * channels match the current pipeline state, and then update the
+         * tracked channel count. */
         if (!step->has_name || step->name[0] == '\0') {
           config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
                            "Mixer step %zu must have 'name'", i);
@@ -222,7 +224,8 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
         break;
       }
       case PIPELINE_STEP_TYPE_PROCESSOR: {
-        /* Processors must match the channel count of the pipeline at the insertion point. */
+        /* Processors must match the channel count of the pipeline at the
+         * insertion point. */
         if (!step->has_name || step->name[0] == '\0') {
           config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
                            "Processor step %zu must have 'name'", i);
@@ -261,7 +264,8 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     }
   }
 
-  /* Final verification: The output channel count of the pipeline must match the playback configuration. */
+  /* Final verification: The output channel count of the pipeline must match the
+   * playback configuration. */
   int playback_channels =
       playback_device_config_get_channels(&config->devices.playback);
   if (num_channels != playback_channels) {

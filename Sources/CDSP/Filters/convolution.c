@@ -87,7 +87,8 @@ static size_t get_raw_sample_size(binary_sample_format_t format) {
  * @param path Path to the WAV file.
  * @param channel The channel index to load (0-indexed).
  * @param out_count Output pointer to store the number of loaded samples.
- * @return Pointer to the allocated double array containing samples, or NULL on failure.
+ * @return Pointer to the allocated double array containing samples, or NULL on
+ * failure.
  */
 static double* load_wav_file(const char* path, int channel, size_t* out_count) {
   FILE* f = fopen(path, "rb");
@@ -212,7 +213,8 @@ static double* load_wav_file(const char* path, int channel, size_t* out_count) {
  * @param skip_bytes Number of bytes (or lines for TEXT) to skip at start.
  * @param read_bytes Max bytes (or lines for TEXT) to read.
  * @param out_count Output pointer to store the number of loaded samples.
- * @return Pointer to the allocated double array containing samples, or NULL on failure.
+ * @return Pointer to the allocated double array containing samples, or NULL on
+ * failure.
  */
 static double* load_raw_file(const char* path, const char* format_str,
                              int skip_bytes, int read_bytes,
@@ -443,17 +445,21 @@ convolution_filter_t* convolution_filter_create(const char* name,
 }
 
 /**
- * @brief Processes one chunk of audio data using partitioned overlap-add convolution.
+ * @brief Processes one chunk of audio data using partitioned overlap-add
+ * convolution.
  *
  * This function performs the following steps:
  * 1. Copies the input block to the time buffer and pads with zeros.
- * 2. Computes the forward FFT of the padded block and stores it in the history buffer.
- * 3. Performs frequency-domain multiply-accumulate with the partitioned IR segments.
+ * 2. Computes the forward FFT of the padded block and stores it in the history
+ * buffer.
+ * 3. Performs frequency-domain multiply-accumulate with the partitioned IR
+ * segments.
  * 4. Computes the inverse FFT of the accumulated spectrum.
  * 5. Reconstructs the output block using overlap-add.
  *
  * @param filter Pointer to the convolution filter.
- * @param waveform In-place buffer containing the input block, which will be overwritten with the output.
+ * @param waveform In-place buffer containing the input block, which will be
+ * overwritten with the output.
  */
 static void process_chunk(convolution_filter_t* filter,
                           mutable_waveform_t waveform) {

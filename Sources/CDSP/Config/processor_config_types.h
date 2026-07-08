@@ -22,7 +22,8 @@
 typedef enum {
   PROCESSOR_TYPE_COMPRESSOR = 0, /**< Compressor processor. */
   PROCESSOR_TYPE_NOISE_GATE,     /**< Noise gate processor. */
-  PROCESSOR_TYPE_RACE            /**< RACE (Receiver Active Crosstalk Cancellation) processor. */
+  PROCESSOR_TYPE_RACE /**< RACE (Receiver Active Crosstalk Cancellation)
+                         processor. */
 } processor_type_t;
 
 /**
@@ -55,10 +56,10 @@ typedef struct {
   double threshold;              /**< Threshold level. */
   double factor;                 /**< Compression factor/ratio. */
   double makeup_gain;            /**< Makeup gain value. */
-  bool has_makeup_gain;          /**< Flag indicating if makeup gain is specified. */
-  bool soft_clip;                /**< Flag indicating if soft clipping is enabled. */
-  double clip_limit;             /**< Soft clip limit. */
-  bool has_clip_limit;           /**< Flag indicating if soft clip limit is specified. */
+  bool has_makeup_gain; /**< Flag indicating if makeup gain is specified. */
+  bool soft_clip;       /**< Flag indicating if soft clipping is enabled. */
+  double clip_limit;    /**< Soft clip limit. */
+  bool has_clip_limit;  /**< Flag indicating if soft clip limit is specified. */
 } compressor_parameters_t;
 
 /**
@@ -80,15 +81,16 @@ typedef struct {
  * @brief Parameters for the RACE processor.
  */
 typedef struct {
-  int channels;                  /**< Number of channels. */
-  int channel_a;                 /**< Channel A index. */
-  int channel_b;                 /**< Channel B index. */
-  double delay;                  /**< Delay value. */
-  bool subsample_delay;          /**< Flag indicating if subsample delay is enabled. */
-  bool has_subsample_delay;      /**< Flag indicating if subsample_delay is specified. */
-  delay_unit_t delay_unit;       /**< Unit of the delay value. */
-  bool has_delay_unit;           /**< Flag indicating if delay_unit is specified. */
-  double attenuation;            /**< Attenuation level. */
+  int channels;         /**< Number of channels. */
+  int channel_a;        /**< Channel A index. */
+  int channel_b;        /**< Channel B index. */
+  double delay;         /**< Delay value. */
+  bool subsample_delay; /**< Flag indicating if subsample delay is enabled. */
+  bool has_subsample_delay; /**< Flag indicating if subsample_delay is
+                               specified. */
+  delay_unit_t delay_unit;  /**< Unit of the delay value. */
+  bool has_delay_unit;      /**< Flag indicating if delay_unit is specified. */
+  double attenuation;       /**< Attenuation level. */
 } race_parameters_t;
 
 /**
@@ -100,14 +102,15 @@ typedef struct {
     compressor_parameters_t compressor; /**< Compressor parameters. */
     noise_gate_parameters_t noise_gate; /**< Noise gate parameters. */
     race_parameters_t race;             /**< RACE parameters. */
-  } parameters; /**< Union of processor parameters. */
+  } parameters;                         /**< Union of processor parameters. */
 } processor_config_t;
 
 /**
  * @brief Validate a processor configuration.
  *
  * @param proc Pointer to the processor configuration to validate.
- * @param err Pointer to config_error_t to store error details if validation fails.
+ * @param err Pointer to config_error_t to store error details if validation
+ * fails.
  * @return 0 if valid, non-zero error code otherwise.
  */
 int processor_config_validate(const processor_config_t* proc,

@@ -1,4 +1,5 @@
 #include "biquad_combo.h"
+
 #include "biquad.h"
 
 struct biquad_combo_filter {
@@ -18,8 +19,9 @@ struct biquad_combo_filter {
 // MARK: - Butterworth & Linkwitz-Riley helper calculations
 // Calculates the Q factors for a Butterworth filter of a given order.
 // Butterworth poles are distributed on a semi-circle in the left-half s-plane.
-// For odd orders, there is one real pole (represented here as Q = -1.0, indicating a first-order section).
-// For even orders, all poles are complex conjugate pairs with Q = 1 / (2 * sin(angle)).
+// For odd orders, there is one real pole (represented here as Q = -1.0,
+// indicating a first-order section). For even orders, all poles are complex
+// conjugate pairs with Q = 1 / (2 * sin(angle)).
 size_t biquad_combo_butterworth_q(int order, double* out_q, size_t max_q) {
   if (order < 1 || !out_q || max_q == 0) return 0;
   size_t count = 0;
@@ -35,8 +37,8 @@ size_t biquad_combo_butterworth_q(int order, double* out_q, size_t max_q) {
 }
 
 // Calculates Q factors for a Linkwitz-Riley filter.
-// An L-R filter is designed by cascading two Butterworth filters of half the order.
-// e.g., LR4 is two cascaded BW2.
+// An L-R filter is designed by cascading two Butterworth filters of half the
+// order. e.g., LR4 is two cascaded BW2.
 size_t biquad_combo_linkwitz_riley_q(int order, double* out_q, size_t max_q) {
   if (order % 2 != 0 || order < 2 || !out_q || max_q == 0) return 0;
   double bw_q[16];
@@ -65,8 +67,10 @@ size_t biquad_combo_linkwitz_riley_q(int order, double* out_q, size_t max_q) {
  * @param q Quality factor.
  * @param gain Gain in dB (for peaking/shelf filters).
  * @param slope Slope (for shelf filters, if steepness_type is SLOPE).
- * @param bandwidth Bandwidth in octaves (for peaking/notch, if steepness_type is BANDWIDTH).
- * @param steepness_type How the filter steepness is defined (Q, Bandwidth, or Slope).
+ * @param bandwidth Bandwidth in octaves (for peaking/notch, if steepness_type
+ * is BANDWIDTH).
+ * @param steepness_type How the filter steepness is defined (Q, Bandwidth, or
+ * Slope).
  * @param sample_rate Audio sample rate in Hz.
  * @return Pointer to the created biquad_filter_t, or NULL on failure.
  */
@@ -140,8 +144,8 @@ biquad_combo_filter_t* biquad_combo_filter_create(
     // MARK: - Tilt EQ
     case BIQUAD_COMBO_TYPE_TILT: {
       // Tilt EQ tilts the frequency response around a center frequency.
-      // It is implemented here using a low shelf at 110Hz and a high shelf at 3500Hz,
-      // both with a gentle Q of 0.35, to approximate a tilt.
+      // It is implemented here using a low shelf at 110Hz and a high shelf at
+      // 3500Hz, both with a gentle Q of 0.35, to approximate a tilt.
       double gain = params->has_gain ? params->gain : 0.0;
       secs[num++] =
           create_section(BIQUAD_TYPE_LOWSHELF, 110.0, 0.35, -gain / 2.0, 0.0,
@@ -153,7 +157,8 @@ biquad_combo_filter_t* biquad_combo_filter_create(
     }
     // MARK: - Graphic EQ
     case BIQUAD_COMBO_TYPE_GRAPHIC_EQUALIZER: {
-      // Graphic EQ with bands logarithmically spaced between freq_min and freq_max.
+      // Graphic EQ with bands logarithmically spaced between freq_min and
+      // freq_max.
       size_t nb = params->gains_count > 0 ? params->gains_count : 1;
       double fmin = params->freq_min > 0 ? params->freq_min : 20.0;
       double fmax = params->freq_max > 0 ? params->freq_max : 20000.0;

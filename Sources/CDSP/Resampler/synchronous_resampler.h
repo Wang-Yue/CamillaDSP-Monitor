@@ -109,8 +109,8 @@ typedef struct synchronous_resampler synchronous_resampler_t;
  * @param input_rate The input sample rate in Hz.
  * @param output_rate The output sample rate in Hz.
  * @param requested_chunk_size The desired size of input chunks (in frames).
- *                             The resampler will round this up to a size matching
- *                             the rational period.
+ *                             The resampler will round this up to a size
+ * matching the rational period.
  * @return A pointer to the created resampler instance, or NULL on failure.
  */
 synchronous_resampler_t* synchronous_resampler_create(
@@ -148,7 +148,8 @@ resampler_error_t synchronous_resampler_process(
  * Allows fine-tuning of the resampler ratio (e.g. for drift compensation).
  *
  * @param resampler Pointer to the resampler instance.
- * @param multiplier The relative multiplier to apply to the nominal output rate.
+ * @param multiplier The relative multiplier to apply to the nominal output
+ * rate.
  */
 void synchronous_resampler_set_relative_ratio(
     synchronous_resampler_t* resampler, double multiplier);
@@ -163,9 +164,11 @@ double synchronous_resampler_get_ratio(
     const synchronous_resampler_t* resampler);
 
 /**
- * @brief Gets the maximum number of output frames that can be produced in a single call.
+ * @brief Gets the maximum number of output frames that can be produced in a
+ * single call.
  *
- * Useful for allocating the output buffer before calling @ref synchronous_resampler_process.
+ * Useful for allocating the output buffer before calling @ref
+ * synchronous_resampler_process.
  *
  * @param resampler Pointer to the resampler instance.
  * @return The maximum number of output frames.

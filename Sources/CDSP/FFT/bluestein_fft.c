@@ -72,9 +72,11 @@ struct bluestein_fft {
 };
 
 /**
- * @brief Static wrapper to execute the Bluestein FFT, matching the arbitrary_complex_fft interface.
+ * @brief Static wrapper to execute the Bluestein FFT, matching the
+ * arbitrary_complex_fft interface.
  *
- * @param ctx The generic context pointer (pointing to a bluestein_fft_t instance).
+ * @param ctx The generic context pointer (pointing to a bluestein_fft_t
+ * instance).
  * @param real_in Input real component array.
  * @param imag_in Input imaginary component array.
  * @param real_out Output real component array.
@@ -91,9 +93,11 @@ static void bluestein_fft_execute_wrapper(void* ctx, waveform_t real_in,
 }
 
 /**
- * @brief Static wrapper to free the Bluestein FFT context, matching the arbitrary_complex_fft interface.
+ * @brief Static wrapper to free the Bluestein FFT context, matching the
+ * arbitrary_complex_fft interface.
  *
- * @param ctx The generic context pointer (pointing to a bluestein_fft_t instance).
+ * @param ctx The generic context pointer (pointing to a bluestein_fft_t
+ * instance).
  */
 static void bluestein_fft_free_wrapper(void* ctx) {
   bluestein_fft_free((bluestein_fft_t*)ctx);
@@ -101,10 +105,11 @@ static void bluestein_fft_free_wrapper(void* ctx) {
 
 bluestein_fft_t* bluestein_fft_create(size_t n) {
   if (n == 0) return NULL;
-  
+
   // Find the smallest optimal size `m` for the inner FFT.
-  // vDSP optimized sizes are of the form f * 2^k, where f in {1, 3, 5, 15} and k >= 3 (or 4 for f=1).
-  // The size must be at least 2n - 1 to prevent time-domain aliasing during the linear convolution.
+  // vDSP optimized sizes are of the form f * 2^k, where f in {1, 3, 5, 15} and
+  // k >= 3 (or 4 for f=1). The size must be at least 2n - 1 to prevent
+  // time-domain aliasing during the linear convolution.
   size_t min_l = 2 * n - 1;
   size_t best_m = (size_t)-1;
   int factors[4] = {1, 3, 5, 15};
@@ -248,8 +253,9 @@ void bluestein_fft_execute(bluestein_fft_t* fft, waveform_t real_in,
 
   // Step 2: cyclic convolution via FFT — A = FFT(a); P = A · B;
   // c = IFFT(P) / m.
-  // We perform the convolution of the modulated input (a) and the chirp kernel (b)
-  // in the frequency domain. `b_real_f` and `b_imag_f` contain the pre-computed FFT of b.
+  // We perform the convolution of the modulated input (a) and the chirp kernel
+  // (b) in the frequency domain. `b_real_f` and `b_imag_f` contain the
+  // pre-computed FFT of b.
   vDSP_DFT_ExecuteD(fft->fft_fwd, fft->a_re, fft->a_im, fft->a_re_f,
                     fft->a_im_f);
   DSPDoubleSplitComplex aFSplit = {fft->a_re_f, fft->a_im_f};

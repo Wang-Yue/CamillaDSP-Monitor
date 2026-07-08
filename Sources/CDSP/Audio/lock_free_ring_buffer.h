@@ -1,6 +1,7 @@
 /**
  * @file lock_free_ring_buffer.h
- * @brief Single-producer / single-consumer lock-free primitives used by the audio thread.
+ * @brief Single-producer / single-consumer lock-free primitives used by the
+ * audio thread.
  *
  * Contains:
  * - @ref spsc_audio_ring_buffer_t: Ring buffer of `float` samples.
@@ -99,7 +100,8 @@ size_t spsc_audio_ring_buffer_get_available_to_write(
  * @param ring Pointer to the ring buffer.
  * @return The capacity.
  */
-size_t spsc_audio_ring_buffer_get_capacity(const spsc_audio_ring_buffer_t* ring);
+size_t spsc_audio_ring_buffer_get_capacity(
+    const spsc_audio_ring_buffer_t* ring);
 
 // MARK: Producer
 
@@ -109,7 +111,8 @@ size_t spsc_audio_ring_buffer_get_capacity(const spsc_audio_ring_buffer_t* ring)
  * **Producer-only.** Write `count` `float` samples from `source` into the ring.
  * `stride` lets the producer pull a single channel out of an interleaved buffer
  * (`stride = channels`); pass `1` for non-interleaved input. Always succeeds —
- * if the consumer is too far behind the oldest unread data is silently overwritten.
+ * if the consumer is too far behind the oldest unread data is silently
+ * overwritten.
  *
  * @param ring Pointer to the ring buffer.
  * @param source Pointer to the source array.

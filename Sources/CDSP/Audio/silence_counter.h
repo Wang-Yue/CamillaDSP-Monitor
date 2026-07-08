@@ -2,9 +2,9 @@
  * @file silence_counter.h
  * @brief Silence counter for automatic pause/resume based on signal level.
  *
- * This file defines the SilenceCounter, which tracks consecutive silent audio chunks
- * against a decibel threshold. It is used to determine if the audio processing
- * should be paused after a period of inactivity.
+ * This file defines the SilenceCounter, which tracks consecutive silent audio
+ * chunks against a decibel threshold. It is used to determine if the audio
+ * processing should be paused after a period of inactivity.
  */
 
 #ifndef CLIB_AUDIO_SILENCE_COUNTER_H
@@ -30,16 +30,18 @@ typedef struct silence_counter silence_counter_t;
 /**
  * @brief Creates a new silence counter instance.
  *
- * @param threshold_db The threshold in dB below which a chunk is considered silent.
- * @param timeout_seconds The duration of silence in seconds before triggering a pause.
+ * @param threshold_db The threshold in dB below which a chunk is considered
+ * silent.
+ * @param timeout_seconds The duration of silence in seconds before triggering a
+ * pause.
  * @param samplerate The audio sample rate.
  * @param chunksize The size of each audio chunk in samples.
- * @return Pointer to the allocated silence_counter_t structure, or NULL on failure.
+ * @return Pointer to the allocated silence_counter_t structure, or NULL on
+ * failure.
  */
 silence_counter_t* silence_counter_create(double threshold_db,
                                           double timeout_seconds,
-                                          size_t samplerate,
-                                          size_t chunksize);
+                                          size_t samplerate, size_t chunksize);
 
 /**
  * @brief Frees the silence counter instance.
@@ -52,8 +54,10 @@ void silence_counter_free(silence_counter_t* counter);
  * @brief Initializes a silence counter instance.
  *
  * @param counter Pointer to the silence counter instance to initialize.
- * @param threshold_db The threshold in dB below which a chunk is considered silent.
- * @param timeout_seconds The duration of silence in seconds before triggering a pause.
+ * @param threshold_db The threshold in dB below which a chunk is considered
+ * silent.
+ * @param timeout_seconds The duration of silence in seconds before triggering a
+ * pause.
  * @param samplerate The audio sample rate.
  * @param chunksize The size of each audio chunk in samples.
  */
@@ -64,7 +68,8 @@ void silence_counter_init(silence_counter_t* counter, double threshold_db,
 /**
  * @brief Feeds the next chunk's loudest channel peak (dB) to the counter.
  *
- * Updates the internal silent chunk count and returns the desired processing state.
+ * Updates the internal silent chunk count and returns the desired processing
+ * state.
  *
  * @param counter Pointer to the silence counter.
  * @param signal_peak_db The peak signal level of the current chunk in dB.

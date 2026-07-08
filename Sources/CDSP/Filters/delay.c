@@ -1,4 +1,5 @@
 #include "delay.h"
+
 #include "biquad.h"
 
 struct delay_filter {
@@ -45,10 +46,14 @@ static double compute_delay_samples(double delay, delay_unit_t unit,
  * to approximate the fractional part of the delay.
  *
  * @param delay_samples The total target delay in samples.
- * @param subsample True to enable fractional delay using a Thiran allpass filter.
- * @param[out] out_integer_delay Pointer to store the computed integer delay part.
- * @param[out] out_coeffs Pointer to store the computed biquad coefficients for the fractional part.
- * @param[out] out_has_coeffs Pointer to store a boolean indicating if coefficients were written.
+ * @param subsample True to enable fractional delay using a Thiran allpass
+ * filter.
+ * @param[out] out_integer_delay Pointer to store the computed integer delay
+ * part.
+ * @param[out] out_coeffs Pointer to store the computed biquad coefficients for
+ * the fractional part.
+ * @param[out] out_has_coeffs Pointer to store a boolean indicating if
+ * coefficients were written.
  */
 static void build_delay(double delay_samples, bool subsample,
                         int* out_integer_delay,
@@ -61,7 +66,8 @@ static void build_delay(double delay_samples, bool subsample,
       *out_integer_delay = 0;
       return;
     }
-    // For small delays between 0.1 and 1.1, design a 1st order Thiran allpass filter.
+    // For small delays between 0.1 and 1.1, design a 1st order Thiran allpass
+    // filter.
     if (delay_samples < 1.1) {
       double coeff = (1.0 - delay_samples) / (1.0 + delay_samples);
       // 1st order Thiran allpass: coeffs a1 = coeff, b0 = coeff, b1 = 1.0, b2 =
@@ -75,14 +81,15 @@ static void build_delay(double delay_samples, bool subsample,
       *out_has_coeffs = true;
       return;
     }
-    
+
     // For delays >= 1.1, split the delay into integer and fractional parts.
     double samples = floor(delay_samples);
     double fraction = delay_samples - samples;
     // Shift delay by 1 sample to allow Thiran filter design range to be stable.
     samples -= 1.0;
     fraction += 1.0;
-    // Ensure the fraction is in the range [1.1, 2.1) to avoid stability issues near the boundaries.
+    // Ensure the fraction is in the range [1.1, 2.1) to avoid stability issues
+    // near the boundaries.
     if (fraction < 1.1) {
       samples -= 1.0;
       fraction += 1.0;
@@ -103,7 +110,6 @@ static void build_delay(double delay_samples, bool subsample,
     *out_integer_delay = (int)round(delay_samples);
   }
 }
-
 
 delay_filter_t* delay_filter_create(const char* name,
                                     const delay_parameters_t* params,
@@ -144,7 +150,7 @@ delay_filter_t* delay_filter_create(const char* name,
 }
 
 void delay_filter_process(delay_filter_t* filter, mutable_waveform_t waveform,
-                           size_t count) {
+                          size_t count) {
   if (!filter || !waveform || count == 0) return;
   // Apply integer delay using the circular buffer.
   if (filter->queue && filter->queue_count > 0) {
@@ -153,8 +159,8 @@ void delay_filter_process(delay_filter_t* filter, mutable_waveform_t waveform,
     double* q = filter->queue;
     for (size_t i = 0; i < count; i++) {
       double delayed = q[ri];
-      q[ri] = waveform[i]; // Write current sample to buffer
-      waveform[i] = delayed; // Output delayed sample
+      q[ri] = waveform[i];    // Write current sample to buffer
+      waveform[i] = delayed;  // Output delayed sample
       ri++;
       if (ri >= qc) ri = 0;
     }
@@ -172,8 +178,9 @@ double delay_filter_process_single(delay_filter_t* filter, double sample) {
   // Apply integer delay using the circular buffer.
   if (filter->queue && filter->queue_count > 0) {
     double delayed = filter->queue[filter->read_index];
-    filter->queue[filter->read_index] = sample; // Write current sample to buffer
-    out = delayed; // Output delayed sample
+    filter->queue[filter->read_index] =
+        sample;     // Write current sample to buffer
+    out = delayed;  // Output delayed sample
     filter->read_index++;
     if (filter->read_index >= filter->queue_count) filter->read_index = 0;
   }
@@ -183,7 +190,6 @@ double delay_filter_process_single(delay_filter_t* filter, double sample) {
   }
   return out;
 }
-
 
 void delay_filter_update_parameters(delay_filter_t* filter,
                                     const filter_config_t* config,

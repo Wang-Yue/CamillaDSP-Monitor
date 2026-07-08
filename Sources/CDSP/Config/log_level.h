@@ -13,16 +13,17 @@
  * @brief Logging levels.
  */
 typedef enum {
-  LOG_LEVEL_OFF = 0,    /**< Logging is disabled. */
-  LOG_LEVEL_ERROR = 1,  /**< Error messages. */
-  LOG_LEVEL_WARN = 2,   /**< Warning messages. */
-  LOG_LEVEL_INFO = 3,   /**< Informational messages. */
-  LOG_LEVEL_DEBUG = 4,  /**< Debug messages. */
-  LOG_LEVEL_TRACE = 5   /**< Detailed trace messages. */
+  LOG_LEVEL_OFF = 0,   /**< Logging is disabled. */
+  LOG_LEVEL_ERROR = 1, /**< Error messages. */
+  LOG_LEVEL_WARN = 2,  /**< Warning messages. */
+  LOG_LEVEL_INFO = 3,  /**< Informational messages. */
+  LOG_LEVEL_DEBUG = 4, /**< Debug messages. */
+  LOG_LEVEL_TRACE = 5  /**< Detailed trace messages. */
 } log_level_t;
 
 /**
- * @brief Compact byte encoding for `Atomic<UInt8>` storage in `MutableLogLevel`.
+ * @brief Compact byte encoding for `Atomic<UInt8>` storage in
+ * `MutableLogLevel`.
  *
  * The exact mapping is internal.
  *

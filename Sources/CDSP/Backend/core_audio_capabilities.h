@@ -25,8 +25,8 @@
  * @brief Array of standard sample rates reported when a device exposes a range.
  *
  * CoreAudio devices commonly advertise a range (e.g., 44.1 kHz - 192 kHz).
- * This array contains standard rates within that range to avoid cluttering the UI.
- * Public so room-correction tooling can pre-render FIR filters per rate.
+ * This array contains standard rates within that range to avoid cluttering the
+ * UI. Public so room-correction tooling can pre-render FIR filters per rate.
  */
 extern const int CORE_AUDIO_STANDARD_RATES[15];
 
@@ -43,7 +43,8 @@ extern const size_t CORE_AUDIO_STANDARD_RATES_COUNT;
  * @param is_capture True for capture devices, false for playback devices.
  * @param out_names 2D array to store the retrieved names.
  * @param max_names Maximum number of names to retrieve (size of out_names).
- * @return The number of device names written to out_names, or negative on error.
+ * @return The number of device names written to out_names, or negative on
+ * error.
  */
 int core_audio_capabilities_available_device_names(bool is_capture,
                                                    char out_names[][256],
@@ -67,7 +68,8 @@ bool core_audio_capabilities_default_device_name(bool is_capture,
  * Derived from core_audio_capabilities_describe().
  * Used to populate per-channel pickers.
  *
- * @param device_name Name of the device. If NULL, the system default is queried.
+ * @param device_name Name of the device. If NULL, the system default is
+ * queried.
  * @param is_capture True for capture device, false for playback device.
  * @return Maximum channel count, or 0 if device not found.
  */
@@ -82,8 +84,9 @@ int core_audio_capabilities_channel_count(const char* device_name,
  * @param device_name Name of the device.
  * @param is_capture True for capture device, false for playback device.
  * @param err Pointer to device error structure to report errors.
- * @return Pointer to the allocated audio_device_descriptor_t, or NULL on error/not found.
- *         Must be freed with core_audio_capabilities_free_descriptor().
+ * @return Pointer to the allocated audio_device_descriptor_t, or NULL on
+ * error/not found. Must be freed with
+ * core_audio_capabilities_free_descriptor().
  */
 audio_device_descriptor_t* core_audio_capabilities_describe(
     const char* device_name, bool is_capture, device_error_t* err);

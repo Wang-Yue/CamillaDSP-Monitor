@@ -35,7 +35,8 @@ noise_shaper_t* noise_shaper_create(const double* filter_coeffs, size_t count);
  * @brief Process a single sample through the noise shaper.
  *
  * @param shaper The noise shaper instance.
- * @param scaled The scaled input sample (typically quantized to target bit depth but still as double).
+ * @param scaled The scaled input sample (typically quantized to target bit
+ * depth but still as double).
  * @param dither The dither value to add.
  * @return The noise-shaped sample.
  */
@@ -55,7 +56,8 @@ void noise_shaper_free(noise_shaper_t* shaper);
  * @brief Create a noise shaper for a predefined dither type.
  *
  * @param type The dither type (e.g., standard, shaped).
- * @return A pointer to the created noise shaper, or NULL if the type doesn't use noise shaping or on failure.
+ * @return A pointer to the created noise shaper, or NULL if the type doesn't
+ * use noise shaping or on failure.
  */
 noise_shaper_t* noise_shaper_create_for_type(dither_type_t type);
 
@@ -105,4 +107,3 @@ void dither_filter_update_parameters(dither_filter_t* filter,
 void dither_filter_free(dither_filter_t* filter);
 
 #endif  // CLIB_FILTERS_DITHER_H
-

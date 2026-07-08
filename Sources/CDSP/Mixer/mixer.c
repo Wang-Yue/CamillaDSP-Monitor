@@ -94,7 +94,8 @@ static void populate_mapping(audio_mixer_t* mixer,
       double gain = src->has_gain ? src->gain : 0.0;
       double lin_gain =
           (src->scale == GAIN_SCALE_LINEAR) ? gain : double_from_db(gain);
-      // Invert phase if requested (represented as a negative linear gain coefficient)
+      // Invert phase if requested (represented as a negative linear gain
+      // coefficient)
       if (src->inverted) {
         lin_gain *= -1.0;
       }
@@ -159,11 +160,13 @@ mixer_error_t audio_mixer_process(audio_mixer_t* mixer,
     prepared_source_list_t* list = &mixer->mapping[out_ch];
     for (size_t i = 0; i < list->count; i++) {
       prepared_source_t* src = &list->sources[i];
-      // Defensive check: skip if the mapped source channel is not present in the input chunk
+      // Defensive check: skip if the mapped source channel is not present in
+      // the input chunk
       if (src->in_channel >= audio_chunk_get_channels(input)) continue;
       waveform_t src_ptr = audio_chunk_get_channel(input, src->in_channel);
 
-      // Optimize direct unity gain addition vs multiply-accumulate to save instruction cycles
+      // Optimize direct unity gain addition vs multiply-accumulate to save
+      // instruction cycles
       if (src->gain == 1.0) {
         dsp_ops_add(src_ptr, dst, frames);
       } else if (src->gain != 0.0) {
@@ -178,8 +181,8 @@ mixer_error_t audio_mixer_process(audio_mixer_t* mixer,
 audio_chunk_t* audio_mixer_process_chunk(audio_mixer_t* mixer,
                                          const audio_chunk_t* input) {
   if (!mixer || !input) return NULL;
-  audio_chunk_t* output =
-      audio_chunk_create(audio_chunk_get_valid_frames(input), mixer->channels_out);
+  audio_chunk_t* output = audio_chunk_create(
+      audio_chunk_get_valid_frames(input), mixer->channels_out);
   if (!output) return NULL;
   if (audio_mixer_process(mixer, input, output) != MIXER_OK) {
     audio_chunk_free(output);

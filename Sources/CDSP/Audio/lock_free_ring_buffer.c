@@ -22,34 +22,30 @@ struct spsc_queue {
 
 uint64_t spsc_audio_ring_buffer_get_total_samples_written(
     const spsc_audio_ring_buffer_t* ring) {
-  return atomic_load_explicit(&ring->write_index,
-                              memory_order_relaxed);
+  return atomic_load_explicit(&ring->write_index, memory_order_relaxed);
 }
 
 size_t spsc_audio_ring_buffer_get_available_to_read(
     const spsc_audio_ring_buffer_t* ring) {
-  // Acquire barrier on write_index ensures that any data written by the producer
-  // prior to updating write_index is visible to this thread.
-  uint64_t w = atomic_load_explicit(&ring->write_index,
-                                    memory_order_acquire);
-  // Relaxed load is sufficient for read_index as it is only modified by the consumer
-  // (which is typically the calling thread of this function).
-  uint64_t r = atomic_load_explicit(&ring->read_index,
-                                    memory_order_relaxed);
+  // Acquire barrier on write_index ensures that any data written by the
+  // producer prior to updating write_index is visible to this thread.
+  uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_acquire);
+  // Relaxed load is sufficient for read_index as it is only modified by the
+  // consumer (which is typically the calling thread of this function).
+  uint64_t r = atomic_load_explicit(&ring->read_index, memory_order_relaxed);
   // Unsigned subtraction correctly handles overflow wrap-around.
   return (size_t)(w - r);
 }
 
 size_t spsc_audio_ring_buffer_get_available_to_write(
     const spsc_audio_ring_buffer_t* ring) {
-  // Relaxed load is sufficient for write_index as it is only modified by the producer
-  // (which is typically the calling thread).
-  uint64_t w = atomic_load_explicit(&ring->write_index,
-                                    memory_order_relaxed);
-  // Acquire barrier on read_index ensures we see the consumer's latest read index
-  // before we decide how much space we can write to, avoiding overwriting unread data.
-  uint64_t r = atomic_load_explicit(&ring->read_index,
-                                    memory_order_acquire);
+  // Relaxed load is sufficient for write_index as it is only modified by the
+  // producer (which is typically the calling thread).
+  uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_relaxed);
+  // Acquire barrier on read_index ensures we see the consumer's latest read
+  // index before we decide how much space we can write to, avoiding overwriting
+  // unread data.
+  uint64_t r = atomic_load_explicit(&ring->read_index, memory_order_acquire);
   size_t occupied = (size_t)(w - r);
   if (occupied >= ring->capacity) {
     return 0;
@@ -57,15 +53,14 @@ size_t spsc_audio_ring_buffer_get_available_to_write(
   return ring->capacity - occupied;
 }
 
-size_t spsc_audio_ring_buffer_get_capacity(const spsc_audio_ring_buffer_t* ring) {
+size_t spsc_audio_ring_buffer_get_capacity(
+    const spsc_audio_ring_buffer_t* ring) {
   return ring ? ring->capacity : 0;
 }
 
 size_t spsc_queue_get_count(const spsc_queue_t* queue) {
-  uint64_t w = atomic_load_explicit(&queue->write_index,
-                                    memory_order_acquire);
-  uint64_t r = atomic_load_explicit(&queue->read_index,
-                                    memory_order_relaxed);
+  uint64_t w = atomic_load_explicit(&queue->write_index, memory_order_acquire);
+  uint64_t r = atomic_load_explicit(&queue->read_index, memory_order_relaxed);
   return (size_t)(w - r);
 }
 
@@ -120,8 +115,9 @@ void spsc_audio_ring_buffer_write(spsc_audio_ring_buffer_t* ring,
   // Relaxed load: we are the only writer.
   uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_relaxed);
   size_t write_offset = (size_t)(w & ring->mask);
-  
-  // Calculate how many samples we can write before wrapping around the end of the ring.
+
+  // Calculate how many samples we can write before wrapping around the end of
+  // the ring.
   size_t first_chunk = ring->capacity - write_offset;
   if (first_chunk > cnt) first_chunk = cnt;
 
@@ -218,14 +214,15 @@ size_t spsc_audio_ring_buffer_consume(spsc_audio_ring_buffer_t* ring,
   if (count == 0 || !ring || !dest) return 0;
   // Relaxed load: we are the only reader.
   uint64_t r = atomic_load_explicit(&ring->read_index, memory_order_relaxed);
-  // Acquire barrier: ensure we see the writes to the buffer elements before we read them.
+  // Acquire barrier: ensure we see the writes to the buffer elements before we
+  // read them.
   uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_acquire);
   size_t avail = (size_t)(w - r);
 
   if (avail > ring->capacity) {
-    // Producer has overwritten unread data. This can happen if the producer writes
-    // faster than we consume and the buffer wraps around.
-    // Advance read pointer to the oldest valid data (write_index - capacity).
+    // Producer has overwritten unread data. This can happen if the producer
+    // writes faster than we consume and the buffer wraps around. Advance read
+    // pointer to the oldest valid data (write_index - capacity).
     r = w - (uint64_t)ring->capacity;
     atomic_store_explicit(&ring->read_index, r, memory_order_release);
     avail = ring->capacity;
@@ -276,8 +273,8 @@ bool spsc_audio_ring_buffer_read_latest_at(const spsc_audio_ring_buffer_t* ring,
 bool spsc_audio_ring_buffer_read_latest(const spsc_audio_ring_buffer_t* ring,
                                         float* dest, size_t count) {
   if (!ring) return false;
-  uint64_t written = atomic_load_explicit(&ring->write_index,
-                                          memory_order_acquire);
+  uint64_t written =
+      atomic_load_explicit(&ring->write_index, memory_order_acquire);
   return spsc_audio_ring_buffer_read_latest_at(ring, dest, count, written);
 }
 

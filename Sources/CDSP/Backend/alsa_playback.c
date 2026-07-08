@@ -85,7 +85,8 @@ static size_t vtable_get_buffer_level(void* ctx) {
 /**
  * @brief Check for pending rate change.
  *
- * Wrapper for alsa_playback_get_pending_rate_change to match the backend vtable.
+ * Wrapper for alsa_playback_get_pending_rate_change to match the backend
+ * vtable.
  *
  * @param ctx Pointer to the alsa_playback_t context.
  * @param out_rate Pointer to receive the new rate.
@@ -147,7 +148,8 @@ static void vtable_destroy(void* ctx) {
 /**
  * @brief Check if pitch control is supported by the ALSA device.
  *
- * Wrapper for alsa_playback_pitch_control_supported to match the backend vtable.
+ * Wrapper for alsa_playback_pitch_control_supported to match the backend
+ * vtable.
  *
  * @param ctx Pointer to the alsa_playback_t context.
  * @return true if pitch control is supported, false otherwise.
@@ -250,9 +252,9 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
     goto error_cleanup;
   }
 
-  // Select format: If a specific format was requested, attempt to use only that.
-  // Otherwise, probe format support in order of preference:
-  // float32 -> int32 -> int24 (3 bytes) -> int16.
+  // Select format: If a specific format was requested, attempt to use only
+  // that. Otherwise, probe format support in order of preference: float32 ->
+  // int32 -> int24 (3 bytes) -> int16.
   snd_pcm_format_t formats[5];
   size_t num_formats = 0;
   if (playback->has_format) {
@@ -380,9 +382,9 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
 
   // Initialize mixer for pitch control
   // Initialize mixer for pitch control.
-  // Queries the ALSA hardware card related to the PCM device and attempts to find
-  // a simple mixer control element named "Playback Pitch 1000000" which is used
-  // to scale the playback speed.
+  // Queries the ALSA hardware card related to the PCM device and attempts to
+  // find a simple mixer control element named "Playback Pitch 1000000" which is
+  // used to scale the playback speed.
   snd_pcm_info_t* pcm_info;
   snd_pcm_info_alloca(&pcm_info);
   if (snd_pcm_info(playback->pcm, pcm_info) >= 0) {
@@ -431,8 +433,9 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
   size_t frames = audio_chunk_get_valid_frames(chunk);
   if (frames == 0) return true;
 
-  // Convert the input audio chunk (planar double format) to the target interleaved
-  // format buffer. Clip samples to valid range when converting to fixed-point formats.
+  // Convert the input audio chunk (planar double format) to the target
+  // interleaved format buffer. Clip samples to valid range when converting to
+  // fixed-point formats.
   if (playback->format == SND_PCM_FORMAT_FLOAT_LE) {
     // Convert double to float.
     float* dst = (float*)playback->interleaved_buf;
@@ -513,7 +516,8 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
   }
 
   // Write interleaved samples to ALSA device.
-  // In case of write failure (e.g., underrun), attempt to recover and retry the write once.
+  // In case of write failure (e.g., underrun), attempt to recover and retry the
+  // write once.
   snd_pcm_sframes_t rc =
       snd_pcm_writei(playback->pcm, playback->interleaved_buf, frames);
   if (rc < 0) {
@@ -608,9 +612,9 @@ bool alsa_playback_pitch_control_supported(alsa_playback_t* playback) {
 
 void alsa_playback_set_pitch(alsa_playback_t* playback, double multiplier) {
   if (!playback || !playback->pitch_elem) return;
-  // Calculate raw pitch value. The pitch element expects a value mapped to 1000000 / multiplier.
-  // A higher multiplier means higher pitch (faster playback), which translates to a smaller
-  // interval value on the control.
+  // Calculate raw pitch value. The pitch element expects a value mapped to
+  // 1000000 / multiplier. A higher multiplier means higher pitch (faster
+  // playback), which translates to a smaller interval value on the control.
   long value = (long)round(1000000.0 / multiplier);
   if (snd_mixer_selem_has_playback_volume(playback->pitch_elem)) {
     snd_mixer_selem_set_playback_volume_all(playback->pitch_elem, value);

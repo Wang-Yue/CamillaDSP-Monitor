@@ -13,9 +13,11 @@
  * Allocates a string array and duplicates each label string.
  *
  * @param labels_arr The cJSON array containing the labels.
- * @param out_labels Output pointer to store the allocated array of string pointers.
+ * @param out_labels Output pointer to store the allocated array of string
+ * pointers.
  * @param out_count Output pointer to store the size of the parsed labels array.
- * @param out_has_labels Output pointer to set to true if labels were successfully parsed.
+ * @param out_has_labels Output pointer to set to true if labels were
+ * successfully parsed.
  */
 static void parse_labels_array(const cJSON* labels_arr, char*** out_labels,
                                size_t* out_count, bool* out_has_labels) {
@@ -426,8 +428,8 @@ static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
       final_cap->cfg.coreaudio.channels = temp.channels;
-      snprintf(final_cap->cfg.coreaudio.device, sizeof(final_cap->cfg.coreaudio.device),
-               "%s", temp.device);
+      snprintf(final_cap->cfg.coreaudio.device,
+               sizeof(final_cap->cfg.coreaudio.device), "%s", temp.device);
       final_cap->cfg.coreaudio.has_device = temp.has_device;
       final_cap->cfg.coreaudio.format = temp.format;
       final_cap->cfg.coreaudio.has_format = temp.has_format;
@@ -446,12 +448,14 @@ static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
       final_cap->cfg.alsa.has_format = temp.has_alsa_format;
       final_cap->cfg.alsa.stop_on_inactive = temp.stop_on_inactive;
       final_cap->cfg.alsa.has_stop_on_inactive = temp.has_stop_on_inactive;
-      snprintf(final_cap->cfg.alsa.link_volume_control, sizeof(final_cap->cfg.alsa.link_volume_control),
-               "%s", temp.link_volume_control);
+      snprintf(final_cap->cfg.alsa.link_volume_control,
+               sizeof(final_cap->cfg.alsa.link_volume_control), "%s",
+               temp.link_volume_control);
       final_cap->cfg.alsa.has_link_volume_control =
           temp.has_link_volume_control;
-      snprintf(final_cap->cfg.alsa.link_mute_control, sizeof(final_cap->cfg.alsa.link_mute_control),
-               "%s", temp.link_mute_control);
+      snprintf(final_cap->cfg.alsa.link_mute_control,
+               sizeof(final_cap->cfg.alsa.link_mute_control), "%s",
+               temp.link_mute_control);
       final_cap->cfg.alsa.has_link_mute_control = temp.has_link_mute_control;
       break;
 #endif
@@ -465,20 +469,23 @@ static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
 #if defined(ENABLE_PIPEWIRE)
     case AUDIO_BACKEND_TYPE_PIPEWIRE:
       final_cap->cfg.pipewire.channels = temp.channels;
-      snprintf(final_cap->cfg.pipewire.device, sizeof(final_cap->cfg.pipewire.device),
-               "%s", temp.device);
+      snprintf(final_cap->cfg.pipewire.device,
+               sizeof(final_cap->cfg.pipewire.device), "%s", temp.device);
       final_cap->cfg.pipewire.has_device = temp.has_device;
-      snprintf(final_cap->cfg.pipewire.node_name, sizeof(final_cap->cfg.pipewire.node_name),
-               "%s", temp.node_name);
+      snprintf(final_cap->cfg.pipewire.node_name,
+               sizeof(final_cap->cfg.pipewire.node_name), "%s", temp.node_name);
       final_cap->cfg.pipewire.has_node_name = temp.has_node_name;
-      snprintf(final_cap->cfg.pipewire.node_description, sizeof(final_cap->cfg.pipewire.node_description),
-               "%s", temp.node_description);
+      snprintf(final_cap->cfg.pipewire.node_description,
+               sizeof(final_cap->cfg.pipewire.node_description), "%s",
+               temp.node_description);
       final_cap->cfg.pipewire.has_node_description = temp.has_node_description;
-      snprintf(final_cap->cfg.pipewire.node_group_name, sizeof(final_cap->cfg.pipewire.node_group_name),
-               "%s", temp.node_group_name);
+      snprintf(final_cap->cfg.pipewire.node_group_name,
+               sizeof(final_cap->cfg.pipewire.node_group_name), "%s",
+               temp.node_group_name);
       final_cap->cfg.pipewire.has_node_group_name = temp.has_node_group_name;
-      snprintf(final_cap->cfg.pipewire.autoconnect_to, sizeof(final_cap->cfg.pipewire.autoconnect_to),
-               "%s", temp.autoconnect_to);
+      snprintf(final_cap->cfg.pipewire.autoconnect_to,
+               sizeof(final_cap->cfg.pipewire.autoconnect_to), "%s",
+               temp.autoconnect_to);
       final_cap->cfg.pipewire.has_autoconnect_to = temp.has_autoconnect_to;
       break;
 #endif
@@ -491,14 +498,14 @@ static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
 #endif
     case AUDIO_BACKEND_TYPE_FILE:
       if (temp.is_wav) {
-        snprintf(final_cap->cfg.wav_file.filename, sizeof(final_cap->cfg.wav_file.filename),
-                 "%s", temp.filename);
+        snprintf(final_cap->cfg.wav_file.filename,
+                 sizeof(final_cap->cfg.wav_file.filename), "%s", temp.filename);
         final_cap->cfg.wav_file.has_filename = temp.has_filename;
         final_cap->cfg.wav_file.extra_samples = temp.extra_samples;
         final_cap->cfg.wav_file.has_extra_samples = temp.has_extra_samples;
       } else {
-        snprintf(final_cap->cfg.raw_file.filename, sizeof(final_cap->cfg.raw_file.filename),
-                 "%s", temp.filename);
+        snprintf(final_cap->cfg.raw_file.filename,
+                 sizeof(final_cap->cfg.raw_file.filename), "%s", temp.filename);
         final_cap->cfg.raw_file.has_filename = temp.has_filename;
         final_cap->cfg.raw_file.format = temp.file_format;
         final_cap->cfg.raw_file.has_format = temp.has_file_format;
@@ -528,8 +535,8 @@ static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
 #if defined(ENABLE_WASAPI)
     case AUDIO_BACKEND_TYPE_WASAPI:
       final_cap->cfg.wasapi.channels = temp.channels;
-      snprintf(final_cap->cfg.wasapi.device, sizeof(final_cap->cfg.wasapi.device),
-               "%s", temp.device);
+      snprintf(final_cap->cfg.wasapi.device,
+               sizeof(final_cap->cfg.wasapi.device), "%s", temp.device);
       final_cap->cfg.wasapi.has_device = temp.has_device;
       final_cap->cfg.wasapi.format = temp.wasapi_format;
       final_cap->cfg.wasapi.has_format = temp.has_wasapi_format;
@@ -552,11 +559,11 @@ static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
 #endif
 #if defined(ENABLE_BLUEZ)
     case AUDIO_BACKEND_TYPE_BLUEZ:
-      snprintf(final_cap->cfg.bluez.service, sizeof(final_cap->cfg.bluez.service),
-               "%s", temp.service);
+      snprintf(final_cap->cfg.bluez.service,
+               sizeof(final_cap->cfg.bluez.service), "%s", temp.service);
       final_cap->cfg.bluez.has_service = temp.has_service;
-      snprintf(final_cap->cfg.bluez.dbus_path, sizeof(final_cap->cfg.bluez.dbus_path),
-               "%s", temp.dbus_path);
+      snprintf(final_cap->cfg.bluez.dbus_path,
+               sizeof(final_cap->cfg.bluez.dbus_path), "%s", temp.dbus_path);
       final_cap->cfg.bluez.has_dbus_path = temp.has_dbus_path;
       final_cap->cfg.bluez.format = temp.bluez_format;
       final_cap->cfg.bluez.channels = temp.channels;
@@ -773,8 +780,8 @@ static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
       final_play->cfg.coreaudio.channels = temp.channels;
-      snprintf(final_play->cfg.coreaudio.device, sizeof(final_play->cfg.coreaudio.device),
-               "%s", temp.device);
+      snprintf(final_play->cfg.coreaudio.device,
+               sizeof(final_play->cfg.coreaudio.device), "%s", temp.device);
       final_play->cfg.coreaudio.has_device = temp.has_device;
       final_play->cfg.coreaudio.format = temp.format;
       final_play->cfg.coreaudio.has_format = temp.has_format;
@@ -799,27 +806,31 @@ static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
 #if defined(ENABLE_PULSE)
     case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
       final_play->cfg.pulse.channels = temp.channels;
-      snprintf(final_play->cfg.pulse.device, sizeof(final_play->cfg.pulse.device),
-               "%s", temp.device);
+      snprintf(final_play->cfg.pulse.device,
+               sizeof(final_play->cfg.pulse.device), "%s", temp.device);
       break;
 #endif
 #if defined(ENABLE_PIPEWIRE)
     case AUDIO_BACKEND_TYPE_PIPEWIRE:
       final_play->cfg.pipewire.channels = temp.channels;
-      snprintf(final_play->cfg.pipewire.device, sizeof(final_play->cfg.pipewire.device),
-               "%s", temp.device);
+      snprintf(final_play->cfg.pipewire.device,
+               sizeof(final_play->cfg.pipewire.device), "%s", temp.device);
       final_play->cfg.pipewire.has_device = temp.has_device;
-      snprintf(final_play->cfg.pipewire.node_name, sizeof(final_play->cfg.pipewire.node_name),
-               "%s", temp.node_name);
+      snprintf(final_play->cfg.pipewire.node_name,
+               sizeof(final_play->cfg.pipewire.node_name), "%s",
+               temp.node_name);
       final_play->cfg.pipewire.has_node_name = temp.has_node_name;
-      snprintf(final_play->cfg.pipewire.node_description, sizeof(final_play->cfg.pipewire.node_description),
-               "%s", temp.node_description);
+      snprintf(final_play->cfg.pipewire.node_description,
+               sizeof(final_play->cfg.pipewire.node_description), "%s",
+               temp.node_description);
       final_play->cfg.pipewire.has_node_description = temp.has_node_description;
-      snprintf(final_play->cfg.pipewire.node_group_name, sizeof(final_play->cfg.pipewire.node_group_name),
-               "%s", temp.node_group_name);
+      snprintf(final_play->cfg.pipewire.node_group_name,
+               sizeof(final_play->cfg.pipewire.node_group_name), "%s",
+               temp.node_group_name);
       final_play->cfg.pipewire.has_node_group_name = temp.has_node_group_name;
-      snprintf(final_play->cfg.pipewire.autoconnect_to, sizeof(final_play->cfg.pipewire.autoconnect_to),
-               "%s", temp.autoconnect_to);
+      snprintf(final_play->cfg.pipewire.autoconnect_to,
+               sizeof(final_play->cfg.pipewire.autoconnect_to), "%s",
+               temp.autoconnect_to);
       final_play->cfg.pipewire.has_autoconnect_to = temp.has_autoconnect_to;
       break;
 #endif
@@ -831,8 +842,8 @@ static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
       break;
 #endif
     case AUDIO_BACKEND_TYPE_FILE:
-      snprintf(final_play->cfg.raw_file.filename, sizeof(final_play->cfg.raw_file.filename),
-               "%s", temp.filename);
+      snprintf(final_play->cfg.raw_file.filename,
+               sizeof(final_play->cfg.raw_file.filename), "%s", temp.filename);
       final_play->cfg.raw_file.has_filename = temp.has_filename;
       final_play->cfg.raw_file.format = temp.file_format;
       final_play->cfg.raw_file.has_format = temp.has_file_format;
@@ -849,8 +860,8 @@ static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
 #if defined(ENABLE_WASAPI)
     case AUDIO_BACKEND_TYPE_WASAPI:
       final_play->cfg.wasapi.channels = temp.channels;
-      snprintf(final_play->cfg.wasapi.device, sizeof(final_play->cfg.wasapi.device),
-               "%s", temp.device);
+      snprintf(final_play->cfg.wasapi.device,
+               sizeof(final_play->cfg.wasapi.device), "%s", temp.device);
       final_play->cfg.wasapi.has_device = temp.has_device;
       final_play->cfg.wasapi.format = temp.wasapi_format;
       final_play->cfg.wasapi.has_format = temp.has_wasapi_format;
@@ -878,7 +889,8 @@ static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
  * @brief Parses the top-level devices section from the configuration.
  *
  * Extracts global configuration fields like sample rate, chunk size, limits,
- * adjust options, and calls helpers to parse resampler, capture, and playback settings.
+ * adjust options, and calls helpers to parse resampler, capture, and playback
+ * settings.
  *
  * @param dev_obj The cJSON object representing the "devices" section.
  * @param config Pointer to the top-level configuration structure.
@@ -993,8 +1005,8 @@ static int parse_devices(const cJSON* dev_obj, dsp_config_t* config,
 /**
  * @brief Parses the pipeline steps from the configuration.
  *
- * Iterates through the pipeline array to extract step types (Filter, Mixer, Processor),
- * names, channels, and bypass flags.
+ * Iterates through the pipeline array to extract step types (Filter, Mixer,
+ * Processor), names, channels, and bypass flags.
  *
  * @param pipe_arr The cJSON array representing the "pipeline" section.
  * @param config Pointer to the top-level configuration structure.
@@ -1088,7 +1100,8 @@ static int parse_pipeline(const cJSON* pipe_arr, dsp_config_t* config,
 /**
  * @brief Parses mixers defined in the configuration.
  *
- * Iterates through the mixers object, parsing input/output channels and the matrix mapping.
+ * Iterates through the mixers object, parsing input/output channels and the
+ * matrix mapping.
  *
  * @param mixers_obj The cJSON object containing mixer definitions.
  * @param config Pointer to the top-level configuration structure.
@@ -1234,7 +1247,8 @@ static int parse_mixers(const cJSON* mixers_obj, dsp_config_t* config,
  * @brief Parses filters defined in the configuration.
  *
  * Parsers various filter types (Gain, Volume, Loudness, Biquad, Delay, Conv,
- * BiquadCombo, DiffEq, Dither, Limiter, LookaheadLimiter) and their specific parameters.
+ * BiquadCombo, DiffEq, Dither, Limiter, LookaheadLimiter) and their specific
+ * parameters.
  *
  * @param filters_obj The cJSON object containing filter definitions.
  * @param config Pointer to the top-level configuration structure.
@@ -2004,8 +2018,8 @@ int dsp_config_parse_json(const char* json, dsp_config_t** out_config,
   cJSON_Delete(root);
 
   /* Validate the populated configuration structure.
-   * This checks schema constraints and traces channel flows through the pipeline
-   * to catch configuration inconsistencies before return. */
+   * This checks schema constraints and traces channel flows through the
+   * pipeline to catch configuration inconsistencies before return. */
   if (dsp_config_validate(config, err) != 0) {
     dsp_config_free(config);
     return -1;

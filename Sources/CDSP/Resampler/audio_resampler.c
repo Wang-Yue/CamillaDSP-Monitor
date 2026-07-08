@@ -21,8 +21,6 @@ struct audio_resampler {
   void (*free)(struct audio_resampler* self);
 };
 
-
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -478,23 +476,21 @@ audio_resampler_t* audio_resampler_create_from_config(
   }
 }
 
-
-resampler_error_t audio_resampler_process(
-    audio_resampler_t* resampler, const audio_chunk_t* input,
-    audio_chunk_t* output) {
+resampler_error_t audio_resampler_process(audio_resampler_t* resampler,
+                                          const audio_chunk_t* input,
+                                          audio_chunk_t* output) {
   if (!resampler || !resampler->process) return RESAMPLER_ERR_INVALID_PARAMETER;
   return resampler->process(resampler, input, output);
 }
 
-void audio_resampler_set_relative_ratio(
-    audio_resampler_t* resampler, double multiplier) {
+void audio_resampler_set_relative_ratio(audio_resampler_t* resampler,
+                                        double multiplier) {
   if (resampler && resampler->set_relative_ratio) {
     resampler->set_relative_ratio(resampler, multiplier);
   }
 }
 
-double audio_resampler_get_ratio(
-    const audio_resampler_t* resampler) {
+double audio_resampler_get_ratio(const audio_resampler_t* resampler) {
   return (resampler && resampler->get_ratio) ? resampler->get_ratio(resampler)
                                              : 1.0;
 }
@@ -506,15 +502,13 @@ size_t audio_resampler_get_max_output_frames(
              : 0;
 }
 
-size_t audio_resampler_get_chunk_size(
-    const audio_resampler_t* resampler) {
+size_t audio_resampler_get_chunk_size(const audio_resampler_t* resampler) {
   return (resampler && resampler->get_chunk_size)
              ? resampler->get_chunk_size(resampler)
              : 0;
 }
 
-size_t audio_resampler_get_channels(
-    const audio_resampler_t* resampler) {
+size_t audio_resampler_get_channels(const audio_resampler_t* resampler) {
   return (resampler && resampler->get_channels)
              ? resampler->get_channels(resampler)
              : 0;

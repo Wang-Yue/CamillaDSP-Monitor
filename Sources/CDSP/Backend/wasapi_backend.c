@@ -70,24 +70,27 @@ struct wasapi_playback {
 };
 
 /**
- * @brief Decodes interleaved audio samples from WASAPI input buffer format to deinterleaved double format.
- * 
+ * @brief Decodes interleaved audio samples from WASAPI input buffer format to
+ * deinterleaved double format.
+ *
  * Supports conversion from:
  * - 32-bit IEEE float
  * - 16-bit signed integer (scaled to [-1.0, 1.0])
  * - 24-bit signed integer (packed 3 bytes, scaled to [-1.0, 1.0])
  * - 32-bit signed integer with 24 valid bits (shifted and scaled)
  * - 32-bit signed integer with 32 valid bits (scaled)
- * 
- * If AUDCLNT_BUFFERFLAGS_SILENT is set in flags, the output chunk is filled with silence (0.0).
- * 
+ *
+ * If AUDCLNT_BUFFERFLAGS_SILENT is set in flags, the output chunk is filled
+ * with silence (0.0).
+ *
  * @param chunk The destination audio_chunk_t structure.
  * @param chunk_offset Starting frame index in the destination chunk.
  * @param src Pointer to the source raw WASAPI byte buffer.
  * @param frames Number of frames to decode.
  * @param channels Number of audio channels.
  * @param flags Buffer status flags from WASAPI (e.g., silence flag).
- * @param bits_per_sample Total bits per sample in the source container (16, 24, 32).
+ * @param bits_per_sample Total bits per sample in the source container (16, 24,
+ * 32).
  * @param valid_bits Actual bits of precision (16, 24, 32).
  * @param is_float True if the source is floating-point, false for PCM.
  */
@@ -158,8 +161,9 @@ static inline void decode_samples_from_wasapi(audio_chunk_t* chunk,
 }
 
 /**
- * @brief Encodes deinterleaved double samples from audio chunk to interleaved WASAPI output buffer format.
- * 
+ * @brief Encodes deinterleaved double samples from audio chunk to interleaved
+ * WASAPI output buffer format.
+ *
  * Clamps input double values to [-1.0, 1.0] before encoding to integer formats.
  * Supports conversion to:
  * - 32-bit IEEE float
@@ -167,13 +171,14 @@ static inline void decode_samples_from_wasapi(audio_chunk_t* chunk,
  * - 24-bit signed integer (packed 3 bytes)
  * - 32-bit signed integer with 24 valid bits (shifted)
  * - 32-bit signed integer with 32 valid bits
- * 
+ *
  * @param dst Pointer to the destination raw WASAPI byte buffer.
  * @param chunk The source audio_chunk_t structure.
  * @param chunk_offset Starting frame index in the source chunk.
  * @param frames Number of frames to encode.
  * @param channels Number of audio channels.
- * @param bits_per_sample Total bits per sample in the destination container (16, 24, 32).
+ * @param bits_per_sample Total bits per sample in the destination container
+ * (16, 24, 32).
  * @param valid_bits Actual bits of precision (16, 24, 32).
  * @param is_float True if the destination format is floating-point.
  */
@@ -683,7 +688,8 @@ bool wasapi_capture_read(wasapi_capture_t* capture, size_t frames,
                          audio_chunk_t* chunk, backend_error_t* err) {
   size_t frames_read = 0;
 
-  // Keep fetching audio packets until we have filled the requested number of frames.
+  // Keep fetching audio packets until we have filled the requested number of
+  // frames.
   while (frames_read < frames) {
     UINT32 packet_size = 0;
     // Check the size of the next available packet in the capture buffer.
@@ -792,7 +798,8 @@ static bool play_vtable_open(void* ctx, backend_error_t* err) {
 }
 
 /**
- * @brief Vtable adapter to write a chunk of audio to the WASAPI playback stream.
+ * @brief Vtable adapter to write a chunk of audio to the WASAPI playback
+ * stream.
  * @param ctx Pointer to the wasapi_playback_t context.
  * @param chunk Pointer to audio_chunk_t containing the data to write.
  * @param err Pointer to backend_error_t to receive error details.
@@ -1216,7 +1223,8 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
   size_t frames_written = 0;
   size_t total_frames = audio_chunk_get_valid_frames(chunk);
 
-  // Keep writing audio packets until all frames from the input chunk are written.
+  // Keep writing audio packets until all frames from the input chunk are
+  // written.
   while (frames_written < total_frames) {
     UINT32 padding = 0;
     // Get the amount of data already buffered in the endpoint.
@@ -1241,7 +1249,8 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
       hr = IAudioRenderClient_GetBuffer(playback->render_client, to_write,
                                         &data);
       if (SUCCEEDED(hr) && data) {
-        // Encode and copy the samples from the audio chunk to the WASAPI buffer.
+        // Encode and copy the samples from the audio chunk to the WASAPI
+        // buffer.
         encode_samples_to_wasapi(data, chunk, frames_written, to_write,
                                  playback->channels, playback->bits_per_sample,
                                  playback->valid_bits, playback->is_float);
@@ -1254,7 +1263,8 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
       if (playback->polling) {
         Sleep(1);
       } else {
-        // Wait for the event signaled by WASAPI when it has processed some data.
+        // Wait for the event signaled by WASAPI when it has processed some
+        // data.
         if (WaitForSingleObject(playback->event, 100) != WAIT_OBJECT_0) {
           // Timeout or error wait
         }

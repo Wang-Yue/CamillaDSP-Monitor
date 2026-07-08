@@ -77,4 +77,3 @@ void convolution_filter_process(convolution_filter_t* filter,
 void convolution_filter_free(convolution_filter_t* filter);
 
 #endif  // CLIB_FILTERS_CONVOLUTION_H
-

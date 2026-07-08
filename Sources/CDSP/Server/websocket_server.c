@@ -2,6 +2,7 @@
 // Provides runtime control API compatible with the control protocol
 
 #include "websocket_server.h"
+
 #include "Logging/app_logger.h"
 
 static const logger_t server_logger = {"dsp.server.websocket"};
@@ -24,8 +25,9 @@ typedef uint32_t CC_LONG;
 /**
  * @brief Performs a SHA-1 block transformation.
  *
- * Core SHA-1 compression function. Processes a single 64-byte block to update the 160-bit state.
- * Used for WebSocket handshake key generation on non-macOS systems.
+ * Core SHA-1 compression function. Processes a single 64-byte block to update
+ * the 160-bit state. Used for WebSocket handshake key generation on non-macOS
+ * systems.
  *
  * @param state SHA-1 state vector (5 words).
  * @param buffer 64-byte block buffer to process.
@@ -74,8 +76,8 @@ static void sha1_transform(uint32_t state[5], const unsigned char buffer[64]) {
 /**
  * @brief Computes SHA-1 hash of the given data buffer.
  *
- * Provides a fallback SHA-1 implementation on systems that do not offer CommonCrypto (like Linux).
- * Outputs a 20-byte digest.
+ * Provides a fallback SHA-1 implementation on systems that do not offer
+ * CommonCrypto (like Linux). Outputs a 20-byte digest.
  *
  * @param data Pointer to the input data buffer.
  * @param len Length of input data in bytes.
@@ -130,7 +132,8 @@ static void CC_SHA1(const void* data, CC_LONG len, unsigned char* digest) {
 /**
  * @brief Converts a decibel (dB) value to a linear amplitude ratio.
  *
- * @param db Value in dB. Values <= -1000.0 are treated as silence (0.0 amplitude).
+ * @param db Value in dB. Values <= -1000.0 are treated as silence (0.0
+ * amplitude).
  * @return Linear amplitude ratio.
  */
 static double db_to_amplitude(double db) {
@@ -190,13 +193,15 @@ static void level_history_append(level_history_t* history, const double* levels,
 }
 
 /**
- * @brief Finds the peak (maximum) level for each channel since a given timestamp.
+ * @brief Finds the peak (maximum) level for each channel since a given
+ * timestamp.
  *
  * Searches the level history ring buffer backward starting from the head.
  *
  * @param history Pointer to the level history structure.
  * @param since_ms Start timestamp in milliseconds.
- * @param out_levels Output array to store the peak levels per channel (initialized to -1000.0 dB).
+ * @param out_levels Output array to store the peak levels per channel
+ * (initialized to -1000.0 dB).
  */
 static void level_history_get_max_since(const level_history_t* history,
                                         uint64_t since_ms, double* out_levels) {
@@ -219,7 +224,8 @@ static void level_history_get_max_since(const level_history_t* history,
 }
 
 /**
- * @brief Calculates the root-mean-square (RMS) level for each channel since a given timestamp.
+ * @brief Calculates the root-mean-square (RMS) level for each channel since a
+ * given timestamp.
  *
  * Aggregates values in the level history ring buffer backward from the head.
  *
@@ -257,11 +263,13 @@ static void level_history_get_rms_since(const level_history_t* history,
 }
 
 /**
- * @brief Calculates the smoothing factor (alpha) for an exponential moving average.
+ * @brief Calculates the smoothing factor (alpha) for an exponential moving
+ * average.
  *
  * @param delta_ms Time elapsed since the last update in milliseconds.
  * @param time_constant_ms The response time constant in milliseconds.
- * @return The smoothing factor alpha (between 0.0 and 1.0). Returns 1.0 if time constant is <= 0.
+ * @return The smoothing factor alpha (between 0.0 and 1.0). Returns 1.0 if time
+ * constant is <= 0.
  */
 static double smoothing_alpha(double delta_ms, double time_constant_ms) {
   if (time_constant_ms <= 0.0) return 1.0;
@@ -307,7 +315,8 @@ static uint64_t get_time_ms(void) {
 /**
  * @brief Formats a processing stop reason into a quoted JSON string.
  *
- * Writes a description of why processing stopped (e.g. format change, error) into the output buffer.
+ * Writes a description of why processing stopped (e.g. format change, error)
+ * into the output buffer.
  *
  * @param reason Pointer to the stop reason structure.
  * @param out Output buffer to write the string into.
@@ -366,7 +375,8 @@ static void format_state_event_payload(processing_state_t state,
 }
 
 /**
- * @brief Maps an audio backend error type to a WebSocket control protocol error key.
+ * @brief Maps an audio backend error type to a WebSocket control protocol error
+ * key.
  *
  * @param type The audio backend error type.
  * @return The corresponding error name string.
@@ -387,7 +397,8 @@ static const char* get_websocket_error_key(audio_backend_error_type_t type) {
 /**
  * @brief Constructs a standard JSON reply string for the control protocol.
  *
- * Formats a reply of the form: `{"Command":{"result":RESULT_STR,"value":VALUE_STR}}`.
+ * Formats a reply of the form:
+ * `{"Command":{"result":RESULT_STR,"value":VALUE_STR}}`.
  *
  * @param cmd The command name.
  * @param res_str The result status string (e.g. `"Ok"` or error string).
@@ -409,7 +420,8 @@ static void json_reply(const char* cmd, const char* res_str,
  * @brief Reads a file into a dynamically allocated string (server helper).
  *
  * @param path Path to the file.
- * @return Pointer to the allocated string containing the file contents, or NULL if reading fails.
+ * @return Pointer to the allocated string containing the file contents, or NULL
+ * if reading fails.
  */
 static char* server_read_file_to_string(const char* path) {
   FILE* fp = fopen(path, "rb");
@@ -435,7 +447,8 @@ static char* server_read_file_to_string(const char* path) {
 /**
  * @brief Extracts a string value from a flat JSON object by its key.
  *
- * Helper to quickly read simple string fields from JSON without manual cJSON traversal.
+ * Helper to quickly read simple string fields from JSON without manual cJSON
+ * traversal.
  *
  * @param json The JSON string.
  * @param key The key to look up.
@@ -462,13 +475,16 @@ static bool extract_json_string_value(const char* json, const char* key,
 /**
  * @brief Locates a cJSON node matching a RFC 6901 JSON pointer.
  *
- * Recursively navigates through JSON objects and arrays matching segments of the pointer.
+ * Recursively navigates through JSON objects and arrays matching segments of
+ * the pointer.
  *
  * @param root The root cJSON node.
  * @param pointer The JSON pointer string (e.g. "/devices/playback/device").
  * @param out_parent Optional output pointer to store the located node's parent.
- * @param out_key Optional output pointer to store the key matching the node in its parent.
- * @param out_index Optional output pointer to store the index matching the node in its parent array.
+ * @param out_key Optional output pointer to store the key matching the node in
+ * its parent.
+ * @param out_index Optional output pointer to store the index matching the node
+ * in its parent array.
  * @return The located cJSON node, or NULL if not found.
  */
 static cJSON* cjson_locate_pointer(cJSON* root, const char* pointer,
@@ -554,15 +570,17 @@ static bool server_get_value_at_pointer(const char* json, const char* pointer,
 }
 
 /**
- * @brief Replaces or inserts a JSON value at the specified JSON pointer location.
+ * @brief Replaces or inserts a JSON value at the specified JSON pointer
+ * location.
  *
- * Parses the new value string, locates the parent at the pointer, and replaces the element.
- * Returns a newly allocated string containing the updated JSON.
+ * Parses the new value string, locates the parent at the pointer, and replaces
+ * the element. Returns a newly allocated string containing the updated JSON.
  *
  * @param json The source JSON string.
  * @param pointer JSON pointer.
  * @param new_val_str The new value as a JSON fragment string.
- * @return A newly allocated string containing the serialized updated JSON, or NULL on failure.
+ * @return A newly allocated string containing the serialized updated JSON, or
+ * NULL on failure.
  */
 static char* server_set_value_at_pointer_str(const char* json,
                                              const char* pointer,
@@ -604,8 +622,9 @@ static char* server_set_value_at_pointer_str(const char* json,
 /**
  * @brief Applies a JSON Merge Patch (RFC 7396) to a target cJSON object.
  *
- * Modifies the target cJSON object in-place according to the rules of JSON Merge Patch.
- * Null values in the patch delete corresponding fields in the target.
+ * Modifies the target cJSON object in-place according to the rules of JSON
+ * Merge Patch. Null values in the patch delete corresponding fields in the
+ * target.
  *
  * @param target The target cJSON object to patch.
  * @param patch The patch cJSON object.
@@ -671,9 +690,11 @@ static void format_double_array(const double* arr, size_t count, char* out,
 }
 
 /**
- * @brief Serializes an audio device descriptor struct into its JSON representation.
+ * @brief Serializes an audio device descriptor struct into its JSON
+ * representation.
  *
- * Formats details of the device's name, capabilities, sample rates, formats and channels.
+ * Formats details of the device's name, capabilities, sample rates, formats and
+ * channels.
  *
  * @param desc Pointer to the device descriptor.
  * @param out Output buffer.
@@ -745,10 +766,12 @@ static void format_spectrum(const spectrum_t* spec, char* out, size_t max_len) {
 }
 
 /**
- * @brief Helper to handle volume adjustments (relative change) on a specific fader.
+ * @brief Helper to handle volume adjustments (relative change) on a specific
+ * fader.
  *
  * Validates the current running status, fetches processing parameters, computes
- * the new volume clamped to the bounds, applies it, and formats the JSON response.
+ * the new volume clamped to the bounds, applies it, and formats the JSON
+ * response.
  *
  * @param server Pointer to the WebSocket server.
  * @param fader The fader index to adjust.
@@ -781,7 +804,8 @@ static bool server_handle_adjust_volume_fader(
   if (new_vol > max_vol) new_vol = max_vol;
 
   if (server && server->engine && server->engine->set_fader_volume) {
-    server->engine->set_fader_volume(server->engine->ctx, fader, (float)new_vol, false);
+    server->engine->set_fader_volume(server->engine->ctx, fader, (float)new_vol,
+                                     false);
   }
 
   char val[64];
@@ -888,7 +912,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       bool was_muted =
           processing_parameters_is_muted_for_fader(params, FADER_MAIN);
       if (server && server->engine && server->engine->set_fader_mute) {
-        server->engine->set_fader_mute(server->engine->ctx, FADER_MAIN, !was_muted);
+        server->engine->set_fader_mute(server->engine->ctx, FADER_MAIN,
+                                       !was_muted);
       }
       json_reply("ToggleMute", "\"Ok\"", !was_muted ? "true" : "false",
                  out_response, max_len);
@@ -1172,10 +1197,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         strcmp(side, "both") == 0) {
       if (server) {
         server->client_sessions[client_idx].signal_levels_subscribed = true;
-        snprintf(
-            server->client_sessions[client_idx].signal_levels_side,
-            sizeof(server->client_sessions[client_idx].signal_levels_side),
-            "%s", side);
+        snprintf(server->client_sessions[client_idx].signal_levels_side,
+                 sizeof(server->client_sessions[client_idx].signal_levels_side),
+                 "%s", side);
       }
       json_reply("SubscribeSignalLevels", "\"Ok\"", NULL, out_response,
                  max_len);
@@ -1976,7 +2000,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     if (pointer[0] != '\0' && trimmed_val) {
       char* active_json = NULL;
       if (server && server->engine && server->engine->get_active_config_json) {
-        server->engine->get_active_config_json(server->engine->ctx, &active_json);
+        server->engine->get_active_config_json(server->engine->ctx,
+                                               &active_json);
       }
       if (!active_json) {
         char* path = NULL;
@@ -2031,7 +2056,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     if (arg && cJSON_IsObject(arg)) {
       char* active_json = NULL;
       if (server && server->engine && server->engine->get_active_config_json) {
-        server->engine->get_active_config_json(server->engine->ctx, &active_json);
+        server->engine->get_active_config_json(server->engine->ctx,
+                                               &active_json);
       }
       if (!active_json) {
         char* path = NULL;
@@ -2201,7 +2227,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     if (ok) {
       if (server && server->engine && server->engine->set_fader_mute) {
         if (idx >= 0 && idx < FADER_COUNT) {
-          server->engine->set_fader_mute(server->engine->ctx, (fader_t)idx, mute);
+          server->engine->set_fader_mute(server->engine->ctx, (fader_t)idx,
+                                         mute);
           json_reply("SetFaderMute", "\"Ok\"", NULL, out_response, max_len);
         } else {
           json_reply("SetFaderMute", "\"InvalidFaderError\"", NULL,
@@ -2230,7 +2257,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           bool was_muted =
               processing_parameters_is_muted_for_fader(params, (fader_t)idx);
           if (server->engine->set_fader_mute) {
-            server->engine->set_fader_mute(server->engine->ctx, (fader_t)idx, !was_muted);
+            server->engine->set_fader_mute(server->engine->ctx, (fader_t)idx,
+                                           !was_muted);
           }
           char val[64];
           snprintf(val, sizeof(val), "[%d,%s]", idx,
@@ -2326,17 +2354,20 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       }
       if (size >= 2) {
         cJSON* min_node = cJSON_GetArrayItem(arg, 1);
-        if (min_node && cJSON_IsNumber(min_node)) min_vol = min_node->valuedouble;
+        if (min_node && cJSON_IsNumber(min_node))
+          min_vol = min_node->valuedouble;
       }
       if (size >= 3) {
         cJSON* max_node = cJSON_GetArrayItem(arg, 2);
-        if (max_node && cJSON_IsNumber(max_node)) max_vol = max_node->valuedouble;
+        if (max_node && cJSON_IsNumber(max_node))
+          max_vol = max_node->valuedouble;
       }
     }
 
     if (ok) {
-      server_handle_adjust_volume_fader(server, FADER_MAIN, delta, min_vol, max_vol,
-                                        out_response, max_len, "AdjustVolume");
+      server_handle_adjust_volume_fader(server, FADER_MAIN, delta, min_vol,
+                                        max_vol, out_response, max_len,
+                                        "AdjustVolume");
     } else {
       json_reply(
           "AdjustVolume",
@@ -2354,7 +2385,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       if (size >= 2) {
         cJSON* idx_node = cJSON_GetArrayItem(arg, 0);
         cJSON* d_node = cJSON_GetArrayItem(arg, 1);
-        if (idx_node && d_node && cJSON_IsNumber(idx_node) && cJSON_IsNumber(d_node)) {
+        if (idx_node && d_node && cJSON_IsNumber(idx_node) &&
+            cJSON_IsNumber(d_node)) {
           idx = idx_node->valueint;
           delta = d_node->valuedouble;
           ok = true;
@@ -2362,27 +2394,30 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       }
       if (size >= 3) {
         cJSON* min_node = cJSON_GetArrayItem(arg, 2);
-        if (min_node && cJSON_IsNumber(min_node)) min_vol = min_node->valuedouble;
+        if (min_node && cJSON_IsNumber(min_node))
+          min_vol = min_node->valuedouble;
       }
       if (size >= 4) {
         cJSON* max_node = cJSON_GetArrayItem(arg, 3);
-        if (max_node && cJSON_IsNumber(max_node)) max_vol = max_node->valuedouble;
+        if (max_node && cJSON_IsNumber(max_node))
+          max_vol = max_node->valuedouble;
       }
     }
 
     if (ok) {
       if (idx >= 0 && idx < FADER_COUNT) {
-        server_handle_adjust_volume_fader(server, (fader_t)idx, delta, min_vol, max_vol,
-                                          out_response, max_len, "AdjustFaderVolume");
+        server_handle_adjust_volume_fader(server, (fader_t)idx, delta, min_vol,
+                                          max_vol, out_response, max_len,
+                                          "AdjustFaderVolume");
       } else {
         json_reply("AdjustFaderVolume", "\"InvalidFaderError\"", NULL,
                    out_response, max_len);
       }
     } else {
-      json_reply(
-          "AdjustFaderVolume",
-          "{\"InvalidRequestError\":\"Could not parse AdjustFaderVolume array\"}",
-          NULL, out_response, max_len);
+      json_reply("AdjustFaderVolume",
+                 "{\"InvalidRequestError\":\"Could not parse AdjustFaderVolume "
+                 "array\"}",
+                 NULL, out_response, max_len);
     }
   } else if (strcmp(simple, "GetCaptureDeviceCapabilities") == 0 ||
              strcmp(simple, "GetPlaybackDeviceCapabilities") == 0) {
@@ -2545,8 +2580,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
 /**
  * @brief Sends a WebSocket text frame to a client file descriptor.
  *
- * Packages the payload into a standard RFC 6455 WebSocket text frame (opcode 0x81),
- * handles payload length fields (up to 64-bit lengths), and writes to the socket.
+ * Packages the payload into a standard RFC 6455 WebSocket text frame (opcode
+ * 0x81), handles payload length fields (up to 64-bit lengths), and writes to
+ * the socket.
  *
  * @param fd The client socket file descriptor.
  * @param response The null-terminated payload string to send.
@@ -2590,8 +2626,8 @@ static void send_websocket_frame(int fd, const char* response) {
  * @brief Thread entry point for the WebSocket server.
  *
  * Handles the polling loop for accepting new client connections, receiving
- * WebSocket frames, decoding masking key, executing commands, and pushing periodic updates
- * (VU levels, signal levels, spectrum) to subscribed clients.
+ * WebSocket frames, decoding masking key, executing commands, and pushing
+ * periodic updates (VU levels, signal levels, spectrum) to subscribed clients.
  *
  * @param arg Pointer to the websocket_server_t structure.
  * @return Always NULL.
@@ -2965,7 +3001,8 @@ static void* server_thread_func(void* arg) {
               strcpy(last_state[j], last_state[j + 1]);
               server->client_sessions[j] = server->client_sessions[j + 1];
             }
-            memset(&server->client_sessions[num_clients - 1], 0, sizeof(client_session_t));
+            memset(&server->client_sessions[num_clients - 1], 0,
+                   sizeof(client_session_t));
             num_clients--;
             i--;
           } else {
@@ -3034,7 +3071,8 @@ static void* server_thread_func(void* arg) {
                     strcpy(last_state[j], last_state[j + 1]);
                     server->client_sessions[j] = server->client_sessions[j + 1];
                   }
-                  memset(&server->client_sessions[num_clients - 1], 0, sizeof(client_session_t));
+                  memset(&server->client_sessions[num_clients - 1], 0,
+                         sizeof(client_session_t));
                   num_clients--;
                   i--;
                   break;
@@ -3045,20 +3083,22 @@ static void* server_thread_func(void* arg) {
                 int mask_offset = 2;
                 if (payload_len == 126) {
                   if (offset + 4 > n) break;
-                  payload_len =
-                      ((unsigned char)buf[offset + 2] << 8) | (unsigned char)buf[offset + 3];
+                  payload_len = ((unsigned char)buf[offset + 2] << 8) |
+                                (unsigned char)buf[offset + 3];
                   mask_offset = 4;
                 } else if (payload_len == 127) {
                   if (offset + 10 > n) break;
                   payload_len = 0;
                   for (int j = 0; j < 8; j++) {
-                    payload_len = (payload_len << 8) | (unsigned char)buf[offset + 2 + j];
+                    payload_len =
+                        (payload_len << 8) | (unsigned char)buf[offset + 2 + j];
                   }
                   mask_offset = 10;
                 }
                 if (offset + mask_offset + 4 + payload_len > n) break;
-                
-                unsigned char* mask = (unsigned char*)&buf[offset + mask_offset];
+
+                unsigned char* mask =
+                    (unsigned char*)&buf[offset + mask_offset];
                 char* payload = &buf[offset + mask_offset + 4];
                 for (int p = 0; p < payload_len; p++) {
                   payload[p] ^= mask[p % 4];
@@ -3074,7 +3114,7 @@ static void* server_thread_func(void* arg) {
                 response[0] = '\0';
                 websocket_server_handle_command(server, i, payload, response,
                                                 sizeof(response));
-                
+
                 payload[payload_len] = saved_char;
 
                 if (response[0] != '\0') {
@@ -3091,8 +3131,8 @@ static void* server_thread_func(void* arg) {
 
                 char response[16384];
                 response[0] = '\0';
-                websocket_server_handle_command(server, i, &buf[offset], response,
-                                                sizeof(response));
+                websocket_server_handle_command(server, i, &buf[offset],
+                                                response, sizeof(response));
                 if (response[0] != '\0') {
                   logger_debug(&server_logger, "Sending raw TCP response: %s",
                                log_arg_string(response), log_arg_none(),

@@ -22,7 +22,8 @@ TEST(FileBackendRawRoundTrip) {
   play_cfg.is_wav = false;
   play_cfg.has_is_wav = true;
   play_cfg.cfg.raw_file.channels = 2;
-  snprintf(play_cfg.cfg.raw_file.filename, sizeof(play_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  snprintf(play_cfg.cfg.raw_file.filename,
+           sizeof(play_cfg.cfg.raw_file.filename), "%s", raw_filename);
   play_cfg.cfg.raw_file.has_filename = true;
   play_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_F32_LE;
   play_cfg.cfg.raw_file.has_format = true;
@@ -51,7 +52,8 @@ TEST(FileBackendRawRoundTrip) {
   cap_cfg.is_wav = false;
   cap_cfg.has_is_wav = true;
   cap_cfg.cfg.raw_file.channels = 2;
-  snprintf(cap_cfg.cfg.raw_file.filename, sizeof(cap_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  snprintf(cap_cfg.cfg.raw_file.filename, sizeof(cap_cfg.cfg.raw_file.filename),
+           "%s", raw_filename);
   cap_cfg.cfg.raw_file.has_filename = true;
   cap_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_F32_LE;
   cap_cfg.cfg.raw_file.has_format = true;
@@ -91,7 +93,8 @@ TEST(FileBackendWavRoundTrip) {
   play_cfg.is_wav = true;
   play_cfg.has_is_wav = true;
   play_cfg.cfg.raw_file.channels = 1;
-  snprintf(play_cfg.cfg.raw_file.filename, sizeof(play_cfg.cfg.raw_file.filename), "%s", wav_filename);
+  snprintf(play_cfg.cfg.raw_file.filename,
+           sizeof(play_cfg.cfg.raw_file.filename), "%s", wav_filename);
   play_cfg.cfg.raw_file.has_filename = true;
   play_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_S16_LE;
   play_cfg.cfg.raw_file.has_format = true;
@@ -121,7 +124,8 @@ TEST(FileBackendWavRoundTrip) {
   cap_cfg.type = AUDIO_BACKEND_TYPE_FILE;
   cap_cfg.is_wav = true;
   cap_cfg.has_is_wav = true;
-  snprintf(cap_cfg.cfg.wav_file.filename, sizeof(cap_cfg.cfg.wav_file.filename), "%s", wav_filename);
+  snprintf(cap_cfg.cfg.wav_file.filename, sizeof(cap_cfg.cfg.wav_file.filename),
+           "%s", wav_filename);
   cap_cfg.cfg.wav_file.has_filename = true;
 
   // Notice we pass sample_rate = 0, channels = 0 to verify that the
@@ -161,7 +165,8 @@ TEST(FileBackendPauseThrottling) {
   play_cfg.is_wav = false;
   play_cfg.has_is_wav = true;
   play_cfg.cfg.raw_file.channels = 2;
-  snprintf(play_cfg.cfg.raw_file.filename, sizeof(play_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  snprintf(play_cfg.cfg.raw_file.filename,
+           sizeof(play_cfg.cfg.raw_file.filename), "%s", raw_filename);
   play_cfg.cfg.raw_file.has_filename = true;
   play_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_F32_LE;
   play_cfg.cfg.raw_file.has_format = true;
@@ -190,7 +195,8 @@ TEST(FileBackendPauseThrottling) {
   cap_cfg.is_wav = false;
   cap_cfg.has_is_wav = true;
   cap_cfg.cfg.raw_file.channels = 2;
-  snprintf(cap_cfg.cfg.raw_file.filename, sizeof(cap_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  snprintf(cap_cfg.cfg.raw_file.filename, sizeof(cap_cfg.cfg.raw_file.filename),
+           "%s", raw_filename);
   cap_cfg.cfg.raw_file.has_filename = true;
   cap_cfg.cfg.raw_file.format = BINARY_SAMPLE_FORMAT_F32_LE;
   cap_cfg.cfg.raw_file.has_format = true;
@@ -205,7 +211,8 @@ TEST(FileBackendPauseThrottling) {
   ASSERT_TRUE(capture_backend_read(capture, 50, read_chunk, &err));
   ASSERT_EQ(50, audio_chunk_get_valid_frames(read_chunk));
   for (size_t f = 0; f < 50; f++) {
-    ASSERT_NEAR((double)f / 200.0, audio_chunk_get_channel(read_chunk, 0)[f], 1e-6);
+    ASSERT_NEAR((double)f / 200.0, audio_chunk_get_channel(read_chunk, 0)[f],
+                1e-6);
   }
 
   // 4. Pause capture and verify read returns false with 0 valid frames
@@ -218,7 +225,8 @@ TEST(FileBackendPauseThrottling) {
   ASSERT_TRUE(capture_backend_read(capture, 50, read_chunk, &err));
   ASSERT_EQ(50, audio_chunk_get_valid_frames(read_chunk));
   for (size_t f = 0; f < 50; f++) {
-    ASSERT_NEAR((double)(f + 50) / 200.0, audio_chunk_get_channel(read_chunk, 0)[f], 1e-6);
+    ASSERT_NEAR((double)(f + 50) / 200.0,
+                audio_chunk_get_channel(read_chunk, 0)[f], 1e-6);
   }
 
   audio_chunk_free(write_chunk);
@@ -229,7 +237,8 @@ TEST(FileBackendPauseThrottling) {
   remove(raw_filename);
 }
 
-static void run_format_roundtrip_test(binary_sample_format_t format, double eps) {
+static void run_format_roundtrip_test(binary_sample_format_t format,
+                                      double eps) {
   const char* raw_filename = "/tmp/test_file_backend_roundtrip_tmp.raw";
   remove(raw_filename);
 
@@ -239,7 +248,8 @@ static void run_format_roundtrip_test(binary_sample_format_t format, double eps)
   play_cfg.is_wav = false;
   play_cfg.has_is_wav = true;
   play_cfg.cfg.raw_file.channels = 2;
-  snprintf(play_cfg.cfg.raw_file.filename, sizeof(play_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  snprintf(play_cfg.cfg.raw_file.filename,
+           sizeof(play_cfg.cfg.raw_file.filename), "%s", raw_filename);
   play_cfg.cfg.raw_file.has_filename = true;
   play_cfg.cfg.raw_file.format = format;
   play_cfg.cfg.raw_file.has_format = true;
@@ -267,7 +277,8 @@ static void run_format_roundtrip_test(binary_sample_format_t format, double eps)
   cap_cfg.is_wav = false;
   cap_cfg.has_is_wav = true;
   cap_cfg.cfg.raw_file.channels = 2;
-  snprintf(cap_cfg.cfg.raw_file.filename, sizeof(cap_cfg.cfg.raw_file.filename), "%s", raw_filename);
+  snprintf(cap_cfg.cfg.raw_file.filename, sizeof(cap_cfg.cfg.raw_file.filename),
+           "%s", raw_filename);
   cap_cfg.cfg.raw_file.has_filename = true;
   cap_cfg.cfg.raw_file.format = format;
   cap_cfg.cfg.raw_file.has_format = true;
@@ -282,8 +293,10 @@ static void run_format_roundtrip_test(binary_sample_format_t format, double eps)
   ASSERT_EQ(10, audio_chunk_get_valid_frames(read_chunk));
 
   for (size_t f = 0; f < 10; f++) {
-    ASSERT_NEAR((double)f / 10.0, audio_chunk_get_channel(read_chunk, 0)[f], eps);
-    ASSERT_NEAR(-(double)f / 10.0, audio_chunk_get_channel(read_chunk, 1)[f], eps);
+    ASSERT_NEAR((double)f / 10.0, audio_chunk_get_channel(read_chunk, 0)[f],
+                eps);
+    ASSERT_NEAR(-(double)f / 10.0, audio_chunk_get_channel(read_chunk, 1)[f],
+                eps);
   }
 
   audio_chunk_free(write_chunk);

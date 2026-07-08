@@ -34,10 +34,10 @@ typedef enum {
 typedef struct {
   log_arg_type_t type; /**< The type of the argument. */
   union {
-    int64_t i;       /**< Integer value. */
-    double d;        /**< Double value. */
-    const char* s;   /**< String value. */
-  } val;             /**< The union containing the argument value. */
+    int64_t i;     /**< Integer value. */
+    double d;      /**< Double value. */
+    const char* s; /**< String value. */
+  } val;           /**< The union containing the argument value. */
 } log_argument_t;
 
 /**
@@ -89,13 +89,13 @@ static inline log_argument_t log_arg_string(const char* s) {
  * @brief Represents a single log record entry.
  */
 typedef struct {
-  log_level_t level;    /**< Log level of this record. */
-  const char* label;    /**< Component label. */
-  const char* message;  /**< Message format string. */
-  log_argument_t arg1;  /**< First optional argument. */
-  log_argument_t arg2;  /**< Second optional argument. */
-  log_argument_t arg3;  /**< Third optional argument. */
-  log_argument_t arg4;  /**< Fourth optional argument. */
+  log_level_t level;   /**< Log level of this record. */
+  const char* label;   /**< Component label. */
+  const char* message; /**< Message format string. */
+  log_argument_t arg1; /**< First optional argument. */
+  log_argument_t arg2; /**< Second optional argument. */
+  log_argument_t arg3; /**< Third optional argument. */
+  log_argument_t arg4; /**< Fourth optional argument. */
 } log_record_t;
 
 /**
@@ -112,7 +112,8 @@ app_logger_t* app_logger_get_shared(void);
 /**
  * @brief Gets the process-wide log level.
  *
- * Stored as an atomic uint8_t so the real-time audio path can read it without locks.
+ * Stored as an atomic uint8_t so the real-time audio path can read it without
+ * locks.
  *
  * @return The current log_level_t.
  */
@@ -151,7 +152,8 @@ void app_logger_flush_and_stop(app_logger_t* logger);
  * @brief Logger handle used for components.
  */
 typedef struct {
-  const char* label; /**< Label prepended to all messages logged using this handle. */
+  const char*
+      label; /**< Label prepended to all messages logged using this handle. */
 } logger_t;
 
 /**

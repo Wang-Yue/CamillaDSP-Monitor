@@ -39,9 +39,9 @@ double noise_shaper_process(noise_shaper_t* shaper, double scaled,
   if (!shaper) return round(scaled + dither);
   double filt_buf = 0.0;
   size_t count = shaper->filter_count;
-  // Apply feedback filter to past quantization errors stored in the circular buffer.
-  // The buffer stores [error[n-count], ..., error[n-1]].
-  // The filter coefficients are applied in reverse order.
+  // Apply feedback filter to past quantization errors stored in the circular
+  // buffer. The buffer stores [error[n-count], ..., error[n-1]]. The filter
+  // coefficients are applied in reverse order.
   for (size_t i = 0; i < count; i++) {
     size_t buf_idx = (shaper->write_index + i) % count;
     size_t coeff_idx = count - 1 - i;
@@ -52,16 +52,16 @@ double noise_shaper_process(noise_shaper_t* shaper, double scaled,
   // Add dither and perform quantization (rounding to nearest integer).
   double result = scaled_plus_err + dither;
   double result_r = round(result);
-  // Calculate new quantization error (input to quantizer minus quantized output).
-  // Note: we exclude the dither from the error calculation to avoid shaping the dither itself,
-  // or rather we shape the total error including feedback.
+  // Calculate new quantization error (input to quantizer minus quantized
+  // output). Note: we exclude the dither from the error calculation to avoid
+  // shaping the dither itself, or rather we shape the total error including
+  // feedback.
   double error = scaled_plus_err - result_r;
   // Save error in circular buffer and advance write index.
   shaper->buffer[shaper->write_index] = error;
   shaper->write_index = (shaper->write_index + 1) % count;
   return result_r;
 }
-
 
 void noise_shaper_free(noise_shaper_t* shaper) {
   if (!shaper) return;
@@ -244,7 +244,8 @@ noise_shaper_t* noise_shaper_create_for_type(dither_type_t type) {
 /**
  * @brief Generates a pseudo-random 32-bit unsigned integer using XORShift.
  *
- * XORShift is a class of pseudorandom number generators that are simple and fast.
+ * XORShift is a class of pseudorandom number generators that are simple and
+ * fast.
  *
  * @param state Pointer to the 32-bit seed state.
  * @return A pseudo-random 32-bit integer.
@@ -259,7 +260,8 @@ static inline uint32_t xorshift32(uint32_t* state) {
 }
 
 /**
- * @brief Generates a pseudo-random double value uniformly distributed in [0, 1].
+ * @brief Generates a pseudo-random double value uniformly distributed in [0,
+ * 1].
  *
  * Uses xorshift32 and scales the output.
  *
@@ -275,20 +277,23 @@ static inline double sample_rng_0_1(uint32_t* state) {
  * @brief Samples a dither value based on the filter's configured dither type.
  *
  * Supports:
- * - Flat TPDF (Triangular Probability Density Function) dither, which has a flat
- *   frequency spectrum (white noise). It is generated using inverse transform sampling.
- * - High-pass TPDF dither, which is created by high-pass filtering (subtracting the
- *   previous sample) a uniform (rectangular) white noise distribution. This shifts
- *   dither energy to higher, less audible frequencies.
+ * - Flat TPDF (Triangular Probability Density Function) dither, which has a
+ * flat frequency spectrum (white noise). It is generated using inverse
+ * transform sampling.
+ * - High-pass TPDF dither, which is created by high-pass filtering (subtracting
+ * the previous sample) a uniform (rectangular) white noise distribution. This
+ * shifts dither energy to higher, less audible frequencies.
  *
- * @param filter The dither filter instance containing RNG state and dither parameters.
+ * @param filter The dither filter instance containing RNG state and dither
+ * parameters.
  * @return The generated dither sample.
  */
 static double sample_dither(dither_filter_t* filter) {
   if (filter->type == DITHER_TYPE_NONE) return 0.0;
   double half_amp = filter->amplitude / 2.0;
   if (filter->type == DITHER_TYPE_FLAT) {
-    // Generate TPDF dither using inverse transform sampling on [a, b] with peak at c.
+    // Generate TPDF dither using inverse transform sampling on [a, b] with peak
+    // at c.
     double u = sample_rng_0_1(&filter->rng_state);
     double a = -half_amp;
     double b = half_amp;
@@ -300,8 +305,8 @@ static double sample_dither(dither_filter_t* filter) {
       return b - sqrt((1.0 - u) * (b - a) * (b - c));
     }
   } else if (filter->type == DITHER_TYPE_HIGHPASS) {
-    // Generate high-pass TPDF dither by subtracting previous rectangular dither sample
-    // from the current rectangular dither sample.
+    // Generate high-pass TPDF dither by subtracting previous rectangular dither
+    // sample from the current rectangular dither sample.
     double u = sample_rng_0_1(&filter->rng_state);
     double new_sample = (2.0 * u - 1.0) * half_amp;
     double high_passed = new_sample - filter->previous_sample;
@@ -310,7 +315,6 @@ static double sample_dither(dither_filter_t* filter) {
   }
   return 0.0;
 }
-
 
 // MARK: - DitherFilter
 dither_filter_t* dither_filter_create(const char* name,

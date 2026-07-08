@@ -1,10 +1,11 @@
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+
 #include "../../Sources/CDSP/Engine/dsp_engine.h"
 #include "../../Sources/CDSP/Pipeline/config_loader.h"
 #include "test_support.h"
-#include <unistd.h>
-#include <time.h>
-#include <string.h>
-#include <stdio.h>
 
 static void run_e2e_test_config(const char* json, const char* backend_name) {
   dsp_engine_t* engine = dsp_engine_create();
@@ -14,8 +15,10 @@ static void run_e2e_test_config(const char* json, const char* backend_name) {
   memset(&err, 0, sizeof(err));
   bool success = dsp_engine_set_config(engine, json, &err);
   if (!success) {
-    printf("⚠️ [E2E Warning] Skipping E2E test for backend '%s' (Initialization failed: %s)\n",
-           backend_name, err.message);
+    printf(
+        "⚠️ [E2E Warning] Skipping E2E test for backend '%s' (Initialization "
+        "failed: %s)\n",
+        backend_name, err.message);
     dsp_engine_free(engine);
     return;
   }
@@ -46,8 +49,8 @@ TEST(DSPEngineDeviceCapabilities) {
   dsp_engine_free_device_capabilities(NULL);
 
   if (count > 0) {
-    audio_device_descriptor_t* desc =
-        dsp_engine_get_device_capabilities("coreaudio", devs[0].name, false, NULL);
+    audio_device_descriptor_t* desc = dsp_engine_get_device_capabilities(
+        "coreaudio", devs[0].name, false, NULL);
     if (desc) {
       dsp_engine_free_device_capabilities(desc);
     }
@@ -99,11 +102,13 @@ TEST(DSPEngineSetConfigAndReload) {
       "            \"channels_out\": 2,\n"
       "            \"mapping\": [{\n"
       "                \"dest\": 0,\n"
-      "                \"sources\": [{\"channel\": 0, \"gain\": 0.0, \"inverted\": "
+      "                \"sources\": [{\"channel\": 0, \"gain\": 0.0, "
+      "\"inverted\": "
       "false, \"mute\": false}]\n"
       "            }, {\n"
       "                \"dest\": 1,\n"
-      "                \"sources\": [{\"channel\": 1, \"gain\": 0.0, \"inverted\": "
+      "                \"sources\": [{\"channel\": 1, \"gain\": 0.0, "
+      "\"inverted\": "
       "false, \"mute\": false}]\n"
       "            }]\n"
       "        }\n"
@@ -150,11 +155,13 @@ TEST(DSPEngineSetConfigAndReload) {
       "            \"channels_out\": 2,\n"
       "            \"mapping\": [{\n"
       "                \"dest\": 0,\n"
-      "                \"sources\": [{\"channel\": 0, \"gain\": 0.0, \"inverted\": "
+      "                \"sources\": [{\"channel\": 0, \"gain\": 0.0, "
+      "\"inverted\": "
       "false, \"mute\": false}]\n"
       "            }, {\n"
       "                \"dest\": 1,\n"
-      "                \"sources\": [{\"channel\": 1, \"gain\": 0.0, \"inverted\": "
+      "                \"sources\": [{\"channel\": 1, \"gain\": 0.0, "
+      "\"inverted\": "
       "false, \"mute\": false}]\n"
       "            }]\n"
       "        }\n"
@@ -628,7 +635,10 @@ TEST(DSPEngineE2E_GeneratorFile_SpeedTest) {
   ASSERT_TRUE(size > 1000000);
 
   remove(out_filename);
-  printf("✅ [E2E Success] Generator -> File ran unthrottled (produced %ld bytes in 50ms)\n", size);
+  printf(
+      "✅ [E2E Success] Generator -> File ran unthrottled (produced %ld bytes "
+      "in 50ms)\n",
+      size);
 }
 
 TEST_MAIN()

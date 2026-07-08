@@ -15,7 +15,8 @@ TEST(PipeWirePlaybackBasic) {
   memset(&play_cfg, 0, sizeof(play_cfg));
   play_cfg.type = AUDIO_BACKEND_TYPE_PIPEWIRE;
   play_cfg.cfg.pipewire.channels = 2;
-  snprintf(play_cfg.cfg.pipewire.device, sizeof(play_cfg.cfg.pipewire.device), "default");
+  snprintf(play_cfg.cfg.pipewire.device, sizeof(play_cfg.cfg.pipewire.device),
+           "default");
   play_cfg.cfg.pipewire.has_device = true;
 
   backend_error_t err;
@@ -54,7 +55,8 @@ TEST(PipeWireCaptureBasic) {
   memset(&cap_cfg, 0, sizeof(cap_cfg));
   cap_cfg.type = AUDIO_BACKEND_TYPE_PIPEWIRE;
   cap_cfg.cfg.pipewire.channels = 2;
-  snprintf(cap_cfg.cfg.pipewire.device, sizeof(cap_cfg.cfg.pipewire.device), "default");
+  snprintf(cap_cfg.cfg.pipewire.device, sizeof(cap_cfg.cfg.pipewire.device),
+           "default");
   cap_cfg.cfg.pipewire.has_device = true;
 
   backend_error_t err;

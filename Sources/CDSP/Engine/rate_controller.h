@@ -71,7 +71,8 @@ typedef struct pi_rate_controller pi_rate_controller_t;
  * @param samplerate The sample rate in Hz.
  * @param interval The control interval in seconds.
  * @param target_level The target buffer level in samples.
- * @return A pointer to the newly created pi_rate_controller_t instance, or NULL on failure.
+ * @return A pointer to the newly created pi_rate_controller_t instance, or NULL
+ * on failure.
  */
 pi_rate_controller_t* pi_rate_controller_create_default(int samplerate,
                                                         double interval,
@@ -85,14 +86,16 @@ pi_rate_controller_t* pi_rate_controller_create_default(int samplerate,
  * @param target_level The target buffer level in samples.
  * @param kp Proportional gain.
  * @param ki Integral gain.
- * @return A pointer to the newly created pi_rate_controller_t instance, or NULL on failure.
+ * @return A pointer to the newly created pi_rate_controller_t instance, or NULL
+ * on failure.
  */
 pi_rate_controller_t* pi_rate_controller_create(int samplerate, double interval,
                                                 int target_level, double kp,
                                                 double ki);
 
 /**
- * @brief Updates the PI controller with a new level measurement and returns the new speed multiplier.
+ * @brief Updates the PI controller with a new level measurement and returns the
+ * new speed multiplier.
  *
  * @param pi Pointer to the PI controller instance.
  * @param level The current measured buffer level.
@@ -113,13 +116,13 @@ void pi_rate_controller_free(pi_rate_controller_t* pi);
  * @brief Windowed arithmetic mean helper.
  *
  * The producer adds one sample per processed chunk; the rate-adjust tick reads
- * `average` once per adjust period and calls `restart()` to begin the next window.
- * The effect is a simple boxcar low-pass that filters chunk-level noise out of the
- * controller's input.
+ * `average` once per adjust period and calls `restart()` to begin the next
+ * window. The effect is a simple boxcar low-pass that filters chunk-level noise
+ * out of the controller's input.
  */
 typedef struct {
-  double sum;  /**< Sum of the samples in the current window. */
-  int count;   /**< Number of samples added to the current window. */
+  double sum; /**< Sum of the samples in the current window. */
+  int count;  /**< Number of samples added to the current window. */
 } averager_t;
 
 /**
@@ -158,9 +161,9 @@ bool averager_get_average(const averager_t* avg, double* out_val);
 /**
  * @brief Monotonic elapsed-time helper.
  *
- * Backed by `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (on Darwin) or equivalent,
- * which is a fast read (typically vDSO) suitable for invocation on every processed
- * audio chunk.
+ * Backed by `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (on Darwin) or
+ * equivalent, which is a fast read (typically vDSO) suitable for invocation on
+ * every processed audio chunk.
  */
 typedef struct {
   uint64_t start_ns; /**< Start time in nanoseconds. */

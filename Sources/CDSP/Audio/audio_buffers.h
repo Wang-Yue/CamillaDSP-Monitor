@@ -18,10 +18,10 @@
  * the pointers directly — no pointer round trips, no ownership/uniqueness
  * checks.
  *
- * Thread-safety: @ref audio_buffers_t itself does no synchronisation. The pipeline
- * already enforces single-writer discipline (the audio thread owns each
- * buffer while it processes a chunk), so lock-free single-owner usage is honest
- * here — the type is safe under pipeline discipline without locking.
+ * Thread-safety: @ref audio_buffers_t itself does no synchronisation. The
+ * pipeline already enforces single-writer discipline (the audio thread owns
+ * each buffer while it processes a chunk), so lock-free single-owner usage is
+ * honest here — the type is safe under pipeline discipline without locking.
  */
 
 #ifndef CLIB_AUDIO_AUDIO_BUFFERS_H
@@ -33,7 +33,8 @@
 
 /**
  * @struct audio_buffers
- * @brief Contiguous, per-channel audio storage backed by a single heap allocation.
+ * @brief Contiguous, per-channel audio storage backed by a single heap
+ * allocation.
  */
 typedef struct audio_buffers audio_buffers_t;
 

@@ -150,14 +150,16 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
     channel_capability_t* cap = &set->capabilities[cap_idx];
     cap->channels = (int)ch;
 
-    // Allocate memory for sample rates to probe. We probe from the static list ALSA_PROBE_RATES.
+    // Allocate memory for sample rates to probe. We probe from the static list
+    // ALSA_PROBE_RATES.
     cap->samplerates = (samplerate_capability_t*)calloc(
         ALSA_PROBE_RATES_COUNT, sizeof(samplerate_capability_t));
     size_t rate_idx = 0;
 
     for (size_t r = 0; r < ALSA_PROBE_RATES_COUNT; r++) {
       int test_rate = ALSA_PROBE_RATES[r];
-      // Reset hw params to full space and constrain channels first, then test sample rate support
+      // Reset hw params to full space and constrain channels first, then test
+      // sample rate support
       snd_pcm_hw_params_any(pcm, params);
       snd_pcm_hw_params_set_channels(pcm, params, ch);
       if (snd_pcm_hw_params_set_rate(pcm, params, test_rate, 0) >= 0) {

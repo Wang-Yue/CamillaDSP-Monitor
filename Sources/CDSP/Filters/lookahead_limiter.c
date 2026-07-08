@@ -20,7 +20,7 @@ struct lookahead_limiter_filter {
 
 /**
  * @brief Computes delay in samples from a given delay value and unit.
- * 
+ *
  * @param delay The delay value.
  * @param unit The unit of the delay (ms, us, samples, or mm).
  * @param sample_rate The current audio sample rate.
@@ -45,7 +45,7 @@ static double compute_delay_samples(double delay, delay_unit_t unit,
 
 /**
  * @brief Parses parameters and computes internal filter settings.
- * 
+ *
  * @param params User-provided filter parameters.
  * @param sample_rate The sample rate.
  * @param out_limit Output pointer for the computed linear gain limit.
@@ -71,8 +71,9 @@ static void configure(const lookahead_limiter_parameters_t* params,
 }
 
 /**
- * @brief Pushes a sample into the lookahead circular buffer, overwriting the oldest sample.
- * 
+ * @brief Pushes a sample into the lookahead circular buffer, overwriting the
+ * oldest sample.
+ *
  * @param filter The limiter filter instance.
  * @param sample The input sample value.
  */
@@ -86,8 +87,9 @@ static inline void push_overwrite(lookahead_limiter_filter_t* filter,
 }
 
 /**
- * @brief Retrieves a sample from the circular lookahead buffer at an offset from read index.
- * 
+ * @brief Retrieves a sample from the circular lookahead buffer at an offset
+ * from read index.
+ *
  * @param filter The limiter filter instance.
  * @param idx Offset relative to the current read index.
  * @return The sample value.
@@ -141,22 +143,24 @@ lookahead_limiter_filter_t* lookahead_limiter_filter_create(
 
 /**
  * @brief Processes a slice of the waveform.
- * 
+ *
  * This function implements a two-pass lookahead limiter algorithm:
- * 1. A backward pass that scans future samples (including the lookahead delay buffer)
- *    and calculates the required gain reduction to prevent clipping, applying a linear 
- *    ramp-down (attack) leading up to any peak.
- * 2. A forward pass that applies an exponential release to the gain reduction envelope.
- * 3. Finally, it applies the computed gain envelope to the delayed input samples.
- * 
+ * 1. A backward pass that scans future samples (including the lookahead delay
+ * buffer) and calculates the required gain reduction to prevent clipping,
+ * applying a linear ramp-down (attack) leading up to any peak.
+ * 2. A forward pass that applies an exponential release to the gain reduction
+ * envelope.
+ * 3. Finally, it applies the computed gain envelope to the delayed input
+ * samples.
+ *
  * @param filter The limiter filter instance.
  * @param waveform The current block of audio samples to process.
  * @param len The length of the slice (must be <= output_buffer_capacity).
  */
 static void process_slice(lookahead_limiter_filter_t* filter,
                           mutable_waveform_t waveform, size_t len) {
-  // The oldest sample in the lookahead buffer (delay line) starts at this offset relative
-  // to the capacity.
+  // The oldest sample in the lookahead buffer (delay line) starts at this
+  // offset relative to the capacity.
   size_t lookahead_start = filter->lookahead_capacity - filter->attack_samples;
   double peak = 1.0;
   int samples_since_peak = filter->attack_samples + 1;
@@ -173,11 +177,11 @@ static void process_slice(lookahead_limiter_filter_t* filter,
       // Access new input samples from the current block.
       input_sample = waveform[i - filter->attack_samples];
     }
-    
+
     double amplitude = fabs(input_sample);
     // If the sample exceeds the limit, compute the required attenuation factor.
     double gain = amplitude > filter->limit ? (filter->limit / amplitude) : 1.0;
-    
+
     // Smoothly ramp down the gain leading up to a peak (going backward, this
     // looks like ramping up to 1.0 from the peak).
     double ramp_gain = 1.0;
@@ -188,7 +192,7 @@ static void process_slice(lookahead_limiter_filter_t* filter,
       ramp_gain = 1.0 - (ramp * (1.0 - peak));
       samples_since_peak++;
     }
-    
+
     // If the current sample requires more attenuation than the ramp,
     // establish a new peak.
     if (gain < ramp_gain) {
@@ -197,7 +201,7 @@ static void process_slice(lookahead_limiter_filter_t* filter,
     } else {
       gain = ramp_gain;
     }
-    
+
     // We only output gain values for the current block (length len).
     if (i < (int)len) {
       filter->output_buffer[i] = gain;
@@ -217,7 +221,8 @@ static void process_slice(lookahead_limiter_filter_t* filter,
     }
   }
 
-  // Apply gain reduction: Multiply the delayed input samples by the computed gain.
+  // Apply gain reduction: Multiply the delayed input samples by the computed
+  // gain.
   for (size_t i = 0; i < len; i++) {
     double input_sample;
     if (i < (size_t)filter->attack_samples) {

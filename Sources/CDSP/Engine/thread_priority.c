@@ -122,9 +122,9 @@ void set_realtime_thread_priority(const char* name, size_t buffer_frames,
   logger_t logger = logger_create("dsp.threadpriority");
 
   // 1. Try native POSIX scheduling first.
-  // This requires the process to have CAP_SYS_NICE capability or configured rlimits
-  // (e.g. in /etc/security/limits.conf or via systemd LimitRTPRIO).
-  // If successful, we transition the thread to SCHED_FIFO scheduling class.
+  // This requires the process to have CAP_SYS_NICE capability or configured
+  // rlimits (e.g. in /etc/security/limits.conf or via systemd LimitRTPRIO). If
+  // successful, we transition the thread to SCHED_FIFO scheduling class.
   if (pthread_getschedparam(thread, &policy, &param) == 0) {
     param.sched_priority = sched_get_priority_max(SCHED_FIFO);
     int res = pthread_setschedparam(thread, SCHED_FIFO, &param);
@@ -140,9 +140,10 @@ void set_realtime_thread_priority(const char* name, size_t buffer_frames,
 
   // 2. Fall back to RealtimeKit (rtkit) via dbus-send.
   // rtkit is a system daemon that acts as an broker for unprivileged threads.
-  // It allows threads to promote themselves to real-time SCHED_RESET_ON_FORK status
-  // without needing root or CAP_SYS_NICE, via a D-Bus interface.
-  // We execute dbus-send command directly since we do not link against dbus library.
+  // It allows threads to promote themselves to real-time SCHED_RESET_ON_FORK
+  // status without needing root or CAP_SYS_NICE, via a D-Bus interface. We
+  // execute dbus-send command directly since we do not link against dbus
+  // library.
   pid_t tid = (pid_t)syscall(SYS_gettid);
   char cmd[512];
   // rtkit priority default is 10 (matching RT_PRIO_DEFAULT in

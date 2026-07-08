@@ -2,7 +2,8 @@
  * @file lookahead_limiter.h
  * @brief Lookahead limiter filter implementation.
  *
- * This file defines the functions to manage and apply a lookahead limiter filter.
+ * This file defines the functions to manage and apply a lookahead limiter
+ * filter.
  */
 
 #ifndef CLIB_FILTERS_LOOKAHEAD_LIMITER_H
@@ -39,7 +40,8 @@ int lookahead_limiter_parameters_validate(
  * @param params Pointer to the lookahead limiter parameters.
  * @param sample_rate The sample rate in Hz.
  * @param chunk_size The processing chunk size.
- * @return Pointer to the allocated lookahead_limiter_filter_t, or NULL on failure.
+ * @return Pointer to the allocated lookahead_limiter_filter_t, or NULL on
+ * failure.
  */
 lookahead_limiter_filter_t* lookahead_limiter_filter_create(
     const char* name, const lookahead_limiter_parameters_t* params,

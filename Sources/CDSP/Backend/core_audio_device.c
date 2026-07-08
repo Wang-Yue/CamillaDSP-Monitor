@@ -205,13 +205,15 @@ bool core_audio_device_set_nominal_sample_rate(AudioDeviceID device_id,
       .mScope = kAudioObjectPropertyScopeGlobal,
       .mElement = kAudioObjectPropertyElementMain};
   Float64 value = rate;
-  // Submit the nominal rate change request. This is processed asynchronously by the HAL.
+  // Submit the nominal rate change request. This is processed asynchronously by
+  // the HAL.
   OSStatus status = AudioObjectSetPropertyData(device_id, &addr, 0, NULL,
                                                sizeof(Float64), &value);
   if (status != noErr) return false;
-  // Poll for up to 250ms (50 iterations * 5ms) until the device reports a nominal rate
-  // that matches the target rate. This ensures the change is finalized before we attempt
-  // to initialize AudioUnits, which could otherwise lock onto the old rate.
+  // Poll for up to 250ms (50 iterations * 5ms) until the device reports a
+  // nominal rate that matches the target rate. This ensures the change is
+  // finalized before we attempt to initialize AudioUnits, which could otherwise
+  // lock onto the old rate.
   for (int i = 0; i < 50; i++) {
     double current = 0.0;
     if (core_audio_device_get_nominal_sample_rate(device_id, &current)) {
@@ -304,7 +306,8 @@ bool core_audio_device_select_adjustable_clock_source(AudioDeviceID device_id) {
       noErr) {
     return false;
   }
-  // Iterate through the clock source IDs and fetch their CFString names using AudioValueTranslation.
+  // Iterate through the clock source IDs and fetch their CFString names using
+  // AudioValueTranslation.
   for (int i = 0; i < count; i++) {
     AudioObjectPropertyAddress name_addr = {
         .mSelector = kAudioDevicePropertyClockSourceNameForIDCFString,
@@ -319,12 +322,12 @@ bool core_audio_device_select_adjustable_clock_source(AudioDeviceID device_id) {
     uint32_t trans_size = sizeof(AudioValueTranslation);
     if (AudioObjectGetPropertyData(device_id, &name_addr, 0, NULL, &trans_size,
                                    &trans) == noErr &&
-         cf_name) {
+        cf_name) {
       char name_buf[256];
       if (CFStringGetCString(cf_name, name_buf, sizeof(name_buf),
                              kCFStringEncodingUTF8)) {
-        // Look for the magic "Internal Adjustable" clock source (provided by virtual
-        // drivers like BlackHole 0.5.0+ to allow pitch-shifting).
+        // Look for the magic "Internal Adjustable" clock source (provided by
+        // virtual drivers like BlackHole 0.5.0+ to allow pitch-shifting).
         if (strcmp(name_buf, "Internal Adjustable") == 0) {
           CFRelease(cf_name);
           return core_audio_device_set_clock_source_id(device_id, source_id);
@@ -346,9 +349,10 @@ void core_audio_device_set_pitch(AudioDeviceID device_id, double pitch) {
       .mSelector = kAudioDevicePropertyStereoPan,
       .mScope = kAudioObjectPropertyScopeOutput,
       .mElement = kAudioObjectPropertyElementMain};
-  // CoreAudio does not expose a generic API to adjust physical clock rates. However,
-  // virtual devices like BlackHole hijack the Stereo Pan control on their output scope
-  // as a proxy for pitch tuning. Map pitch multiplier range [0.99, 1.01] to pan range [0.0, 1.0].
+  // CoreAudio does not expose a generic API to adjust physical clock rates.
+  // However, virtual devices like BlackHole hijack the Stereo Pan control on
+  // their output scope as a proxy for pitch tuning. Map pitch multiplier range
+  // [0.99, 1.01] to pan range [0.0, 1.0].
   float pan = (float)((pitch - 1.0) * 50.0 + 0.5);
   if (pan < 0.0f) pan = 0.0f;
   if (pan > 1.0f) pan = 1.0f;
@@ -419,8 +423,8 @@ struct rate_change_watcher {
 /**
  * @brief HAL nominal sample rate change listener callback.
  *
- * Runs on a system dispatch thread (never render thread). Resolves the new nominal rate
- * and updates the watcher atomically.
+ * Runs on a system dispatch thread (never render thread). Resolves the new
+ * nominal rate and updates the watcher atomically.
  */
 static OSStatus rate_change_listener_callback(
     AudioObjectID inObjectID, UInt32 inNumberAddresses,
@@ -497,7 +501,8 @@ void rate_change_watcher_free(rate_change_watcher_t* watcher) {
 }
 
 /**
- * @brief Internal helper to map an AudioStreamBasicDescription to a format string token.
+ * @brief Internal helper to map an AudioStreamBasicDescription to a format
+ * string token.
  *
  * Filters and maps supported formats to "S16", "S24", "S32", or "F32".
  *
@@ -528,10 +533,10 @@ static const char* format_string_for_asbd_local(
 }
 
 bool core_audio_device_set_matching_physical_format(AudioDeviceID device_id,
-                                                     core_audio_scope_t scope,
-                                                     double sample_rate,
-                                                     const char* format_str,
-                                                     int requested_channels) {
+                                                    core_audio_scope_t scope,
+                                                    double sample_rate,
+                                                    const char* format_str,
+                                                    int requested_channels) {
   // Query all stream IDs associated with this scope on the device.
   AudioStreamID streams[32];
   int stream_count = core_audio_device_streams(device_id, scope, streams, 32);
@@ -540,7 +545,8 @@ bool core_audio_device_set_matching_physical_format(AudioDeviceID device_id,
   bool found_best = false;
   AudioStreamID best_stream_id = 0;
 
-  // Loop through the streams to find a matching physical format from their available formats list.
+  // Loop through the streams to find a matching physical format from their
+  // available formats list.
   for (int s = 0; s < stream_count; s++) {
     AudioObjectPropertyAddress addr = {
         .mSelector = kAudioStreamPropertyAvailablePhysicalFormats,
@@ -564,7 +570,8 @@ bool core_audio_device_set_matching_physical_format(AudioDeviceID device_id,
         AudioStreamBasicDescription asbd = ranged[i].mFormat;
         if (asbd.mFormatID != kAudioFormatLinearPCM) continue;
 
-        // Match sample rate (checking if requested rate falls within physical stream limits).
+        // Match sample rate (checking if requested rate falls within physical
+        // stream limits).
         double lo = ranged[i].mSampleRateRange.mMinimum;
         double hi = ranged[i].mSampleRateRange.mMaximum;
         if (sample_rate < lo || sample_rate > hi) {

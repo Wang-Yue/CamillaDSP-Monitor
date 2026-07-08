@@ -3,7 +3,8 @@
 
 /**
  * @file complex_inner_real_fft.h
- * @brief Real-FFT backend that builds a 2N-point real FFT from one N-point complex FFT.
+ * @brief Real-FFT backend that builds a 2N-point real FFT from one N-point
+ * complex FFT.
  *
  * Real-FFT backend that builds a 2N-point real FFT from one N-point
  * complex FFT plus an O(N) "untwiddle" pass. Used for any even length
@@ -38,7 +39,8 @@ typedef struct complex_inner_real_fft complex_inner_real_fft_t;
 /**
  * @brief Creates a Complex Inner Real FFT context.
  *
- * @param length The time-domain length of the real FFT (must be even, length = 2N).
+ * @param length The time-domain length of the real FFT (must be even, length =
+ * 2N).
  * @param inner The N-point complex FFT backend to use internally.
  * @return A pointer to the created context, or NULL on failure.
  */
@@ -48,13 +50,15 @@ complex_inner_real_fft_t* complex_inner_real_fft_create(
 /**
  * @brief Computes the forward 2N-point real FFT.
  *
- * Computes a 2N-point real FFT via an N-point complex FFT plus an O(N) untwiddle.
- * Produces N+1 unique complex bins.
+ * Computes a 2N-point real FFT via an N-point complex FFT plus an O(N)
+ * untwiddle. Produces N+1 unique complex bins.
  *
  * @param fft The Complex Inner Real FFT context.
  * @param real_in Input buffer of real samples (length must be >= length).
- * @param spec_re Output buffer for the real parts of the spectrum (length >= length/2 + 1).
- * @param spec_im Output buffer for the imaginary parts of the spectrum (length >= length/2 + 1).
+ * @param spec_re Output buffer for the real parts of the spectrum (length >=
+ * length/2 + 1).
+ * @param spec_im Output buffer for the imaginary parts of the spectrum (length
+ * >= length/2 + 1).
  */
 void complex_inner_real_fft_forward(complex_inner_real_fft_t* fft,
                                     waveform_t real_in,

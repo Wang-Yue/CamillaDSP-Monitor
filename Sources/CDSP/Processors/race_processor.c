@@ -39,7 +39,6 @@ const char* race_processor_get_name(const race_processor_t* processor) {
   return processor ? processor->name : "";
 }
 
-
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

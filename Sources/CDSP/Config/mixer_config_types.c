@@ -27,16 +27,18 @@ int mixer_config_validate(const mixer_config_t* mixer, config_error_t* err) {
   // Validate the mapping is internally consistent: every dest is in
   // range, no dest appears twice, and within a single dest no source
   // channel appears twice.
-  
+
   // Allocate a tracking array for destination channels to detect duplicates.
-  // We allocate at least 1 element to avoid passing 0 to calloc if channels_out is 0.
+  // We allocate at least 1 element to avoid passing 0 to calloc if channels_out
+  // is 0.
   bool* seen_dests = (bool*)calloc(
       mixer->channels_out > 0 ? mixer->channels_out : 1, sizeof(bool));
   if (!seen_dests) return -1;
 
   for (size_t i = 0; i < mixer->mapping_count; i++) {
     int dest = mixer->mapping[i].dest;
-    // Ensure destination channel index is within the configured output channels.
+    // Ensure destination channel index is within the configured output
+    // channels.
     if ((size_t)dest >= mixer->channels_out) {
       config_error_set(err, CONFIG_ERR_INVALID_MIXER,
                        "mixer dest %d >= channels_out %d", dest,
@@ -72,7 +74,8 @@ int mixer_config_validate(const mixer_config_t* mixer, config_error_t* err) {
         free(seen_dests);
         return -1;
       }
-      // Detect if the same source channel is added multiple times to the same destination.
+      // Detect if the same source channel is added multiple times to the same
+      // destination.
       if (seen_sources[src_ch]) {
         config_error_set(
             err, CONFIG_ERR_INVALID_MIXER,

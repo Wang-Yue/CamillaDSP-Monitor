@@ -10,7 +10,6 @@ struct config_change {
   size_t processors_count;
 };
 
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -41,8 +40,8 @@ static bool double_arrays_equal(const double* a, size_t a_count,
  * @param b_count Number of elements in second array.
  * @return true if arrays are equal in size and elements, false otherwise.
  */
-static bool int_arrays_equal(const int* a, size_t a_count,
-                             const int* b, size_t b_count) {
+static bool int_arrays_equal(const int* a, size_t a_count, const int* b,
+                             size_t b_count) {
   if (a_count != b_count) return false;
   if (a_count == 0) return true;
   if (!a || !b) return false;
@@ -60,8 +59,8 @@ static bool int_arrays_equal(const int* a, size_t a_count,
  * @param b_count Number of elements in second array.
  * @return true if arrays are equal in size and strings, false otherwise.
  */
-static bool string_arrays_equal(char** a, size_t a_count,
-                                char** b, size_t b_count) {
+static bool string_arrays_equal(char** a, size_t a_count, char** b,
+                                size_t b_count) {
   if (a_count != b_count) return false;
   if (a_count == 0) return true;
   if (!a || !b) return false;
@@ -295,8 +294,7 @@ static bool filter_config_equal(const filter_config_t* a,
     case FILTER_TYPE_CONV:
       return conv_parameters_equal(&a->parameters.conv, &b->parameters.conv);
     case FILTER_TYPE_DELAY:
-      return delay_parameters_equal(&a->parameters.delay,
-                                    &b->parameters.delay);
+      return delay_parameters_equal(&a->parameters.delay, &b->parameters.delay);
     case FILTER_TYPE_BIQUAD_COMBO:
       return biquad_combo_parameters_equal(&a->parameters.biquad_combo,
                                            &b->parameters.biquad_combo);
@@ -443,7 +441,7 @@ static bool processor_config_equal(const processor_config_t* a,
  * @return true if configurations are equal, false otherwise.
  */
 static bool resampler_config_equal(const resampler_config_t* a,
-                                  const resampler_config_t* b) {
+                                   const resampler_config_t* b) {
   if (a->type != b->type) return false;
   if (a->has_profile != b->has_profile) return false;
   if (a->has_profile && strcmp(a->profile, b->profile) != 0) return false;
@@ -513,7 +511,8 @@ static bool devices_config_equal(const devices_config_t* a,
   switch (a->capture.type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
-      if (a->capture.cfg.coreaudio.channels != b->capture.cfg.coreaudio.channels)
+      if (a->capture.cfg.coreaudio.channels !=
+          b->capture.cfg.coreaudio.channels)
         return false;
       if (strcmp(a->capture.cfg.coreaudio.device,
                  b->capture.cfg.coreaudio.device) != 0)
@@ -618,7 +617,8 @@ config_change_type_t config_diff(const dsp_config_t* current,
     }
   }
 
-  // If the count of filters, mixers, or processors changes, it indicates structural change.
+  // If the count of filters, mixers, or processors changes, it indicates
+  // structural change.
   if (current->filters_count != new_conf->filters_count ||
       current->mixers_count != new_conf->mixers_count ||
       current->processors_count != new_conf->processors_count) {
@@ -626,7 +626,8 @@ config_change_type_t config_diff(const dsp_config_t* current,
     return CONFIG_CHANGE_PIPELINE;
   }
 
-  // If names of filters/mixers/processors at specific slots change, it's also a structural change.
+  // If names of filters/mixers/processors at specific slots change, it's also a
+  // structural change.
   for (size_t i = 0; i < current->filters_count; i++) {
     if (strcmp(current->filters[i].name, new_conf->filters[i].name) != 0) {
       out_change->type = CONFIG_CHANGE_PIPELINE;
@@ -640,7 +641,8 @@ config_change_type_t config_diff(const dsp_config_t* current,
     }
   }
   for (size_t i = 0; i < current->processors_count; i++) {
-    if (strcmp(current->processors[i].name, new_conf->processors[i].name) != 0) {
+    if (strcmp(current->processors[i].name, new_conf->processors[i].name) !=
+        0) {
       out_change->type = CONFIG_CHANGE_PIPELINE;
       return CONFIG_CHANGE_PIPELINE;
     }
@@ -691,8 +693,8 @@ config_change_type_t config_diff(const dsp_config_t* current,
   out_change->processors = changed_processors;
   out_change->processors_count = cp_count;
 
-  // Mixer parameter changes require special handling (sometimes thread safety logic),
-  // so we separate them from normal filter parameter updates.
+  // Mixer parameter changes require special handling (sometimes thread safety
+  // logic), so we separate them from normal filter parameter updates.
   if (cm_count > 0) {
     out_change->type = CONFIG_CHANGE_MIXER_PARAMETERS;
   } else {
@@ -746,7 +748,8 @@ char** config_change_take_mixers(config_change_t* change, size_t* out_count) {
   return res;
 }
 
-char** config_change_take_processors(config_change_t* change, size_t* out_count) {
+char** config_change_take_processors(config_change_t* change,
+                                     size_t* out_count) {
   if (!change || !out_count) return NULL;
   char** res = change->processors;
   *out_count = change->processors_count;

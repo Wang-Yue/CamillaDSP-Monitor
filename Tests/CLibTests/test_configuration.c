@@ -731,7 +731,7 @@ TEST(ParseChannelLabels) {
   }
   ASSERT_EQ(0, res);
   ASSERT_TRUE(config != NULL);
-  
+
   // Verify capture labels
   ASSERT_TRUE(config->devices.capture.has_labels);
   ASSERT_EQ(4, config->devices.capture.labels_count);
@@ -776,7 +776,7 @@ TEST(ParseJackConfig) {
   int res = dsp_config_parse_json(json, &config, &err);
   ASSERT_EQ(0, res);
   ASSERT_TRUE(config != NULL);
-  
+
   ASSERT_EQ(AUDIO_BACKEND_TYPE_JACK, config->devices.capture.type);
   ASSERT_EQ(2, config->devices.capture.cfg.jack.channels);
   ASSERT_STR_EQ("my_jack_capture", config->devices.capture.cfg.jack.device);
@@ -800,7 +800,8 @@ TEST(ParseBluezConfig) {
       "            \"type\": \"Bluez\",\n"
       "            \"channels\": 2,\n"
       "            \"service\": \"org.bluealsa.custom\",\n"
-      "            \"dbus_path\": \"/org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dp/source/profile\",\n"
+      "            \"dbus_path\": "
+      "\"/org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dp/source/profile\",\n"
       "            \"format\": \"S16_LE\"\n"
       "        },\n"
       "        \"playback\": {\n"
@@ -815,12 +816,15 @@ TEST(ParseBluezConfig) {
   int res = dsp_config_parse_json(json, &config, &err);
   ASSERT_EQ(0, res);
   ASSERT_TRUE(config != NULL);
-  
+
   ASSERT_EQ(AUDIO_BACKEND_TYPE_BLUEZ, config->devices.capture.type);
   ASSERT_EQ(2, config->devices.capture.cfg.bluez.channels);
-  ASSERT_STR_EQ("org.bluealsa.custom", config->devices.capture.cfg.bluez.service);
-  ASSERT_STR_EQ("/org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dp/source/profile", config->devices.capture.cfg.bluez.dbus_path);
-  ASSERT_EQ(BINARY_SAMPLE_FORMAT_S16_LE, config->devices.capture.cfg.bluez.format);
+  ASSERT_STR_EQ("org.bluealsa.custom",
+                config->devices.capture.cfg.bluez.service);
+  ASSERT_STR_EQ("/org/bluealsa/hci0/dev_XX_XX_XX_XX_XX_XX/a2dp/source/profile",
+                config->devices.capture.cfg.bluez.dbus_path);
+  ASSERT_EQ(BINARY_SAMPLE_FORMAT_S16_LE,
+            config->devices.capture.cfg.bluez.format);
 
   dsp_config_free(config);
 }

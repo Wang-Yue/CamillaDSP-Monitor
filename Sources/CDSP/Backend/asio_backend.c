@@ -217,8 +217,9 @@ static asio_shared_state_t g_asio_shared = {.lock = SRWLOCK_INIT,
  * @brief Coordinates ASIO initialization for full-duplex setups.
  *
  * Registers either the capture or playback side and waits for the other side to
- * register. Once both are ready, it allocates combined buffers and starts the ASIO
- * stream. For the second arriving side, it waits for the first side to complete setup.
+ * register. Once both are ready, it allocates combined buffers and starts the
+ * ASIO stream. For the second arriving side, it waits for the first side to
+ * complete setup.
  *
  * @param is_input True if registering for capture, false for playback.
  * @param driver_name Name of the ASIO driver.
@@ -515,7 +516,8 @@ static void release_shared_asio(bool is_input, IASIO* iasio) {
  * starts, sleeps, stops, destroys, recreates the driver) to enforce the rate.
  *
  * @param driver_name Name of the ASIO driver.
- * @param p_iasio Pointer to the IASIO driver interface pointer (may be recreated).
+ * @param p_iasio Pointer to the IASIO driver interface pointer (may be
+ * recreated).
  * @param rate Target sample rate.
  * @param err Pointer to backend_error_t to receive error details.
  * @return true if successful, false otherwise.
@@ -635,7 +637,8 @@ static bool force_sample_rate_with_dummy_cycle(const char* driver_name,
 }
 
 /**
- * @brief Searches the Windows Registry to find the CLSID of an ASIO driver by name.
+ * @brief Searches the Windows Registry to find the CLSID of an ASIO driver by
+ * name.
  *
  * @param driver_name Name of the ASIO driver.
  * @param out_clsid Pointer to a CLSID structure to receive the result.
@@ -683,10 +686,10 @@ static bool find_asio_driver_clsid(const char* driver_name, CLSID* out_clsid) {
  * @brief ASIO buffer switch callback.
  *
  * Called by the ASIO driver when a buffer needs to be processed.
- * It reads playback data from the playback ring buffer, converts it to the native
- * ASIO format, and copies it to the active ASIO driver buffer.
- * It also reads capture data from the active ASIO driver buffer, converts it to
- * float, and writes it to the capture ring buffer.
+ * It reads playback data from the playback ring buffer, converts it to the
+ * native ASIO format, and copies it to the active ASIO driver buffer. It also
+ * reads capture data from the active ASIO driver buffer, converts it to float,
+ * and writes it to the capture ring buffer.
  *
  * @param doubleBufferIndex Index of the active buffer (0 or 1).
  * @param directProcess Indicates if the driver is in direct process mode.
@@ -804,7 +807,8 @@ static void asio_sample_rate_did_change(ASIOSampleRate sRate) { (void)sRate; }
 /**
  * @brief ASIO driver message callback.
  *
- * Handles control messages from the ASIO driver (e.g. reset requests, buffer size changes).
+ * Handles control messages from the ASIO driver (e.g. reset requests, buffer
+ * size changes).
  *
  * @param selector Message type selector.
  * @param value Selector-specific value.
@@ -1037,8 +1041,9 @@ error_cleanup:
 /**
  * @brief Internal method to read samples from the ASIO capture stream.
  *
- * Consumes decoded float samples from the ring buffer and copies them to the public
- * audio_chunk_t structure. Blocks on g_capture_event if enough data is not yet available.
+ * Consumes decoded float samples from the ring buffer and copies them to the
+ * public audio_chunk_t structure. Blocks on g_capture_event if enough data is
+ * not yet available.
  *
  * @param ctx Pointer to the asio_capture_t context.
  * @param frames Number of frames to read.
@@ -1367,7 +1372,8 @@ error_cleanup:
  * @brief Internal method to write samples to the ASIO playback stream.
  *
  * Encodes double format samples to flat float array, and writes to the playback
- * ring buffer. Blocks (sleeps) if the ring buffer does not have enough capacity.
+ * ring buffer. Blocks (sleeps) if the ring buffer does not have enough
+ * capacity.
  *
  * @param ctx Pointer to the asio_playback_t context.
  * @param chunk Audio chunk to write.
@@ -1456,7 +1462,8 @@ static void asio_playback_close_internal(void* ctx) {
 }
 
 /**
- * @brief Internal method to get the current buffer level of the playback stream.
+ * @brief Internal method to get the current buffer level of the playback
+ * stream.
  *
  * Returns the amount of unconsumed audio frames currently in the ring buffer.
  *

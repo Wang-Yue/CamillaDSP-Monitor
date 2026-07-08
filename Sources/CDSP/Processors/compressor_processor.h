@@ -59,7 +59,8 @@ typedef struct compressor_processor compressor_processor_t;
  * @param[in] processor Pointer to compressor processor.
  * @return The name of the processor.
  */
-const char* compressor_processor_get_name(const compressor_processor_t* processor);
+const char* compressor_processor_get_name(
+    const compressor_processor_t* processor);
 
 /**
  * @brief Creates a new dynamic range compressor processor.

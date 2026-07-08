@@ -105,13 +105,15 @@ typedef struct {
 /// backend accepts. Anything else (e.g. 64-bit float, unsigned PCM)
 /// returns an empty string and is filtered out by the caller.
 /**
- * @brief Map CoreAudio AudioStreamBasicDescription to a string representing the sample format.
+ * @brief Map CoreAudio AudioStreamBasicDescription to a string representing the
+ * sample format.
  *
- * This helper filters formats and maps supported formats to "S16", "S24", "S32", or "F32".
- * Unsupported formats return an empty string.
+ * This helper filters formats and maps supported formats to "S16", "S24",
+ * "S32", or "F32". Unsupported formats return an empty string.
  *
  * @param asbd Pointer to the AudioStreamBasicDescription to inspect.
- * @return A string literal ("S16", "S24", "S32", "F32") or an empty string if unsupported.
+ * @return A string literal ("S16", "S24", "S32", "F32") or an empty string if
+ * unsupported.
  */
 static const char* format_string_for_asbd(
     const AudioStreamBasicDescription* asbd) {
@@ -222,7 +224,8 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
         int rates_to_add[32];
         int rate_cnt = 0;
         // Resolve sample rates: if it's a fixed value (lo == hi), add that.
-        // If it's a range, intersect it with our list of standard rates (CORE_AUDIO_STANDARD_RATES).
+        // If it's a range, intersect it with our list of standard rates
+        // (CORE_AUDIO_STANDARD_RATES).
         if (lo == hi) {
           rates_to_add[rate_cnt++] = (int)round(lo);
         } else {
@@ -263,8 +266,8 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
     free(ranged);
   }
 
-  // Aggregate the flat array into the hierarchically nested capability tree structure:
-  // Channel counts -> Sample rates -> Formats.
+  // Aggregate the flat array into the hierarchically nested capability tree
+  // structure: Channel counts -> Sample rates -> Formats.
   desc->capability_sets =
       (device_capability_set_t*)calloc(1, sizeof(device_capability_set_t));
   desc->capability_sets_count = 1;
@@ -316,7 +319,8 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
         unique_rate_cnt, sizeof(samplerate_capability_t));
     ch_cap->samplerates_count = unique_rate_cnt;
 
-    // For each combination of channel count and sample rate, extract the unique formats.
+    // For each combination of channel count and sample rate, extract the unique
+    // formats.
     for (int r = 0; r < unique_rate_cnt; r++) {
       samplerate_capability_t* rate_cap = &ch_cap->samplerates[r];
       rate_cap->samplerate = unique_rate[r];

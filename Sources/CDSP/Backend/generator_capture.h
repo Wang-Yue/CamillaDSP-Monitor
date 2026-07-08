@@ -30,7 +30,8 @@ typedef struct processing_parameters processing_parameters_t;
  * @param chunk_size The size of each audio chunk in frames.
  * @param params Pointer to processing parameters.
  * @param err Pointer to a backend_error_t struct to report errors.
- * @return Pointer to the created capture_backend_t instance, or NULL on failure.
+ * @return Pointer to the created capture_backend_t instance, or NULL on
+ * failure.
  */
 capture_backend_t* generator_capture_create(
     const capture_device_config_t* config, int sample_rate, int chunk_size,

@@ -21,25 +21,27 @@
  *
  * This header defines helper functions and structures for interacting with the
  * CoreAudio Hardware Abstraction Layer (HAL). It includes device enumeration,
- * property queries (name, streams, sample rate, buffer size), and clock/pitch control.
+ * property queries (name, streams, sample rate, buffer size), and clock/pitch
+ * control.
  */
 
 /**
  * @brief Direction marker for HAL device queries.
  *
- * Maps to CoreAudio scopes. Input scope is for capture, Output scope is for playback.
+ * Maps to CoreAudio scopes. Input scope is for capture, Output scope is for
+ * playback.
  */
 typedef enum {
-  CORE_AUDIO_SCOPE_INPUT = 0,   /**< Input scope (capture). */
-  CORE_AUDIO_SCOPE_OUTPUT = 1   /**< Output scope (playback). */
+  CORE_AUDIO_SCOPE_INPUT = 0, /**< Input scope (capture). */
+  CORE_AUDIO_SCOPE_OUTPUT = 1 /**< Output scope (playback). */
 } core_audio_scope_t;
 
 /**
  * @brief Structure containing basic information about a CoreAudio device.
  */
 typedef struct {
-  AudioDeviceID id;             /**< CoreAudio Device ID. */
-  char name[256];               /**< User-facing name of the device. */
+  AudioDeviceID id; /**< CoreAudio Device ID. */
+  char name[256];   /**< User-facing name of the device. */
 } core_audio_device_info_t;
 
 // MARK: - Enumeration
@@ -87,7 +89,8 @@ int core_audio_device_streams(AudioDeviceID device_id, core_audio_scope_t scope,
                               AudioStreamID* out_streams, int max_streams);
 
 /**
- * @brief List all devices that have at least one stream in the requested direction.
+ * @brief List all devices that have at least one stream in the requested
+ * direction.
  *
  * @param scope The direction scope.
  * @param out_devices Array of core_audio_device_info_t to store results.
@@ -101,7 +104,8 @@ int core_audio_device_list_devices(core_audio_scope_t scope,
 // MARK: - Lookup
 
 /**
- * @brief Get the HAL Device ID of the system-default device for the given direction.
+ * @brief Get the HAL Device ID of the system-default device for the given
+ * direction.
  *
  * @param scope The direction scope.
  * @return The default Device ID, or kAudioObjectUnknown on error.
@@ -124,7 +128,8 @@ AudioDeviceID core_audio_device_id_for_name(const char* name,
  * @brief Set the nominal sample rate of a device and wait for it to apply.
  *
  * CoreAudio applies rate changes asynchronously. This function blocks/polls
- * until the change is committed to prevent AudioUnits from latching onto old rates.
+ * until the change is committed to prevent AudioUnits from latching onto old
+ * rates.
  *
  * @param device_id The HAL Device ID.
  * @param rate The target sample rate in Hz.
@@ -184,10 +189,12 @@ bool core_audio_device_set_clock_source_id(AudioDeviceID device_id,
 /**
  * @brief Select the "Internal Adjustable" clock source if available.
  *
- * Specifically for virtual devices like BlackHole 0.5.0+ to enable pitch tuning.
+ * Specifically for virtual devices like BlackHole 0.5.0+ to enable pitch
+ * tuning.
  *
  * @param device_id The HAL Device ID.
- * @return true if adjustable clock source was selected, false if not supported/failed.
+ * @return true if adjustable clock source was selected, false if not
+ * supported/failed.
  */
 bool core_audio_device_select_adjustable_clock_source(AudioDeviceID device_id);
 
@@ -217,18 +224,21 @@ bool core_audio_device_has_nominal_sample_rate_property(
 // MARK: - Stream-format builder
 
 /**
- * @brief Helper to build a standard 32-bit linear-PCM AudioStreamBasicDescription (ASBD).
+ * @brief Helper to build a standard 32-bit linear-PCM
+ * AudioStreamBasicDescription (ASBD).
  *
  * @param sample_rate Sample rate in Hz.
  * @param channels Number of channels.
- * @param interleaved True for interleaved layout, false for non-interleaved (preferred).
+ * @param interleaved True for interleaved layout, false for non-interleaved
+ * (preferred).
  * @return The constructed ASBD.
  */
 AudioStreamBasicDescription core_audio_device_float32_stream_format(
     double sample_rate, int channels, bool interleaved);
 
 /**
- * @brief Set physical format of a device matching sample rate, format string, and channels.
+ * @brief Set physical format of a device matching sample rate, format string,
+ * and channels.
  *
  * @param device_id The HAL Device ID.
  * @param scope The direction scope.
@@ -249,8 +259,8 @@ bool core_audio_device_set_matching_physical_format(AudioDeviceID device_id,
  * @struct rate_change_watcher
  * @brief Opaque structure watching CoreAudio device sample rate changes.
  *
- * Watches kAudioDevicePropertyNominalSampleRate. Used by capture/playback threads
- * to detect rate changes and trigger engine rebuilds.
+ * Watches kAudioDevicePropertyNominalSampleRate. Used by capture/playback
+ * threads to detect rate changes and trigger engine rebuilds.
  */
 typedef struct rate_change_watcher rate_change_watcher_t;
 

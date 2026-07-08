@@ -37,7 +37,8 @@ typedef struct processing_parameters processing_parameters_t;
  * @param chunk_size The target chunk size (number of frames per read).
  * @param params Pointer to the processing parameters for telemetry updates.
  * @param err Pointer to a backend_error_t to receive error details on failure.
- * @return Pointer to the generic capture_backend_t interface, or NULL on failure.
+ * @return Pointer to the generic capture_backend_t interface, or NULL on
+ * failure.
  */
 capture_backend_t* alsa_capture_create(const capture_device_config_t* config,
                                        int sample_rate, int chunk_size,
@@ -73,9 +74,11 @@ bool alsa_capture_read(alsa_capture_t* capture, size_t frames,
 void alsa_capture_close(alsa_capture_t* capture);
 
 /**
- * @brief Checks if there is a pending sample rate change detected by the device.
+ * @brief Checks if there is a pending sample rate change detected by the
+ * device.
  *
- * Some devices (e.g., USB interfaces) can report if the incoming sample rate has changed.
+ * Some devices (e.g., USB interfaces) can report if the incoming sample rate
+ * has changed.
  *
  * @param capture Pointer to the ALSA capture instance.
  * @param out_rate Pointer to store the new sample rate if a change is pending.
@@ -85,7 +88,8 @@ bool alsa_capture_get_pending_rate_change(alsa_capture_t* capture,
                                           double* out_rate);
 
 /**
- * @brief Checks if pitch control (resampling adjust) is supported by the backend.
+ * @brief Checks if pitch control (resampling adjust) is supported by the
+ * backend.
  *
  * @param capture Pointer to the ALSA capture instance.
  * @return True if supported, false otherwise.
@@ -93,7 +97,8 @@ bool alsa_capture_get_pending_rate_change(alsa_capture_t* capture,
 bool alsa_capture_pitch_control_supported(alsa_capture_t* capture);
 
 /**
- * @brief Sets the pitch multiplier (resampling adjustment factor) for the capture device.
+ * @brief Sets the pitch multiplier (resampling adjustment factor) for the
+ * capture device.
  *
  * Used for drift compensation.
  *

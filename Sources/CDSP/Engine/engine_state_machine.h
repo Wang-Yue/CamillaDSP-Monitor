@@ -11,13 +11,13 @@
  *     `processing_state_t`. Every read uses acquire ordering; every
  *     write uses release ordering.
  *   * `stop_reason` is published using the *release-store on `state`
- *     to `PROCESSING_STATE_INACTIVE`* as the synchronisation edge. A reader that
- *     acquire-loads `state` and observes `PROCESSING_STATE_INACTIVE` is guaranteed
- *     by release-acquire ordering to see the writer's prior
+ *     to `PROCESSING_STATE_INACTIVE`* as the synchronisation edge. A reader
+ * that acquire-loads `state` and observes `PROCESSING_STATE_INACTIVE` is
+ * guaranteed by release-acquire ordering to see the writer's prior
  *     `_stopReason` assignment. Readers that have not yet observed
- *     `PROCESSING_STATE_INACTIVE` may see a stale (or `nil`) reason — that's fine,
- *     the public API only treats `stop_reason` as meaningful once
- *     the engine has settled.
+ *     `PROCESSING_STATE_INACTIVE` may see a stale (or `nil`) reason — that's
+ * fine, the public API only treats `stop_reason` as meaningful once the engine
+ * has settled.
  *   * `engine_state_machine_begin_stop` is gated by a `compareExchange` so only
  *     one caller wins the teardown — the loser sees `false` and
  *     returns. This protects against the common race where the
@@ -51,7 +51,8 @@ typedef struct {
   _Atomic uint8_t state_raw;
   /** Atomic flag to ensure stop logic is executed only once. */
   _Atomic bool stop_once;
-  /** The reason the engine stopped. See file-level note for publication discipline. */
+  /** The reason the engine stopped. See file-level note for publication
+   * discipline. */
   processing_stop_reason_t stop_reason;
 } engine_state_machine_t;
 
@@ -84,9 +85,9 @@ processing_state_t engine_state_machine_get_state(
 /**
  * @brief Sets the engine state.
  *
- * Release-store; pairs with the acquire-load in `engine_state_machine_get_state`.
- * The release on a transition to inactive is also what publishes `stop_reason`
- * to readers.
+ * Release-store; pairs with the acquire-load in
+ * `engine_state_machine_get_state`. The release on a transition to inactive is
+ * also what publishes `stop_reason` to readers.
  *
  * @param sm Pointer to the engine state machine.
  * @param new_state The new processing state to set.
@@ -98,7 +99,8 @@ void engine_state_machine_set_state(engine_state_machine_t* sm,
  * @brief Gets the stop reason.
  *
  * Stop reason set by the most recent `engine_state_machine_begin_stop` winner.
- * Only guaranteed visible to readers that have observed inactive state via acquire-load.
+ * Only guaranteed visible to readers that have observed inactive state via
+ * acquire-load.
  *
  * @param sm Pointer to the engine state machine.
  * @return A pointer to the stop reason, or NULL if not set.
@@ -119,7 +121,8 @@ const processing_stop_reason_t* engine_state_machine_get_stop_reason(
  *
  * @param sm Pointer to the engine state machine.
  * @param reason The reason for stopping.
- * @return true if the caller won the CAS and set the stop reason, false otherwise.
+ * @return true if the caller won the CAS and set the stop reason, false
+ * otherwise.
  */
 bool engine_state_machine_begin_stop(engine_state_machine_t* sm,
                                      processing_stop_reason_t reason);

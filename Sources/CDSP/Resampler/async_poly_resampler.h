@@ -34,7 +34,8 @@ typedef enum {
 } poly_interpolation_t;
 
 /**
- * @brief Helper function to get the number of points needed for an interpolation type.
+ * @brief Helper function to get the number of points needed for an
+ * interpolation type.
  *
  * @param interp The interpolation type.
  * @return The number of input points required.
@@ -69,7 +70,8 @@ typedef struct async_poly_resampler async_poly_resampler_t;
  * @param output_rate Output sample rate in Hz.
  * @param interpolation The interpolation quality to use.
  * @param chunk_size Fixed number of input frames per process call.
- * @param max_relative_ratio Maximum relative ratio adjustment. Used for buffer pre-allocation.
+ * @param max_relative_ratio Maximum relative ratio adjustment. Used for buffer
+ * pre-allocation.
  * @return A new resampler instance, or NULL on failure.
  */
 async_poly_resampler_t* async_poly_resampler_create(
@@ -114,7 +116,8 @@ void async_poly_resampler_set_relative_ratio(async_poly_resampler_t* resampler,
 double async_poly_resampler_get_ratio(const async_poly_resampler_t* resampler);
 
 /**
- * @brief Gets the maximum number of output frames that can be generated in one call.
+ * @brief Gets the maximum number of output frames that can be generated in one
+ * call.
  *
  * @param resampler The resampler instance.
  * @return The maximum output frame count.
@@ -141,4 +144,3 @@ size_t async_poly_resampler_get_channels(
     const async_poly_resampler_t* resampler);
 
 #endif  // CLIB_RESAMPLER_ASYNC_POLY_RESAMPLER_H
-

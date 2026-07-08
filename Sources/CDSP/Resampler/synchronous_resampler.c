@@ -121,7 +121,6 @@ struct synchronous_resampler {
   double* working_spec_im;
 };
 
-
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -131,10 +130,12 @@ struct synchronous_resampler {
 #endif
 
 /**
- * @brief Computes the greatest common divisor (GCD) of two size_t integers using Euclid's algorithm.
+ * @brief Computes the greatest common divisor (GCD) of two size_t integers
+ * using Euclid's algorithm.
  *
- * This helper is used to find the irreducible rational fraction L/M of the sample rate conversion
- * ratio, which determines the input and output chunk size scaling.
+ * This helper is used to find the irreducible rational fraction L/M of the
+ * sample rate conversion ratio, which determines the input and output chunk
+ * size scaling.
  *
  * @param a First value.
  * @param b Second value.

@@ -163,9 +163,10 @@ bool pulse_capture_open(pulse_capture_t* capture, backend_error_t* err) {
                        .channels = (uint8_t)capture->channels};
 
   // Configure PulseAudio buffer attributes.
-  // We request default values for maxlength, tlength, prebuf, and minreq by setting them to -1.
-  // fragsize is set to the size of a single frame (channels * sizeof(float)) to minimize latency
-  // by requesting small fragments from the server.
+  // We request default values for maxlength, tlength, prebuf, and minreq by
+  // setting them to -1. fragsize is set to the size of a single frame (channels
+  // * sizeof(float)) to minimize latency by requesting small fragments from the
+  // server.
   pa_buffer_attr attr = {
       .maxlength = (uint32_t)-1,
       .tlength = (uint32_t)-1,
@@ -186,7 +187,8 @@ bool pulse_capture_open(pulse_capture_t* capture, backend_error_t* err) {
     return false;
   }
 
-  // Allocate raw buffer for holding interleaved float data read from PulseAudio.
+  // Allocate raw buffer for holding interleaved float data read from
+  // PulseAudio.
   capture->raw_buf_size =
       capture->chunk_size * capture->channels * sizeof(float);
   capture->raw_buf = (uint8_t*)malloc(capture->raw_buf_size);
@@ -212,7 +214,8 @@ bool pulse_capture_open(pulse_capture_t* capture, backend_error_t* err) {
 bool pulse_capture_read(pulse_capture_t* capture, size_t frames,
                         audio_chunk_t* chunk, backend_error_t* err) {
   size_t bytes_to_read = frames * capture->channels * sizeof(float);
-  // Dynamically resize internal buffer if requested frame count exceeds current size.
+  // Dynamically resize internal buffer if requested frame count exceeds current
+  // size.
   if (bytes_to_read > capture->raw_buf_size) {
     capture->raw_buf = (uint8_t*)realloc(capture->raw_buf, bytes_to_read);
     capture->raw_buf_size = bytes_to_read;
@@ -291,7 +294,8 @@ static bool play_vtable_open(void* ctx, backend_error_t* err) {
 }
 
 /**
- * @brief Vtable adapter to write a chunk of audio to the PulseAudio playback stream.
+ * @brief Vtable adapter to write a chunk of audio to the PulseAudio playback
+ * stream.
  * @param ctx Pointer to the pulse_playback_t context.
  * @param chunk Pointer to audio_chunk_t containing the data to write.
  * @param err Pointer to backend_error_t to receive error details.
@@ -418,9 +422,10 @@ bool pulse_playback_open(pulse_playback_t* playback, backend_error_t* err) {
                        .channels = (uint8_t)playback->channels};
 
   // Configure PulseAudio buffer attributes.
-  // We request default values for maxlength, tlength, and minreq by setting them to -1.
-  // prebuf specifies how much data must be in the buffer before starting playback.
-  // We set it to one frame size (channels * sizeof(float)) to minimize startup latency.
+  // We request default values for maxlength, tlength, and minreq by setting
+  // them to -1. prebuf specifies how much data must be in the buffer before
+  // starting playback. We set it to one frame size (channels * sizeof(float))
+  // to minimize startup latency.
   pa_buffer_attr attr = {
       .maxlength = (uint32_t)-1,
       .tlength = (uint32_t)-1,
@@ -441,7 +446,8 @@ bool pulse_playback_open(pulse_playback_t* playback, backend_error_t* err) {
     return false;
   }
 
-  // Allocate raw buffer for holding interleaved float data to be written to PulseAudio.
+  // Allocate raw buffer for holding interleaved float data to be written to
+  // PulseAudio.
   playback->raw_buf_size =
       playback->chunk_size * playback->channels * sizeof(float);
   playback->raw_buf = (uint8_t*)malloc(playback->raw_buf_size);

@@ -1,11 +1,12 @@
 /**
  * @file audio_resampler.h
- * @brief Unified interface and wrappers for various audio resampler implementations.
+ * @brief Unified interface and wrappers for various audio resampler
+ * implementations.
  *
- * This file defines the `audio_resampler_t` interface, which abstracts different
- * resampling algorithms (synchronous, asynchronous sinc, asynchronous polynomial, etc.).
- * It supports zero-allocation processing on the hot path by requiring pre-allocated
- * buffers.
+ * This file defines the `audio_resampler_t` interface, which abstracts
+ * different resampling algorithms (synchronous, asynchronous sinc, asynchronous
+ * polynomial, etc.). It supports zero-allocation processing on the hot path by
+ * requiring pre-allocated buffers.
  */
 
 #ifndef CLIB_RESAMPLER_AUDIO_RESAMPLER_H
@@ -105,14 +106,17 @@ audio_resampler_t* audio_resampler_wrap_apple(apple_resampler_t* res);
  * The caller must pre-allocate the output buffer.
  *
  * @param resampler The resampler instance.
- * @param input The input audio chunk. `input->validFrames` must equal `chunk_size`.
- * @param output The output audio chunk. Must have capacity for at least the worst-case
- *               number of output frames (see @ref audio_resampler_get_max_output_frames).
- *               This function updates `output->validFrames` with the actual number of
- *               frames written.
+ * @param input The input audio chunk. `input->validFrames` must equal
+ * `chunk_size`.
+ * @param output The output audio chunk. Must have capacity for at least the
+ * worst-case number of output frames (see @ref
+ * audio_resampler_get_max_output_frames). This function updates
+ * `output->validFrames` with the actual number of frames written.
  * @return @ref RESAMPLER_OK on success, or an error code on failure.
  */
-resampler_error_t audio_resampler_process(audio_resampler_t* resampler, const audio_chunk_t* input, audio_chunk_t* output);
+resampler_error_t audio_resampler_process(audio_resampler_t* resampler,
+                                          const audio_chunk_t* input,
+                                          audio_chunk_t* output);
 
 /**
  * @brief Adjusts the resampling ratio dynamically.
@@ -121,9 +125,11 @@ resampler_error_t audio_resampler_process(audio_resampler_t* resampler, const au
  * Note: Synchronous resamplers may ignore this adjustment.
  *
  * @param resampler The resampler instance.
- * @param multiplier The correction factor (e.g. 1.0001 to slightly increase output rate).
+ * @param multiplier The correction factor (e.g. 1.0001 to slightly increase
+ * output rate).
  */
-void audio_resampler_set_relative_ratio(audio_resampler_t* resampler, double multiplier);
+void audio_resampler_set_relative_ratio(audio_resampler_t* resampler,
+                                        double multiplier);
 
 /**
  * @brief Gets the current effective resampling ratio.
@@ -138,12 +144,14 @@ double audio_resampler_get_ratio(const audio_resampler_t* resampler);
 /**
  * @brief Gets the maximum number of output frames that could be generated.
  *
- * Use this to size the output buffer before calling @ref audio_resampler_process.
+ * Use this to size the output buffer before calling @ref
+ * audio_resampler_process.
  *
  * @param resampler The resampler instance.
  * @return The maximum number of output frames.
  */
-size_t audio_resampler_get_max_output_frames(const audio_resampler_t* resampler);
+size_t audio_resampler_get_max_output_frames(
+    const audio_resampler_t* resampler);
 
 /**
  * @brief Gets the fixed input chunk size expected by the resampler.
@@ -171,7 +179,8 @@ void audio_resampler_free(audio_resampler_t* resampler);
 /**
  * @brief Parses a sinc interpolation type from a string representation.
  *
- * @param str String representing the interpolation type (e.g. "linear", "cubic").
+ * @param str String representing the interpolation type (e.g. "linear",
+ * "cubic").
  * @return The corresponding sinc interpolation type enum value.
  */
 sinc_interpolation_type_t sinc_interpolation_type_from_string(const char* str);
@@ -185,4 +194,3 @@ sinc_interpolation_type_t sinc_interpolation_type_from_string(const char* str);
 poly_interpolation_t poly_interpolation_from_string(const char* str);
 
 #endif  // CLIB_RESAMPLER_AUDIO_RESAMPLER_H
-

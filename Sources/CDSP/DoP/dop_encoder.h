@@ -2,8 +2,8 @@
  * @file dop_encoder.h
  * @brief PCM to DoP (DSD-over-PCM) encoder.
  *
- * Converts a chunk of PCM audio at the carrier rate into DSD-over-PCM, in place.
- * For each input frame it:
+ * Converts a chunk of PCM audio at the carrier rate into DSD-over-PCM, in
+ * place. For each input frame it:
  * 1. Interpolates 16x to the DSD rate using a 511-tap beta=11 Kaiser-windowed
  *    polyphase sinc (same shape as the decoder, normalized per phase
  *    for unit DC gain).
@@ -63,8 +63,8 @@ typedef struct {
   /** Array of channel states. */
   dop_encoder_channel_state_t* channel_states;
   /**
-   * Polyphase coefficient table laid out as `coeffs[phase * subFilterTaps + tap]`.
-   * Each phase is normalized to unit DC gain.
+   * Polyphase coefficient table laid out as `coeffs[phase * subFilterTaps +
+   * tap]`. Each phase is normalized to unit DC gain.
    */
   double* coeffs;
 } dop_encoder_t;

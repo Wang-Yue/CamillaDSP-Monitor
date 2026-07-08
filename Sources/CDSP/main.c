@@ -21,8 +21,8 @@ static volatile sig_atomic_t keep_running = 1;
 /**
  * @brief Signal handler to catch termination signals (SIGINT, SIGTERM).
  *
- * Sets the global keep_running flag to 0, which initiates a graceful shutdown of the
- * main processing loop.
+ * Sets the global keep_running flag to 0, which initiates a graceful shutdown
+ * of the main processing loop.
  *
  * @param sig The signal number.
  */
@@ -32,7 +32,8 @@ static void sig_handler(int sig) {
 }
 
 /**
- * @brief Prints the command-line usage information of the application to standard output.
+ * @brief Prints the command-line usage information of the application to
+ * standard output.
  */
 static void print_usage(void) {
   printf(
@@ -124,7 +125,8 @@ static void print_usage(void) {
  * The caller is responsible for freeing the returned buffer.
  *
  * @param path Path to the file.
- * @return A null-terminated string containing the file contents, or NULL if reading fails.
+ * @return A null-terminated string containing the file contents, or NULL if
+ * reading fails.
  */
 static char* read_file_to_string(const char* path) {
   FILE* fp = fopen(path, "rb");
@@ -353,7 +355,8 @@ int main(int argc, char** argv) {
   if (state_file_path && loaded_state) {
     if (dsp_state_load(state_file_path, loaded_state)) {
       has_loaded_state = true;
-      if (!config_path && !no_config && dsp_state_has_config_path(loaded_state)) {
+      if (!config_path && !no_config &&
+          dsp_state_has_config_path(loaded_state)) {
         allocated_config_path = strdup(dsp_state_get_config_path(loaded_state));
         config_path = allocated_config_path;
       }
@@ -554,7 +557,7 @@ int main(int argc, char** argv) {
 
   printf("Press Ctrl+C to stop.\n");
   while (keep_running) {
-    usleep(100000); // 100ms
+    usleep(100000);  // 100ms
     dsp_engine_poll(engine);
   }
 

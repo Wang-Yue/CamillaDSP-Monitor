@@ -5,9 +5,9 @@
  * @file real_fft.h
  * @brief Real-input FFT of arbitrary even length.
  *
- * `RealFFT.init` is the **single dispatch point** for the resampler's FFT subsystem — it
- * inspects the requested length once and picks the fastest available
- * backend, so callers (and the per-backend classes) never repeat that
+ * `RealFFT.init` is the **single dispatch point** for the resampler's FFT
+ * subsystem — it inspects the requested length once and picks the fastest
+ * available backend, so callers (and the per-backend classes) never repeat that
  * decision.
  *
  * Decision tree (top-to-bottom, first match wins):
@@ -89,10 +89,12 @@ typedef void (*real_fft_backend_free_fn)(void* ctx);
  * against the actual FFT cost.
  */
 typedef struct {
-  void* ctx;                           /**< Opaque pointer to the backend's internal context. */
-  real_fft_backend_forward_fn forward; /**< Function to execute the forward FFT. */
-  real_fft_backend_inverse_fn inverse; /**< Function to execute the inverse FFT. */
-  real_fft_backend_free_fn free;       /**< Function to free the backend context. */
+  void* ctx; /**< Opaque pointer to the backend's internal context. */
+  real_fft_backend_forward_fn
+      forward; /**< Function to execute the forward FFT. */
+  real_fft_backend_inverse_fn
+      inverse;                   /**< Function to execute the inverse FFT. */
+  real_fft_backend_free_fn free; /**< Function to free the backend context. */
 } real_fft_backend_t;
 
 /**
@@ -108,8 +110,9 @@ typedef struct {
  * see (or pick) a backend; they just get a correctly-sized real FFT.
  */
 typedef struct {
-  size_t length;               /**< Time-domain length (must be even). */
-  size_t spectrum_length;      /**< Number of unique complex bins in the spectrum (= length/2 + 1). */
+  size_t length;          /**< Time-domain length (must be even). */
+  size_t spectrum_length; /**< Number of unique complex bins in the spectrum (=
+                             length/2 + 1). */
   real_fft_backend_t* backend; /**< The dispatched backend implementation. */
 } real_fft_t;
 
@@ -131,8 +134,10 @@ real_fft_t* real_fft_create(size_t length);
  *
  * @param fft The real FFT context.
  * @param real_in Input buffer of real samples (length >= fft->length).
- * @param spec_re Output buffer for the real parts of the spectrum (length >= fft->spectrum_length).
- * @param spec_im Output buffer for the imaginary parts of the spectrum (length >= fft->spectrum_length).
+ * @param spec_re Output buffer for the real parts of the spectrum (length >=
+ * fft->spectrum_length).
+ * @param spec_im Output buffer for the imaginary parts of the spectrum (length
+ * >= fft->spectrum_length).
  */
 void real_fft_forward(real_fft_t* fft, waveform_t real_in,
                       mutable_waveform_t spec_re, mutable_waveform_t spec_im);
@@ -144,9 +149,12 @@ void real_fft_forward(real_fft_t* fft, waveform_t real_in,
  * `length` real samples into `real_out`. Output is scaled by `length`.
  *
  * @param fft The real FFT context.
- * @param spec_re Input buffer for the real parts of the spectrum (length >= fft->spectrum_length).
- * @param spec_im Input buffer for the imaginary parts of the spectrum (length >= fft->spectrum_length).
- * @param real_out Output buffer for the reconstructed real samples (length >= fft->length).
+ * @param spec_re Input buffer for the real parts of the spectrum (length >=
+ * fft->spectrum_length).
+ * @param spec_im Input buffer for the imaginary parts of the spectrum (length
+ * >= fft->spectrum_length).
+ * @param real_out Output buffer for the reconstructed real samples (length >=
+ * fft->length).
  */
 void real_fft_inverse(real_fft_t* fft, waveform_t spec_re, waveform_t spec_im,
                       mutable_waveform_t real_out);

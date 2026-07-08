@@ -565,8 +565,9 @@ int capture_device_config_get_channels(const capture_device_config_t* config) {
         if (f) {
           uint8_t header[44];
           int wav_channels = 0;
-          /* Read the 44-byte standard WAV header. We check for the RIFF and WAVE magic numbers
-           * and then extract the number of channels from bytes 22-23 (16-bit little-endian). */
+          /* Read the 44-byte standard WAV header. We check for the RIFF and
+           * WAVE magic numbers and then extract the number of channels from
+           * bytes 22-23 (16-bit little-endian). */
           if (fread(header, 1, 44, f) == 44) {
             if (memcmp(header, "RIFF", 4) == 0 &&
                 memcmp(header + 8, "WAVE", 4) == 0) {

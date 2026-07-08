@@ -42,10 +42,16 @@
  * @brief Error codes returned by mixer processing functions.
  */
 typedef enum {
-  MIXER_OK = 0,                           /**< Success. */
-  MIXER_ERR_INPUT_SIZE_MISMATCH = -1,     /**< `input.validFrames` is larger than the chunkSize the mixer was constructed with. */
-  MIXER_ERR_OUTPUT_BUFFER_TOO_SMALL = -2, /**< Caller's output AudioChunk doesn't have enough capacity per channel. */
-  MIXER_ERR_CHANNEL_COUNT_MISMATCH = -3   /**< Caller's output AudioChunk has the wrong channel count for this mixer. */
+  MIXER_OK = 0, /**< Success. */
+  MIXER_ERR_INPUT_SIZE_MISMATCH =
+      -1, /**< `input.validFrames` is larger than the chunkSize the mixer was
+             constructed with. */
+  MIXER_ERR_OUTPUT_BUFFER_TOO_SMALL =
+      -2, /**< Caller's output AudioChunk doesn't have enough capacity per
+             channel. */
+  MIXER_ERR_CHANNEL_COUNT_MISMATCH =
+      -3 /**< Caller's output AudioChunk has the wrong channel count for this
+            mixer. */
 } mixer_error_t;
 
 /**
@@ -73,11 +79,12 @@ audio_mixer_t* audio_mixer_create(const char* name,
  * - `output->channels == channelsOut`
  * - `output->frames >= input->validFrames`
  *
- * The mixer writes the mixed samples directly to the output and updates `output->validFrames`.
+ * The mixer writes the mixed samples directly to the output and updates
+ * `output->validFrames`.
  *
- * @note `input` and `output` must reference distinct buffers. The mixer accumulates
- * into the output and reads from the input concurrently; aliasing (in-place processing)
- * will corrupt the result.
+ * @note `input` and `output` must reference distinct buffers. The mixer
+ * accumulates into the output and reads from the input concurrently; aliasing
+ * (in-place processing) will corrupt the result.
  *
  * @param mixer Pointer to the audio mixer instance.
  * @param input Pointer to the input audio chunk.

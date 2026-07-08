@@ -1,6 +1,7 @@
 /**
  * @file config_error.h
- * @brief Error handling types and functions for configuration parsing and validation.
+ * @brief Error handling types and functions for configuration parsing and
+ * validation.
  */
 
 #ifndef CLIB_CONFIG_CONFIG_ERROR_H
@@ -13,9 +14,10 @@
  * @brief Errors raised while parsing or validating a `DSPConfiguration`.
  */
 typedef enum {
-  CONFIG_ERR_NONE = 0,        /**< No error. */
-  CONFIG_ERR_PARSE,           /**< Error parsing the configuration (e.g., JSON syntax error). */
-  CONFIG_ERR_VALIDATION,      /**< General validation error. */
+  CONFIG_ERR_NONE = 0,   /**< No error. */
+  CONFIG_ERR_PARSE,      /**< Error parsing the configuration (e.g., JSON syntax
+                            error). */
+  CONFIG_ERR_VALIDATION, /**< General validation error. */
   CONFIG_ERR_INVALID_FILTER,  /**< Invalid filter configuration. */
   CONFIG_ERR_INVALID_MIXER,   /**< Invalid mixer configuration. */
   CONFIG_ERR_INVALID_PIPELINE /**< Invalid pipeline configuration. */
@@ -57,7 +59,8 @@ void config_error_set(config_error_t* err, config_error_type_t type,
  * Fills the output buffer with a string representation of the error.
  *
  * @param err Pointer to the config_error_t struct.
- * @param out_buf Pointer to the output buffer where the description will be written.
+ * @param out_buf Pointer to the output buffer where the description will be
+ * written.
  * @param buf_len Length of the output buffer.
  */
 void config_error_description(const config_error_t* err, char* out_buf,

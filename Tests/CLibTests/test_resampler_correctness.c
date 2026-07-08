@@ -85,8 +85,10 @@ static void assert_stereo_matches_mono(resampler_type_t type,
     ASSERT_EQ(RESAMPLER_OK, err_st);
     ASSERT_EQ(RESAMPLER_OK, err_ml);
     ASSERT_EQ(RESAMPLER_OK, err_mr);
-    ASSERT_EQ(audio_chunk_get_valid_frames(st_out), audio_chunk_get_valid_frames(ml_out));
-    ASSERT_EQ(audio_chunk_get_valid_frames(st_out), audio_chunk_get_valid_frames(mr_out));
+    ASSERT_EQ(audio_chunk_get_valid_frames(st_out),
+              audio_chunk_get_valid_frames(ml_out));
+    ASSERT_EQ(audio_chunk_get_valid_frames(st_out),
+              audio_chunk_get_valid_frames(mr_out));
 
     const double* st_o0 = audio_chunk_get_channel(st_out, 0);
     const double* st_o1 = audio_chunk_get_channel(st_out, 1);
@@ -152,7 +154,8 @@ static void assert_inout_matches(resampler_type_t type,
 
     ASSERT_EQ(RESAMPLER_OK, audio_resampler_process(res_a, in_chunk, out_a));
     ASSERT_EQ(RESAMPLER_OK, audio_resampler_process(res_b, in_chunk, out_b));
-    ASSERT_EQ(audio_chunk_get_valid_frames(out_a), audio_chunk_get_valid_frames(out_b));
+    ASSERT_EQ(audio_chunk_get_valid_frames(out_a),
+              audio_chunk_get_valid_frames(out_b));
 
     for (size_t ch = 0; ch < 2; ch++) {
       const double* o_a = audio_chunk_get_channel(out_a, ch);

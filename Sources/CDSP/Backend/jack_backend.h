@@ -39,7 +39,8 @@ typedef struct processing_parameters processing_parameters_t;
  * @param chunk_size The size of each audio chunk in frames.
  * @param params Pointer to processing parameters.
  * @param err Pointer to a backend_error_t struct to report errors.
- * @return Pointer to the created capture_backend_t instance, or NULL on failure.
+ * @return Pointer to the created capture_backend_t instance, or NULL on
+ * failure.
  */
 capture_backend_t* jack_capture_create(const capture_device_config_t* config,
                                        int sample_rate, int chunk_size,
@@ -126,7 +127,8 @@ void jack_capture_destroy(jack_capture_t* capture);
  * @param chunk_size The size of each audio chunk in frames.
  * @param params Pointer to processing parameters.
  * @param err Pointer to a backend_error_t struct to report errors.
- * @return Pointer to the created playback_backend_t instance, or NULL on failure.
+ * @return Pointer to the created playback_backend_t instance, or NULL on
+ * failure.
  */
 playback_backend_t* jack_playback_create(const playback_device_config_t* config,
                                          int sample_rate, int chunk_size,

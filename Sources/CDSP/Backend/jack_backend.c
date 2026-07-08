@@ -32,11 +32,11 @@ struct jack_capture {
 
 /**
  * @brief JACK process callback for capture.
- * 
+ *
  * Called by JACK server in its real-time thread context.
  * Reads audio from JACK ports and writes to internal ring buffers.
  * Signals the semaphore to notify the reading thread.
- * 
+ *
  * @param nframes Number of frames to process.
  * @param arg Pointer to jack_capture_t.
  * @return 0 on success.
@@ -60,9 +60,9 @@ static int jack_capture_process_cb(jack_nframes_t nframes, void* arg) {
 
 /**
  * @brief JACK sample rate change callback for capture.
- * 
+ *
  * Called by JACK server when the sample rate changes.
- * 
+ *
  * @param nframes New sample rate.
  * @param arg Pointer to jack_capture_t.
  * @return 0.
@@ -81,9 +81,10 @@ static int jack_capture_sample_rate_cb(jack_nframes_t nframes, void* arg) {
 
 /**
  * @brief JACK shutdown callback for capture.
- * 
- * Called by JACK server on shutdown. Marks backend as inactive and signals semaphore.
- * 
+ *
+ * Called by JACK server on shutdown. Marks backend as inactive and signals
+ * semaphore.
+ *
  * @param arg Pointer to jack_capture_t.
  */
 static void jack_capture_shutdown_cb(void* arg) {
@@ -263,7 +264,8 @@ bool jack_capture_read(jack_capture_t* capture, size_t frames,
   }
 
   // Block the calling thread if there is not enough data in the ring buffer.
-  // The JACK process callback will signal the semaphore when it writes new data.
+  // The JACK process callback will signal the semaphore when it writes new
+  // data.
   while (spsc_audio_ring_buffer_get_available_to_read(capture->buffers[0]) <
          frames) {
     engine_sem_wait(capture->sem);
@@ -365,11 +367,11 @@ struct jack_playback {
 
 /**
  * @brief JACK process callback for playback.
- * 
+ *
  * Called by JACK server in its real-time thread context.
  * Consumes audio from internal ring buffers and writes to JACK ports.
  * Signals the semaphore to notify the writing thread.
- * 
+ *
  * @param nframes Number of frames to process.
  * @param arg Pointer to jack_playback_t.
  * @return 0 on success.
@@ -401,9 +403,9 @@ static int jack_playback_process_cb(jack_nframes_t nframes, void* arg) {
 
 /**
  * @brief JACK sample rate change callback for playback.
- * 
+ *
  * Called by JACK server when the sample rate changes.
- * 
+ *
  * @param nframes New sample rate.
  * @param arg Pointer to jack_playback_t.
  * @return 0.
@@ -422,9 +424,10 @@ static int jack_playback_sample_rate_cb(jack_nframes_t nframes, void* arg) {
 
 /**
  * @brief JACK shutdown callback for playback.
- * 
- * Called by JACK server on shutdown. Marks backend as inactive and signals semaphore.
- * 
+ *
+ * Called by JACK server on shutdown. Marks backend as inactive and signals
+ * semaphore.
+ *
  * @param arg Pointer to jack_playback_t.
  */
 static void jack_playback_shutdown_cb(void* arg) {
