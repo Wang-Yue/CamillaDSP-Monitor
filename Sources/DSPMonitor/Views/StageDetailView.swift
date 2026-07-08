@@ -491,7 +491,8 @@ struct EQSummaryCard: View {
           .system(.body, design: .monospaced))
       }
       EQFrequencyResponseView(
-        preset: preset, selectedBandID: .constant(nil), sampleRate: sampleRate
+        preset: preset, selectedBandID: .constant(nil), sampleRate: sampleRate,
+        showAnalyzer: false
       )
       .frame(height: 150)
       .padding(.horizontal, 16)

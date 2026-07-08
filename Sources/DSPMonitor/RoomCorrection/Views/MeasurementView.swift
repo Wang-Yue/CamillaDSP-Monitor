@@ -693,7 +693,8 @@ struct MeasurementView: View {
           measuredMagnitudeDB: session.displayedMagDB,
           frequencies: session.grid,
           target: session.targetCurve,
-          showCorrected: true)
+          showCorrected: true),
+        showAnalyzerOverlay: false
       )
     } else {
       ContentUnavailableView(

@@ -58,17 +58,32 @@ struct EQDiagramMode: View {
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
   var overlay: EQReferenceOverlay? = nil
+  var showAnalyzerOverlay: Bool = true
+  @AppStorage("eq_show_analyzer") private var showAnalyzer = true
 
   var body: some View {
     VStack(spacing: 0) {
-      HStack {
-        Label("Preamp", systemImage: "speaker.wave.2")
-          .font(.caption).foregroundStyle(.secondary)
-        Slider(value: $preset.preampGain, in: -20...12, step: 0.1)
+      HStack(spacing: 24) {
+        HStack {
+          Label("Preamp", systemImage: "speaker.wave.2")
+            .font(.caption).foregroundStyle(.secondary)
+          Slider(value: $preset.preampGain, in: -20...12, step: 0.1)
+            .controlSize(.small)
+          Text(String(format: "%+.1f dB", preset.preampGain))
+            .font(.system(.caption, design: .monospaced))
+            .frame(width: 50, alignment: .trailing)
+        }
+
+        Spacer()
+
+        if showAnalyzerOverlay {
+          Toggle(isOn: $showAnalyzer) {
+            Label("Real-time Analyzer", systemImage: "chart.bar.xaxis")
+              .font(.caption)
+          }
+          .toggleStyle(.checkbox)
           .controlSize(.small)
-        Text(String(format: "%+.1f dB", preset.preampGain))
-          .font(.system(.caption, design: .monospaced))
-          .frame(width: 50, alignment: .trailing)
+        }
       }
       .padding(.horizontal)
       .padding(.top, 8)
@@ -77,7 +92,8 @@ struct EQDiagramMode: View {
         preset: preset,
         selectedBandID: $selectedBandID,
         sampleRate: sampleRate,
-        overlay: overlay
+        overlay: overlay,
+        showAnalyzer: showAnalyzerOverlay && showAnalyzer
       )
       .frame(minHeight: 300)
       .padding()
@@ -97,6 +113,7 @@ struct EQFrequencyResponseView: View {
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
   var overlay: EQReferenceOverlay? = nil
+  let showAnalyzer: Bool
   static let bandColors: [Color] = [
     .red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink, .mint, .teal, .indigo, .brown,
   ]
@@ -131,6 +148,11 @@ struct EQFrequencyResponseView: View {
       let h = geo.size.height
       ZStack {
         RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor))
+        
+        if showAnalyzer {
+          EQSpectrumBackgroundView(width: w, height: h, minFreq: minFreq, maxFreq: maxFreq)
+        }
+        
         drawGrid(w: w, h: h)
 
         if let target = overlay?.target {
@@ -488,5 +510,82 @@ struct EQBandChip: View {
           Label("Delete", systemImage: "trash")
         }
       }
+  }
+}
+
+// MARK: - EQ Spectrum Background Overlay
+
+struct EQSpectrumBackgroundView: View {
+  @Environment(SpectrumEngine.self) var spectrum
+
+  let width: Double
+  let height: Double
+  let minFreq: Double
+  let maxFreq: Double
+
+  var body: some View {
+    ZStack {
+      if let bands = spectrum.bands, let frequencies = spectrum.frequencies, !bands.isEmpty, bands.count == frequencies.count {
+        let logMin = log10(minFreq)
+        let logMax = log10(maxFreq)
+        
+        let points: [CGPoint] = (0..<bands.count).map { i in
+          let f = Double(frequencies[i])
+          let db = Double(bands[i])
+          
+          let logF = log10(max(f, minFreq))
+          let x = (logF - logMin) / (logMax - logMin) * width
+          
+          // Map -70 dB..-10 dB to height..0
+          let minSpecDB = -70.0
+          let maxSpecDB = -10.0
+          let ratio = (db - minSpecDB) / (maxSpecDB - minSpecDB)
+          let clampedRatio = max(0.0, min(1.0, ratio))
+          let y = height * (1.0 - clampedRatio)
+          
+          return CGPoint(x: x, y: y)
+        }
+        
+        if !points.isEmpty {
+          // Fill Path
+          Path { path in
+            path.move(to: CGPoint(x: points[0].x, y: height))
+            for pt in points {
+              path.addLine(to: pt)
+            }
+            path.addLine(to: CGPoint(x: points.last!.x, y: height))
+            path.closeSubpath()
+          }
+          .fill(
+            LinearGradient(
+              colors: [
+                Color.accentColor.opacity(0.12),
+                Color.accentColor.opacity(0.01)
+              ],
+              startPoint: .top,
+              endPoint: .bottom
+            )
+          )
+          
+          // Stroke Path
+          Path { path in
+            path.move(to: points[0])
+            for i in 1..<points.count {
+              path.addLine(to: points[i])
+            }
+          }
+          .stroke(
+            Color.accentColor.opacity(0.35),
+            lineWidth: 1.2
+          )
+        }
+      }
+    }
+    .onAppear {
+      spectrum.visibilityCount += 1
+    }
+    .onDisappear {
+      spectrum.visibilityCount -= 1
+    }
   }
 }
