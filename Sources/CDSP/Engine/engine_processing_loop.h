@@ -27,6 +27,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "Audio/audio_chunk.h"
 #include "Audio/processing_parameters.h"
 #include "Config/configuration.h"
 #include "DoP/dop_encoder.h"
@@ -58,7 +59,9 @@ engine_processing_loop_t* engine_processing_loop_create(
     processing_parameters_t* processing_params, size_t pipeline_rate,
     audio_resampler_t* resampler, pipeline_t* pipeline,
     dop_encoder_t* dop_encoder, audio_chunk_t* resampler_scratch,
-    audio_chunk_t* pipeline_scratch, chunk_callback_t on_chunk_captured,
+    audio_chunk_t* pipeline_scratch,
+    round_robin_chunk_pool_t* scratch_pool,
+    chunk_callback_t on_chunk_captured,
     void* on_chunk_captured_ctx, chunk_callback_t on_chunk_processed,
     void* on_chunk_processed_ctx);
 

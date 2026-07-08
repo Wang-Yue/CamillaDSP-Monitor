@@ -47,6 +47,7 @@ struct engine_processing_loop {
   spsc_queue_t* update_queue;
   audio_chunk_t* resampler_scratch;
   audio_chunk_t* pipeline_scratch;
+  round_robin_chunk_pool_t* scratch_pool;
 
   chunk_callback_t on_chunk_captured;
   void* on_chunk_captured_ctx;
@@ -90,7 +91,9 @@ engine_processing_loop_t* engine_processing_loop_create(
     processing_parameters_t* processing_params, size_t pipeline_rate,
     audio_resampler_t* resampler, pipeline_t* pipeline,
     dop_encoder_t* dop_encoder, audio_chunk_t* resampler_scratch,
-    audio_chunk_t* pipeline_scratch, chunk_callback_t on_chunk_captured,
+    audio_chunk_t* pipeline_scratch,
+    round_robin_chunk_pool_t* scratch_pool,
+    chunk_callback_t on_chunk_captured,
     void* on_chunk_captured_ctx, chunk_callback_t on_chunk_processed,
     void* on_chunk_processed_ctx) {
   engine_processing_loop_t* loop =
@@ -105,6 +108,7 @@ engine_processing_loop_t* engine_processing_loop_create(
   loop->dop_encoder = dop_encoder;
   loop->resampler_scratch = resampler_scratch;
   loop->pipeline_scratch = pipeline_scratch;
+  loop->scratch_pool = scratch_pool;
   loop->on_chunk_captured = on_chunk_captured;
   loop->on_chunk_captured_ctx = on_chunk_captured_ctx;
   loop->on_chunk_processed = on_chunk_processed;
@@ -186,10 +190,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
                                audio_chunk_get_frames(loop->pipeline_scratch),
                                loop->pipeline_rate);
 
-  size_t pool_cap = spsc_queue_get_capacity(loop->shared->processed_queue) + 4;
-  round_robin_chunk_pool_t* scratch_pool = round_robin_chunk_pool_create(
-      pool_cap, audio_chunk_get_frames(loop->pipeline_scratch),
-      audio_chunk_get_channels(loop->pipeline_scratch));
+
 
 
   while (
@@ -207,7 +208,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
                 loop->shared->captured_queue)) != NULL) {
       if (atomic_load_explicit(&loop->shared->should_stop,
                                memory_order_acquire)) {
-        round_robin_chunk_pool_free(scratch_pool);
         return;
       }
 
@@ -253,7 +253,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
           snprintf(reason.message, sizeof(reason.message), "Resampler error %d",
                    rerr);
           engine_shared_state_request_stop(loop->shared, reason);
-          round_robin_chunk_pool_free(scratch_pool);
           return;
         }
         chunk = loop->resampler_scratch;
@@ -281,7 +280,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       }
 
       audio_chunk_t* current_scratch =
-          round_robin_chunk_pool_next(scratch_pool);
+          round_robin_chunk_pool_next(loop->scratch_pool);
       uint64_t pipe_start = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
       pipeline_error_t perr =
           pipeline_process(loop->active_pipeline, chunk, current_scratch);
@@ -294,7 +293,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
         snprintf(reason.message, sizeof(reason.message), "Pipeline error %d",
                  perr);
         engine_shared_state_request_stop(loop->shared, reason);
-        round_robin_chunk_pool_free(scratch_pool);
         return;
       }
       chunk = current_scratch;
@@ -362,7 +360,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
     }
   }
 
-  round_robin_chunk_pool_free(scratch_pool);
+
   logger_info(&logger, "Processing thread stopped", log_arg_none(),
               log_arg_none(), log_arg_none(), log_arg_none());
 }

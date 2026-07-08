@@ -300,9 +300,31 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
     return false;
   }
 
+  // Pre-allocate chunk pools owned by dsp_engine_core
+  size_t capture_pool_cap = spsc_queue_get_capacity(core->shared->captured_queue) + 4;
+  core->capture_chunk_pool = round_robin_chunk_pool_create(
+      capture_pool_cap, capture_chunk_size,
+      capture_device_config_get_channels(&core->current_config->devices.capture));
+
+  size_t processing_pool_cap = spsc_queue_get_capacity(core->shared->processed_queue) + 4;
+  core->processing_scratch_pool = round_robin_chunk_pool_create(
+      processing_pool_cap, playback_chunk_size,
+      playback_device_config_get_channels(&core->current_config->devices.playback));
+
+  if (!core->capture_chunk_pool || !core->processing_scratch_pool) {
+    if (err) {
+      err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+      snprintf(err->message, sizeof(err->message), "Failed to allocate chunk pools");
+    }
+    dsp_engine_core_stop(core, (processing_stop_reason_t){.type = STOP_REASON_NONE});
+    return false;
+  }
+
   core->capture_loop = engine_capture_loop_create(
       core->shared, core->state_machine, core->capture, core->playback,
-      core->processing_params, core->dop_decoder, capture_chunk_size,
+      core->processing_params, core->dop_decoder,
+      core->capture_chunk_pool,
+      capture_chunk_size,
       capture_device_config_get_channels(
           &core->current_config->devices.capture),
       capture_rate,
@@ -316,7 +338,9 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   core->processing_loop = engine_processing_loop_create(
       core->shared, core->state_machine, core->processing_params, pipeline_rate,
       core->resampler, core->pipeline, core->dop_encoder,
-      core->resampler_scratch, core->pipeline_scratch, core->on_chunk_captured,
+      core->resampler_scratch, core->pipeline_scratch,
+      core->processing_scratch_pool,
+      core->on_chunk_captured,
       core->on_chunk_captured_ctx, core->on_chunk_processed,
       core->on_chunk_processed_ctx);
 
@@ -436,6 +460,15 @@ void dsp_engine_core_stop(dsp_engine_core_t* core,
   if (core->playback_loop) {
     engine_playback_loop_free(core->playback_loop);
     core->playback_loop = NULL;
+  }
+
+  if (core->capture_chunk_pool) {
+    round_robin_chunk_pool_free(core->capture_chunk_pool);
+    core->capture_chunk_pool = NULL;
+  }
+  if (core->processing_scratch_pool) {
+    round_robin_chunk_pool_free(core->processing_scratch_pool);
+    core->processing_scratch_pool = NULL;
   }
 
   engine_state_machine_set_state(core->state_machine,

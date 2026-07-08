@@ -39,6 +39,7 @@ struct engine_capture_loop {
   bool has_last_observed_playback_pending_rate;
 
   silence_counter_t* silence_counter;
+  round_robin_chunk_pool_t* chunk_pool;
 
   uint64_t watchdog_last_success_ns;
   bool watchdog_triggered;
@@ -63,6 +64,7 @@ engine_capture_loop_t* engine_capture_loop_create(
     engine_shared_state_t* shared, engine_state_machine_t* state_machine,
     capture_backend_t* capture, playback_backend_t* playback,
     processing_parameters_t* processing_params, dop_decoder_t* dop_decoder,
+    round_robin_chunk_pool_t* chunk_pool,
     size_t chunk_size, size_t channels, size_t samplerate,
     double silence_threshold_db, double silence_timeout_seconds) {
   engine_capture_loop_t* loop =
@@ -75,6 +77,7 @@ engine_capture_loop_t* engine_capture_loop_create(
   loop->playback = playback;
   loop->processing_params = processing_params;
   loop->dop_decoder = dop_decoder;
+  loop->chunk_pool = chunk_pool;
   loop->chunk_size = chunk_size;
   loop->channels = channels;
   loop->samplerate = samplerate;
@@ -104,9 +107,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
 
   set_realtime_thread_priority("Capture", loop->chunk_size, loop->samplerate);
 
-  size_t pool_cap = spsc_queue_get_capacity(loop->shared->captured_queue) + 4;
-  round_robin_chunk_pool_t* chunk_pool =
-      round_robin_chunk_pool_create(pool_cap, loop->chunk_size, loop->channels);
+
 
   while (
       !atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
@@ -149,7 +150,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       }
     }
 
-    audio_chunk_t* chunk = round_robin_chunk_pool_next(chunk_pool);
+    audio_chunk_t* chunk = round_robin_chunk_pool_next(loop->chunk_pool);
     backend_error_t err;
     backend_error_init(&err, BACKEND_ERROR_NONE, "");
     bool got_data =
@@ -247,7 +248,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
     }
   }
 
-  round_robin_chunk_pool_free(chunk_pool);
+
   logger_info(&logger, "Capture thread stopped", log_arg_none(), log_arg_none(),
               log_arg_none(), log_arg_none());
 }

@@ -33,6 +33,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "Audio/audio_chunk.h"
 #include "Audio/processing_parameters.h"
 #include "Backend/audio_backend.h"
 #include "Config/configuration.h"
@@ -65,6 +66,8 @@ typedef struct {
   size_t effective_playback_chunk_size;
   audio_chunk_t* resampler_scratch;
   audio_chunk_t* pipeline_scratch;
+  round_robin_chunk_pool_t* capture_chunk_pool;
+  round_robin_chunk_pool_t* processing_scratch_pool;
   audio_resampler_t* resampler;
   pipeline_t* pipeline;
 

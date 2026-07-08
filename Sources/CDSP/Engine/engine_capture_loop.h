@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "Audio/audio_chunk.h"
 #include "Audio/processing_parameters.h"
 
 #include "Backend/audio_backend.h"
@@ -44,6 +45,7 @@ engine_capture_loop_t* engine_capture_loop_create(
     engine_shared_state_t* shared, engine_state_machine_t* state_machine,
     capture_backend_t* capture, playback_backend_t* playback,
     processing_parameters_t* processing_params, dop_decoder_t* dop_decoder,
+    round_robin_chunk_pool_t* chunk_pool,
     size_t chunk_size, size_t channels, size_t samplerate,
     double silence_threshold_db, double silence_timeout_seconds);
 
