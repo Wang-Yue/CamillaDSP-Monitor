@@ -206,6 +206,14 @@ typedef struct {
    */
   atomic_double_t* resampler_ratio;
 
+  /**
+   * @brief Deferred free queue for old pipeline structures.
+   *
+   * Holds pipeline instances swapped out by the processing thread. The control
+   * thread periodically dequeues and frees them asynchronously to keep the
+   * audio thread allocation-free and real-time safe.
+   */
+  spsc_queue_t* pipeline_garbage_queue;
 } engine_shared_state_t;
 
 /**

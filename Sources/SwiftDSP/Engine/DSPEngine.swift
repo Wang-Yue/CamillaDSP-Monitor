@@ -52,6 +52,7 @@ public actor SwiftDSPEngine {
 
   public func setConfig(json: String) async throws {
     logger.info("Set config: %s", .string(json))
+    core?.collectGarbage()
     let parsed: DSPConfiguration
     do {
       parsed = try ConfigLoader.parse(json: json)
@@ -121,9 +122,12 @@ public actor SwiftDSPEngine {
   }
 
   public func stop() {
-    if let engine = core, engine.state != .inactive {
-      engine.stop(reason: .none)
-      lastStopReason = ProcessingStopReason.none
+    if let engine = core {
+      engine.collectGarbage()
+      if engine.state != .inactive {
+        engine.stop(reason: .none)
+        lastStopReason = ProcessingStopReason.none
+      }
     }
     core = nil
   }
@@ -147,6 +151,7 @@ public actor SwiftDSPEngine {
     let state: ProcessingState
     let reason: ProcessingStopReason
     if let core {
+      core.collectGarbage()
       state = core.state
       reason = core.stopReason ?? lastStopReason ?? .none
     } else {
@@ -162,6 +167,7 @@ public actor SwiftDSPEngine {
         playback_rms: [], playback_peak: [],
         capture_rms: [], capture_peak: [])
     }
+    core.collectGarbage()
     let p = core.processingParams
     return VuLevels(
       playback_rms: p.playbackSignalRms.map { Float($0) },

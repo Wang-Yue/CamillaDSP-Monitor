@@ -45,29 +45,6 @@
 typedef void (*chunk_callback_t)(void* ctx, const audio_chunk_t* chunk);
 
 /**
- * @brief Opaque structure representing a pending configuration update.
- */
-typedef struct pending_update pending_update_t;
-
-/**
- * @brief Creates a pending update object.
- *
- * @param config Pointer to the new DSP configuration.
- * @param filters Array of filter names to update.
- * @param filters_count Number of filters in the array.
- * @param mixers Array of mixer names to update.
- * @param mixers_count Number of mixers in the array.
- * @param processors Array of processor names to update.
- * @param processors_count Number of processors in the array.
- * @return Pointer to the created pending update object, or NULL on failure.
- */
-pending_update_t* pending_update_create(
-    dsp_config_t* config,
-    char** filters, size_t filters_count,
-    char** mixers, size_t mixers_count,
-    char** processors, size_t processors_count);
-
-/**
  * @brief Opaque structure representing the processing loop.
  *
  * `@unchecked Sendable` is a *transfer* vouch, not a *share*
@@ -134,21 +111,5 @@ void engine_processing_loop_run(engine_processing_loop_t* loop);
  */
 void engine_processing_loop_set_pipeline(engine_processing_loop_t* loop,
                                          pipeline_t* new_pipeline);
-
-/**
- * @brief Enqueues a configuration update.
- *
- * @param loop Pointer to the processing loop instance.
- * @param update Pointer to the pending update object.
- */
-void engine_processing_loop_enqueue_update(engine_processing_loop_t* loop,
-                                           pending_update_t* update);
-
-/**
- * @brief Frees a pending update object.
- *
- * @param update Pointer to the pending update object to free.
- */
-void pending_update_free(pending_update_t* update);
 
 #endif  // CLIB_ENGINE_ENGINE_PROCESSING_LOOP_H

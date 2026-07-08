@@ -550,41 +550,7 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
     return true;
   }
 
-  if (change_type == CONFIG_CHANGE_FILTER_PARAMETERS || change_type == CONFIG_CHANGE_MIXER_PARAMETERS) {
-    // 2. Perform in-place parameter update.
-    // If only parameters changed (e.g. gain values, coefficients), we can perform an
-    // in-place reload. We package the updates into a `pending_update_t` structure and
-    // enqueue it to the processing loop thread. The thread will swap the parameters
-    // atomically during a quiet period between buffer processings.
-    if (core->processing_loop) {
-      size_t filters_count = 0;
-      char** filters = config_change_take_filters(change, &filters_count);
-      size_t mixers_count = 0;
-      char** mixers = config_change_take_mixers(change, &mixers_count);
-      size_t processors_count = 0;
-      char** processors = config_change_take_processors(change, &processors_count);
 
-      pending_update_t* update = pending_update_create(
-          new_config,
-          filters, filters_count,
-          mixers, mixers_count,
-          processors, processors_count);
-
-      config_change_free(change);
-
-      engine_processing_loop_enqueue_update(core->processing_loop, update);
-
-      // Core saves the new config as its current_config.
-      core->current_config = new_config;
-      // We can safely free the old config now, because the loop thread will switch to using update->config on the next iteration.
-      if (old_config && old_config != new_config) {
-        dsp_config_free(old_config);
-      }
-
-      logger_info(&logger, "Pipeline parameters updated in-place", log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
-      return true;
-    }
-  }
 
   // 3. Fall back to structural change (rebuilding pipeline).
   // If structural changes occurred (e.g., adding or removing filters), we must
@@ -620,4 +586,15 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
   logger_info(&logger, "Pipeline rebuilt without audio-device restart",
               log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
   return true;
+}
+
+void dsp_engine_core_collect_garbage(dsp_engine_core_t* core) {
+  if (!core || !core->shared) return;
+
+  if (core->shared->pipeline_garbage_queue) {
+    void* p = NULL;
+    while ((p = spsc_queue_dequeue(core->shared->pipeline_garbage_queue)) != NULL) {
+      pipeline_free((pipeline_t*)p);
+    }
+  }
 }

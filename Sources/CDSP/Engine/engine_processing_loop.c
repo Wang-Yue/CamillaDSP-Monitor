@@ -44,7 +44,6 @@ struct engine_processing_loop {
   pipeline_t* active_pipeline;
   dop_encoder_t* dop_encoder;
   spsc_queue_t* pipeline_queue;
-  spsc_queue_t* update_queue;
   audio_chunk_t* resampler_scratch;
   audio_chunk_t* pipeline_scratch;
   round_robin_chunk_pool_t* scratch_pool;
@@ -55,22 +54,7 @@ struct engine_processing_loop {
   void* on_chunk_processed_ctx;
 };
 
-pending_update_t* pending_update_create(
-    dsp_config_t* config,
-    char** filters, size_t filters_count,
-    char** mixers, size_t mixers_count,
-    char** processors, size_t processors_count) {
-  pending_update_t* update = (pending_update_t*)malloc(sizeof(pending_update_t));
-  if (!update) return NULL;
-  update->config = config;
-  update->filters = filters;
-  update->filters_count = filters_count;
-  update->mixers = mixers;
-  update->mixers_count = mixers_count;
-  update->processors = processors;
-  update->processors_count = processors_count;
-  return update;
-}
+
 #include <string.h>
 #include <time.h>
 
@@ -124,7 +108,6 @@ engine_processing_loop_t* engine_processing_loop_create(
   loop->on_chunk_processed_ctx = on_chunk_processed_ctx;
 
   loop->pipeline_queue = spsc_queue_create(2);
-  loop->update_queue = spsc_queue_create(8);
 
   return loop;
 }
@@ -139,36 +122,10 @@ void engine_processing_loop_free(engine_processing_loop_t* loop) {
     }
     spsc_queue_free(loop->pipeline_queue);
   }
-  if (loop->update_queue) {
-    pending_update_t* u = NULL;
-    while ((u = (pending_update_t*)spsc_queue_dequeue(loop->update_queue)) !=
-           NULL) {
-      pending_update_free(u);
-    }
-    spsc_queue_free(loop->update_queue);
-  }
   if (loop->active_pipeline) {
     pipeline_free(loop->active_pipeline);
   }
   free(loop);
-}
-
-void pending_update_free(pending_update_t* update) {
-  if (!update) return;
-  if (update->filters) {
-    for (size_t i = 0; i < update->filters_count; i++) free(update->filters[i]);
-    free(update->filters);
-  }
-  if (update->mixers) {
-    for (size_t i = 0; i < update->mixers_count; i++) free(update->mixers[i]);
-    free(update->mixers);
-  }
-  if (update->processors) {
-    for (size_t i = 0; i < update->processors_count; i++)
-      free(update->processors[i]);
-    free(update->processors);
-  }
-  free(update);
 }
 
 void engine_processing_loop_set_pipeline(engine_processing_loop_t* loop,
@@ -180,14 +137,7 @@ void engine_processing_loop_set_pipeline(engine_processing_loop_t* loop,
   }
 }
 
-void engine_processing_loop_enqueue_update(engine_processing_loop_t* loop,
-                                           pending_update_t* update) {
-  if (loop && loop->update_queue) {
-    if (!spsc_queue_enqueue(loop->update_queue, update)) {
-      pending_update_free(update);
-    }
-  }
-}
+
 
 void engine_processing_loop_run(engine_processing_loop_t* loop) {
   if (!loop) return;
@@ -221,19 +171,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       }
 
 
-      // Apply any pending parameter updates before processing this chunk.
-      // This ensures that parameter updates (like filter coefficients or mixer gains)
-      // are applied synchronously at chunk boundaries, preventing audio artifacts.
-      pending_update_t* update = NULL;
-      while ((update = (pending_update_t*)spsc_queue_dequeue(
-                  loop->update_queue)) != NULL) {
-        pipeline_update_parameters(
-            loop->active_pipeline, update->config,
-            (const char* const*)update->filters, update->filters_count,
-            (const char* const*)update->mixers, update->mixers_count,
-            (const char* const*)update->processors, update->processors_count);
-        pending_update_free(update);
-      }
 
       uint64_t res_start = 0;
       uint64_t res_end = 0;
@@ -280,7 +217,9 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
           (pipeline_t*)spsc_queue_dequeue(loop->pipeline_queue);
       if (next_pipeline) {
         if (loop->active_pipeline) {
-          pipeline_free(loop->active_pipeline);
+          if (!spsc_queue_enqueue(loop->shared->pipeline_garbage_queue, loop->active_pipeline)) {
+            pipeline_free(loop->active_pipeline);
+          }
         }
         loop->active_pipeline = next_pipeline;
       }

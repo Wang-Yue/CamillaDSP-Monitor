@@ -30,6 +30,8 @@
 #include "engine_shared_state.h"
 
 #include <stdlib.h>
+#include "Pipeline/pipeline.h"
+#include "Engine/engine_processing_loop.h"
 
 engine_shared_state_t* engine_shared_state_create(
     size_t captured_queue_depth, size_t processed_queue_depth) {
@@ -46,10 +48,11 @@ engine_shared_state_t* engine_shared_state_create(
   atomic_init(&state->should_stop, false);
   atomic_init(&state->stop_reason_written, false);
   state->resampler_ratio = atomic_double_create(1.0);
+  state->pipeline_garbage_queue = spsc_queue_create(32);
 
   if (!state->captured_queue || !state->processed_queue ||
       !state->captured_semaphore || !state->processed_semaphore ||
-      !state->resampler_ratio) {
+      !state->resampler_ratio || !state->pipeline_garbage_queue) {
     engine_shared_state_free(state);
     return NULL;
   }
@@ -63,6 +66,15 @@ void engine_shared_state_free(engine_shared_state_t* state) {
   engine_sem_destroy(&state->captured_semaphore);
   engine_sem_destroy(&state->processed_semaphore);
   if (state->resampler_ratio) atomic_double_free(state->resampler_ratio);
+  
+  if (state->pipeline_garbage_queue) {
+    void* p;
+    while ((p = spsc_queue_dequeue(state->pipeline_garbage_queue)) != NULL) {
+      pipeline_free((pipeline_t*)p);
+    }
+    spsc_queue_free(state->pipeline_garbage_queue);
+  }
+  
   free(state);
 }
 

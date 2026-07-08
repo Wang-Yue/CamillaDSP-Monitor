@@ -100,6 +100,9 @@ bool dsp_engine_set_config_struct(dsp_engine_t* engine, dsp_config_t* config,
 static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine, dsp_config_t* config,
                                                 audio_backend_error_t* err) {
   if (!engine || !config) return false;
+  if (engine->core) {
+    dsp_engine_core_collect_garbage(engine->core);
+  }
 
   // 1. Hot Reload attempt:
   // If the engine core is currently running, and the new configuration's device properties
@@ -242,6 +245,9 @@ static bool dsp_engine_set_config_locked(dsp_engine_t* engine, const char* json,
 void dsp_engine_stop(dsp_engine_t* engine) {
   if (!engine) return;
   pthread_mutex_lock(&engine->state_mutex);
+  if (engine->core) {
+    dsp_engine_core_collect_garbage(engine->core);
+  }
   if (engine->core &&
       dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
     processing_stop_reason_t reason = {.type = STOP_REASON_NONE};
@@ -326,6 +332,7 @@ static state_update_t dsp_engine_get_status_locked(const dsp_engine_t* engine) {
   state_update_t res;
   memset(&res, 0, sizeof(res));
   if (engine->core) {
+    dsp_engine_core_collect_garbage((dsp_engine_core_t*)engine->core);
     res.state = dsp_engine_core_get_state(engine->core);
     const processing_stop_reason_t* r =
         dsp_engine_core_get_stop_reason(engine->core);
@@ -365,6 +372,7 @@ static vu_levels_t dsp_engine_get_vu_levels_locked(const dsp_engine_t* engine) {
   vu_levels_t res;
   memset(&res, 0, sizeof(res));
   if (!engine->core || !engine->core->processing_params) return res;
+  dsp_engine_core_collect_garbage((dsp_engine_core_t*)engine->core);
   processing_parameters_t* p = engine->core->processing_params;
   res.playback_channels = p->playback_channels;
   res.capture_channels = p->capture_channels;
@@ -894,6 +902,12 @@ static char* dsp_engine_get_config_path(const dsp_engine_t* engine) {
 
 void dsp_engine_poll(dsp_engine_t* engine) {
   if (!engine) return;
+
+  pthread_mutex_lock(&engine->state_mutex);
+  if (engine->core) {
+    dsp_engine_core_collect_garbage(engine->core);
+  }
+  pthread_mutex_unlock(&engine->state_mutex);
 
   // 1. Process asynchronous stop requests from the loop threads (e.g. ALSA errors).
   // If the background thread encountered a fatal error and requested a stop, we stop and free
