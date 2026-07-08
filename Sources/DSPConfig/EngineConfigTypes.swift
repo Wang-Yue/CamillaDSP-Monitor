@@ -185,7 +185,7 @@ public struct GeneratorConfig: Codable, Equatable, Sendable {
 
 public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
   public var type: AudioBackendType
-  public var channels: Int?
+  public var channels: Int
   public var device: String?
   /// If true, bypass DoP detection and handle signal strictly as PCM. Default is false.
   public var bypassDoP: Bool?
@@ -221,7 +221,7 @@ public struct CaptureDeviceConfig: Codable, Equatable, Sendable {
   }
 
   public init(
-    type: AudioBackendType, channels: Int? = nil, device: String? = nil, format: String? = nil,
+    type: AudioBackendType, channels: Int, device: String? = nil, format: String? = nil,
     bypassDoP: Bool? = nil, dopCutoffHz: Double? = nil, channelLabels: [String]? = nil,
     filename: String? = nil, fileFormat: String? = nil, isWav: Bool? = nil,
     skipBytes: Int? = nil, readBytes: Int? = nil, extraSamples: Int? = nil,

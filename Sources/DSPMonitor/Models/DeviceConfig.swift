@@ -143,19 +143,24 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   /// Pure function - no side effects.
   public func enforced() -> DeviceConfig {
     var result = self
-    let ch = result.supportedChannels
-    if !ch.isEmpty && !ch.contains(result.deviceChannels) {
-      result.deviceChannels = ch.contains(2) ? 2 : ch[0]
-    }
-    result.channels = max(1, min(result.deviceChannels, result.channels))
+    if result.backend == .coreAudio {
+      let ch = result.supportedChannels
+      if !ch.isEmpty && !ch.contains(result.deviceChannels) {
+        result.deviceChannels = ch.contains(2) ? 2 : ch[0]
+      }
+      result.channels = max(1, min(result.deviceChannels, result.channels))
 
-    let rates = result.supportedRates
-    if !rates.isEmpty && !rates.contains(result.sampleRate) {
-      result.sampleRate = Self.bestRate(from: rates, preferring: result.sampleRate)
-    }
-    let fmts = result.supportedFormats
-    if !fmts.isEmpty && !fmts.contains(result.format) {
-      result.format = fmts.first ?? "F32"
+      let rates = result.supportedRates
+      if !rates.isEmpty && !rates.contains(result.sampleRate) {
+        result.sampleRate = Self.bestRate(from: rates, preferring: result.sampleRate)
+      }
+      let fmts = result.supportedFormats
+      if !fmts.isEmpty && !fmts.contains(result.format) {
+        result.format = fmts.first ?? "F32"
+      }
+    } else {
+      result.channels = max(1, min(32, result.channels))
+      result.deviceChannels = result.channels
     }
     return result
   }

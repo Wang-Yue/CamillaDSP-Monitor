@@ -111,7 +111,7 @@ final class DSPEngineController {
     case .wavFile:
       captureConfig = CaptureDeviceConfig(
         type: .wavFile,
-        channels: nil,
+        channels: devices.captureConfig.channels,
         filename: devices.captureConfig.filename.isEmpty ? nil : devices.captureConfig.filename,
         fileFormat: nil,
         isWav: nil,

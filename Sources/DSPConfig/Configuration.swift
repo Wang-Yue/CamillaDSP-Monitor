@@ -94,10 +94,8 @@ extension DSPConfiguration {
     guard devices.chunksize > 0 else {
       throw ConfigError.validationError("Chunk size must be positive")
     }
-    if let captureChannels = devices.capture.channels {
-      guard captureChannels > 0 else {
-        throw ConfigError.validationError("Capture channels must be positive")
-      }
+    guard devices.capture.channels > 0 else {
+      throw ConfigError.validationError("Capture channels must be positive")
     }
     guard devices.playback.channels > 0 else {
       throw ConfigError.validationError("Playback channels must be positive")
@@ -128,7 +126,7 @@ extension DSPConfiguration {
   }
 
   private func validatePipeline() throws {
-    var numChannels = devices.capture.channels ?? devices.playback.channels
+    var numChannels = devices.capture.channels
 
     if let pipeline = pipeline {
       for (i, step) in pipeline.enumerated() {
