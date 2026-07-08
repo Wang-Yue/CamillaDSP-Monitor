@@ -226,6 +226,8 @@ final class AsyncSincResampler: AudioResampler {
 
     // Inner loop, specialised per interpolation mode.
     switch interpolation {
+    case .nearest:
+      runNearest(outputFrames: outputFrames, output: &output)
     case .linear:
       runLinear(outputFrames: outputFrames, output: &output)
     case .quadratic:
@@ -256,6 +258,36 @@ final class AsyncSincResampler: AudioResampler {
       index += 1
     }
     return (index, subindex)
+  }
+
+  private func runNearest(outputFrames: Int, output: inout AudioChunk) {
+    let sLen = sincLen
+    let twoSLen = 2 * sLen
+    let factor = oversamplingFactor
+    let factorD = Double(factor)
+
+    sincTable.withUnsafeBufferPointer { tBuf in
+      guard let table = tBuf.baseAddress else { return }
+      idxScratch.withUnsafeBufferPointer { idxBuf in
+        for ch in 0..<channels {
+          guard let buf = inputBuffer[ch].baseAddress,
+            let out = output[ch].baseAddress
+          else { continue }
+          for frame in 0..<outputFrames {
+            let idx = idxBuf[frame]
+            let idxFloor = idx.rounded(.down)
+            var startIdx = Int(idxFloor)
+            var subindex = Int(((idx - idxFloor) * factorD).rounded())
+            if subindex >= factor {
+              subindex -= factor
+              startIdx += 1
+            }
+
+            out[frame] = sincDotProduct(buf + startIdx + twoSLen, table + subindex * sLen, sLen)
+          }
+        }
+      }
+    }
   }
 
   private func runCubic(outputFrames: Int, output: inout AudioChunk) {

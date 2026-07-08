@@ -112,6 +112,7 @@ enum PolyInterpolation: String, Codable {
 }
 
 enum SincInterpolationType: String, CaseIterable {
+  case nearest = "Nearest"
   case linear = "Linear"
   case quadratic = "Quadratic"
   case cubic = "Cubic"

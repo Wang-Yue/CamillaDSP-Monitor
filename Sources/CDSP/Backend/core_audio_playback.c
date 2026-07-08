@@ -439,7 +439,7 @@ bool core_audio_playback_write(core_audio_playback_t* playback,
       return false;
     }
     if (atomic_load_explicit(&playback->is_paused, memory_order_acquire)) {
-      return false;
+      return true;
     }
   }
 

@@ -10,6 +10,7 @@ final class VolumeFilter: Filter {
 
   // Ramp state (tracks fader ramping)
   private var ramptimeInChunks: Int
+  private var staleRampThresholdNs: UInt64
   private var currentVolume: Double
   private var targetVolume: Double
   private var targetLinearGain: Double
@@ -38,6 +39,7 @@ final class VolumeFilter: Filter {
 
     self.ramptimeInChunks = Int(
       (rampTimeMs / (1000.0 * Double(chunkSize) / Double(sampleRate))).rounded())
+    self.staleRampThresholdNs = UInt64(1_500_000_000) * UInt64(chunkSize) / UInt64(sampleRate)
 
     // Pre-allocate array
     self.currentRampGains = .allocate(capacity: chunkSize)
@@ -72,7 +74,11 @@ final class VolumeFilter: Filter {
     let targetVol = min(sharedVol, volumeLimit)
 
     if abs(targetVol - targetVolume) > 0.01 || mute != sharedMute {
-      if ramptimeInChunks > 0 {
+      let setAt = params.targetVolumeSetAt(for: fader)
+      let now = DispatchTime.now().uptimeNanoseconds
+      let rampIsStale = now > setAt ? ((now - setAt) > staleRampThresholdNs) : false
+
+      if ramptimeInChunks > 0 && !rampIsStale {
         rampStart = currentVolume
         rampStep = 1
       } else {
@@ -154,6 +160,7 @@ final class VolumeFilter: Filter {
 
     ramptimeInChunks = Int(
       (rampTimeMs / (1000.0 * Double(chunkSize) / Double(sampleRate))).rounded())
+    staleRampThresholdNs = UInt64(1_500_000_000) * UInt64(chunkSize) / UInt64(sampleRate)
 
     if volumeLimit < currentVolume {
       currentVolume = volumeLimit

@@ -6,6 +6,16 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#ifndef __APPLE__
+#define CLOCK_UPTIME_RAW CLOCK_MONOTONIC
+static inline uint64_t clock_gettime_nsec_np(int clock_id) {
+  struct timespec ts;
+  clock_gettime(clock_id, &ts);
+  return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+}
+#endif
 
 processing_parameters_t* processing_parameters_create(
     size_t capture_channels, size_t playback_channels) {
@@ -16,6 +26,7 @@ processing_parameters_t* processing_parameters_create(
   for (int i = 0; i < FADER_COUNT; i++) {
     atomic_double_init(&params->target_volumes[i],
                        PROCESSING_PARAMETERS_DEFAULT_VOLUME);
+    atomic_init(&params->target_volume_set_at[i], 0ULL);
     atomic_double_init(&params->current_volumes[i],
                        PROCESSING_PARAMETERS_DEFAULT_VOLUME);
     atomic_init(&params->muted[i], PROCESSING_PARAMETERS_DEFAULT_MUTE);
@@ -74,6 +85,17 @@ void processing_parameters_set_target_volume_for_fader(
     processing_parameters_t* params, double value, fader_t fader) {
   if (!params || fader < 0 || fader >= FADER_COUNT) return;
   atomic_double_set(&params->target_volumes[fader], value);
+  uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+  atomic_store_explicit(&params->target_volume_set_at[fader], now,
+                        memory_order_release);
+}
+
+uint64_t processing_parameters_get_target_volume_set_at_for_fader(
+    const processing_parameters_t* params, fader_t fader) {
+  if (!params || fader < 0 || fader >= FADER_COUNT) return 0ULL;
+  return atomic_load_explicit(
+      (_Atomic uint64_t*)&params->target_volume_set_at[fader],
+      memory_order_acquire);
 }
 
 double processing_parameters_get_current_volume_for_fader(

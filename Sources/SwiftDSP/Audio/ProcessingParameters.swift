@@ -6,6 +6,7 @@
 // as separate inline atomic variables to avoid heap allocation and conform to non-copyable requirements.
 
 import DSPConfig
+import Dispatch
 import Synchronization
 
 public final class ProcessingParameters: Sendable {
@@ -28,6 +29,12 @@ public final class ProcessingParameters: Sendable {
   private let _targetVolume3: AtomicDouble
   /// Target volume (dB) for fader 4 (Aux 4).
   private let _targetVolume4: AtomicDouble
+
+  private let _targetVolumeSetAt0: Atomic<UInt64>
+  private let _targetVolumeSetAt1: Atomic<UInt64>
+  private let _targetVolumeSetAt2: Atomic<UInt64>
+  private let _targetVolumeSetAt3: Atomic<UInt64>
+  private let _targetVolumeSetAt4: Atomic<UInt64>
 
   /// Current volume (dB) for fader 0 (Main) — tracking ramp progress.
   private let _currentVolume0: AtomicDouble
@@ -76,6 +83,12 @@ public final class ProcessingParameters: Sendable {
     self._targetVolume3 = AtomicDouble(Self.defaultVolume)
     self._targetVolume4 = AtomicDouble(Self.defaultVolume)
 
+    self._targetVolumeSetAt0 = Atomic<UInt64>(0)
+    self._targetVolumeSetAt1 = Atomic<UInt64>(0)
+    self._targetVolumeSetAt2 = Atomic<UInt64>(0)
+    self._targetVolumeSetAt3 = Atomic<UInt64>(0)
+    self._targetVolumeSetAt4 = Atomic<UInt64>(0)
+
     self._currentVolume0 = AtomicDouble(Self.defaultVolume)
     self._currentVolume1 = AtomicDouble(Self.defaultVolume)
     self._currentVolume2 = AtomicDouble(Self.defaultVolume)
@@ -107,12 +120,33 @@ public final class ProcessingParameters: Sendable {
   }
 
   public func setTargetVolume(_ value: Double, for fader: Fader) {
+    let now = DispatchTime.now().uptimeNanoseconds
     switch fader {
-    case .main: _targetVolume0.value = value
-    case .aux1: _targetVolume1.value = value
-    case .aux2: _targetVolume2.value = value
-    case .aux3: _targetVolume3.value = value
-    case .aux4: _targetVolume4.value = value
+    case .main:
+      _targetVolume0.value = value
+      _targetVolumeSetAt0.store(now, ordering: .releasing)
+    case .aux1:
+      _targetVolume1.value = value
+      _targetVolumeSetAt1.store(now, ordering: .releasing)
+    case .aux2:
+      _targetVolume2.value = value
+      _targetVolumeSetAt2.store(now, ordering: .releasing)
+    case .aux3:
+      _targetVolume3.value = value
+      _targetVolumeSetAt3.store(now, ordering: .releasing)
+    case .aux4:
+      _targetVolume4.value = value
+      _targetVolumeSetAt4.store(now, ordering: .releasing)
+    }
+  }
+
+  public func targetVolumeSetAt(for fader: Fader) -> UInt64 {
+    switch fader {
+    case .main: return _targetVolumeSetAt0.load(ordering: .acquiring)
+    case .aux1: return _targetVolumeSetAt1.load(ordering: .acquiring)
+    case .aux2: return _targetVolumeSetAt2.load(ordering: .acquiring)
+    case .aux3: return _targetVolumeSetAt3.load(ordering: .acquiring)
+    case .aux4: return _targetVolumeSetAt4.load(ordering: .acquiring)
     }
   }
 

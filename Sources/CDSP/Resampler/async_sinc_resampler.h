@@ -20,7 +20,8 @@
 #include "sinc_window_function.h"
 
 typedef enum {
-  SINC_INTERPOLATION_LINEAR = 0,
+  SINC_INTERPOLATION_NEAREST = 0,
+  SINC_INTERPOLATION_LINEAR,
   SINC_INTERPOLATION_QUADRATIC,
   SINC_INTERPOLATION_CUBIC
 } sinc_interpolation_type_t;

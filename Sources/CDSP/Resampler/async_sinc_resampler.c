@@ -203,6 +203,36 @@ static inline adjust_point_t adjust_point(int start, int frac, int sub,
   return (adjust_point_t){index, subindex};
 }
 
+static void run_nearest(async_sinc_resampler_t* resampler, size_t output_frames,
+                        audio_chunk_t* output) {
+  size_t s_len = resampler->sinc_len;
+  size_t two_s_len = 2 * s_len;
+  int factor = (int)resampler->oversampling_factor;
+  double factor_d = (double)factor;
+  const double* table = resampler->sinc_table;
+  const double* idx_buf = resampler->idx_scratch;
+
+  for (size_t ch = 0; ch < resampler->channels; ch++) {
+    const double* buf = audio_buffers_get_channel(resampler->input_buffer, ch);
+    double* out = audio_chunk_get_channel(output, ch);
+    if (!buf || !out) continue;
+    for (size_t frame = 0; frame < output_frames; frame++) {
+      double idx = idx_buf[frame];
+      double idx_floor = floor(idx);
+      int start_idx = (int)idx_floor;
+      int subindex = (int)round((idx - idx_floor) * factor_d);
+      if (subindex >= factor) {
+        subindex -= factor;
+        start_idx += 1;
+      }
+
+      double y = sinc_dot_product(buf + start_idx + two_s_len,
+                                  table + subindex * s_len, s_len);
+      out[frame] = y;
+    }
+  }
+}
+
 static void run_cubic(async_sinc_resampler_t* resampler, size_t output_frames,
                       audio_chunk_t* output) {
   size_t s_len = resampler->sinc_len;
@@ -390,6 +420,9 @@ resampler_error_t async_sinc_resampler_process(
 
   // Inner loop, specialised per interpolation mode.
   switch (resampler->interpolation) {
+    case SINC_INTERPOLATION_NEAREST:
+      run_nearest(resampler, output_frames, output);
+      break;
     case SINC_INTERPOLATION_LINEAR:
       run_linear(resampler, output_frames, output);
       break;

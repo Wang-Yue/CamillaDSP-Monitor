@@ -3,6 +3,17 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#ifndef __APPLE__
+#define CLOCK_UPTIME_RAW CLOCK_MONOTONIC
+static inline uint64_t clock_gettime_nsec_np(int clock_id) {
+  struct timespec ts;
+  clock_gettime(clock_id, &ts);
+  return (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+}
+#endif
+
 
 static void fill_ramp(volume_filter_t* filter) {
   if (filter->chunk_size == 0 || filter->ramptime_in_chunks <= 0) return;
@@ -39,6 +50,8 @@ volume_filter_t* volume_filter_create(const char* name,
 
   filter->ramptime_in_chunks = (int)round(
       ramp_time_ms / (1000.0 * (double)chunk_size / (double)sample_rate));
+  filter->stale_ramp_threshold_ns =
+      1500000000ULL * (uint64_t)chunk_size / (uint64_t)sample_rate;
   // Pre-allocate array
   filter->current_ramp_gains =
       (double*)calloc(chunk_size > 0 ? chunk_size : 1, sizeof(double));
@@ -83,7 +96,12 @@ void volume_filter_prepare_chunk(volume_filter_t* filter) {
 
   if (fabs(target_vol - filter->target_volume) > 0.01 ||
       filter->mute != shared_mute) {
-    if (filter->ramptime_in_chunks > 0) {
+    uint64_t set_at = processing_parameters_get_target_volume_set_at_for_fader(
+        filter->processing_parameters, filter->fader);
+    uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    bool ramp_is_stale = (now > set_at) ? ((now - set_at) > filter->stale_ramp_threshold_ns) : false;
+
+    if (filter->ramptime_in_chunks > 0 && !ramp_is_stale) {
       filter->ramp_start = filter->current_volume;
       filter->ramp_step = 1;
     } else {
@@ -155,6 +173,8 @@ void volume_filter_update_parameters(volume_filter_t* filter,
   filter->ramptime_in_chunks =
       (int)round(ramp_time_ms /
                  (1000.0 * (double)filter->chunk_size / (double)sample_rate));
+  filter->stale_ramp_threshold_ns =
+      1500000000ULL * (uint64_t)filter->chunk_size / (uint64_t)sample_rate;
   if (filter->ramptime_in_chunks <= 0 ||
       filter->ramp_step > filter->ramptime_in_chunks) {
     filter->ramp_step = 0;

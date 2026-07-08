@@ -12,6 +12,7 @@
 
 sinc_interpolation_type_t sinc_interpolation_type_from_string(const char* str) {
   if (!str) return SINC_INTERPOLATION_QUADRATIC;
+  if (strcmp(str, "Nearest") == 0) return SINC_INTERPOLATION_NEAREST;
   if (strcmp(str, "Linear") == 0) return SINC_INTERPOLATION_LINEAR;
   if (strcmp(str, "Quadratic") == 0) return SINC_INTERPOLATION_QUADRATIC;
   if (strcmp(str, "Cubic") == 0) return SINC_INTERPOLATION_CUBIC;

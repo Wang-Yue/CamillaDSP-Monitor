@@ -23,6 +23,7 @@ enum ResamplerInterpolation: String, Codable, Sendable, CaseIterable, Identifiab
 }
 
 enum SincInterpolation: String, Codable, Sendable, CaseIterable, Identifiable {
+  case nearest = "Nearest"
   case linear = "Linear"
   case quadratic = "Quadratic"
   case cubic = "Cubic"

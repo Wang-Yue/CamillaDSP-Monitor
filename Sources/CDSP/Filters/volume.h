@@ -15,6 +15,7 @@ typedef struct {
   size_t chunk_size;
   // Ramp state (tracks fader ramping)
   int ramptime_in_chunks;
+  uint64_t stale_ramp_threshold_ns;
   double current_volume;
   double target_volume;
   double target_linear_gain;

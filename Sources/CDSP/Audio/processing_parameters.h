@@ -39,6 +39,8 @@ typedef struct processing_parameters {
   /// Target volume (dB) for fader 0-4 — what the user has asked for. UI thread
   /// writes; VolumeFilter reads on every chunk.
   atomic_double_t target_volumes[FADER_COUNT];
+  /// Target volume set-at timestamp (nanosecond epoch) for fader 0-4.
+  _Atomic uint64_t target_volume_set_at[FADER_COUNT];
   /// Current volume (dB) for fader 0-4 — tracking ramp progress.
   atomic_double_t current_volumes[FADER_COUNT];
   /// Mute state for fader 0-4. UI writes; VolumeFilter reads each chunk.
@@ -68,6 +70,8 @@ double processing_parameters_get_target_volume_for_fader(
     const processing_parameters_t* params, fader_t fader);
 void processing_parameters_set_target_volume_for_fader(
     processing_parameters_t* params, double value, fader_t fader);
+uint64_t processing_parameters_get_target_volume_set_at_for_fader(
+    const processing_parameters_t* params, fader_t fader);
 double processing_parameters_get_current_volume_for_fader(
     const processing_parameters_t* params, fader_t fader);
 void processing_parameters_set_current_volume_for_fader(
