@@ -246,6 +246,7 @@ final class DSPEngineController {
       let stageMixers = stage.buildMixers(channels: currentChannels)
       let stageProcessors = stage.buildProcessors(channels: currentChannels)
       let stageSteps = stage.buildPipelineSteps(
+        channelCount: currentChannels,
         eqPresets: pipeline.eqPresets,
         convPresets: pipeline.convPresets,
         sampleRate: rate

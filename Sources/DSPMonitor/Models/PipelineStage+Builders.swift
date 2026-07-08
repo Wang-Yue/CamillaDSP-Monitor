@@ -217,6 +217,11 @@ extension PipelineStage {
 
   func buildMixers(channels: Int) -> [String: MixerConfig] {
     guard isActive else { return [:] }
+    if type == .balance || type == .width || type == .msProc || type == .crossfeed {
+      guard leftChannel < channels && rightChannel < channels else {
+        return [:]
+      }
+    }
     let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
 
     switch type {
@@ -398,6 +403,11 @@ extension PipelineStage {
 
   func buildProcessors(channels: Int) -> [String: ProcessorConfig] {
     guard isActive else { return [:] }
+    if type == .race {
+      guard leftChannel < channels && rightChannel < channels else {
+        return [:]
+      }
+    }
     let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
     let chList = self.channels.sorted()
 
@@ -447,11 +457,17 @@ extension PipelineStage {
   }
 
   func buildPipelineSteps(
+    channelCount: Int,
     eqPresets: [EQPreset],
     convPresets: [ConvolutionPreset],
     sampleRate: Int
   ) -> [PipelineStep] {
     guard isActive else { return [] }
+    if type == .balance || type == .width || type == .msProc || type == .crossfeed || type == .race {
+      guard leftChannel < channelCount && rightChannel < channelCount else {
+        return []
+      }
+    }
     let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
     let chList = self.channels.sorted()
 
