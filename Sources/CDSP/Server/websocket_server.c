@@ -1,14 +1,13 @@
 // WebSocket control server
 // Provides runtime control API compatible with the control protocol
 
-#define JSMN_STATIC
 #include "websocket_server.h"
 
 #ifndef _WIN32
 #include <sys/time.h>
 
 #include "Audio/processing_parameters.h"
-#include "Config/jsmn.h"
+#include "Config/cJSON.h"
 #include "Pipeline/config_loader.h"
 #ifdef __APPLE__
 #include <CommonCrypto/CommonDigest.h>
@@ -367,223 +366,208 @@ static char* server_read_file_to_string(const char* path) {
   return buf;
 }
 
-static void get_tok_string(const char* js, const jsmntok_t* tok, char* dest,
-                           size_t dest_len) {
-  int len = tok->end - tok->start;
-  if (len >= (int)dest_len) len = (int)dest_len - 1;
-  memcpy(dest, js + tok->start, len);
-  dest[len] = '\0';
-}
-
-static void get_tok_string_unescape(const char* js, const jsmntok_t* tok,
-                                    char* dest, size_t dest_len) {
-  int len = tok->end - tok->start;
-  int i = 0;
-  int j = 0;
-  while (i < len && j < (int)dest_len - 1) {
-    if (js[tok->start + i] == '\\' && i + 1 < len) {
-      char next = js[tok->start + i + 1];
-      if (next == 'n')
-        dest[j++] = '\n';
-      else if (next == 'r')
-        dest[j++] = '\r';
-      else if (next == 't')
-        dest[j++] = '\t';
-      else
-        dest[j++] = next;
-      i += 2;
-    } else {
-      dest[j++] = js[tok->start + i];
-      i++;
-    }
-  }
-  dest[j] = '\0';
-}
-
-static double get_tok_double(const char* js, const jsmntok_t* tok) {
-  if (!tok) return 0.0;
-  char buf[64];
-  get_tok_string(js, tok, buf, sizeof(buf));
-  return strtod(buf, NULL);
-}
-
-static int get_tok_int(const char* js, const jsmntok_t* tok) {
-  if (!tok) return 0;
-  char buf[64];
-  get_tok_string(js, tok, buf, sizeof(buf));
-  return (int)strtol(buf, NULL, 10);
-}
-
-static bool get_tok_bool(const char* js, const jsmntok_t* tok) {
-  if (!tok) return false;
-  int len = tok->end - tok->start;
-  if (len == 4 && strncmp(js + tok->start, "true", 4) == 0) return true;
-  return false;
-}
-
-static int skip_token(const jsmntok_t* tokens, int start_idx) {
-  int i = start_idx;
-  int remaining = 1;
-  while (remaining > 0) {
-    int children = tokens[i].size;
-    remaining += children - 1;
-    i++;
-  }
-  return i;
-}
-
-static int find_object_key(const char* js, const jsmntok_t* tokens, int count,
-                           int obj_idx, const char* key) {
-  if (obj_idx < 0 || obj_idx >= count || tokens[obj_idx].type != JSMN_OBJECT)
-    return -1;
-  int size = tokens[obj_idx].size;
-  int i = obj_idx + 1;
-  for (int k = 0; k < size; k++) {
-    if (i >= count) return -1;
-    if (tokens[i].type == JSMN_STRING) {
-      int len = tokens[i].end - tokens[i].start;
-      if (len == (int)strlen(key) &&
-          strncmp(js + tokens[i].start, key, len) == 0) {
-        return i + 1;
-      }
-    }
-    i = skip_token(tokens, i);
-  }
-  return -1;
-}
-
-static int find_top_level_key(const char* js, const jsmntok_t* tokens,
-                              int count, const char* key) {
-  if (count <= 0 || tokens[0].type != JSMN_OBJECT) return -1;
-  int size = tokens[0].size;
-  int i = 1;
-  for (int k = 0; k < size; k++) {
-    if (i >= count) return -1;
-    if (tokens[i].type == JSMN_STRING) {
-      int len = tokens[i].end - tokens[i].start;
-      if (len == (int)strlen(key) &&
-          strncmp(js + tokens[i].start, key, len) == 0) {
-        return i + 1;
-      }
-    }
-    i = skip_token(tokens, i);
-  }
-  return -1;
-}
-
-static int get_array_element(const jsmntok_t* tokens, int count, int arr_idx,
-                             int element_idx) {
-  if (arr_idx < 0 || arr_idx >= count || tokens[arr_idx].type != JSMN_ARRAY)
-    return -1;
-  int size = tokens[arr_idx].size;
-  if (element_idx < 0 || element_idx >= size) return -1;
-  int i = arr_idx + 1;
-  for (int k = 0; k < element_idx; k++) {
-    i = skip_token(tokens, i);
-  }
-  return i;
-}
-
 static char* extract_json_string_value_dyn(const char* json, const char* key) {
   if (!json || !key) return NULL;
-  jsmn_parser p;
-  jsmn_init(&p);
-  int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
-  if (num_tokens <= 0) return NULL;
-  jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
-  if (!tokens) return NULL;
-  jsmn_init(&p);
-  int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
-  if (count <= 0) {
-    free(tokens);
-    return NULL;
-  }
+  cJSON* root = cJSON_Parse(json);
+  if (!root) return NULL;
+  cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key);
   char* result = NULL;
-  int val_idx = find_top_level_key(json, tokens, count, key);
-  if (val_idx != -1 && tokens[val_idx].type == JSMN_STRING) {
-    int len = tokens[val_idx].end - tokens[val_idx].start;
-    result = malloc(len + 1);
-    if (result) {
-      get_tok_string_unescape(json, &tokens[val_idx], result, len + 1);
-    }
+  if (cJSON_IsString(item) && item->valuestring) {
+    result = strdup(item->valuestring);
   }
-  free(tokens);
+  cJSON_Delete(root);
   return result;
 }
 
 static bool extract_json_string_value(const char* json, const char* key,
                                       char* out_buf, size_t max_len) {
   if (!json || !key || !out_buf || max_len == 0) return false;
-  jsmn_parser p;
-  jsmn_init(&p);
-  int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
-  if (num_tokens <= 0) return false;
-  jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
-  if (!tokens) return false;
-  jsmn_init(&p);
-  int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
-  if (count <= 0) {
-    free(tokens);
-    return false;
-  }
+  cJSON* root = cJSON_Parse(json);
+  if (!root) return false;
+  cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key);
   bool success = false;
-  int val_idx = find_top_level_key(json, tokens, count, key);
-  if (val_idx != -1 && tokens[val_idx].type == JSMN_STRING) {
-    get_tok_string_unescape(json, &tokens[val_idx], out_buf, max_len);
+  if (cJSON_IsString(item) && item->valuestring) {
+    strncpy(out_buf, item->valuestring, max_len - 1);
+    out_buf[max_len - 1] = '\0';
     success = true;
   }
-  free(tokens);
+  cJSON_Delete(root);
   return success;
 }
 
 static bool extract_json_double_value(const char* json, const char* key,
                                       double* out_val) {
   if (!json || !key || !out_val) return false;
-  jsmn_parser p;
-  jsmn_init(&p);
-  int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
-  if (num_tokens <= 0) return false;
-  jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
-  if (!tokens) return false;
-  jsmn_init(&p);
-  int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
-  if (count <= 0) {
-    free(tokens);
-    return false;
-  }
+  cJSON* root = cJSON_Parse(json);
+  if (!root) return false;
+  cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key);
   bool success = false;
-  int val_idx = find_top_level_key(json, tokens, count, key);
-  if (val_idx != -1 && tokens[val_idx].type == JSMN_PRIMITIVE) {
-    *out_val = get_tok_double(json, &tokens[val_idx]);
+  if (cJSON_IsNumber(item)) {
+    *out_val = item->valuedouble;
     success = true;
   }
-  free(tokens);
+  cJSON_Delete(root);
   return success;
 }
 
 static bool extract_json_bool_value(const char* json, const char* key,
                                     bool* out_val) {
   if (!json || !key || !out_val) return false;
-  jsmn_parser p;
-  jsmn_init(&p);
-  int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
-  if (num_tokens <= 0) return false;
-  jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
-  if (!tokens) return false;
-  jsmn_init(&p);
-  int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
-  if (count <= 0) {
-    free(tokens);
-    return false;
-  }
+  cJSON* root = cJSON_Parse(json);
+  if (!root) return false;
+  cJSON* item = cJSON_GetObjectItemCaseSensitive(root, key);
   bool success = false;
-  int val_idx = find_top_level_key(json, tokens, count, key);
-  if (val_idx != -1 && tokens[val_idx].type == JSMN_PRIMITIVE) {
-    *out_val = get_tok_bool(json, &tokens[val_idx]);
+  if (cJSON_IsBool(item)) {
+    *out_val = cJSON_IsTrue(item);
     success = true;
   }
-  free(tokens);
+  cJSON_Delete(root);
   return success;
+}
+
+static cJSON* cjson_locate_pointer(cJSON* root, const char* pointer,
+                                   cJSON** out_parent, const char** out_key,
+                                   int* out_index) {
+  if (!root || !pointer) return NULL;
+  const char* ptr = pointer;
+  if (*ptr == '/') ptr++;
+  cJSON* curr = root;
+  cJSON* parent = NULL;
+  const char* last_key = NULL;
+  int last_idx = -1;
+
+  while (*ptr && curr) {
+    char segment[128];
+    size_t seg_len = 0;
+    while (*ptr && *ptr != '/' && seg_len < sizeof(segment) - 1) {
+      segment[seg_len++] = *ptr++;
+    }
+    segment[seg_len] = '\0';
+    if (*ptr == '/') ptr++;
+
+    parent = curr;
+    if (cJSON_IsObject(curr)) {
+      cJSON* child = curr->child;
+      curr = NULL;
+      last_key = NULL;
+      while (child) {
+        if (strcmp(child->string, segment) == 0) {
+          curr = child;
+          last_key = child->string;
+          break;
+        }
+        child = child->next;
+      }
+      last_idx = -1;
+    } else if (cJSON_IsArray(curr)) {
+      char* endptr = NULL;
+      int idx = (int)strtol(segment, &endptr, 10);
+      if (endptr == segment || *endptr != '\0') return NULL;
+      curr = cJSON_GetArrayItem(curr, idx);
+      last_idx = idx;
+      last_key = NULL;
+    } else {
+      return NULL;
+    }
+  }
+
+  if (out_parent) *out_parent = parent;
+  if (out_key) *out_key = last_key;
+  if (out_index) *out_index = last_idx;
+  return curr;
+}
+
+static bool server_get_value_at_pointer(const char* json, const char* pointer,
+                                        char* out_val, size_t max_len) {
+  cJSON* root = cJSON_Parse(json);
+  if (!root) return false;
+  cJSON* node = cjson_locate_pointer(root, pointer, NULL, NULL, NULL);
+  if (!node) {
+    cJSON_Delete(root);
+    return false;
+  }
+  char* printed = cJSON_PrintUnformatted(node);
+  if (printed) {
+    strncpy(out_val, printed, max_len - 1);
+    out_val[max_len - 1] = '\0';
+    free(printed);
+    cJSON_Delete(root);
+    return true;
+  }
+  cJSON_Delete(root);
+  return false;
+}
+
+static char* server_set_value_at_pointer_str(const char* json,
+                                             const char* pointer,
+                                             const char* new_val_str) {
+  cJSON* root = cJSON_Parse(json);
+  if (!root) return NULL;
+
+  cJSON* parent = NULL;
+  const char* key = NULL;
+  int idx = -1;
+  cJSON* target = cjson_locate_pointer(root, pointer, &parent, &key, &idx);
+  (void)target;
+  if (!parent) {
+    cJSON_Delete(root);
+    return NULL;
+  }
+
+  cJSON* new_node = cJSON_Parse(new_val_str);
+  if (!new_node) {
+    cJSON_Delete(root);
+    return NULL;
+  }
+
+  if (key) {
+    cJSON_ReplaceItemInObject(parent, key, new_node);
+  } else if (idx != -1) {
+    cJSON_ReplaceItemInArray(parent, idx, new_node);
+  } else {
+    cJSON_Delete(new_node);
+    cJSON_Delete(root);
+    return NULL;
+  }
+
+  char* updated_json = cJSON_PrintUnformatted(root);
+  cJSON_Delete(root);
+  return updated_json;
+}
+
+static void cjson_merge_patch(cJSON* target, const cJSON* patch) {
+  if (!target || !patch) return;
+  if (!cJSON_IsObject(target) || !cJSON_IsObject(patch)) return;
+
+  cJSON* patch_child = patch->child;
+  while (patch_child) {
+    cJSON* target_child =
+        cJSON_GetObjectItemCaseSensitive(target, patch_child->string);
+    if (cJSON_IsNull(patch_child)) {
+      if (target_child) {
+        cJSON_DeleteItemFromObject(target, patch_child->string);
+      }
+    } else if (cJSON_IsObject(patch_child)) {
+      if (target_child && cJSON_IsObject(target_child)) {
+        cjson_merge_patch(target_child, patch_child);
+      } else {
+        cJSON* duplicated = cJSON_Duplicate(patch_child, true);
+        if (target_child) {
+          cJSON_ReplaceItemInObject(target, patch_child->string, duplicated);
+        } else {
+          cJSON_AddItemToObject(target, patch_child->string, duplicated);
+        }
+      }
+    } else {
+      cJSON* duplicated = cJSON_Duplicate(patch_child, true);
+      if (target_child) {
+        cJSON_ReplaceItemInObject(target, patch_child->string, duplicated);
+      } else {
+        cJSON_AddItemToObject(target, patch_child->string, duplicated);
+      }
+    }
+    patch_child = patch_child->next;
+  }
 }
 
 static void format_double_array(const double* arr, size_t count, char* out,
@@ -599,151 +583,6 @@ static void format_double_array(const double* arr, size_t count, char* out,
                        (i + 1 < count) ? "," : "");
   }
   snprintf(out + offset, max_len - offset, "]");
-}
-
-static bool server_locate_pointer(const char* json, const char* pointer,
-                                  const char** out_start,
-                                  const char** out_end) {
-  if (!json || !pointer || !out_start || !out_end) return false;
-
-  jsmn_parser p;
-  jsmn_init(&p);
-  int num_tokens = jsmn_parse(&p, json, strlen(json), NULL, 0);
-  if (num_tokens <= 0) return false;
-  jsmntok_t* tokens = malloc(num_tokens * sizeof(jsmntok_t));
-  if (!tokens) return false;
-  jsmn_init(&p);
-  int count = jsmn_parse(&p, json, strlen(json), tokens, num_tokens);
-  if (count <= 0) {
-    free(tokens);
-    return false;
-  }
-
-  int curr_idx = 0;
-  const char* ptr = pointer;
-  if (*ptr == '/') ptr++;
-
-  bool success = true;
-  while (*ptr) {
-    char segment[128];
-    size_t seg_len = 0;
-    while (*ptr && *ptr != '/' && seg_len < sizeof(segment) - 1) {
-      segment[seg_len++] = *ptr++;
-    }
-    segment[seg_len] = '\0';
-    if (*ptr == '/') ptr++;
-
-    if (tokens[curr_idx].type == JSMN_OBJECT) {
-      int val_idx = find_object_key(json, tokens, count, curr_idx, segment);
-      if (val_idx == -1) {
-        success = false;
-        break;
-      }
-      curr_idx = val_idx;
-    } else if (tokens[curr_idx].type == JSMN_ARRAY) {
-      char* endptr = NULL;
-      int idx = (int)strtol(segment, &endptr, 10);
-      if (endptr == segment || *endptr != '\0') {
-        success = false;
-        break;
-      }
-      int el_idx = get_array_element(tokens, count, curr_idx, idx);
-      if (el_idx == -1) {
-        success = false;
-        break;
-      }
-      curr_idx = el_idx;
-    } else {
-      success = false;
-      break;
-    }
-  }
-
-  if (success) {
-    *out_start = json + tokens[curr_idx].start;
-    *out_end = json + tokens[curr_idx].end;
-  }
-  free(tokens);
-  return success;
-}
-
-static bool server_get_value_at_pointer(const char* json, const char* pointer,
-                                        char* out_val, size_t max_len) {
-  const char* start = NULL;
-  const char* end = NULL;
-  if (!server_locate_pointer(json, pointer, &start, &end)) return false;
-  size_t result_len = (size_t)(end - start);
-  if (result_len >= max_len) result_len = max_len - 1;
-  memcpy(out_val, start, result_len);
-  out_val[result_len] = '\0';
-  return true;
-}
-
-static char* server_set_value_at_pointer_str(const char* json,
-                                             const char* pointer,
-                                             const char* new_val_str) {
-  const char* start = NULL;
-  const char* end = NULL;
-  if (!server_locate_pointer(json, pointer, &start, &end)) return NULL;
-
-  size_t prefix_len = (size_t)(start - json);
-  size_t suffix_len = strlen(end);
-  size_t val_len = strlen(new_val_str);
-
-  char* new_json = (char*)malloc(prefix_len + val_len + suffix_len + 1);
-  if (!new_json) return NULL;
-
-  memcpy(new_json, json, prefix_len);
-  memcpy(new_json + prefix_len, new_val_str, val_len);
-  memcpy(new_json + prefix_len + val_len, end, suffix_len);
-  new_json[prefix_len + val_len + suffix_len] = '\0';
-
-  return new_json;
-}
-
-static bool server_merge_patch_tokens(char** p_target_json, const char* js,
-                                      const jsmntok_t* tokens, int count,
-                                      int obj_idx, char* current_path,
-                                      size_t path_max) {
-  if (tokens[obj_idx].type != JSMN_OBJECT) return false;
-  int size = tokens[obj_idx].size;
-  int i = obj_idx + 1;
-  for (int k = 0; k < size; k++) {
-    char key[128];
-    get_tok_string_unescape(js, &tokens[i], key, sizeof(key));
-
-    int val_idx = i + 1;
-
-    size_t orig_path_len = strlen(current_path);
-    snprintf(current_path + orig_path_len, path_max - orig_path_len, "/%s",
-             key);
-
-    if (tokens[val_idx].type == JSMN_OBJECT) {
-      if (!server_merge_patch_tokens(p_target_json, js, tokens, count, val_idx,
-                                     current_path, path_max)) {
-        return false;
-      }
-    } else {
-      int val_len = tokens[val_idx].end - tokens[val_idx].start;
-      char* val_str = (char*)malloc(val_len + 1);
-      if (val_str) {
-        memcpy(val_str, js + tokens[val_idx].start, val_len);
-        val_str[val_len] = '\0';
-
-        char* updated = server_set_value_at_pointer_str(*p_target_json,
-                                                        current_path, val_str);
-        if (updated) {
-          free(*p_target_json);
-          *p_target_json = updated;
-        }
-        free(val_str);
-      }
-    }
-    current_path[orig_path_len] = '\0';
-
-    i = skip_token(tokens, i);
-  }
-  return true;
 }
 
 static void format_device_descriptor(const audio_device_descriptor_t* desc,
@@ -803,8 +642,8 @@ static void format_spectrum(const spectrum_t* spec, char* out, size_t max_len) {
 }
 
 static bool server_handle_adjust_volume_fader(
-    websocket_server_t* server, fader_t fader, const char* arg_start,
-    char* out_response, size_t max_len, const char* cmd_name) {
+    websocket_server_t* server, fader_t fader, double delta, double min_vol,
+    double max_vol, char* out_response, size_t max_len, const char* cmd_name) {
   processing_parameters_t* params = NULL;
   if (!server || !server->engine ||
       !server->engine->get_processing_parameters ||
@@ -816,37 +655,6 @@ static bool server_handle_adjust_volume_fader(
     return true;
   }
 
-  double delta = 0.0;
-  double min_vol = -150.0;
-  double max_vol = 50.0;
-
-  while (*arg_start && (*arg_start == ' ' || *arg_start == '\t')) arg_start++;
-  if (*arg_start == '[') {
-    arg_start++;
-    char* endptr = NULL;
-    delta = strtod(arg_start, &endptr);
-    if (endptr != arg_start) {
-      arg_start = endptr;
-      while (*arg_start &&
-             (*arg_start == ' ' || *arg_start == ',' || *arg_start == '\t'))
-        arg_start++;
-      min_vol = strtod(arg_start, &endptr);
-      if (endptr != arg_start) {
-        arg_start = endptr;
-        while (*arg_start &&
-               (*arg_start == ' ' || *arg_start == ',' || *arg_start == '\t'))
-          arg_start++;
-        max_vol = strtod(arg_start, &endptr);
-      }
-    }
-  } else {
-    char* endptr = NULL;
-    delta = strtod(arg_start, &endptr);
-    if (endptr == arg_start) {
-      return false;
-    }
-  }
-
   double current =
       processing_parameters_get_target_volume_for_fader(params, fader);
   double new_vol = current + delta;
@@ -854,7 +662,7 @@ static bool server_handle_adjust_volume_fader(
   if (new_vol > max_vol) new_vol = max_vol;
 
   processing_parameters_set_target_volume_for_fader(params, new_vol, fader);
-  server->unsaved_state_changes = true;
+  if (server) server->unsaved_state_changes = true;
 
   char val[64];
   if (fader == FADER_MAIN) {
@@ -877,44 +685,23 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
   out_response[0] = '\0';
   if (!command_text) return;
 
-  jsmntok_t local_tokens[128];
-  jsmntok_t* tokens = local_tokens;
-
-  jsmn_parser parser;
-  jsmn_init(&parser);
-  int num_tokens =
-      jsmn_parse(&parser, command_text, strlen(command_text), NULL, 0);
-  if (num_tokens <= 0) {
-    json_reply("Invalid", "{\"error\":\"Invalid JSON\"}", NULL, out_response,
-               max_len);
-    return;
-  }
-
-  if (num_tokens > 128) {
-    tokens = malloc(num_tokens * sizeof(jsmntok_t));
-    if (!tokens) return;
-  }
-
-  jsmn_init(&parser);
-  int count = jsmn_parse(&parser, command_text, strlen(command_text), tokens,
-                         num_tokens);
-  if (count <= 0) {
-    if (tokens != local_tokens) free(tokens);
+  cJSON* root = cJSON_Parse(command_text);
+  if (!root) {
     json_reply("Invalid", "{\"error\":\"Invalid JSON\"}", NULL, out_response,
                max_len);
     return;
   }
 
   char cmd_name[128] = "";
-  int arg_idx = -1;
-  if (tokens[0].type == JSMN_STRING) {
-    get_tok_string_unescape(command_text, &tokens[0], cmd_name,
-                            sizeof(cmd_name));
-  } else if (tokens[0].type == JSMN_OBJECT) {
-    if (tokens[0].size > 0 && tokens[1].type == JSMN_STRING) {
-      get_tok_string_unescape(command_text, &tokens[1], cmd_name,
-                              sizeof(cmd_name));
-      arg_idx = 2;
+  cJSON* arg = NULL;
+
+  if (cJSON_IsString(root)) {
+    strncpy(cmd_name, root->valuestring, sizeof(cmd_name) - 1);
+  } else if (cJSON_IsObject(root)) {
+    cJSON* child = root->child;
+    if (child) {
+      strncpy(cmd_name, child->string, sizeof(cmd_name) - 1);
+      arg = child;
     }
   }
 
@@ -1204,9 +991,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     char val[32];
     snprintf(val, sizeof(val), "%d", server ? server->update_interval : 100);
     json_reply("GetUpdateInterval", "\"Ok\"", val, out_response, max_len);
-  } else if (strstr(command_text, "\"SetUpdateInterval\"")) {
-    double val;
-    if (extract_json_double_value(command_text, "SetUpdateInterval", &val)) {
+  } else if (strcmp(simple, "SetUpdateInterval") == 0) {
+    if (arg && cJSON_IsNumber(arg)) {
+      double val = arg->valuedouble;
       if (val >= 0.0) {
         if (server) server->update_interval = (uint32_t)val;
         json_reply("SetUpdateInterval", "\"Ok\"", NULL, out_response, max_len);
@@ -1226,14 +1013,19 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       server->client_sessions[client_idx].state_subscribed = true;
     }
     json_reply("SubscribeState", "\"Ok\"", NULL, out_response, max_len);
-  } else if (strstr(command_text, "\"SubscribeVuLevels\"") &&
-             strcmp(simple, "SubscribeVuLevels") != 0) {
-    double max_rate = 0;
-    double attack = 0;
-    double release = 0;
-    extract_json_double_value(command_text, "max_rate", &max_rate);
-    extract_json_double_value(command_text, "attack", &attack);
-    extract_json_double_value(command_text, "release", &release);
+  } else if (strcmp(simple, "SubscribeVuLevels") == 0) {
+    double max_rate = 0.0;
+    double attack = 0.0;
+    double release = 0.0;
+    if (arg && cJSON_IsObject(arg)) {
+      cJSON* item;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "max_rate");
+      if (item && cJSON_IsNumber(item)) max_rate = item->valuedouble;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "attack");
+      if (item && cJSON_IsNumber(item)) attack = item->valuedouble;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "release");
+      if (item && cJSON_IsNumber(item)) release = item->valuedouble;
+    }
     if (attack < 0.0 || attack > 60000.0 || release < 0.0 ||
         release > 60000.0) {
       json_reply("SubscribeVuLevels",
@@ -1250,33 +1042,29 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       }
       json_reply("SubscribeVuLevels", "\"Ok\"", NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"SubscribeSignalLevels\"")) {
+  } else if (strcmp(simple, "SubscribeSignalLevels") == 0) {
     char side[16] = "";
-    if (extract_json_string_value(command_text, "SubscribeSignalLevels", side,
-                                  sizeof(side))) {
-      if (strcmp(side, "playback") == 0 || strcmp(side, "capture") == 0 ||
-          strcmp(side, "both") == 0) {
-        if (server) {
-          server->client_sessions[client_idx].signal_levels_subscribed = true;
-          snprintf(
-              server->client_sessions[client_idx].signal_levels_side,
-              sizeof(server->client_sessions[client_idx].signal_levels_side),
-              "%s", side);
-        }
-        json_reply("SubscribeSignalLevels", "\"Ok\"", NULL, out_response,
-                   max_len);
-      } else {
-        json_reply("SubscribeSignalLevels",
-                   "{\"InvalidValueError\":\"side must be playback, capture, "
-                   "or both\"}",
-                   NULL, out_response, max_len);
+    if (arg && cJSON_IsString(arg) && arg->valuestring) {
+      strncpy(side, arg->valuestring, sizeof(side) - 1);
+    }
+    if (strcmp(side, "playback") == 0 || strcmp(side, "capture") == 0 ||
+        strcmp(side, "both") == 0) {
+      if (server) {
+        server->client_sessions[client_idx].signal_levels_subscribed = true;
+        snprintf(
+            server->client_sessions[client_idx].signal_levels_side,
+            sizeof(server->client_sessions[client_idx].signal_levels_side),
+            "%s", side);
       }
+      json_reply("SubscribeSignalLevels", "\"Ok\"", NULL, out_response,
+                 max_len);
     } else {
       json_reply("SubscribeSignalLevels",
-                 "{\"InvalidRequestError\":\"Could not parse side argument\"}",
+                 "{\"InvalidValueError\":\"side must be playback, capture, "
+                 "or both\"}",
                  NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"SubscribeSpectrum\"")) {
+  } else if (strcmp(simple, "SubscribeSpectrum") == 0) {
     bool is_capture = true;
     uint32_t channel = 0;
     double min_freq = 20.0;
@@ -1285,31 +1073,20 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     double max_rate = 0.0;
     bool ok = false;
 
-    if (arg_idx != -1 && tokens[arg_idx].type == JSMN_OBJECT) {
-      int ic_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "is_capture");
-      if (ic_idx != -1)
-        is_capture = get_tok_bool(command_text, &tokens[ic_idx]);
-      int ch_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "channel");
-      if (ch_idx != -1)
-        channel = (uint32_t)get_tok_int(command_text, &tokens[ch_idx]);
-      int mn_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "min_freq");
-      if (mn_idx != -1)
-        min_freq = get_tok_double(command_text, &tokens[mn_idx]);
-      int mx_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "max_freq");
-      if (mx_idx != -1)
-        max_freq = get_tok_double(command_text, &tokens[mx_idx]);
-      int nb_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "n_bins");
-      if (nb_idx != -1)
-        n_bins = (uint32_t)get_tok_int(command_text, &tokens[nb_idx]);
-      int mr_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "max_rate");
-      if (mr_idx != -1)
-        max_rate = get_tok_double(command_text, &tokens[mr_idx]);
+    if (arg && cJSON_IsObject(arg)) {
+      cJSON* item;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "is_capture");
+      if (item && cJSON_IsBool(item)) is_capture = cJSON_IsTrue(item);
+      item = cJSON_GetObjectItemCaseSensitive(arg, "channel");
+      if (item && cJSON_IsNumber(item)) channel = (uint32_t)item->valueint;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "min_freq");
+      if (item && cJSON_IsNumber(item)) min_freq = item->valuedouble;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "max_freq");
+      if (item && cJSON_IsNumber(item)) max_freq = item->valuedouble;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "n_bins");
+      if (item && cJSON_IsNumber(item)) n_bins = (uint32_t)item->valueint;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "max_rate");
+      if (item && cJSON_IsNumber(item)) max_rate = item->valuedouble;
       ok = true;
     }
 
@@ -1438,10 +1215,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       json_reply("GetPlaybackSignalPeakSinceLast",
                  "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"GetCaptureSignalRmsSince\"")) {
+  } else if (strcmp(simple, "GetCaptureSignalRmsSince") == 0) {
     double secs = 0;
-    if (extract_json_double_value(command_text, "GetCaptureSignalRmsSince",
-                                  &secs)) {
+    if (arg && cJSON_IsNumber(arg)) {
+      secs = arg->valuedouble;
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -1468,10 +1245,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL,
                  out_response, max_len);
     }
-  } else if (strstr(command_text, "\"GetCaptureSignalPeakSince\"")) {
+  } else if (strcmp(simple, "GetCaptureSignalPeakSince") == 0) {
     double secs = 0;
-    if (extract_json_double_value(command_text, "GetCaptureSignalPeakSince",
-                                  &secs)) {
+    if (arg && cJSON_IsNumber(arg)) {
+      secs = arg->valuedouble;
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -1498,10 +1275,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL,
                  out_response, max_len);
     }
-  } else if (strstr(command_text, "\"GetPlaybackSignalRmsSince\"")) {
+  } else if (strcmp(simple, "GetPlaybackSignalRmsSince") == 0) {
     double secs = 0;
-    if (extract_json_double_value(command_text, "GetPlaybackSignalRmsSince",
-                                  &secs)) {
+    if (arg && cJSON_IsNumber(arg)) {
+      secs = arg->valuedouble;
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -1528,10 +1305,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL,
                  out_response, max_len);
     }
-  } else if (strstr(command_text, "\"GetPlaybackSignalPeakSince\"")) {
+  } else if (strcmp(simple, "GetPlaybackSignalPeakSince") == 0) {
     double secs = 0;
-    if (extract_json_double_value(command_text, "GetPlaybackSignalPeakSince",
-                                  &secs)) {
+    if (arg && cJSON_IsNumber(arg)) {
+      secs = arg->valuedouble;
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -1669,10 +1446,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       json_reply("GetSignalLevelsSinceLast", "\"ProcessingNotRunningError\"",
                  NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"GetSignalLevelsSince\"")) {
+  } else if (strcmp(simple, "GetSignalLevelsSince") == 0) {
     double secs = 0;
-    if (extract_json_double_value(command_text, "GetSignalLevelsSince",
-                                  &secs)) {
+    if (arg && cJSON_IsNumber(arg)) {
+      secs = arg->valuedouble;
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -1929,9 +1706,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       server->engine->stop(server->engine->ctx);
     }
     json_reply("Exit", "\"Ok\"", NULL, out_response, max_len);
-  } else if (strstr(command_text, "\"SetVolume\"")) {
-    double vol;
-    if (extract_json_double_value(command_text, "SetVolume", &vol)) {
+  } else if (strcmp(simple, "SetVolume") == 0) {
+    if (arg && cJSON_IsNumber(arg)) {
+      double vol = arg->valuedouble;
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -1952,9 +1729,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  "{\"InvalidRequestError\":\"Could not parse volume value\"}",
                  NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"SetMute\"")) {
-    bool mute;
-    if (extract_json_bool_value(command_text, "SetMute", &mute)) {
+  } else if (strcmp(simple, "SetMute") == 0) {
+    if (arg && cJSON_IsBool(arg)) {
+      bool mute = cJSON_IsTrue(arg);
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -1973,10 +1750,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  "{\"InvalidRequestError\":\"Could not parse mute value\"}",
                  NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"SetConfigFilePath\"")) {
-    char* path =
-        extract_json_string_value_dyn(command_text, "SetConfigFilePath");
-    if (path) {
+  } else if (strcmp(simple, "SetConfigFilePath") == 0) {
+    if (arg && cJSON_IsString(arg) && arg->valuestring) {
+      const char* path = arg->valuestring;
       if (server && server->active_path) {
         active_config_path_set(server->active_path, path);
         if (server->active_config_json) {
@@ -1984,7 +1760,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           server->active_config_json = NULL;
         }
       }
-      free(path);
       json_reply("SetConfigFilePath", "\"Ok\"", NULL, out_response, max_len);
     } else {
       json_reply(
@@ -1992,10 +1767,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           "{\"InvalidRequestError\":\"Could not parse Config File Path\"}",
           NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"SetConfigJson\"")) {
-    char* new_json =
-        extract_json_string_value_dyn(command_text, "SetConfigJson");
-    if (new_json) {
+  } else if (strcmp(simple, "SetConfigJson") == 0) {
+    if (arg && cJSON_IsString(arg) && arg->valuestring) {
+      const char* new_json = arg->valuestring;
       audio_backend_error_t err;
       memset(&err, 0, sizeof(err));
       bool ok =
@@ -2013,16 +1787,14 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  get_websocket_error_key(err.type), err.message);
         json_reply("SetConfigJson", val, NULL, out_response, max_len);
       }
-      free(new_json);
     } else {
       json_reply("SetConfigJson",
                  "{\"InvalidRequestError\":\"Could not parse Config JSON\"}",
                  NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"GetConfigValue\"")) {
-    char* pointer =
-        extract_json_string_value_dyn(command_text, "GetConfigValue");
-    if (pointer) {
+  } else if (strcmp(simple, "GetConfigValue") == 0) {
+    if (arg && cJSON_IsString(arg) && arg->valuestring) {
+      const char* pointer = arg->valuestring;
       char* json = NULL;
       if (server && server->active_config_json) {
         json = strdup(server->active_config_json);
@@ -2042,7 +1814,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         json_reply("GetConfigValue", err, NULL, out_response, max_len);
       }
       if (json) free(json);
-      free(pointer);
     } else {
       json_reply("GetConfigValue",
                  "{\"InvalidRequestError\":\"Could not parse pointer\"}", NULL,
@@ -2050,87 +1821,19 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     }
   } else if (strcmp(simple, "SetConfigValue") == 0) {
     char pointer[256] = "";
-    int val_idx = -1;
-    if (arg_idx != -1 && tokens[arg_idx].type == JSMN_OBJECT) {
-      int p_key =
-          find_object_key(command_text, tokens, count, arg_idx, "pointer");
-      if (p_key != -1) {
-        get_tok_string_unescape(command_text, &tokens[p_key], pointer,
-                                sizeof(pointer));
-        val_idx =
-            find_object_key(command_text, tokens, count, arg_idx, "value");
-      } else {
-        if (tokens[arg_idx].size > 0) {
-          get_tok_string_unescape(command_text, &tokens[arg_idx + 1], pointer,
-                                  sizeof(pointer));
-          val_idx = arg_idx + 2;
-        }
+    char* trimmed_val = NULL;
+    if (arg && cJSON_IsObject(arg)) {
+      cJSON* p_node = cJSON_GetObjectItemCaseSensitive(arg, "pointer");
+      cJSON* v_node = cJSON_GetObjectItemCaseSensitive(arg, "value");
+      if (p_node && cJSON_IsString(p_node)) {
+        strncpy(pointer, p_node->valuestring, sizeof(pointer) - 1);
+      }
+      if (v_node) {
+        trimmed_val = cJSON_PrintUnformatted(v_node);
       }
     }
 
-    if (pointer[0] != '\0' && val_idx != -1) {
-      int v_len = tokens[val_idx].end - tokens[val_idx].start;
-      char* trimmed_val = malloc(v_len + 1);
-      if (trimmed_val) {
-        memcpy(trimmed_val, command_text + tokens[val_idx].start, v_len);
-        trimmed_val[v_len] = '\0';
-
-        char* active_json = NULL;
-        if (server && server->active_config_json) {
-          active_json = strdup(server->active_config_json);
-        } else if (server && server->active_path &&
-                   server->active_path->has_value) {
-          active_json = server_read_file_to_string(server->active_path->path);
-        }
-
-        if (active_json) {
-          char* updated_json = server_set_value_at_pointer_str(
-              active_json, pointer, trimmed_val);
-          if (updated_json) {
-            audio_backend_error_t err;
-            memset(&err, 0, sizeof(err));
-            bool ok = server && server->engine &&
-                      server->engine->set_config_json &&
-                      server->engine->set_config_json(server->engine->ctx,
-                                                      updated_json, &err);
-            if (ok) {
-              if (server->previous_config_json)
-                free(server->previous_config_json);
-              server->previous_config_json = server->active_config_json;
-              server->active_config_json = strdup(updated_json);
-              if (server) server->unsaved_state_changes = true;
-              json_reply("SetConfigValue", "\"Ok\"", NULL, out_response,
-                         max_len);
-            } else {
-              char val[600];
-              snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
-                       get_websocket_error_key(err.type), err.message);
-              json_reply("SetConfigValue", val, NULL, out_response, max_len);
-            }
-            free(updated_json);
-          } else {
-            char err[256];
-            snprintf(err, sizeof(err),
-                     "{\"InvalidRequestError\":\"Path not found: %s\"}",
-                     pointer);
-            json_reply("SetConfigValue", err, NULL, out_response, max_len);
-          }
-          free(active_json);
-        } else {
-          json_reply("SetConfigValue",
-                     "{\"InvalidRequestError\":\"No active config to modify\"}",
-                     NULL, out_response, max_len);
-        }
-        free(trimmed_val);
-      }
-    } else {
-      json_reply("SetConfigValue",
-                 "{\"InvalidRequestError\":\"Could not parse SetConfigValue "
-                 "command\"}",
-                 NULL, out_response, max_len);
-    }
-  } else if (strcmp(simple, "PatchConfig") == 0) {
-    if (arg_idx != -1 && tokens[arg_idx].type == JSMN_OBJECT) {
+    if (pointer[0] != '\0' && trimmed_val) {
       char* active_json = NULL;
       if (server && server->active_config_json) {
         active_json = strdup(server->active_config_json);
@@ -2140,35 +1843,97 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       }
 
       if (active_json) {
-        char path_buf[512] = {0};
-        char* target_json = strdup(active_json);
-        if (server_merge_patch_tokens(&target_json, command_text, tokens, count,
-                                      arg_idx, path_buf, sizeof(path_buf))) {
+        char* updated_json =
+            server_set_value_at_pointer_str(active_json, pointer, trimmed_val);
+        if (updated_json) {
           audio_backend_error_t err;
           memset(&err, 0, sizeof(err));
           bool ok = server && server->engine &&
                     server->engine->set_config_json &&
                     server->engine->set_config_json(server->engine->ctx,
-                                                    target_json, &err);
+                                                    updated_json, &err);
           if (ok) {
             if (server->previous_config_json)
               free(server->previous_config_json);
             server->previous_config_json = server->active_config_json;
-            server->active_config_json = strdup(target_json);
+            server->active_config_json = strdup(updated_json);
             if (server) server->unsaved_state_changes = true;
-            json_reply("PatchConfig", "\"Ok\"", NULL, out_response, max_len);
+            json_reply("SetConfigValue", "\"Ok\"", NULL, out_response, max_len);
           } else {
             char val[600];
             snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
                      get_websocket_error_key(err.type), err.message);
-            json_reply("PatchConfig", val, NULL, out_response, max_len);
+            json_reply("SetConfigValue", val, NULL, out_response, max_len);
           }
+          free(updated_json);
         } else {
-          json_reply("PatchConfig",
-                     "{\"InvalidRequestError\":\"Failed to merge patch JSON\"}",
-                     NULL, out_response, max_len);
+          char err[256];
+          snprintf(err, sizeof(err),
+                   "{\"InvalidRequestError\":\"Path not found: %s\"}", pointer);
+          json_reply("SetConfigValue", err, NULL, out_response, max_len);
         }
-        free(target_json);
+        free(active_json);
+      } else {
+        json_reply("SetConfigValue",
+                   "{\"InvalidRequestError\":\"No active config to modify\"}",
+                   NULL, out_response, max_len);
+      }
+      free(trimmed_val);
+    } else {
+      json_reply("SetConfigValue",
+                 "{\"InvalidRequestError\":\"Could not parse SetConfigValue "
+                 "command\"}",
+                 NULL, out_response, max_len);
+    }
+  } else if (strcmp(simple, "PatchConfig") == 0) {
+    if (arg && cJSON_IsObject(arg)) {
+      char* active_json = NULL;
+      if (server && server->active_config_json) {
+        active_json = strdup(server->active_config_json);
+      } else if (server && server->active_path &&
+                 server->active_path->has_value) {
+        active_json = server_read_file_to_string(server->active_path->path);
+      }
+
+      if (active_json) {
+        cJSON* target_root = cJSON_Parse(active_json);
+        if (target_root) {
+          cjson_merge_patch(target_root, arg);
+          char* target_json = cJSON_PrintUnformatted(target_root);
+          if (target_json) {
+            audio_backend_error_t err;
+            memset(&err, 0, sizeof(err));
+            bool ok = server && server->engine &&
+                      server->engine->set_config_json &&
+                      server->engine->set_config_json(server->engine->ctx,
+                                                      target_json, &err);
+            if (ok) {
+              if (server->previous_config_json)
+                free(server->previous_config_json);
+              server->previous_config_json = server->active_config_json;
+              server->active_config_json = strdup(target_json);
+              if (server) server->unsaved_state_changes = true;
+              json_reply("PatchConfig", "\"Ok\"", NULL, out_response, max_len);
+            } else {
+              char val[600];
+              snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
+                       get_websocket_error_key(err.type), err.message);
+              json_reply("PatchConfig", val, NULL, out_response, max_len);
+            }
+            free(target_json);
+          } else {
+            json_reply(
+                "PatchConfig",
+                "{\"InvalidRequestError\":\"Failed to format target JSON\"}",
+                NULL, out_response, max_len);
+          }
+          cJSON_Delete(target_root);
+        } else {
+          json_reply(
+              "PatchConfig",
+              "{\"InvalidRequestError\":\"Failed to parse target JSON\"}", NULL,
+              out_response, max_len);
+        }
         free(active_json);
       } else {
         json_reply("PatchConfig",
@@ -2181,10 +1946,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           "{\"InvalidRequestError\":\"Could not parse PatchConfig command\"}",
           NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"GetFaderVolume\"")) {
-    double idx_val;
-    if (extract_json_double_value(command_text, "GetFaderVolume", &idx_val)) {
-      int idx = (int)idx_val;
+  } else if (strcmp(simple, "GetFaderVolume") == 0) {
+    if (arg && cJSON_IsNumber(arg)) {
+      int idx = arg->valueint;
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -2215,13 +1979,13 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     int idx = -1;
     double vol = 0.0;
     bool ok = false;
-    if (arg_idx != -1 && tokens[arg_idx].type == JSMN_ARRAY &&
-        tokens[arg_idx].size >= 2) {
-      int idx_tok = get_array_element(tokens, count, arg_idx, 0);
-      int val_tok = get_array_element(tokens, count, arg_idx, 1);
-      if (idx_tok != -1 && val_tok != -1) {
-        idx = get_tok_int(command_text, &tokens[idx_tok]);
-        vol = get_tok_double(command_text, &tokens[val_tok]);
+    if (arg && cJSON_IsArray(arg) && cJSON_GetArraySize(arg) >= 2) {
+      cJSON* idx_node = cJSON_GetArrayItem(arg, 0);
+      cJSON* val_node = cJSON_GetArrayItem(arg, 1);
+      if (idx_node && val_node && cJSON_IsNumber(idx_node) &&
+          cJSON_IsNumber(val_node)) {
+        idx = idx_node->valueint;
+        vol = val_node->valuedouble;
         ok = true;
       }
     }
@@ -2257,9 +2021,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  NULL, out_response, max_len);
     }
   } else if (strcmp(simple, "GetFaderMute") == 0) {
-    double idx_val;
-    if (extract_json_double_value(command_text, "GetFaderMute", &idx_val)) {
-      int idx = (int)idx_val;
+    if (arg && cJSON_IsNumber(arg)) {
+      int idx = arg->valueint;
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -2289,13 +2052,13 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     int idx = -1;
     bool mute = false;
     bool ok = false;
-    if (arg_idx != -1 && tokens[arg_idx].type == JSMN_ARRAY &&
-        tokens[arg_idx].size >= 2) {
-      int idx_tok = get_array_element(tokens, count, arg_idx, 0);
-      int val_tok = get_array_element(tokens, count, arg_idx, 1);
-      if (idx_tok != -1 && val_tok != -1) {
-        idx = get_tok_int(command_text, &tokens[idx_tok]);
-        mute = get_tok_bool(command_text, &tokens[val_tok]);
+    if (arg && cJSON_IsArray(arg) && cJSON_GetArraySize(arg) >= 2) {
+      cJSON* idx_node = cJSON_GetArrayItem(arg, 0);
+      cJSON* val_node = cJSON_GetArrayItem(arg, 1);
+      if (idx_node && val_node && cJSON_IsNumber(idx_node) &&
+          cJSON_IsBool(val_node)) {
+        idx = idx_node->valueint;
+        mute = cJSON_IsTrue(val_node);
         ok = true;
       }
     }
@@ -2324,10 +2087,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           "{\"InvalidRequestError\":\"Could not parse SetFaderMute array\"}",
           NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"ToggleFaderMute\"")) {
-    double idx_val;
-    if (extract_json_double_value(command_text, "ToggleFaderMute", &idx_val)) {
-      int idx = (int)idx_val;
+  } else if (strcmp(simple, "ToggleFaderMute") == 0) {
+    if (arg && cJSON_IsNumber(arg)) {
+      int idx = arg->valueint;
       processing_parameters_t* params = NULL;
       if (server && server->engine &&
           server->engine->get_processing_parameters &&
@@ -2357,10 +2119,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  "{\"InvalidRequestError\":\"Could not parse fader index\"}",
                  NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"GetAvailableCaptureDevices\"")) {
-    char* backend = extract_json_string_value_dyn(command_text,
-                                                  "GetAvailableCaptureDevices");
-    if (backend) {
+  } else if (strcmp(simple, "GetAvailableCaptureDevices") == 0) {
+    if (arg && cJSON_IsString(arg) && arg->valuestring) {
+      const char* backend = arg->valuestring;
       audio_device_t* devs = NULL;
       size_t count = 0;
       bool ok = server && server->engine &&
@@ -2382,16 +2143,14 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         json_reply("GetAvailableCaptureDevices", "\"Ok\"", "[]", out_response,
                    max_len);
       }
-      free(backend);
     } else {
       json_reply("GetAvailableCaptureDevices",
                  "{\"InvalidRequestError\":\"Could not parse backend\"}", NULL,
                  out_response, max_len);
     }
-  } else if (strstr(command_text, "\"GetAvailablePlaybackDevices\"")) {
-    char* backend = extract_json_string_value_dyn(
-        command_text, "GetAvailablePlaybackDevices");
-    if (backend) {
+  } else if (strcmp(simple, "GetAvailablePlaybackDevices") == 0) {
+    if (arg && cJSON_IsString(arg) && arg->valuestring) {
+      const char* backend = arg->valuestring;
       audio_device_t* devs = NULL;
       size_t count = 0;
       bool ok = server && server->engine &&
@@ -2413,77 +2172,100 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         json_reply("GetAvailablePlaybackDevices", "\"Ok\"", "[]", out_response,
                    max_len);
       }
-      free(backend);
     } else {
       json_reply("GetAvailablePlaybackDevices",
                  "{\"InvalidRequestError\":\"Could not parse backend\"}", NULL,
                  out_response, max_len);
     }
-  } else if (strstr(command_text, "\"AdjustVolume\"")) {
-    const char* pos = strstr(command_text, "\"AdjustVolume\"");
-    if (pos) {
-      pos += 14;
-      while (*pos && *pos != ':') pos++;
-      if (*pos == ':') {
-        pos++;
-        if (server_handle_adjust_volume_fader(server, FADER_MAIN, pos,
-                                              out_response, max_len,
-                                              "AdjustVolume")) {
-          goto adjust_volume_done;
+  } else if (strcmp(simple, "AdjustVolume") == 0) {
+    double delta = 0.0;
+    double min_vol = -150.0;
+    double max_vol = 50.0;
+    bool ok = false;
+    if (arg && cJSON_IsNumber(arg)) {
+      delta = arg->valuedouble;
+      ok = true;
+    } else if (arg && cJSON_IsArray(arg)) {
+      int size = cJSON_GetArraySize(arg);
+      if (size >= 1) {
+        cJSON* d_node = cJSON_GetArrayItem(arg, 0);
+        if (d_node && cJSON_IsNumber(d_node)) {
+          delta = d_node->valuedouble;
+          ok = true;
         }
       }
-    }
-    json_reply(
-        "AdjustVolume",
-        "{\"InvalidRequestError\":\"Could not parse AdjustVolume argument\"}",
-        NULL, out_response, max_len);
-  adjust_volume_done:;
-  } else if (strstr(command_text, "\"AdjustFaderVolume\"")) {
-    const char* pos = strstr(command_text, "\"AdjustFaderVolume\"");
-    if (pos) {
-      pos += 19;
-      while (*pos && *pos != '[') pos++;
-      if (*pos == '[') {
-        pos++;
-        char* endptr = NULL;
-        int idx = (int)strtol(pos, &endptr, 10);
-        if (endptr != pos) {
-          pos = endptr;
-          while (*pos && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
-          if (idx >= 0 && idx < FADER_COUNT) {
-            if (server_handle_adjust_volume_fader(server, (fader_t)idx, pos,
-                                                  out_response, max_len,
-                                                  "AdjustFaderVolume")) {
-              goto adjust_fader_volume_done;
-            }
-          } else {
-            json_reply("AdjustFaderVolume", "\"InvalidFaderError\"", NULL,
-                       out_response, max_len);
-            goto adjust_fader_volume_done;
-          }
-        }
+      if (size >= 2) {
+        cJSON* min_node = cJSON_GetArrayItem(arg, 1);
+        if (min_node && cJSON_IsNumber(min_node)) min_vol = min_node->valuedouble;
+      }
+      if (size >= 3) {
+        cJSON* max_node = cJSON_GetArrayItem(arg, 2);
+        if (max_node && cJSON_IsNumber(max_node)) max_vol = max_node->valuedouble;
       }
     }
-    json_reply(
-        "AdjustFaderVolume",
-        "{\"InvalidRequestError\":\"Could not parse AdjustFaderVolume array\"}",
-        NULL, out_response, max_len);
-  adjust_fader_volume_done:;
+
+    if (ok) {
+      server_handle_adjust_volume_fader(server, FADER_MAIN, delta, min_vol, max_vol,
+                                        out_response, max_len, "AdjustVolume");
+    } else {
+      json_reply(
+          "AdjustVolume",
+          "{\"InvalidRequestError\":\"Could not parse AdjustVolume argument\"}",
+          NULL, out_response, max_len);
+    }
+  } else if (strcmp(simple, "AdjustFaderVolume") == 0) {
+    int idx = -1;
+    double delta = 0.0;
+    double min_vol = -150.0;
+    double max_vol = 50.0;
+    bool ok = false;
+    if (arg && cJSON_IsArray(arg)) {
+      int size = cJSON_GetArraySize(arg);
+      if (size >= 2) {
+        cJSON* idx_node = cJSON_GetArrayItem(arg, 0);
+        cJSON* d_node = cJSON_GetArrayItem(arg, 1);
+        if (idx_node && d_node && cJSON_IsNumber(idx_node) && cJSON_IsNumber(d_node)) {
+          idx = idx_node->valueint;
+          delta = d_node->valuedouble;
+          ok = true;
+        }
+      }
+      if (size >= 3) {
+        cJSON* min_node = cJSON_GetArrayItem(arg, 2);
+        if (min_node && cJSON_IsNumber(min_node)) min_vol = min_node->valuedouble;
+      }
+      if (size >= 4) {
+        cJSON* max_node = cJSON_GetArrayItem(arg, 3);
+        if (max_node && cJSON_IsNumber(max_node)) max_vol = max_node->valuedouble;
+      }
+    }
+
+    if (ok) {
+      if (idx >= 0 && idx < FADER_COUNT) {
+        server_handle_adjust_volume_fader(server, (fader_t)idx, delta, min_vol, max_vol,
+                                          out_response, max_len, "AdjustFaderVolume");
+      } else {
+        json_reply("AdjustFaderVolume", "\"InvalidFaderError\"", NULL,
+                   out_response, max_len);
+      }
+    } else {
+      json_reply(
+          "AdjustFaderVolume",
+          "{\"InvalidRequestError\":\"Could not parse AdjustFaderVolume array\"}",
+          NULL, out_response, max_len);
+    }
   } else if (strcmp(simple, "GetCaptureDeviceCapabilities") == 0 ||
              strcmp(simple, "GetPlaybackDeviceCapabilities") == 0) {
     char backend[128] = "";
     char device[256] = "";
     bool ok = false;
-    if (arg_idx != -1 && tokens[arg_idx].type == JSMN_ARRAY &&
-        tokens[arg_idx].size >= 2) {
-      int b_tok = get_array_element(tokens, count, arg_idx, 0);
-      int d_tok = get_array_element(tokens, count, arg_idx, 1);
-      if (b_tok != -1 && d_tok != -1 && tokens[b_tok].type == JSMN_STRING &&
-          tokens[d_tok].type == JSMN_STRING) {
-        get_tok_string_unescape(command_text, &tokens[b_tok], backend,
-                                sizeof(backend));
-        get_tok_string_unescape(command_text, &tokens[d_tok], device,
-                                sizeof(device));
+    if (arg && cJSON_IsArray(arg) && cJSON_GetArraySize(arg) >= 2) {
+      cJSON* b_node = cJSON_GetArrayItem(arg, 0);
+      cJSON* d_node = cJSON_GetArrayItem(arg, 1);
+      if (b_node && d_node && cJSON_IsString(b_node) &&
+          cJSON_IsString(d_node)) {
+        strncpy(backend, b_node->valuestring, sizeof(backend) - 1);
+        strncpy(device, d_node->valuestring, sizeof(device) - 1);
         ok = true;
       }
     }
@@ -2534,27 +2316,18 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     uint32_t n_bins = 1024;
     bool ok = false;
 
-    if (arg_idx != -1 && tokens[arg_idx].type == JSMN_OBJECT) {
-      int ic_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "is_capture");
-      if (ic_idx != -1)
-        is_capture = get_tok_bool(command_text, &tokens[ic_idx]);
-      int ch_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "channel");
-      if (ch_idx != -1)
-        channel = (uint32_t)get_tok_int(command_text, &tokens[ch_idx]);
-      int mn_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "min_freq");
-      if (mn_idx != -1)
-        min_freq = get_tok_double(command_text, &tokens[mn_idx]);
-      int mx_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "max_freq");
-      if (mx_idx != -1)
-        max_freq = get_tok_double(command_text, &tokens[mx_idx]);
-      int nb_idx =
-          find_object_key(command_text, tokens, count, arg_idx, "n_bins");
-      if (nb_idx != -1)
-        n_bins = (uint32_t)get_tok_int(command_text, &tokens[nb_idx]);
+    if (arg && cJSON_IsObject(arg)) {
+      cJSON* item;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "is_capture");
+      if (item && cJSON_IsBool(item)) is_capture = cJSON_IsTrue(item);
+      item = cJSON_GetObjectItemCaseSensitive(arg, "channel");
+      if (item && cJSON_IsNumber(item)) channel = (uint32_t)item->valueint;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "min_freq");
+      if (item && cJSON_IsNumber(item)) min_freq = item->valuedouble;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "max_freq");
+      if (item && cJSON_IsNumber(item)) max_freq = item->valuedouble;
+      item = cJSON_GetObjectItemCaseSensitive(arg, "n_bins");
+      if (item && cJSON_IsNumber(item)) n_bins = (uint32_t)item->valueint;
       ok = true;
     }
 
@@ -2589,10 +2362,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           "{\"InvalidRequestError\":\"Could not parse GetSpectrum arguments\"}",
           NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"ReadConfigJson\"")) {
-    char* config_json =
-        extract_json_string_value_dyn(command_text, "ReadConfigJson");
-    if (config_json) {
+  } else if (strcmp(simple, "ReadConfigJson") == 0) {
+    if (arg && cJSON_IsString(arg) && arg->valuestring) {
+      const char* config_json = arg->valuestring;
       dsp_config_t* parsed = NULL;
       config_error_t cerr;
       memset(&cerr, 0, sizeof(cerr));
@@ -2606,17 +2378,15 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  cerr.message);
         json_reply("ReadConfigJson", val, NULL, out_response, max_len);
       }
-      free(config_json);
     } else {
       json_reply(
           "ReadConfigJson",
           "{\"InvalidRequestError\":\"Could not parse input config JSON\"}",
           NULL, out_response, max_len);
     }
-  } else if (strstr(command_text, "\"ValidateConfigJson\"")) {
-    char* config_json =
-        extract_json_string_value_dyn(command_text, "ValidateConfigJson");
-    if (config_json) {
+  } else if (strcmp(simple, "ValidateConfigJson") == 0) {
+    if (arg && cJSON_IsString(arg) && arg->valuestring) {
+      const char* config_json = arg->valuestring;
       dsp_config_t* parsed = NULL;
       config_error_t cerr;
       memset(&cerr, 0, sizeof(cerr));
@@ -2629,7 +2399,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  cerr.message);
         json_reply("ValidateConfigJson", val, NULL, out_response, max_len);
       }
-      free(config_json);
     } else {
       json_reply(
           "ValidateConfigJson",
@@ -2640,7 +2409,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     snprintf(out_response, max_len,
              "{\"Invalid\":{\"error\":\"Unsupported command\"}}");
   }
-  if (tokens != local_tokens) free(tokens);
+  cJSON_Delete(root);
 }
 
 static void send_websocket_frame(int fd, const char* response) {

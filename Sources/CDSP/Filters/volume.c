@@ -14,7 +14,6 @@ static inline uint64_t clock_gettime_nsec_np(int clock_id) {
 }
 #endif
 
-
 static void fill_ramp(volume_filter_t* filter) {
   if (filter->chunk_size == 0 || filter->ramptime_in_chunks <= 0) return;
   double target_vol = filter->mute ? -100.0 : filter->target_volume;
@@ -99,7 +98,9 @@ void volume_filter_prepare_chunk(volume_filter_t* filter) {
     uint64_t set_at = processing_parameters_get_target_volume_set_at_for_fader(
         filter->processing_parameters, filter->fader);
     uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-    bool ramp_is_stale = (now > set_at) ? ((now - set_at) > filter->stale_ramp_threshold_ns) : false;
+    bool ramp_is_stale =
+        (now > set_at) ? ((now - set_at) > filter->stale_ramp_threshold_ns)
+                       : false;
 
     if (filter->ramptime_in_chunks > 0 && !ramp_is_stale) {
       filter->ramp_start = filter->current_volume;

@@ -177,6 +177,26 @@ TEST(test_websocket_handle_command_direct) {
   free(server->active_config_json);
   server->active_config_json = NULL;
 
+  // Test SubscribeVuLevels (simple)
+  websocket_server_handle_command(server, 0, "\"SubscribeVuLevels\"", resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"SubscribeVuLevels\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
+  ASSERT_TRUE(server->client_sessions[0].vu_subscribed);
+  ASSERT_DOUBLE_EQ(0.0, server->client_sessions[0].vu_max_rate);
+  ASSERT_DOUBLE_EQ(0.0, server->client_sessions[0].vu_attack);
+  ASSERT_DOUBLE_EQ(0.0, server->client_sessions[0].vu_release);
+
+  // Test SubscribeVuLevels (with arguments)
+  server->client_sessions[0].vu_subscribed = false;
+  websocket_server_handle_command(
+      server, 0, "{\"SubscribeVuLevels\":{\"max_rate\":100.0,\"attack\":10.0,\"release\":100.0}}", resp, sizeof(resp));
+  ASSERT_TRUE(strstr(resp, "\"SubscribeVuLevels\"") != NULL);
+  ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
+  ASSERT_TRUE(server->client_sessions[0].vu_subscribed);
+  ASSERT_DOUBLE_EQ(100.0, server->client_sessions[0].vu_max_rate);
+  ASSERT_DOUBLE_EQ(10.0, server->client_sessions[0].vu_attack);
+  ASSERT_DOUBLE_EQ(100.0, server->client_sessions[0].vu_release);
+
   processing_parameters_free(mock_params);
   mock_params = NULL;
 
