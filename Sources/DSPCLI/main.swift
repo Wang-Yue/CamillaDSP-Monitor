@@ -15,6 +15,8 @@ struct StateFileContent: Codable {
 }
 
 struct DSPCLI {
+  nonisolated(unsafe) static var server: WebSocketServer?
+
   static func printUsage() {
     print(
       """
@@ -312,7 +314,6 @@ struct DSPCLI {
 
     let activeConfigPath = ActiveConfigPath(initialPath: configPath)
 
-    let server: WebSocketServer?
     if let p = port {
       let s = WebSocketServer(
         port: p,
@@ -321,9 +322,9 @@ struct DSPCLI {
         stateFilePath: stateFilePath
       )
       s.setEngine(engine)
-      server = s
+      DSPCLI.server = s
     } else {
-      server = nil
+      DSPCLI.server = nil
     }
 
     // Start state saver task loop
@@ -349,7 +350,7 @@ struct DSPCLI {
             )
             if let data = try? JSONEncoder().encode(content) {
               if (try? data.write(to: URL(fileURLWithPath: sPath))) != nil {
-                server?.clearUnsavedStateChanges()
+                DSPCLI.server?.clearUnsavedStateChanges()
               }
             }
           }
@@ -358,7 +359,7 @@ struct DSPCLI {
     }
 
     // Start WebSocket server
-    if let s = server {
+    if let s = DSPCLI.server {
       do {
         try s.start()
         print("WebSocket server running on \(bindAddress):\(port!)")
