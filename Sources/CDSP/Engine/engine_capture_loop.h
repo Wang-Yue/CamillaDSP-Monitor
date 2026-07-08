@@ -54,14 +54,6 @@ typedef struct {
   double last_observed_playback_pending_rate;
   bool has_last_observed_playback_pending_rate;
 
-  /// Hooked stop callback. Invoked when capture decides the engine
-  /// must shut down (format change / capture error / stall). The
-  /// host wires this to `DSPEngineCore.stop(reason:)` so the once-CAS
-  /// teardown runs exactly once even when several signals fire
-  /// concurrently.
-  engine_stop_callback_t on_stop;
-  void* on_stop_ctx;
-
   // Loop-private state.
 
   // MARK: - SilenceCounter
@@ -94,8 +86,7 @@ engine_capture_loop_t* engine_capture_loop_create(
     capture_backend_t* capture, playback_backend_t* playback,
     processing_parameters_t* processing_params, dop_decoder_t* dop_decoder,
     size_t chunk_size, size_t channels, size_t samplerate,
-    double silence_threshold_db, double silence_timeout_seconds,
-    engine_stop_callback_t on_stop, void* on_stop_ctx);
+    double silence_threshold_db, double silence_timeout_seconds);
 
 void engine_capture_loop_free(engine_capture_loop_t* loop);
 void engine_capture_loop_run(engine_capture_loop_t* loop);

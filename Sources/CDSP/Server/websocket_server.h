@@ -14,17 +14,7 @@
 #include "Config/configuration.h"
 #include "Config/engine_config_types.h"
 
-typedef struct active_config_path active_config_path_t;
 typedef struct websocket_server websocket_server_t;
-
-/// Create an active configuration path wrapper.
-active_config_path_t* active_config_path_create(const char* initial_path);
-/// Get the current path string from the active configuration path wrapper.
-const char* active_config_path_get(const active_config_path_t* path);
-/// Set a new path string on the active configuration path wrapper.
-void active_config_path_set(active_config_path_t* path, const char* new_path);
-/// Free the active configuration path wrapper.
-void active_config_path_free(active_config_path_t* path);
 
 // Interface for DSPEngine that WebSocketServer interacts with
 typedef struct {
@@ -32,6 +22,7 @@ typedef struct {
   bool (*get_status)(void* ctx, state_update_t* out_status);
   bool (*get_processing_parameters)(void* ctx, void** out_params);
   bool (*get_active_config_json)(void* ctx, char** out_json);
+  bool (*get_previous_config_json)(void* ctx, char** out_json);
   const dsp_config_t* (*get_active_config)(void* ctx);
   bool (*get_vu_levels)(void* ctx, vu_levels_t* out_vu);
   bool (*get_available_devices)(void* ctx, const char* backend, bool is_input,
@@ -49,12 +40,13 @@ typedef struct {
   void (*stop)(void* ctx);
   void (*set_fader_volume)(void* ctx, fader_t fader, float db, bool instant);
   void (*set_fader_mute)(void* ctx, fader_t fader, bool mute);
-} dsp_engine_interface_t;
 
-struct active_config_path {
-  char path[1024];
-  bool has_value;
-};
+  // Path & persistence callbacks
+  const char* (*get_state_file)(void* ctx);
+  bool (*is_state_dirty)(void* ctx);
+  char* (*get_config_path)(void* ctx);
+  void (*set_config_path)(void* ctx, const char* path);
+} dsp_engine_interface_t;
 
 typedef struct {
   uint64_t timestamp_ms;
@@ -104,21 +96,11 @@ typedef struct {
 struct websocket_server {
   uint16_t port;
   char host[128];
-  active_config_path_t* active_path;
   dsp_engine_interface_t* engine;
 
   int server_fd;
   _Atomic bool running;
   pthread_t thread;
-
-  char* active_config_json;
-  char* previous_config_json;
-  char state_file_path[1024];
-  bool has_state_file_path;
-  bool unsaved_state_changes;
-
-  char* active_config_title;
-  char* active_config_description;
 
   uint32_t update_interval;
 
@@ -136,14 +118,10 @@ struct websocket_server {
 };
 
 /// Create a new WebSocket control server on the specified port and host.
-websocket_server_t* websocket_server_create(uint16_t port, const char* host,
-                                            active_config_path_t* active_path);
+websocket_server_t* websocket_server_create(uint16_t port, const char* host);
 /// Set the DSP engine interface for the WebSocket server to interact with.
 void websocket_server_set_engine(websocket_server_t* server,
                                  dsp_engine_interface_t* engine);
-/// Set the state file path for the WebSocket server.
-void websocket_server_set_state_file(websocket_server_t* server,
-                                     const char* state_file_path);
 /// Start the WebSocket server listening and processing connections.
 bool websocket_server_start(websocket_server_t* server);
 /// Stop the WebSocket server and disconnect all clients.

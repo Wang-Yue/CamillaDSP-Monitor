@@ -86,8 +86,7 @@ engine_playback_loop_t* engine_playback_loop_create(
     engine_shared_state_t* shared, capture_backend_t* capture,
     playback_backend_t* playback, processing_parameters_t* processing_params,
     size_t pipeline_rate, size_t chunk_size, bool rate_adjust_enabled,
-    double adjust_period, int target_level, engine_stop_callback_t on_stop,
-    void* on_stop_ctx) {
+    double adjust_period, int target_level) {
   engine_playback_loop_t* loop =
       (engine_playback_loop_t*)calloc(1, sizeof(engine_playback_loop_t));
   if (!loop) return NULL;
@@ -103,8 +102,6 @@ engine_playback_loop_t* engine_playback_loop_create(
   loop->rate_adjust_enabled = rate_adjust_enabled;
   loop->adjust_period = adjust_period;
   loop->target_level = target_level;
-  loop->on_stop = on_stop;
-  loop->on_stop_ctx = on_stop_ctx;
   return loop;
 }
 
@@ -190,7 +187,7 @@ void engine_playback_loop_run(engine_playback_loop_t* loop) {
                      log_arg_none(), log_arg_none());
         processing_stop_reason_t reason = {.type = STOP_REASON_PLAYBACK_ERROR};
         snprintf(reason.message, sizeof(reason.message), "%s", err.message);
-        if (loop->on_stop) loop->on_stop(loop->on_stop_ctx, reason);
+        engine_shared_state_request_stop(loop->shared, reason);
         if (rate_controller) pi_rate_controller_free(rate_controller);
         return;
       }

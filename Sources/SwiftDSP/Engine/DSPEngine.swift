@@ -2,6 +2,30 @@ import DSPConfig
 import Foundation
 import Synchronization
 
+public struct FaderState: Codable, Sendable {
+  public var volume: Float
+  public var mute: Bool
+
+  public init(volume: Float, mute: Bool) {
+    self.volume = volume
+    self.mute = mute
+  }
+}
+
+public struct StateFileContent: Codable, Sendable {
+  public var config_path: String?
+  public var volume: Float
+  public var mute: Bool
+  public var faders: [FaderState]
+
+  public init(config_path: String?, volume: Float, mute: Bool, faders: [FaderState]) {
+    self.config_path = config_path
+    self.volume = volume
+    self.mute = mute
+    self.faders = faders
+  }
+}
+
 public actor SwiftDSPEngine {
   private let logger = Logger(label: "dsp.engine")
   private var core: DSPEngineCore?
@@ -15,6 +39,14 @@ public actor SwiftDSPEngine {
     .main: false, .aux1: false, .aux2: false, .aux3: false, .aux4: false,
   ]
   private var lastStopReason: ProcessingStopReason?
+
+  private var activeConfigPath: String?
+  private var stateFilePath: String?
+  private var unsavedStateChanges = false
+  private var activeConfigJson: String?
+  private var previousConfigJson: String?
+  private var activeConfig: DSPConfiguration?
+  private var stateSaverTask: Task<Void, Never>?
 
   public init() {}
 
@@ -82,6 +114,10 @@ public actor SwiftDSPEngine {
     }
     self.core = engine
     self.lastStopReason = nil
+    self.previousConfigJson = self.activeConfigJson
+    self.activeConfigJson = json
+    self.activeConfig = parsed
+    self.unsavedStateChanges = true
   }
 
   public func stop() {
@@ -98,11 +134,13 @@ public actor SwiftDSPEngine {
     if instant {
       core?.processingParams.setCurrentVolume(Double(db), for: fader)
     }
+    self.unsavedStateChanges = true
   }
 
   public func setFaderMute(_ fader: Fader, _ mute: Bool) {
     desiredFaderMutes[fader] = mute
     core?.processingParams.setMuted(mute, for: fader)
+    self.unsavedStateChanges = true
   }
 
   public func getStatus() -> StateUpdate {
@@ -203,5 +241,85 @@ public actor SwiftDSPEngine {
 
   public func getProcessingParameters() -> ProcessingParameters? {
     return core?.processingParams
+  }
+
+  // MARK: - State/Config Path & JSON Cache Accessors
+  public func getActiveConfigPath() -> String? {
+    return activeConfigPath
+  }
+  public func setActiveConfigPath(_ path: String?) {
+    self.activeConfigPath = path
+    self.unsavedStateChanges = true
+  }
+
+  public func getStateFilePath() -> String? {
+    return stateFilePath
+  }
+  public func setStateFilePath(_ path: String?) {
+    self.stateFilePath = path
+    if path != nil {
+      startStateSaverTask()
+    } else {
+      stopStateSaverTask()
+    }
+  }
+
+  private func startStateSaverTask() {
+    guard stateSaverTask == nil else { return }
+    stateSaverTask = Task { [weak self] in
+      while !Task.isCancelled {
+        try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
+        guard let self = self else { break }
+        await self.saveStateIfNeeded()
+      }
+    }
+  }
+
+  private func stopStateSaverTask() {
+    stateSaverTask?.cancel()
+    stateSaverTask = nil
+  }
+
+  private func saveStateIfNeeded() async {
+    guard let sPath = stateFilePath, unsavedStateChanges else { return }
+    guard let params = core?.processingParams else { return }
+
+    var fadersList: [FaderState] = []
+    for f in [Fader.aux1, .aux2, .aux3, .aux4] {
+      fadersList.append(
+        FaderState(
+          volume: Float(params.targetVolume(for: f)),
+          mute: params.isMuted(for: f)
+        ))
+    }
+    let activePath = activeConfigPath
+    let content = StateFileContent(
+      config_path: activePath,
+      volume: Float(params.targetVolume(for: .main)),
+      mute: params.isMuted(for: .main),
+      faders: fadersList
+    )
+    if let data = try? JSONEncoder().encode(content) {
+      if (try? data.write(to: URL(fileURLWithPath: sPath))) != nil {
+        self.unsavedStateChanges = false
+      }
+    }
+  }
+
+  public func isStateDirty() -> Bool {
+    return unsavedStateChanges
+  }
+  public func setStateDirty(_ dirty: Bool) {
+    self.unsavedStateChanges = dirty
+  }
+
+  public func getActiveConfigJson() -> String? {
+    return activeConfigJson
+  }
+  public func getPreviousConfigJson() -> String? {
+    return previousConfigJson
+  }
+  public func getActiveConfigStruct() -> DSPConfiguration? {
+    return activeConfig
   }
 }

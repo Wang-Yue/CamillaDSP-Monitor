@@ -46,8 +46,7 @@ engine_processing_loop_t* engine_processing_loop_create(
     dop_encoder_t* dop_encoder, audio_chunk_t* resampler_scratch,
     audio_chunk_t* pipeline_scratch, chunk_callback_t on_chunk_captured,
     void* on_chunk_captured_ctx, chunk_callback_t on_chunk_processed,
-    void* on_chunk_processed_ctx, engine_stop_callback_t on_stop,
-    void* on_stop_ctx) {
+    void* on_chunk_processed_ctx) {
   engine_processing_loop_t* loop =
       (engine_processing_loop_t*)calloc(1, sizeof(engine_processing_loop_t));
   if (!loop) return NULL;
@@ -64,8 +63,6 @@ engine_processing_loop_t* engine_processing_loop_create(
   loop->on_chunk_captured_ctx = on_chunk_captured_ctx;
   loop->on_chunk_processed = on_chunk_processed;
   loop->on_chunk_processed_ctx = on_chunk_processed_ctx;
-  loop->on_stop = on_stop;
-  loop->on_stop_ctx = on_stop_ctx;
 
   loop->pipeline_queue = spsc_queue_create(2);
   loop->update_queue = spsc_queue_create(8);
@@ -211,7 +208,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
           processing_stop_reason_t reason = {.type = STOP_REASON_UNKNOWN_ERROR};
           snprintf(reason.message, sizeof(reason.message), "Resampler error %d",
                    rerr);
-          if (loop->on_stop) loop->on_stop(loop->on_stop_ctx, reason);
+          engine_shared_state_request_stop(loop->shared, reason);
           round_robin_chunk_pool_free(scratch_pool);
           return;
         }
@@ -252,7 +249,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
         processing_stop_reason_t reason = {.type = STOP_REASON_UNKNOWN_ERROR};
         snprintf(reason.message, sizeof(reason.message), "Pipeline error %d",
                  perr);
-        if (loop->on_stop) loop->on_stop(loop->on_stop_ctx, reason);
+        engine_shared_state_request_stop(loop->shared, reason);
         round_robin_chunk_pool_free(scratch_pool);
         return;
       }

@@ -20,6 +20,8 @@
 #if defined(ENABLE_WASAPI)
 #include "Backend/wasapi_capabilities.h"
 #endif
+#include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -34,6 +36,16 @@ typedef struct {
   bool desired_fader_mutes[FADER_COUNT];
   processing_stop_reason_t last_stop_reason;
   bool has_last_stop_reason;
+  // Mutex-protected state variables
+  pthread_mutex_t state_mutex;
+  char active_config_path[1024];
+  bool has_active_config_path;
+  char state_file_path[1024];
+  bool has_state_file_path;
+  bool unsaved_state_changes;
+  char* active_config_json;
+  char* previous_config_json;
+
 } dsp_engine_t;
 
 dsp_engine_t* dsp_engine_create(void);
@@ -50,6 +62,11 @@ void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader, float db,
 void dsp_engine_set_fader_mute(dsp_engine_t* engine, fader_t fader, bool mute);
 float dsp_engine_get_fader_volume(const dsp_engine_t* engine, fader_t fader);
 bool dsp_engine_is_fader_muted(const dsp_engine_t* engine, fader_t fader);
+
+void dsp_engine_set_state_file(dsp_engine_t* engine, const char* path);
+void dsp_engine_set_config_path(dsp_engine_t* engine, const char* path);
+void dsp_engine_poll(dsp_engine_t* engine);
+
 dsp_engine_interface_t* dsp_engine_get_interface(dsp_engine_t* engine);
 
 state_update_t dsp_engine_get_status(const dsp_engine_t* engine);

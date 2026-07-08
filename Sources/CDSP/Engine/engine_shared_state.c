@@ -44,6 +44,7 @@ engine_shared_state_t* engine_shared_state_create(
   engine_sem_init(&state->captured_semaphore);
   engine_sem_init(&state->processed_semaphore);
   atomic_init(&state->should_stop, false);
+  atomic_init(&state->stop_reason_written, false);
   state->resampler_ratio = atomic_double_create(1.0);
 
   if (!state->captured_queue || !state->processed_queue ||
@@ -63,4 +64,14 @@ void engine_shared_state_free(engine_shared_state_t* state) {
   engine_sem_destroy(&state->processed_semaphore);
   if (state->resampler_ratio) atomic_double_free(state->resampler_ratio);
   free(state);
+}
+
+void engine_shared_state_request_stop(engine_shared_state_t* state,
+                                      processing_stop_reason_t reason) {
+  if (!state) return;
+  bool expected = false;
+  if (atomic_compare_exchange_strong(&state->stop_reason_written, &expected, true)) {
+    state->stop_reason = reason;
+  }
+  atomic_store_explicit(&state->should_stop, true, memory_order_release);
 }

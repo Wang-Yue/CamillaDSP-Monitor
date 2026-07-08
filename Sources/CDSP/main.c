@@ -511,14 +511,16 @@ int main(int argc, char** argv) {
     }
   }
 
-  active_config_path_t* active_path = active_config_path_create(config_path);
+  if (state_file_path) {
+    dsp_engine_set_state_file(engine, state_file_path);
+  }
+  if (config_path) {
+    dsp_engine_set_config_path(engine, config_path);
+  }
 
   websocket_server_t* server = NULL;
   if (has_port) {
-    server = websocket_server_create(port, bind_address, active_path);
-    if (state_file_path) {
-      websocket_server_set_state_file(server, state_file_path);
-    }
+    server = websocket_server_create(port, bind_address);
     websocket_server_set_engine(server, dsp_engine_get_interface(engine));
     if (websocket_server_start(server)) {
       printf("WebSocket server running on %s:%u\n", bind_address, port);
@@ -529,33 +531,11 @@ int main(int argc, char** argv) {
 
   printf("Press Ctrl+C to stop.\n");
   while (keep_running) {
-    sleep(1);
-    if (server && server->has_state_file_path &&
-        server->unsaved_state_changes) {
-      dsp_state_t state_to_save;
-      memset(&state_to_save, 0, sizeof(state_to_save));
-
-      const char* current_path = active_config_path_get(active_path);
-      if (current_path && current_path[0]) {
-        strncpy(state_to_save.config_path, current_path,
-                sizeof(state_to_save.config_path) - 1);
-        state_to_save.has_config_path = true;
-      }
-
-      for (int i = 0; i < 5; i++) {
-        state_to_save.volume[i] =
-            dsp_engine_get_fader_volume(engine, (fader_t)i);
-        state_to_save.mute[i] = dsp_engine_is_fader_muted(engine, (fader_t)i);
-      }
-
-      if (dsp_state_save(server->state_file_path, &state_to_save)) {
-        server->unsaved_state_changes = false;
-      }
-    }
+    usleep(100000); // 100ms
+    dsp_engine_poll(engine);
   }
 
   if (server) websocket_server_free(server);
-  if (active_path) active_config_path_free(active_path);
   dsp_engine_free(engine);
   if (allocated_config_path) free(allocated_config_path);
   printf("Engine stopped.\n");

@@ -201,37 +201,7 @@ static double smoothing_alpha(double delta_ms, double time_constant_ms) {
   return 1.0 - exp(-delta_sec / time_constant_sec);
 }
 
-active_config_path_t* active_config_path_create(const char* initial_path) {
-  active_config_path_t* path =
-      (active_config_path_t*)calloc(1, sizeof(active_config_path_t));
-  if (!path) return NULL;
-  if (initial_path && initial_path[0]) {
-    strncpy(path->path, initial_path, sizeof(path->path) - 1);
-    path->has_value = true;
-  }
-  return path;
-}
-
-const char* active_config_path_get(const active_config_path_t* path) {
-  if (!path || !path->has_value) return NULL;
-  return path->path;
-}
-
-void active_config_path_set(active_config_path_t* path, const char* new_path) {
-  if (!path) return;
-  if (new_path && new_path[0]) {
-    strncpy(path->path, new_path, sizeof(path->path) - 1);
-    path->has_value = true;
-  } else {
-    path->path[0] = '\0';
-    path->has_value = false;
-  }
-}
-
-void active_config_path_free(active_config_path_t* path) { free(path); }
-
-websocket_server_t* websocket_server_create(uint16_t port, const char* host,
-                                            active_config_path_t* active_path) {
+websocket_server_t* websocket_server_create(uint16_t port, const char* host) {
   websocket_server_t* server =
       (websocket_server_t*)calloc(1, sizeof(websocket_server_t));
   if (!server) return NULL;
@@ -241,36 +211,16 @@ websocket_server_t* websocket_server_create(uint16_t port, const char* host,
   } else {
     strncpy(server->host, "127.0.0.1", sizeof(server->host) - 1);
   }
-  server->active_path = active_path;
   server->server_fd = -1;
   server->update_interval = 100;
   atomic_init(&server->running, false);
   return server;
 }
 
-/// Set the DSP engine interface for the WebSocket server to interact with.
 void websocket_server_set_engine(websocket_server_t* server,
                                  dsp_engine_interface_t* engine) {
   if (server) {
     server->engine = engine;
-    // Fetch initial active configuration asynchronously (in C, handled via
-    // engine interface)
-  }
-}
-
-/// Set the state file path for the WebSocket server.
-void websocket_server_set_state_file(websocket_server_t* server,
-                                     const char* state_file_path) {
-  if (server) {
-    if (state_file_path && state_file_path[0]) {
-      strncpy(server->state_file_path, state_file_path,
-              sizeof(server->state_file_path) - 1);
-      server->state_file_path[sizeof(server->state_file_path) - 1] = '\0';
-      server->has_state_file_path = true;
-    } else {
-      server->state_file_path[0] = '\0';
-      server->has_state_file_path = false;
-    }
   }
 }
 
@@ -661,8 +611,9 @@ static bool server_handle_adjust_volume_fader(
   if (new_vol < min_vol) new_vol = min_vol;
   if (new_vol > max_vol) new_vol = max_vol;
 
-  processing_parameters_set_target_volume_for_fader(params, new_vol, fader);
-  if (server) server->unsaved_state_changes = true;
+  if (server && server->engine && server->engine->set_fader_volume) {
+    server->engine->set_fader_volume(server->engine->ctx, fader, (float)new_vol, false);
+  }
 
   char val[64];
   if (fader == FADER_MAIN) {
@@ -767,8 +718,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         params) {
       bool was_muted =
           processing_parameters_is_muted_for_fader(params, FADER_MAIN);
-      processing_parameters_set_muted_for_fader(params, !was_muted, FADER_MAIN);
-      if (server) server->unsaved_state_changes = true;
+      if (server && server->engine && server->engine->set_fader_mute) {
+        server->engine->set_fader_mute(server->engine->ctx, FADER_MAIN, !was_muted);
+      }
       json_reply("ToggleMute", "\"Ok\"", !was_muted ? "true" : "false",
                  out_response, max_len);
     } else {
@@ -1534,11 +1486,18 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                max_len);
   } else if (strcmp(simple, "GetChannelLabels") == 0) {
     char* json = NULL;
-    if (server && server->active_config_json) {
-      json = strdup(server->active_config_json);
-    } else if (server && server->active_path &&
-               server->active_path->has_value) {
-      json = server_read_file_to_string(server->active_path->path);
+    if (server && server->engine && server->engine->get_active_config_json) {
+      server->engine->get_active_config_json(server->engine->ctx, &json);
+    }
+    if (!json) {
+      char* path = NULL;
+      if (server && server->engine && server->engine->get_config_path) {
+        path = server->engine->get_config_path(server->engine->ctx);
+      }
+      if (path) {
+        json = server_read_file_to_string(path);
+        free(path);
+      }
     }
     char play_labels[2048] = "null";
     char cap_labels[2048] = "null";
@@ -1574,26 +1533,34 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  out_response, max_len);
     }
   } else if (strcmp(simple, "GetConfigFilePath") == 0) {
-    const char* path = server && server->active_path
-                           ? active_config_path_get(server->active_path)
-                           : NULL;
+    char* path = NULL;
+    if (server && server->engine && server->engine->get_config_path) {
+      path = server->engine->get_config_path(server->engine->ctx);
+    }
     char val[1100];
-    if (path)
+    if (path) {
       snprintf(val, sizeof(val), "\"%s\"", path);
-    else
+      free(path);
+    } else {
       snprintf(val, sizeof(val), "null");
+    }
     json_reply("GetConfigFilePath", "\"Ok\"", val, out_response, max_len);
   } else if (strcmp(simple, "GetPreviousConfig") == 0) {
-    const char* prev = server ? server->previous_config_json : NULL;
-    char val[1100];
-    if (prev)
-      snprintf(val, sizeof(val), "\"%s\"", prev);
-    else
-      snprintf(val, sizeof(val), "null");
-    json_reply("GetPreviousConfig", "\"Ok\"", val, out_response, max_len);
+    char* prev = NULL;
+    if (server && server->engine && server->engine->get_previous_config_json) {
+      server->engine->get_previous_config_json(server->engine->ctx, &prev);
+    }
+    if (prev) {
+      json_reply("GetPreviousConfig", "\"Ok\"", prev, out_response, max_len);
+      free(prev);
+    } else {
+      json_reply("GetPreviousConfig", "\"Ok\"", "null", out_response, max_len);
+    }
   } else if (strcmp(simple, "GetStateFilePath") == 0) {
-    const char* path =
-        server && server->has_state_file_path ? server->state_file_path : NULL;
+    const char* path = NULL;
+    if (server && server->engine && server->engine->get_state_file) {
+      path = server->engine->get_state_file(server->engine->ctx);
+    }
     char val[1100];
     if (path)
       snprintf(val, sizeof(val), "\"%s\"", path);
@@ -1601,19 +1568,25 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       snprintf(val, sizeof(val), "null");
     json_reply("GetStateFilePath", "\"Ok\"", val, out_response, max_len);
   } else if (strcmp(simple, "GetStateFileUpdated") == 0) {
-    bool updated = server ? !server->unsaved_state_changes : true;
+    bool updated = server && server->engine && server->engine->is_state_dirty
+                       ? !server->engine->is_state_dirty(server->engine->ctx)
+                       : true;
     json_reply("GetStateFileUpdated", "\"Ok\"", updated ? "true" : "false",
                out_response, max_len);
   } else if (strcmp(simple, "GetConfig") == 0 ||
              strcmp(simple, "GetConfigJson") == 0) {
     char* json = NULL;
-    if (server && server->active_config_json) {
-      json = strdup(server->active_config_json);
-    } else if (server && server->active_path &&
-               server->active_path->has_value) {
-      json = server_read_file_to_string(server->active_path->path);
-      if (json) {
-        server->active_config_json = strdup(json);
+    if (server && server->engine && server->engine->get_active_config_json) {
+      server->engine->get_active_config_json(server->engine->ctx, &json);
+    }
+    if (!json) {
+      char* path = NULL;
+      if (server && server->engine && server->engine->get_config_path) {
+        path = server->engine->get_config_path(server->engine->ctx);
+      }
+      if (path) {
+        json = server_read_file_to_string(path);
+        free(path);
       }
     }
     if (json) {
@@ -1625,11 +1598,18 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     }
   } else if (strcmp(simple, "GetConfigTitle") == 0) {
     char* json = NULL;
-    if (server && server->active_config_json) {
-      json = strdup(server->active_config_json);
-    } else if (server && server->active_path &&
-               server->active_path->has_value) {
-      json = server_read_file_to_string(server->active_path->path);
+    if (server && server->engine && server->engine->get_active_config_json) {
+      server->engine->get_active_config_json(server->engine->ctx, &json);
+    }
+    if (!json) {
+      char* path = NULL;
+      if (server && server->engine && server->engine->get_config_path) {
+        path = server->engine->get_config_path(server->engine->ctx);
+      }
+      if (path) {
+        json = server_read_file_to_string(path);
+        free(path);
+      }
     }
     char title[256];
     if (json &&
@@ -1643,11 +1623,18 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     if (json) free(json);
   } else if (strcmp(simple, "GetConfigDescription") == 0) {
     char* json = NULL;
-    if (server && server->active_config_json) {
-      json = strdup(server->active_config_json);
-    } else if (server && server->active_path &&
-               server->active_path->has_value) {
-      json = server_read_file_to_string(server->active_path->path);
+    if (server && server->engine && server->engine->get_active_config_json) {
+      server->engine->get_active_config_json(server->engine->ctx, &json);
+    }
+    if (!json) {
+      char* path = NULL;
+      if (server && server->engine && server->engine->get_config_path) {
+        path = server->engine->get_config_path(server->engine->ctx);
+      }
+      if (path) {
+        json = server_read_file_to_string(path);
+        free(path);
+      }
     }
     char desc[512];
     if (json &&
@@ -1661,12 +1648,13 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     }
     if (json) free(json);
   } else if (strcmp(simple, "Reload") == 0) {
-    const char* path =
-        (server && server->active_path && server->active_path->has_value)
-            ? server->active_path->path
-            : NULL;
+    char* path = NULL;
+    if (server && server->engine && server->engine->get_config_path) {
+      path = server->engine->get_config_path(server->engine->ctx);
+    }
     if (path) {
       char* json = server_read_file_to_string(path);
+      free(path);
       if (json) {
         audio_backend_error_t err;
         memset(&err, 0, sizeof(err));
@@ -1674,10 +1662,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
             server && server->engine && server->engine->set_config_json &&
             server->engine->set_config_json(server->engine->ctx, json, &err);
         if (ok) {
-          if (server->previous_config_json) free(server->previous_config_json);
-          server->previous_config_json = server->active_config_json;
-          server->active_config_json = strdup(json);
-          if (server) server->unsaved_state_changes = false;
           json_reply("Reload", "\"Ok\"", NULL, out_response, max_len);
         } else {
           char val[600];
@@ -1741,12 +1725,8 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
   } else if (strcmp(simple, "SetConfigFilePath") == 0) {
     if (arg && cJSON_IsString(arg) && arg->valuestring) {
       const char* path = arg->valuestring;
-      if (server && server->active_path) {
-        active_config_path_set(server->active_path, path);
-        if (server->active_config_json) {
-          free(server->active_config_json);
-          server->active_config_json = NULL;
-        }
+      if (server && server->engine && server->engine->set_config_path) {
+        server->engine->set_config_path(server->engine->ctx, path);
       }
       json_reply("SetConfigFilePath", "\"Ok\"", NULL, out_response, max_len);
     } else {
@@ -1764,10 +1744,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           server && server->engine && server->engine->set_config_json &&
           server->engine->set_config_json(server->engine->ctx, new_json, &err);
       if (ok) {
-        if (server->previous_config_json) free(server->previous_config_json);
-        server->previous_config_json = server->active_config_json;
-        server->active_config_json = strdup(new_json);
-        if (server) server->unsaved_state_changes = false;
         json_reply("SetConfigJson", "\"Ok\"", NULL, out_response, max_len);
       } else {
         char val[600];
@@ -1784,11 +1760,18 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     if (arg && cJSON_IsString(arg) && arg->valuestring) {
       const char* pointer = arg->valuestring;
       char* json = NULL;
-      if (server && server->active_config_json) {
-        json = strdup(server->active_config_json);
-      } else if (server && server->active_path &&
-                 server->active_path->has_value) {
-        json = server_read_file_to_string(server->active_path->path);
+      if (server && server->engine && server->engine->get_active_config_json) {
+        server->engine->get_active_config_json(server->engine->ctx, &json);
+      }
+      if (!json) {
+        char* path = NULL;
+        if (server && server->engine && server->engine->get_config_path) {
+          path = server->engine->get_config_path(server->engine->ctx);
+        }
+        if (path) {
+          json = server_read_file_to_string(path);
+          free(path);
+        }
       }
 
       char val[2048];
@@ -1823,11 +1806,18 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
 
     if (pointer[0] != '\0' && trimmed_val) {
       char* active_json = NULL;
-      if (server && server->active_config_json) {
-        active_json = strdup(server->active_config_json);
-      } else if (server && server->active_path &&
-                 server->active_path->has_value) {
-        active_json = server_read_file_to_string(server->active_path->path);
+      if (server && server->engine && server->engine->get_active_config_json) {
+        server->engine->get_active_config_json(server->engine->ctx, &active_json);
+      }
+      if (!active_json) {
+        char* path = NULL;
+        if (server && server->engine && server->engine->get_config_path) {
+          path = server->engine->get_config_path(server->engine->ctx);
+        }
+        if (path) {
+          active_json = server_read_file_to_string(path);
+          free(path);
+        }
       }
 
       if (active_json) {
@@ -1841,11 +1831,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                     server->engine->set_config_json(server->engine->ctx,
                                                     updated_json, &err);
           if (ok) {
-            if (server->previous_config_json)
-              free(server->previous_config_json);
-            server->previous_config_json = server->active_config_json;
-            server->active_config_json = strdup(updated_json);
-            if (server) server->unsaved_state_changes = true;
             json_reply("SetConfigValue", "\"Ok\"", NULL, out_response, max_len);
           } else {
             char val[600];
@@ -1876,11 +1861,18 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
   } else if (strcmp(simple, "PatchConfig") == 0) {
     if (arg && cJSON_IsObject(arg)) {
       char* active_json = NULL;
-      if (server && server->active_config_json) {
-        active_json = strdup(server->active_config_json);
-      } else if (server && server->active_path &&
-                 server->active_path->has_value) {
-        active_json = server_read_file_to_string(server->active_path->path);
+      if (server && server->engine && server->engine->get_active_config_json) {
+        server->engine->get_active_config_json(server->engine->ctx, &active_json);
+      }
+      if (!active_json) {
+        char* path = NULL;
+        if (server && server->engine && server->engine->get_config_path) {
+          path = server->engine->get_config_path(server->engine->ctx);
+        }
+        if (path) {
+          active_json = server_read_file_to_string(path);
+          free(path);
+        }
       }
 
       if (active_json) {
@@ -1896,11 +1888,6 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                       server->engine->set_config_json(server->engine->ctx,
                                                       target_json, &err);
             if (ok) {
-              if (server->previous_config_json)
-                free(server->previous_config_json);
-              server->previous_config_json = server->active_config_json;
-              server->active_config_json = strdup(target_json);
-              if (server) server->unsaved_state_changes = true;
               json_reply("PatchConfig", "\"Ok\"", NULL, out_response, max_len);
             } else {
               char val[600];
@@ -1917,6 +1904,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           }
           cJSON_Delete(target_root);
         } else {
+          cJSON_Delete(target_root);
           json_reply(
               "PatchConfig",
               "{\"InvalidRequestError\":\"Failed to parse target JSON\"}", NULL,
@@ -2961,11 +2949,6 @@ void websocket_server_stop(websocket_server_t* server) {
 void websocket_server_free(websocket_server_t* server) {
   if (!server) return;
   websocket_server_stop(server);
-  if (server->previous_config_json) free(server->previous_config_json);
-  if (server->active_config_json) free(server->active_config_json);
-  if (server->active_config_title) free(server->active_config_title);
-  if (server->active_config_description)
-    free(server->active_config_description);
 
   // Free level history arrays
   for (size_t i = 0; i < 300; i++) {
@@ -2999,11 +2982,9 @@ void websocket_server_free(websocket_server_t* server) {
 }
 #else
 // Stub implementations for Windows target
-websocket_server_t* websocket_server_create(uint16_t port, const char* host,
-                                            active_config_path_t* active_path) {
+websocket_server_t* websocket_server_create(uint16_t port, const char* host) {
   (void)port;
   (void)host;
-  (void)active_path;
   return NULL;
 }
 void websocket_server_set_engine(websocket_server_t* server,
@@ -3031,17 +3012,4 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
   (void)out_response;
   (void)max_len;
 }
-active_config_path_t* active_config_path_create(const char* initial_path) {
-  (void)initial_path;
-  return NULL;
-}
-const char* active_config_path_get(const active_config_path_t* path) {
-  (void)path;
-  return "";
-}
-void active_config_path_set(active_config_path_t* path, const char* new_path) {
-  (void)path;
-  (void)new_path;
-}
-void active_config_path_free(active_config_path_t* path) { (void)path; }
 #endif

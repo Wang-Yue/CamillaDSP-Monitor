@@ -53,16 +53,13 @@ typedef struct {
   bool rate_adjust_enabled;
   double adjust_period;
   int target_level;
-  engine_stop_callback_t on_stop;
-  void* on_stop_ctx;
 } engine_playback_loop_t;
 
 engine_playback_loop_t* engine_playback_loop_create(
     engine_shared_state_t* shared, capture_backend_t* capture,
     playback_backend_t* playback, processing_parameters_t* processing_params,
     size_t pipeline_rate, size_t chunk_size, bool rate_adjust_enabled,
-    double adjust_period, int target_level, engine_stop_callback_t on_stop,
-    void* on_stop_ctx);
+    double adjust_period, int target_level);
 
 void engine_playback_loop_free(engine_playback_loop_t* loop);
 void engine_playback_loop_run(engine_playback_loop_t* loop);

@@ -7,6 +7,13 @@
 
 #include "Logging/app_logger.h"
 #include "Pipeline/config_loader.h"
+#include "Pipeline/state_file.h"
+
+static bool dsp_engine_check_stop_requested(dsp_engine_t* engine, processing_stop_reason_t* out_reason);
+static const char* dsp_engine_get_state_file(const dsp_engine_t* engine);
+static bool dsp_engine_is_state_dirty(const dsp_engine_t* engine);
+static void dsp_engine_set_state_dirty(dsp_engine_t* engine, bool dirty);
+static char* dsp_engine_get_config_path(const dsp_engine_t* engine);
 
 static void engine_on_chunk_captured_callback(void* ctx,
                                               const audio_chunk_t* chunk) {
@@ -34,6 +41,15 @@ dsp_engine_t* dsp_engine_create(void) {
   }
   engine->has_last_stop_reason = false;
 
+  pthread_mutex_init(&engine->state_mutex, NULL);
+  engine->active_config_path[0] = '\0';
+  engine->has_active_config_path = false;
+  engine->state_file_path[0] = '\0';
+  engine->has_state_file_path = false;
+  engine->unsaved_state_changes = false;
+  engine->active_config_json = NULL;
+  engine->previous_config_json = NULL;
+
   return engine;
 }
 
@@ -44,6 +60,9 @@ void dsp_engine_free(dsp_engine_t* engine) {
   if (engine->capture_buffer) audio_history_buffer_free(engine->capture_buffer);
   if (engine->playback_buffer)
     audio_history_buffer_free(engine->playback_buffer);
+  pthread_mutex_destroy(&engine->state_mutex);
+  if (engine->active_config_json) free(engine->active_config_json);
+  if (engine->previous_config_json) free(engine->previous_config_json);
   free(engine);
 }
 
@@ -150,17 +169,29 @@ bool dsp_engine_set_config(dsp_engine_t* engine, const char* json,
     }
     return false;
   }
-  return dsp_engine_set_config_struct(engine, parsed, err);
+  bool success = dsp_engine_set_config_struct(engine, parsed, err);
+  if (success) {
+    pthread_mutex_lock(&engine->state_mutex);
+    if (engine->previous_config_json) {
+      free(engine->previous_config_json);
+    }
+    engine->previous_config_json = engine->active_config_json;
+    engine->active_config_json = strdup(json);
+    pthread_mutex_unlock(&engine->state_mutex);
+  }
+  return success;
 }
 
 void dsp_engine_stop(dsp_engine_t* engine) {
   if (!engine) return;
   if (engine->core &&
       dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
-    dsp_engine_core_stop(engine->core,
-                         (processing_stop_reason_t){.type = STOP_REASON_NONE});
-    engine->last_stop_reason =
-        (processing_stop_reason_t){.type = STOP_REASON_NONE};
+    processing_stop_reason_t reason = {.type = STOP_REASON_NONE};
+    if (engine->core->shared) {
+      reason = engine->core->shared->stop_reason;
+    }
+    dsp_engine_core_stop(engine->core, reason);
+    engine->last_stop_reason = reason;
     engine->has_last_stop_reason = true;
   }
   if (engine->core) {
@@ -172,7 +203,11 @@ void dsp_engine_stop(dsp_engine_t* engine) {
 void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader,
                                  float db, bool instant) {
   if (!engine || fader < 0 || fader >= FADER_COUNT) return;
+  pthread_mutex_lock(&engine->state_mutex);
   engine->desired_fader_volumes[fader] = (double)db;
+  engine->unsaved_state_changes = true;
+  pthread_mutex_unlock(&engine->state_mutex);
+
   if (engine->core && engine->core->processing_params) {
     processing_parameters_set_target_volume_for_fader(
         engine->core->processing_params, (double)db, fader);
@@ -185,7 +220,11 @@ void dsp_engine_set_fader_volume(dsp_engine_t* engine, fader_t fader,
 
 void dsp_engine_set_fader_mute(dsp_engine_t* engine, fader_t fader, bool mute) {
   if (!engine || fader < 0 || fader >= FADER_COUNT) return;
+  pthread_mutex_lock(&engine->state_mutex);
   engine->desired_fader_mutes[fader] = mute;
+  engine->unsaved_state_changes = true;
+  pthread_mutex_unlock(&engine->state_mutex);
+
   if (engine->core && engine->core->processing_params) {
     processing_parameters_set_muted_for_fader(engine->core->processing_params,
                                               mute, fader);
@@ -194,12 +233,18 @@ void dsp_engine_set_fader_mute(dsp_engine_t* engine, fader_t fader, bool mute) {
 
 float dsp_engine_get_fader_volume(const dsp_engine_t* engine, fader_t fader) {
   if (!engine || fader < 0 || fader >= FADER_COUNT) return 0.0f;
-  return (float)engine->desired_fader_volumes[fader];
+  pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
+  float db = (float)engine->desired_fader_volumes[fader];
+  pthread_mutex_unlock((pthread_mutex_t*)&engine->state_mutex);
+  return db;
 }
 
 bool dsp_engine_is_fader_muted(const dsp_engine_t* engine, fader_t fader) {
   if (!engine || fader < 0 || fader >= FADER_COUNT) return false;
-  return engine->desired_fader_mutes[fader];
+  pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
+  bool mute = engine->desired_fader_mutes[fader];
+  pthread_mutex_unlock((pthread_mutex_t*)&engine->state_mutex);
+  return mute;
 }
 
 state_update_t dsp_engine_get_status(const dsp_engine_t* engine) {
@@ -520,6 +565,27 @@ static bool iface_get_processing_parameters(void* ctx, void** out_params) {
 }
 static bool iface_get_active_config_json(void* ctx, char** out_json) {
   if (!ctx || !out_json) return false;
+  dsp_engine_t* engine = (dsp_engine_t*)ctx;
+  pthread_mutex_lock(&engine->state_mutex);
+  if (engine->active_config_json) {
+    *out_json = strdup(engine->active_config_json);
+    pthread_mutex_unlock(&engine->state_mutex);
+    return true;
+  }
+  pthread_mutex_unlock(&engine->state_mutex);
+  *out_json = NULL;
+  return false;
+}
+static bool iface_get_previous_config_json(void* ctx, char** out_json) {
+  if (!ctx || !out_json) return false;
+  dsp_engine_t* engine = (dsp_engine_t*)ctx;
+  pthread_mutex_lock(&engine->state_mutex);
+  if (engine->previous_config_json) {
+    *out_json = strdup(engine->previous_config_json);
+    pthread_mutex_unlock(&engine->state_mutex);
+    return true;
+  }
+  pthread_mutex_unlock(&engine->state_mutex);
   *out_json = NULL;
   return false;
 }
@@ -586,6 +652,131 @@ static void iface_set_fader_mute(void* ctx, fader_t fader, bool mute) {
   if (ctx) dsp_engine_set_fader_mute((dsp_engine_t*)ctx, fader, mute);
 }
 
+static const char* iface_get_state_file(void* ctx) {
+  return ctx ? dsp_engine_get_state_file((dsp_engine_t*)ctx) : NULL;
+}
+static bool iface_is_state_dirty(void* ctx) {
+  return ctx ? dsp_engine_is_state_dirty((dsp_engine_t*)ctx) : false;
+}
+static char* iface_get_config_path(void* ctx) {
+  return ctx ? dsp_engine_get_config_path((dsp_engine_t*)ctx) : NULL;
+}
+static void iface_set_config_path(void* ctx, const char* path) {
+  if (ctx) dsp_engine_set_config_path((dsp_engine_t*)ctx, path);
+}
+
+static bool dsp_engine_check_stop_requested(dsp_engine_t* engine, processing_stop_reason_t* out_reason) {
+  if (!engine || !engine->core || !engine->core->shared) return false;
+  bool req = atomic_load_explicit(&engine->core->shared->should_stop, memory_order_acquire);
+  if (req && out_reason) {
+    *out_reason = engine->core->shared->stop_reason;
+  }
+  return req;
+}
+
+void dsp_engine_set_state_file(dsp_engine_t* engine, const char* path) {
+  if (!engine) return;
+  pthread_mutex_lock(&engine->state_mutex);
+  if (path && path[0]) {
+    strncpy(engine->state_file_path, path, sizeof(engine->state_file_path) - 1);
+    engine->has_state_file_path = true;
+  } else {
+    engine->state_file_path[0] = '\0';
+    engine->has_state_file_path = false;
+  }
+  pthread_mutex_unlock(&engine->state_mutex);
+}
+
+static const char* dsp_engine_get_state_file(const dsp_engine_t* engine) {
+  if (!engine) return NULL;
+  pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
+  const char* path = engine->has_state_file_path ? engine->state_file_path : NULL;
+  pthread_mutex_unlock((pthread_mutex_t*)&engine->state_mutex);
+  return path;
+}
+
+static bool dsp_engine_is_state_dirty(const dsp_engine_t* engine) {
+  if (!engine) return false;
+  pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
+  bool dirty = engine->unsaved_state_changes;
+  pthread_mutex_unlock((pthread_mutex_t*)&engine->state_mutex);
+  return dirty;
+}
+
+static void dsp_engine_set_state_dirty(dsp_engine_t* engine, bool dirty) {
+  if (!engine) return;
+  pthread_mutex_lock(&engine->state_mutex);
+  engine->unsaved_state_changes = dirty;
+  pthread_mutex_unlock(&engine->state_mutex);
+}
+
+void dsp_engine_set_config_path(dsp_engine_t* engine, const char* path) {
+  if (!engine) return;
+  pthread_mutex_lock(&engine->state_mutex);
+  if (path && path[0]) {
+    strncpy(engine->active_config_path, path, sizeof(engine->active_config_path) - 1);
+    engine->has_active_config_path = true;
+  } else {
+    engine->active_config_path[0] = '\0';
+    engine->has_active_config_path = false;
+  }
+  engine->unsaved_state_changes = true;
+  pthread_mutex_unlock(&engine->state_mutex);
+}
+
+static char* dsp_engine_get_config_path(const dsp_engine_t* engine) {
+  if (!engine) return NULL;
+  pthread_mutex_lock((pthread_mutex_t*)&engine->state_mutex);
+  char* path = NULL;
+  if (engine->has_active_config_path) {
+    path = strdup(engine->active_config_path);
+  }
+  pthread_mutex_unlock((pthread_mutex_t*)&engine->state_mutex);
+  return path;
+}
+
+void dsp_engine_poll(dsp_engine_t* engine) {
+  if (!engine) return;
+
+  // 1. Process stop request from loop threads
+  processing_stop_reason_t stop_reason;
+  if (dsp_engine_check_stop_requested(engine, &stop_reason)) {
+    dsp_engine_stop(engine);
+  }
+
+  // 2. Save state file if dirty
+  pthread_mutex_lock(&engine->state_mutex);
+  bool dirty = engine->unsaved_state_changes;
+  bool has_state = engine->has_state_file_path;
+  pthread_mutex_unlock(&engine->state_mutex);
+
+  if (has_state && dirty) {
+    dsp_state_t state_to_save;
+    memset(&state_to_save, 0, sizeof(state_to_save));
+
+    char* current_path = dsp_engine_get_config_path(engine);
+    if (current_path) {
+      if (current_path[0]) {
+        strncpy(state_to_save.config_path, current_path,
+                sizeof(state_to_save.config_path) - 1);
+        state_to_save.has_config_path = true;
+      }
+      free(current_path);
+    }
+
+    for (int i = 0; i < FADER_COUNT; i++) {
+      state_to_save.volume[i] =
+          dsp_engine_get_fader_volume(engine, (fader_t)i);
+      state_to_save.mute[i] = dsp_engine_is_fader_muted(engine, (fader_t)i);
+    }
+
+    const char* s_path = dsp_engine_get_state_file(engine);
+    if (s_path && dsp_state_save(s_path, &state_to_save)) {
+      dsp_engine_set_state_dirty(engine, false);
+    }
+  }
+}
+
 dsp_engine_interface_t* dsp_engine_get_interface(dsp_engine_t* engine) {
   if (!engine) return NULL;
   static dsp_engine_interface_t iface;
@@ -593,6 +784,7 @@ dsp_engine_interface_t* dsp_engine_get_interface(dsp_engine_t* engine) {
   iface.get_status = iface_get_status;
   iface.get_processing_parameters = iface_get_processing_parameters;
   iface.get_active_config_json = iface_get_active_config_json;
+  iface.get_previous_config_json = iface_get_previous_config_json;
   iface.get_active_config = iface_get_active_config;
   iface.get_vu_levels = iface_get_vu_levels;
   iface.get_available_devices = iface_get_available_devices;
@@ -602,5 +794,9 @@ dsp_engine_interface_t* dsp_engine_get_interface(dsp_engine_t* engine) {
   iface.stop = iface_stop;
   iface.set_fader_volume = iface_set_fader_volume;
   iface.set_fader_mute = iface_set_fader_mute;
+  iface.get_state_file = iface_get_state_file;
+  iface.is_state_dirty = iface_is_state_dirty;
+  iface.get_config_path = iface_get_config_path;
+  iface.set_config_path = iface_set_config_path;
   return &iface;
 }

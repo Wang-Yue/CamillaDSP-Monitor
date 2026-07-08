@@ -6,7 +6,7 @@ import Testing
 @Suite struct WebSocketServerTests {
   @Test func TestWebSocketCommands() async throws {
     let engine = SwiftDSPEngine()
-    let server = WebSocketServer(port: 54321, host: "127.0.0.1", activePath: ActiveConfigPath())
+    let server = WebSocketServer(port: 54321, host: "127.0.0.1")
     server.setEngine(engine)
 
     try server.start()

@@ -40,8 +40,7 @@ engine_capture_loop_t* engine_capture_loop_create(
     capture_backend_t* capture, playback_backend_t* playback,
     processing_parameters_t* processing_params, dop_decoder_t* dop_decoder,
     size_t chunk_size, size_t channels, size_t samplerate,
-    double silence_threshold_db, double silence_timeout_seconds,
-    engine_stop_callback_t on_stop, void* on_stop_ctx) {
+    double silence_threshold_db, double silence_timeout_seconds) {
   engine_capture_loop_t* loop =
       (engine_capture_loop_t*)calloc(1, sizeof(engine_capture_loop_t));
   if (!loop) return NULL;
@@ -55,8 +54,6 @@ engine_capture_loop_t* engine_capture_loop_create(
   loop->chunk_size = chunk_size;
   loop->channels = channels;
   loop->samplerate = samplerate;
-  loop->on_stop = on_stop;
-  loop->on_stop_ctx = on_stop_ctx;
 
   silence_counter_init(&loop->silence_counter, silence_threshold_db,
                        silence_timeout_seconds, samplerate, chunk_size);
@@ -104,7 +101,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
         processing_stop_reason_t reason = {
             .type = STOP_REASON_CAPTURE_FORMAT_CHANGE,
             .format_change_rate = (int)(rate + 0.5)};
-        if (loop->on_stop) loop->on_stop(loop->on_stop_ctx, reason);
+        engine_shared_state_request_stop(loop->shared, reason);
         break;
       }
     }
@@ -120,7 +117,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
         processing_stop_reason_t reason = {
             .type = STOP_REASON_PLAYBACK_FORMAT_CHANGE,
             .format_change_rate = (int)(rate + 0.5)};
-        if (loop->on_stop) loop->on_stop(loop->on_stop_ctx, reason);
+        engine_shared_state_request_stop(loop->shared, reason);
         break;
       }
     }
@@ -140,7 +137,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
                      log_arg_none(), log_arg_none());
         processing_stop_reason_t reason = {.type = STOP_REASON_CAPTURE_ERROR};
         snprintf(reason.message, sizeof(reason.message), "%s", err.message);
-        if (loop->on_stop) loop->on_stop(loop->on_stop_ctx, reason);
+        engine_shared_state_request_stop(loop->shared, reason);
         break;
       }
       if (atomic_load_explicit(&loop->shared->should_stop,

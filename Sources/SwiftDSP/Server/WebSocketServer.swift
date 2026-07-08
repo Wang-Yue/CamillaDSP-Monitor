@@ -165,7 +165,6 @@ public final class WebSocketServer: Sendable {
   private let logger = Logger(label: "dsp.websocket")
   private let port: UInt16
   private let host: String
-  private let activePath: ActiveConfigPath
 
   // Connection management state protected by a lock
   private let stateLock = OSAllocatedUnfairLock(initialState: State())
@@ -216,12 +215,6 @@ public final class WebSocketServer: Sendable {
     var listener: NWListener?
     var connections: [NWConnection] = []
     var subscriptions: [ObjectIdentifier: ConnectionSubscription] = [:]
-    var stateFilePath: String?
-    var previousConfig: String?
-    var unsavedStateChanges: Bool = false
-    var activeConfig: DSPConfiguration?
-    var activeConfigTitle: String?
-    var activeConfigDescription: String?
     var engine: SwiftDSPEngine?
     var broadcastTask: Task<Void, Never>?
 
@@ -237,37 +230,15 @@ public final class WebSocketServer: Sendable {
   }
 
   public init(
-    port: UInt16, host: String = "127.0.0.1", activePath: ActiveConfigPath,
-    stateFilePath: String? = nil
+    port: UInt16, host: String = "127.0.0.1"
   ) {
     self.port = port
     self.host = host
-    self.activePath = activePath
-    stateLock.withLock { state in
-      state.stateFilePath = stateFilePath
-    }
-  }
-
-  public func clearUnsavedStateChanges() {
-    stateLock.withLock { state in
-      state.unsavedStateChanges = false
-    }
   }
 
   public func setEngine(_ engine: SwiftDSPEngine) {
     stateLock.withLock { state in
       state.engine = engine
-    }
-    // Fetch initial active configuration asynchronously
-    Task {
-      let config = await engine.getActiveConfig()
-      stateLock.withLock { state in
-        state.activeConfig = config
-        if let config = config, let dict = try? jsonFromConfig(config) {
-          state.activeConfigTitle = dict["title"] as? String
-          state.activeConfigDescription = dict["description"] as? String
-        }
-      }
     }
   }
 
@@ -690,8 +661,7 @@ public final class WebSocketServer: Sendable {
         return jsonReply("ToggleMute", result: .processingNotRunningError)
       }
       let wasMuted = params.isMuted(for: .main)
-      params.setMuted(!wasMuted, for: .main)
-      stateLock.withLock { $0.unsavedStateChanges = true }
+      await engine?.setFaderMute(.main, !wasMuted)
       return jsonReply("ToggleMute", result: .ok, value: "\(!wasMuted)")
 
     case "GetFaders":
@@ -738,7 +708,7 @@ public final class WebSocketServer: Sendable {
       guard let status = await engine?.getStatus(), status.state == .running else {
         return jsonReply("GetCaptureRate", result: .ok, value: "0")
       }
-      let config = stateLock.withLock { $0.activeConfig }
+      let config = await engine?.getActiveConfigStruct()
       return jsonReply("GetCaptureRate", result: .ok, value: "\(config?.devices.samplerate ?? 0)")
 
     case "GetRateAdjust":
@@ -782,64 +752,64 @@ public final class WebSocketServer: Sendable {
         "GetSupportedDeviceTypes", result: .ok, value: "[[\"CoreAudio\"],[\"CoreAudio\"]]")
 
     case "GetConfigFilePath":
-      let path = activePath.value
+      let path = await engine?.getActiveConfigPath()
       return jsonReply(
         "GetConfigFilePath", result: .ok, value: path.map { "\"\($0)\"" } ?? "null")
 
     case "GetPreviousConfig":
-      let prev = stateLock.withLock { $0.previousConfig }
-      return jsonReply("GetPreviousConfig", result: .ok, value: prev.map { "\"\($0)\"" } ?? "null")
+      let prev = await engine?.getPreviousConfigJson()
+      return jsonReply("GetPreviousConfig", result: .ok, value: prev ?? "null")
 
     case "GetStateFilePath":
-      let path = stateLock.withLock { $0.stateFilePath }
+      let path = await engine?.getStateFilePath()
       return jsonReply("GetStateFilePath", result: .ok, value: path.map { "\"\($0)\"" } ?? "null")
 
     case "GetStateFileUpdated":
-      let unsaved = stateLock.withLock { $0.unsavedStateChanges }
+      let unsaved = await engine?.isStateDirty() ?? false
       return jsonReply("GetStateFileUpdated", result: .ok, value: "\(!unsaved)")
 
     case "GetConfig":
-      guard let active = stateLock.withLock({ $0.activeConfig }) else {
+      guard let jsonStr = await engine?.getActiveConfigJson() else {
         return jsonReply(
           "GetConfig", result: .invalidRequestError("No active config"),
           value: "\"No active config\"")
       }
-      do {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        let data = try encoder.encode(active)
-        let jsonStr = String(data: data, encoding: .utf8) ?? "{}"
-        return jsonReply("GetConfig", result: .ok, value: jsonStr)
-      } catch {
-        return jsonReply("GetConfig", result: .configReadError(error.localizedDescription))
-      }
+      return jsonReply("GetConfig", result: .ok, value: jsonStr)
 
     case "GetConfigJson":
-      guard let active = stateLock.withLock({ $0.activeConfig }) else {
+      guard let jsonStr = await engine?.getActiveConfigJson() else {
         return jsonReply(
           "GetConfigJson", result: .invalidRequestError("No active config"),
           value: "\"No active config\"")
       }
-      do {
-        let data = try JSONEncoder().encode(active)
-        let jsonStr = String(data: data, encoding: .utf8) ?? "{}"
-        return jsonReply("GetConfigJson", result: .ok, value: jsonStr)
-      } catch {
-        return jsonReply("GetConfigJson", result: .configReadError(error.localizedDescription))
-      }
+      return jsonReply("GetConfigJson", result: .ok, value: jsonStr)
 
     case "GetConfigTitle":
-      let title = stateLock.withLock { $0.activeConfigTitle }
-      return jsonReply(
-        "GetConfigTitle", result: .ok, value: title.map { "\"\($0)\"" } ?? "null")
+      guard let json = await engine?.getActiveConfigJson() else {
+        return jsonReply("GetConfigTitle", result: .ok, value: "null")
+      }
+      if let data = json.data(using: .utf8),
+        let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let title = dict["title"] as? String
+      {
+        return jsonReply("GetConfigTitle", result: .ok, value: "\"\(title)\"")
+      }
+      return jsonReply("GetConfigTitle", result: .ok, value: "null")
 
     case "GetConfigDescription":
-      let desc = stateLock.withLock { $0.activeConfigDescription }
-      return jsonReply(
-        "GetConfigDescription", result: .ok, value: desc.map { "\"\($0)\"" } ?? "null")
+      guard let json = await engine?.getActiveConfigJson() else {
+        return jsonReply("GetConfigDescription", result: .ok, value: "null")
+      }
+      if let data = json.data(using: .utf8),
+        let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let desc = dict["description"] as? String
+      {
+        return jsonReply("GetConfigDescription", result: .ok, value: "\"\(desc)\"")
+      }
+      return jsonReply("GetConfigDescription", result: .ok, value: "null")
 
     case "Reload":
-      guard let path = activePath.value else {
+      guard let path = await engine?.getActiveConfigPath() else {
         return jsonReply(
           "Reload", result: .invalidRequestError("No config file path set"),
           value: "\"No config file path set\"")
@@ -996,7 +966,7 @@ public final class WebSocketServer: Sendable {
       return jsonReply("ResetSignalPeaksSinceStart", result: .ok)
 
     case "GetChannelLabels":
-      let active = stateLock.withLock { $0.activeConfig }
+      let active = await engine?.getActiveConfigStruct()
       let pLabels = active?.devices.playback.channelLabels ?? []
       let cLabels = active?.devices.capture.channelLabels ?? []
       let pStr =
@@ -1031,23 +1001,6 @@ public final class WebSocketServer: Sendable {
       let data = try Data(contentsOf: url)
       let jsonStr = String(data: data, encoding: .utf8) ?? ""
       try await stateLock.withLock { $0.engine }?.setConfig(json: jsonStr)
-      let parsed = try JSONDecoder().decode(DSPConfiguration.self, from: data)
-      stateLock.withLock { state in
-        if let current = state.activeConfig,
-          let currentData = try? JSONEncoder().encode(current)
-        {
-          state.previousConfig = String(data: currentData, encoding: .utf8)
-        }
-        state.activeConfig = parsed
-        if let dict = try? jsonFromConfig(parsed) {
-          state.activeConfigTitle = dict["title"] as? String
-          state.activeConfigDescription = dict["description"] as? String
-        } else {
-          state.activeConfigTitle = nil
-          state.activeConfigDescription = nil
-        }
-        state.unsavedStateChanges = false
-      }
       return jsonReply("Reload", result: .ok)
     } catch {
       return jsonReply("Reload", result: .configReadError(error.localizedDescription))
@@ -1070,7 +1023,6 @@ public final class WebSocketServer: Sendable {
       }
       let clamped = min(50.0, max(-150.0, volume))
       await engine?.setFaderVolume(.main, Float(clamped))
-      stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetVolume", result: .ok)
     }
 
@@ -1079,36 +1031,17 @@ public final class WebSocketServer: Sendable {
         return jsonReply("SetMute", result: .processingNotRunningError)
       }
       await engine?.setFaderMute(.main, mute)
-      stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetMute", result: .ok)
     }
 
     if let path = json["SetConfigFilePath"] as? String {
-      activePath.value = path
+      await engine?.setActiveConfigPath(path)
       return jsonReply("SetConfigFilePath", result: .ok)
     }
 
     if let configJson = json["SetConfigJson"] as? String {
       do {
         try await engine?.setConfig(json: configJson)
-        let parsed = try JSONDecoder().decode(
-          DSPConfiguration.self, from: configJson.data(using: .utf8)!)
-        stateLock.withLock { state in
-          if let current = state.activeConfig,
-            let currentData = try? JSONEncoder().encode(current)
-          {
-            state.previousConfig = String(data: currentData, encoding: .utf8)
-          }
-          state.activeConfig = parsed
-          if let dict = try? jsonFromConfig(parsed) {
-            state.activeConfigTitle = dict["title"] as? String
-            state.activeConfigDescription = dict["description"] as? String
-          } else {
-            state.activeConfigTitle = nil
-            state.activeConfigDescription = nil
-          }
-          state.unsavedStateChanges = false
-        }
         return jsonReply("SetConfigJson", result: .ok)
       } catch {
         return jsonReply(
@@ -1117,7 +1050,7 @@ public final class WebSocketServer: Sendable {
     }
 
     if let pointer = json["GetConfigValue"] as? String {
-      guard let active = stateLock.withLock({ $0.activeConfig }) else {
+      guard let active = await engine?.getActiveConfigStruct() else {
         return jsonReply(
           "GetConfigValue", result: .invalidRequestError("No active config"),
           value: "\"No active config\"")
@@ -1144,7 +1077,7 @@ public final class WebSocketServer: Sendable {
         ?? (patchValue.keys.first.flatMap { $0 != "value" ? $0 : nil }),
       let newValue = patchValue["value"] ?? patchValue[pointer]
     {
-      guard var config = stateLock.withLock({ $0.activeConfig }) else {
+      guard var config = await engine?.getActiveConfigStruct() else {
         return jsonReply(
           "SetConfigValue", result: .invalidRequestError("No active config to modify"),
           value: "\"No active config to modify\"")
@@ -1156,14 +1089,6 @@ public final class WebSocketServer: Sendable {
           config = try JSONDecoder().decode(DSPConfiguration.self, from: data)
           let configStr = String(data: data, encoding: .utf8) ?? ""
           try await engine?.setConfig(json: configStr)
-          let finalConfig = config
-          stateLock.withLock { state in
-            state.activeConfig = finalConfig
-            if let dict = try? jsonFromConfig(finalConfig) {
-              state.activeConfigTitle = dict["title"] as? String
-              state.activeConfigDescription = dict["description"] as? String
-            }
-          }
           return jsonReply("SetConfigValue", result: .ok)
         } else {
           return jsonReply(
@@ -1177,7 +1102,7 @@ public final class WebSocketServer: Sendable {
     }
 
     if let patchData = json["PatchConfig"] {
-      guard var config = stateLock.withLock({ $0.activeConfig }) else {
+      guard var config = await engine?.getActiveConfigStruct() else {
         return jsonReply(
           "PatchConfig", result: .invalidRequestError("No active config to patch"),
           value: "\"No active config to patch\"")
@@ -1191,14 +1116,6 @@ public final class WebSocketServer: Sendable {
         config = try JSONDecoder().decode(DSPConfiguration.self, from: data)
         let configStr = String(data: data, encoding: .utf8) ?? ""
         try await engine?.setConfig(json: configStr)
-        let finalConfig = config
-        stateLock.withLock { state in
-          state.activeConfig = finalConfig
-          if let dict = try? jsonFromConfig(finalConfig) {
-            state.activeConfigTitle = dict["title"] as? String
-            state.activeConfigDescription = dict["description"] as? String
-          }
-        }
         return jsonReply("PatchConfig", result: .ok)
       } catch {
         return jsonReply(
@@ -1230,7 +1147,6 @@ public final class WebSocketServer: Sendable {
       }
       let clamped = min(50.0, max(-150.0, vol))
       await engine?.setFaderVolume(fader, Float(clamped))
-      stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetFaderVolume", result: .ok)
     }
 
@@ -1245,7 +1161,6 @@ public final class WebSocketServer: Sendable {
       }
       let clamped = min(50.0, max(-150.0, vol))
       await engine?.setFaderVolume(fader, Float(clamped), instant: true)
-      stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetFaderExternalVolume", result: .ok)
     }
 
@@ -1272,7 +1187,6 @@ public final class WebSocketServer: Sendable {
         return jsonReply("SetFaderMute", result: .invalidFaderError)
       }
       await engine?.setFaderMute(fader, mute)
-      stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("SetFaderMute", result: .ok)
     }
 
@@ -1287,7 +1201,6 @@ public final class WebSocketServer: Sendable {
       }
       let wasMuted = params.isMuted(for: fader)
       await engine?.setFaderMute(fader, !wasMuted)
-      stateLock.withLock { $0.unsavedStateChanges = true }
       return jsonReply("ToggleFaderMute", result: .ok, value: "[\(idx),\(!wasMuted)]")
     }
 
@@ -1552,8 +1465,7 @@ public final class WebSocketServer: Sendable {
     }
     let current = params.targetVolume(for: fader)
     let newVol = min(maxVol, max(minVol, current + delta))
-    params.setTargetVolume(newVol, for: fader)
-    stateLock.withLock { $0.unsavedStateChanges = true }
+    await engine?.setFaderVolume(fader, Float(newVol))
     return jsonReply("AdjustVolume", result: .ok, value: "\(newVol)")
   }
 
@@ -1624,18 +1536,5 @@ public final class WebSocketServer: Sendable {
       return true
     }
     return false
-  }
-}
-
-public final class ActiveConfigPath: Sendable {
-  private let lock = OSAllocatedUnfairLock(initialState: String?.none)
-
-  public init(initialPath: String? = nil) {
-    self.lock.withLock { $0 = initialPath }
-  }
-
-  public var value: String? {
-    get { lock.withLock { $0 } }
-    set { lock.withLock { $0 = newValue } }
   }
 }

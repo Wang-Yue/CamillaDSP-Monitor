@@ -52,13 +52,6 @@ static void* playback_thread_func(void* arg) {
   return NULL;
 }
 
-static void core_on_stop_callback(void* ctx, processing_stop_reason_t reason) {
-  dsp_engine_core_t* core = (dsp_engine_core_t*)ctx;
-  if (core) {
-    dsp_engine_core_stop(core, reason);
-  }
-}
-
 // MARK: - Init
 
 dsp_engine_core_t* dsp_engine_core_create(dsp_config_t* config) {
@@ -317,15 +310,14 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
           : 0.0,
       core->current_config->devices.has_silence_timeout
           ? core->current_config->devices.silence_timeout
-          : 0.0,
-      core_on_stop_callback, core);
+          : 0.0);
 
   core->processing_loop = engine_processing_loop_create(
       core->shared, core->state_machine, core->processing_params, pipeline_rate,
       core->resampler, core->pipeline, core->dop_encoder,
       core->resampler_scratch, core->pipeline_scratch, core->on_chunk_captured,
       core->on_chunk_captured_ctx, core->on_chunk_processed,
-      core->on_chunk_processed_ctx, core_on_stop_callback, core);
+      core->on_chunk_processed_ctx);
 
   bool rate_adjust_enabled =
       core->current_config->devices.has_enable_rate_adjust
@@ -341,7 +333,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   core->playback_loop = engine_playback_loop_create(
       core->shared, core->capture, core->playback, core->processing_params,
       pipeline_rate, playback_chunk_size, rate_adjust_enabled, adjust_period,
-      target_level, core_on_stop_callback, core);
+      target_level);
 
   if (!core->capture_loop || !core->processing_loop || !core->playback_loop) {
     if (err) {

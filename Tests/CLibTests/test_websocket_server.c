@@ -85,6 +85,48 @@ static void mock_set_fader_mute(void* ctx, fader_t fader, bool mute) {
   }
 }
 
+static char* mock_active_config = NULL;
+static char* mock_prev_config = NULL;
+static char* mock_state_file_path = NULL;
+static char* mock_config_path = NULL;
+static bool mock_dirty = false;
+
+static const char* mock_get_state_file(void* ctx) {
+  (void)ctx;
+  return mock_state_file_path;
+}
+static bool mock_is_state_dirty(void* ctx) {
+  (void)ctx;
+  return mock_dirty;
+}
+static char* mock_get_config_path(void* ctx) {
+  (void)ctx;
+  return mock_config_path ? strdup(mock_config_path) : NULL;
+}
+static void mock_set_config_path(void* ctx, const char* path) {
+  (void)ctx;
+  if (mock_config_path) free(mock_config_path);
+  mock_config_path = path ? strdup(path) : NULL;
+}
+static bool mock_get_active_config_json(void* ctx, char** out_json) {
+  (void)ctx;
+  if (mock_active_config) {
+    *out_json = strdup(mock_active_config);
+    return true;
+  }
+  *out_json = NULL;
+  return false;
+}
+static bool mock_get_previous_config_json(void* ctx, char** out_json) {
+  (void)ctx;
+  if (mock_prev_config) {
+    *out_json = strdup(mock_prev_config);
+    return true;
+  }
+  *out_json = NULL;
+  return false;
+}
+
 static dsp_engine_interface_t mock_engine = {
     .ctx = NULL,
     .get_status = mock_get_status,
@@ -92,12 +134,17 @@ static dsp_engine_interface_t mock_engine = {
     .set_config_json = mock_set_config_json,
     .get_device_capabilities = mock_get_device_capabilities,
     .set_fader_volume = mock_set_fader_volume,
-    .set_fader_mute = mock_set_fader_mute};
+    .set_fader_mute = mock_set_fader_mute,
+    .get_state_file = mock_get_state_file,
+    .is_state_dirty = mock_is_state_dirty,
+    .get_config_path = mock_get_config_path,
+    .set_config_path = mock_set_config_path,
+    .get_active_config_json = mock_get_active_config_json,
+    .get_previous_config_json = mock_get_previous_config_json};
 
 TEST(test_websocket_commands) {
-  active_config_path_t* path = active_config_path_create(NULL);
   websocket_server_t* server =
-      websocket_server_create(54321, "127.0.0.1", path);
+      websocket_server_create(54321, "127.0.0.1");
   ASSERT_TRUE(server != NULL);
   websocket_server_set_engine(server, &mock_engine);
 
@@ -144,13 +191,12 @@ TEST(test_websocket_commands) {
   close(sock);
   websocket_server_stop(server);
   websocket_server_free(server);
-  active_config_path_free(path);
 }
 
 TEST(test_websocket_handle_command_direct) {
-  active_config_path_t* path = active_config_path_create("/tmp/config.json");
+  mock_config_path = strdup("/tmp/config.json");
   websocket_server_t* server =
-      websocket_server_create(54322, "127.0.0.1", path);
+      websocket_server_create(54322, "127.0.0.1");
   websocket_server_set_engine(server, &mock_engine);
 
   char resp[4096];
@@ -186,15 +232,15 @@ TEST(test_websocket_handle_command_direct) {
   ASSERT_DOUBLE_EQ(-6.0, current_vol);
 
   // Test GetChannelLabels
-  server->active_config_json = strdup(
+  mock_active_config = strdup(
       "{\"devices\":{\"playback\":{\"labels\":[\"Left\",\"Right\"]},\"capture\":{\"labels\":[\"Mic\"]}}}");
   websocket_server_handle_command(server, 0, "\"GetChannelLabels\"", resp, sizeof(resp));
   ASSERT_TRUE(strstr(resp, "\"GetChannelLabels\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"Ok\"") != NULL);
   ASSERT_TRUE(strstr(resp, "\"playback\":[\"Left\",\"Right\"]") != NULL);
   ASSERT_TRUE(strstr(resp, "\"capture\":[\"Mic\"]") != NULL);
-  free(server->active_config_json);
-  server->active_config_json = NULL;
+  free(mock_active_config);
+  mock_active_config = NULL;
 
   // Test SubscribeVuLevels (simple)
   websocket_server_handle_command(server, 0, "\"SubscribeVuLevels\"", resp, sizeof(resp));
@@ -220,7 +266,10 @@ TEST(test_websocket_handle_command_direct) {
   mock_params = NULL;
 
   websocket_server_free(server);
-  active_config_path_free(path);
+  if (mock_config_path) {
+    free(mock_config_path);
+    mock_config_path = NULL;
+  }
 }
 
 TEST(test_backend_error_description) {
@@ -232,9 +281,8 @@ TEST(test_backend_error_description) {
 }
 
 TEST(test_websocket_error_translation) {
-  active_config_path_t* path = active_config_path_create(NULL);
   websocket_server_t* server =
-      websocket_server_create(54323, "127.0.0.1", path);
+      websocket_server_create(54323, "127.0.0.1");
   websocket_server_set_engine(server, &mock_engine);
 
   char resp[4096];
@@ -297,7 +345,6 @@ TEST(test_websocket_error_translation) {
   simulate_cap_error = false;
 
   websocket_server_free(server);
-  active_config_path_free(path);
 }
 
 TEST_MAIN()

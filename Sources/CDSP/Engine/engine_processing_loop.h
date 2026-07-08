@@ -70,9 +70,6 @@ typedef struct {
   void* on_chunk_captured_ctx;
   chunk_callback_t on_chunk_processed;
   void* on_chunk_processed_ctx;
-
-  engine_stop_callback_t on_stop;
-  void* on_stop_ctx;
 } engine_processing_loop_t;
 
 engine_processing_loop_t* engine_processing_loop_create(
@@ -82,8 +79,7 @@ engine_processing_loop_t* engine_processing_loop_create(
     dop_encoder_t* dop_encoder, audio_chunk_t* resampler_scratch,
     audio_chunk_t* pipeline_scratch, chunk_callback_t on_chunk_captured,
     void* on_chunk_captured_ctx, chunk_callback_t on_chunk_processed,
-    void* on_chunk_processed_ctx, engine_stop_callback_t on_stop,
-    void* on_stop_ctx);
+    void* on_chunk_processed_ctx);
 
 void engine_processing_loop_free(engine_processing_loop_t* loop);
 void engine_processing_loop_run(engine_processing_loop_t* loop);

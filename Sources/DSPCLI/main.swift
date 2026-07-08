@@ -2,18 +2,6 @@ import DSPConfig
 import Foundation
 import SwiftDSP
 
-struct FaderState: Codable {
-  var volume: Float
-  var mute: Bool
-}
-
-struct StateFileContent: Codable {
-  var config_path: String?
-  var volume: Float
-  var mute: Bool
-  var faders: [FaderState]
-}
-
 struct DSPCLI {
   nonisolated(unsafe) static var server: WebSocketServer?
 
@@ -312,50 +300,22 @@ struct DSPCLI {
       }
     }
 
-    let activeConfigPath = ActiveConfigPath(initialPath: configPath)
+    if let sPath = stateFilePath {
+      await engine.setStateFilePath(sPath)
+    }
+    if let cPath = configPath {
+      await engine.setActiveConfigPath(cPath)
+    }
 
     if let p = port {
       let s = WebSocketServer(
         port: p,
-        host: bindAddress,
-        activePath: activeConfigPath,
-        stateFilePath: stateFilePath
+        host: bindAddress
       )
       s.setEngine(engine)
       DSPCLI.server = s
     } else {
       DSPCLI.server = nil
-    }
-
-    // Start state saver task loop
-    if let sPath = stateFilePath {
-      Task {
-        while true {
-          try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1s
-          if let params = await engine.getProcessingParameters() {
-            var fadersList: [FaderState] = []
-            for f in [Fader.aux1, .aux2, .aux3, .aux4] {
-              fadersList.append(
-                FaderState(
-                  volume: Float(params.targetVolume(for: f)),
-                  mute: params.isMuted(for: f)
-                ))
-            }
-            let activePath = activeConfigPath.value
-            let content = StateFileContent(
-              config_path: activePath,
-              volume: Float(params.targetVolume(for: .main)),
-              mute: params.isMuted(for: .main),
-              faders: fadersList
-            )
-            if let data = try? JSONEncoder().encode(content) {
-              if (try? data.write(to: URL(fileURLWithPath: sPath))) != nil {
-                DSPCLI.server?.clearUnsavedStateChanges()
-              }
-            }
-          }
-        }
-      }
     }
 
     // Start WebSocket server

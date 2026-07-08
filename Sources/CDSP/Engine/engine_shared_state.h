@@ -93,6 +93,7 @@ static inline void engine_sem_wait(engine_semaphore_t sem) {
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "Config/engine_config_types.h"
 
 /// Genuinely `Sendable` — every stored field is itself `Sendable`
 /// (the SPSC queues, the kernel `DispatchSemaphore`s, and the
@@ -121,6 +122,12 @@ typedef struct {
   /// Each loop polls between iterations and exits when set.
   _Atomic bool should_stop;
 
+  /// Guard flag to ensure stop_reason is only written once (no write-write race).
+  _Atomic bool stop_reason_written;
+
+  /// Stop reason explaining why the loop stopped (e.g. format change).
+  processing_stop_reason_t stop_reason;
+
   /// Resampler relative-ratio (≈ 1.0). Published by the playback
   /// thread (rate-adjust controller); consumed by the processing
   /// thread once per chunk via `setRelativeRatio`.
@@ -131,5 +138,8 @@ typedef struct {
 engine_shared_state_t* engine_shared_state_create(size_t captured_queue_depth,
                                                   size_t processed_queue_depth);
 void engine_shared_state_free(engine_shared_state_t* state);
+
+void engine_shared_state_request_stop(engine_shared_state_t* state,
+                                      processing_stop_reason_t reason);
 
 #endif  // CLIB_ENGINE_ENGINE_SHARED_STATE_H
