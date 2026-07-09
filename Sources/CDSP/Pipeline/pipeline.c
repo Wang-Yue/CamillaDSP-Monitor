@@ -621,7 +621,7 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
       case EXEC_STEP_PARALLEL_FILTERS: {
         if (step->bypassed) continue;
         bool use_multithreading = false;
-#if HAS_DISPATCH
+#if HAS_DISPATCH || defined(USE_OPENMP)
         if (pipeline->multithreaded && step->chains_count > 1) {
           use_multithreading = true;
         }
@@ -632,6 +632,20 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
           dispatch_ctx_t dctx = {current_chunk, valid_frames, step->chains};
           dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0);
           dispatch_apply_f(step->chains_count, queue, &dctx, parallel_filter_worker);
+#elif defined(USE_OPENMP)
+          #pragma omp parallel for num_threads(step->chains_count)
+          for (size_t idx = 0; idx < step->chains_count; idx++) {
+            parallel_filter_chain_t* chain = &step->chains[idx];
+            if (chain->bypassed) continue;
+            if ((size_t)chain->channel >= audio_chunk_get_channels(current_chunk)) continue;
+            mutable_waveform_t buf = audio_chunk_get_channel(current_chunk, chain->channel);
+            if (!buf) continue;
+            for (size_t j = 0; j < chain->filters_count; j++) {
+              if (chain->filters[j] && valid_frames > 0) {
+                filter_process(chain->filters[j], buf, valid_frames);
+              }
+            }
+          }
 #endif
         } else {
           for (size_t idx = 0; idx < step->chains_count; idx++) {

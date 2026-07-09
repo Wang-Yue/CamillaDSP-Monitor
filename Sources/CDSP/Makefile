@@ -19,6 +19,7 @@ ifeq ($(UNAME_S),Darwin)
     ENABLE_BLAS ?= 0
     ENABLE_WASAPI ?= 0
     ENABLE_ASIO ?= 0
+    ENABLE_OPENMP ?= 0
 else
     # Linux (Default)
     ENABLE_COREAUDIO ?= 0
@@ -32,6 +33,7 @@ else
     ENABLE_BLAS ?= 1
     ENABLE_WASAPI ?= 0
     ENABLE_ASIO ?= 0
+    ENABLE_OPENMP ?= 1
 endif
 
 # Map Flags to CFLAGS preprocessor definitions
@@ -77,6 +79,14 @@ ifeq ($(UNAME_S),Darwin)
 else
     # Linux
     CFLAGS += -march=native -D_GNU_SOURCE
+    ifeq ($(USE_LIBDISPATCH),1)
+        CFLAGS += -DUSE_LIBDISPATCH -I/usr/libexec/swift/lib/swift
+        LDFLAGS += -L/usr/libexec/swift/lib/swift/linux -ldispatch -lBlocksRuntime -Wl,-rpath,/usr/libexec/swift/lib/swift/linux
+    else
+        ifeq ($(ENABLE_OPENMP),1)
+            CFLAGS += -fopenmp -DUSE_OPENMP
+        endif
+    endif
     ifeq ($(ENABLE_ALSA),1)
         LDFLAGS += -lasound
     endif
@@ -94,6 +104,11 @@ else
         LDFLAGS += -lopenblas
     endif
     LDFLAGS += -lrt
+    ifneq ($(USE_LIBDISPATCH),1)
+        ifeq ($(ENABLE_OPENMP),1)
+            LDFLAGS += -fopenmp
+        endif
+    endif
     ifeq ($(ENABLE_JACK),1)
         CFLAGS += -DENABLE_JACK
         LDFLAGS += -ljack
