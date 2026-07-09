@@ -36,7 +36,7 @@ import Testing
 @testable import DSPConfig
 @testable import SwiftDSP
 
-@Suite struct ResamplerComparisonMatrix {
+@Suite(.serialized) struct ResamplerComparisonMatrix {
 
   // MARK: - Configuration
 

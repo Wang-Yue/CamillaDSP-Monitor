@@ -23,7 +23,7 @@
 
 #define CHUNK_SIZE 1024
 #define SAMPLE_RATE 48000
-#define ITERS 2000
+#define ITERS 200
 
 static const double pre_bq_freqs[] = {
   120.0, 220.0, 350.0, 500.0, 700.0, 900.0, 1200.0, 1600.0,
@@ -418,27 +418,27 @@ TEST(Pipeline_Biquads_Conv_Benchmark) {
     pipeline_process(pipeline_multi, input, output);
   }
 
-  // Benchmark Single (100 iterations like Swift)
+  // Benchmark Single (10 per user request)
   struct timespec start_single, end_single;
   clock_gettime(CLOCK_MONOTONIC, &start_single);
-  for (int i = 0; i < 100; i++) {
+  for (int i = 0; i < 10; i++) {
     pipeline_process(pipeline_single, input, output);
   }
   clock_gettime(CLOCK_MONOTONIC, &end_single);
   double single_ns = (double)(end_single.tv_sec - start_single.tv_sec) * 1e9 +
                       (double)(end_single.tv_nsec - start_single.tv_nsec);
-  double c_single_ms = single_ns / 100.0 / 1e6;
+  double c_single_ms = single_ns / 10.0 / 1e6;
 
-  // Benchmark Multi (100 iterations like Swift)
+  // Benchmark Multi (10 per user request)
   struct timespec start_multi, end_multi;
   clock_gettime(CLOCK_MONOTONIC, &start_multi);
-  for (int i = 0; i < 100; i++) {
+  for (int i = 0; i < 10; i++) {
     pipeline_process(pipeline_multi, input, output);
   }
   clock_gettime(CLOCK_MONOTONIC, &end_multi);
   double multi_ns = (double)(end_multi.tv_sec - start_multi.tv_sec) * 1e9 +
                      (double)(end_multi.tv_nsec - start_multi.tv_nsec);
-  double c_multi_ms = multi_ns / 100.0 / 1e6;
+  double c_multi_ms = multi_ns / 10.0 / 1e6;
 
   // Load Swift and Rust results
   double rust_single = NAN, rust_multi = NAN;

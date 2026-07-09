@@ -102,7 +102,7 @@ import Testing
       label: "Upstream Match: 4-in 2-out Biquad Pipeline (96 EQ evaluations)",
       inputChannels: 4,
       outputChannels: 2,
-      iters: 2000,
+      iters: 200,
       rustVariantSingle: "biquad_single",
       rustVariantMulti: "biquad_multi"
     )
@@ -181,7 +181,7 @@ import Testing
       label: "Upstream Match: 4-in 2-out Biquad + Convolution Pipeline (96 EQ + 12 long convolve)",
       inputChannels: 4,
       outputChannels: 2,
-      iters: 100,
+      iters: 10,
       rustVariantSingle: "biquad_conv_single",
       rustVariantMulti: "biquad_conv_multi"
     )
@@ -296,7 +296,7 @@ import Testing
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     proc.currentDirectoryURL = rustDir
-    proc.arguments = ["cargo", "bench", "--bench", "pipeline"]
+    proc.arguments = ["cargo", "bench", "--bench", "pipeline", "--", "--sample-size", "10", "--warm-up-time", "0.3", "--measurement-time", "0.5"]
 
     let pipe = Pipe()
     proc.standardOutput = pipe

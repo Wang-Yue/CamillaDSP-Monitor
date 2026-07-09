@@ -168,7 +168,7 @@ $(ROOT_DIR)/Tests/CLibTests/bin/test_%: $(ROOT_DIR)/Tests/CLibTests/test_%.c $(L
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $< $(LIB_TARGET) $(LDFLAGS) -o $@
 
-BENCH_NAMES := test_filter_benchmark test_dop_benchmark test_resampler_matrix test_pipeline_benchmark
+BENCH_NAMES := test_filter_benchmark test_dop_benchmark test_pipeline_benchmark test_resampler_matrix
 BENCH_BINS := $(patsubst %, $(ROOT_DIR)/Tests/CLibTests/bin/%, $(BENCH_NAMES))
 UNIT_TEST_BINS := $(filter-out $(BENCH_BINS), $(TEST_BINS))
 

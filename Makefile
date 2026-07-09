@@ -201,12 +201,12 @@ ifeq ($(ENGINE),swift)
 	@$(MAKE) test-rust-build
 	@echo "⏱️  Running Filter benchmarks in release mode..."
 	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter FilterBenchmarkTests
-	@echo "⏱️  Running Resampler benchmarks in release mode..."
-	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter ResamplerComparisonMatrix
 	@echo "⏱️  Running DoP benchmarks in release mode..."
 	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter DoPBenchmarkTests
 	@echo "⏱️  Running Pipeline benchmarks in release mode..."
 	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter PipelineBenchmarkTests
+	@echo "⏱️  Running Resampler benchmarks in release mode..."
+	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter ResamplerComparisonMatrix
 else
 	@$(MAKE) test-rust-build
 	@echo "⏱️  Running C benchmark tests..."
