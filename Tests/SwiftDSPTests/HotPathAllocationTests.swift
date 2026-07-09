@@ -18,6 +18,8 @@ import Testing
 @testable import DSPConfig
 @testable import SwiftDSP
 
+extension Pipeline: @unchecked Sendable {}
+
 // MARK: - Allocation counter
 //
 // Per-thread heap allocation counter, used by the tests below to assert
@@ -105,6 +107,27 @@ private enum AllocationCounter {
     let prev = loggerVar.pointee
     counter.store(0, ordering: .relaxed)
     watchedThreadBits.store(myBits, ordering: .releasing)
+    loggerVar.pointee = mallocLogger
+    defer {
+      loggerVar.pointee = prev
+      watchedThreadBits.store(0, ordering: .releasing)
+    }
+    let r = try body()
+    return (counter.load(ordering: .relaxed), r)
+  }
+
+  /// Run `body` on the calling thread, but measure heap allocations performed
+  /// on `threadId` (which could be a background thread) during its execution.
+  static func countOnThread<R>(
+    threadId: UInt, _ body: () throws -> R
+  ) rethrows -> (allocations: UInt64?, result: R) {
+    guard let loggerVar = loggerVar else {
+      let r = try body()
+      return (nil, r)
+    }
+    let prev = loggerVar.pointee
+    counter.store(0, ordering: .relaxed)
+    watchedThreadBits.store(threadId, ordering: .releasing)
     loggerVar.pointee = mallocLogger
     defer {
       loggerVar.pointee = prev
@@ -505,6 +528,129 @@ private enum AllocationCounter {
       _ = params.updateCaptureLevels(from: chunks[i % chunkCount])
       _ = params.updatePlaybackLevels(from: chunks[i % chunkCount])
     }
+  }
+
+  @Test func PipelineReload_AllocationFree() throws {
+    let config = DSPConfiguration(
+      devices: DevicesConfig(
+        samplerate: 44100, chunksize: 1024,
+        capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+    let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
+    let initialPipeline = try Pipeline(config: config, processingParams: params)
+
+    let shared = EngineSharedState(capturedQueueDepth: 32, processedQueueDepth: 32)
+    let stateMachine = EngineStateMachine()
+    let dopEncoder = DoPEncoder(channels: 2, sampleRate: 44100, outputDoP: false)
+
+    let resamplerScratch = AudioChunk(frames: 1024, channels: 2)
+    let pipelineScratch = AudioChunk(frames: 1024, channels: 2)
+
+    // Pre-create the pipelines we will swap in.
+    let reloadedPipelines = try (0..<30).map { _ in
+      try Pipeline(config: config, processingParams: params)
+    }
+
+    // Keep all pipelines alive to prevent ARC from deallocating them during the test,
+    // which would count as heap frees.
+    var keepAlive = [initialPipeline] + reloadedPipelines
+
+    let threadIdSem = DispatchSemaphore(value: 0)
+    let processedSem = DispatchSemaphore(value: 0)
+    
+    // We store the processing thread ID once we intercept it in the callback
+    let watchedThreadId = Atomic<UInt>(0)
+
+    let loopInstance = EngineProcessingLoop(
+      shared: shared,
+      stateMachine: stateMachine,
+      processingParams: params,
+      pipelineRate: 44100,
+      resampler: nil,
+      pipeline: initialPipeline,
+      dopEncoder: dopEncoder,
+      resamplerScratch: resamplerScratch,
+      pipelineScratch: pipelineScratch,
+      onChunkCaptured: nil,
+      onChunkProcessed: { _ in
+        // Runs on processing thread.
+        let tid = UInt(bitPattern: Int(bitPattern: pthread_self()))
+        let old = watchedThreadId.compareExchange(expected: 0, desired: tid, ordering: .acquiringAndReleasing)
+        if old.exchanged {
+          threadIdSem.signal()
+        }
+        processedSem.signal()
+      },
+      onStop: { _ in }
+    )
+
+    let exitSem = DispatchSemaphore(value: 0)
+    // Spawn the loop in a background thread.
+    let thread = Thread {
+      loopInstance.run()
+      exitSem.signal()
+    }
+    thread.name = "dsp.test.processing"
+    thread.start()
+
+    let chunk = AudioChunk(frames: 1024, channels: 2)
+
+    // 1. Warmup / get thread ID
+    _ = shared.capturedQueue.enqueue(chunk)
+    loopInstance.setPipeline(reloadedPipelines[0])
+    shared.capturedSemaphore.signal()
+    
+    // Wait for the thread to process the first chunk and record its thread ID
+    threadIdSem.wait()
+    processedSem.wait()
+    
+    // Clean up queues
+    _ = shared.processedQueue.dequeue()
+    while shared.pipelineGarbageQueue.dequeue() != nil {}
+
+    let tid = watchedThreadId.load(ordering: .acquiring)
+
+    // 2. Run measured iterations
+    assertAllocationFreeOnThread(label: "Pipeline hot reload", threadId: tid, warmup: 0, iterations: 20) { i in
+      // Put chunk and new pipeline
+      _ = shared.capturedQueue.enqueue(chunk)
+      loopInstance.setPipeline(reloadedPipelines[i + 1]) // start from index 1 since 0 was used in warmup
+      shared.capturedSemaphore.signal()
+      
+      // Wait for completion
+      processedSem.wait()
+
+      // Clean up queues (non-allocating since keepAlive keeps references)
+      _ = shared.processedQueue.dequeue()
+      while shared.pipelineGarbageQueue.dequeue() != nil {}
+    }
+
+    // Stop thread.
+    shared.shouldStop.store(true, ordering: .releasing)
+    shared.capturedSemaphore.signal() // wake thread if waiting
+    exitSem.wait() // wait for thread to terminate
+
+    withExtendedLifetime(keepAlive) {
+      keepAlive.removeAll()
+    }
+  }
+
+  private func assertAllocationFreeOnThread(
+    label: String, threadId: UInt, warmup: Int = 0, iterations: Int = 30, body: (Int) -> Void
+  ) {
+    for i in 0..<warmup { body(i) }
+    let (allocations, _) = AllocationCounter.countOnThread(threadId: threadId) {
+      for i in 0..<iterations { body(warmup + i) }
+    }
+    guard let n = allocations else {
+      Issue.record("malloc_logger unavailable — \(label) skipped")
+      return
+    }
+    print("[\(label)] allocations=\(n) over \(iterations) iterations")
+    #if !DEBUG
+      #expect(
+        n < 10, "\(label) allocated \(n) times in steady state (expected ≈ 0)")
+    #endif
   }
 
   // MARK: - Helpers

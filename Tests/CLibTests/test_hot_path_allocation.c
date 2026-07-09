@@ -32,6 +32,10 @@
 #include "../../Sources/CDSP/Resampler/async_sinc_resampler.h"
 #include "../../Sources/CDSP/Resampler/audio_resampler.h"
 #include "../../Sources/CDSP/Resampler/synchronous_resampler.h"
+#include "../../Sources/CDSP/Engine/engine_shared_state.h"
+#include "../../Sources/CDSP/Engine/engine_state_machine.h"
+#include "../../Sources/CDSP/Engine/engine_processing_loop.h"
+#include "../../Sources/CDSP/Pipeline/pipeline.h"
 #include "test_support.h"
 
 #ifndef M_PI
@@ -123,6 +127,52 @@ static void assert_allocation_free(const char* label, int warmup,
          (unsigned long long)count, iterations);
   ASSERT_TRUE(count < 10);
 }
+
+static bool count_allocations_on_thread(void (*body)(void*), void* ctx,
+                                        uintptr_t thread_id,
+                                        uint64_t* out_count) {
+  void* handle = dlopen(NULL, RTLD_LAZY);
+  if (!handle) return false;
+  malloc_logger_t* logger_ptr =
+      (malloc_logger_t*)dlsym(handle, "malloc_logger");
+  if (!logger_ptr) {
+    dlclose(handle);
+    return false;
+  }
+
+  g_prev_logger = *logger_ptr;
+  atomic_store_explicit(&g_alloc_counter, 0, memory_order_relaxed);
+  atomic_store_explicit(&g_watched_thread, thread_id, memory_order_release);
+  *logger_ptr = my_malloc_logger;
+
+  body(ctx);
+
+  *logger_ptr = g_prev_logger;
+  atomic_store_explicit(&g_watched_thread, 0, memory_order_release);
+  *out_count = atomic_load_explicit(&g_alloc_counter, memory_order_relaxed);
+  dlclose(handle);
+  return true;
+}
+
+static void assert_allocation_free_on_thread(const char* label,
+                                             uintptr_t thread_id,
+                                             int warmup, int iterations,
+                                             test_iter_func_t body,
+                                             void* ctx) {
+  for (int i = 0; i < warmup; i++) {
+    body(i, ctx);
+  }
+  loop_ctx_t lctx = {body, warmup, iterations, ctx};
+  uint64_t count = 0;
+  if (!count_allocations_on_thread(run_test_loop, &lctx, thread_id, &count)) {
+    printf("malloc_logger unavailable — %s skipped\n", label);
+    return;
+  }
+  printf("[%s] allocations=%llu over %d iterations\n", label,
+         (unsigned long long)count, iterations);
+  ASSERT_TRUE(count < 10);
+}
+
 
 static audio_chunk_t** make_random_chunks(int count, int channels, int frames,
                                           double scale) {
@@ -734,6 +784,187 @@ TEST(ProcessingParameters_AllocationFree) {
                          proc_params_iter, &ctx);
   free_chunks(chunks, 32);
   processing_parameters_free(params);
+}
+
+typedef struct {
+  engine_processing_loop_t* loop;
+  engine_shared_state_t* shared;
+  pipeline_t** reloaded_pipelines;
+  audio_chunk_t* input_chunk;
+  engine_semaphore_t thread_id_sem;
+  engine_semaphore_t processed_sem;
+  _Atomic uintptr_t watched_thread_id;
+} pipeline_reload_test_ctx_t;
+
+static void on_chunk_captured_cb(void* ctx, const audio_chunk_t* chunk) {
+  (void)ctx;
+  (void)chunk;
+}
+
+static void on_chunk_processed_cb(void* ctx, const audio_chunk_t* chunk) {
+  (void)chunk;
+  pipeline_reload_test_ctx_t* c = (pipeline_reload_test_ctx_t*)ctx;
+  uintptr_t tid = (uintptr_t)pthread_self();
+  uintptr_t expected = 0;
+  if (atomic_compare_exchange_strong(&c->watched_thread_id, &expected, tid)) {
+    engine_sem_signal(c->thread_id_sem);
+  }
+  engine_sem_signal(c->processed_sem);
+}
+
+static void* test_processing_thread_run(void* arg) {
+  engine_processing_loop_run((engine_processing_loop_t*)arg);
+  return NULL;
+}
+
+static void reload_iter_c(int i, void* ctx) {
+  pipeline_reload_test_ctx_t* c = (pipeline_reload_test_ctx_t*)ctx;
+
+  // 1. Enqueue chunk
+  spsc_queue_enqueue(c->shared->captured_queue, c->input_chunk);
+  
+  // 2. Set pipeline (i + 1 because 0 was used in warmup)
+  engine_processing_loop_set_pipeline(c->loop, c->reloaded_pipelines[i + 1]);
+  
+  // 3. Signal captured semaphore
+  engine_sem_signal(c->shared->captured_semaphore);
+  
+  // 4. Wait for processing completion
+  engine_sem_wait(c->processed_sem);
+
+  // 5. Clean up queues
+  void* processed = spsc_queue_dequeue(c->shared->processed_queue);
+  (void)processed;
+
+  void* garbage = NULL;
+  while ((garbage = spsc_queue_dequeue(c->shared->pipeline_garbage_queue)) != NULL) {
+    pipeline_free((pipeline_t*)garbage);
+  }
+}
+
+static void init_default_config(dsp_config_t* config) {
+  memset(config, 0, sizeof(dsp_config_t));
+  config->devices.samplerate = 44100;
+  config->devices.chunksize = 1024;
+#if defined(ENABLE_COREAUDIO)
+  config->devices.capture.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
+  config->devices.capture.cfg.coreaudio.channels = 2;
+  config->devices.playback.type = AUDIO_BACKEND_TYPE_CORE_AUDIO;
+  config->devices.playback.cfg.coreaudio.channels = 2;
+#elif defined(ENABLE_ALSA)
+  config->devices.capture.type = AUDIO_BACKEND_TYPE_ALSA;
+  config->devices.capture.cfg.alsa.channels = 2;
+  config->devices.playback.type = AUDIO_BACKEND_TYPE_ALSA;
+  config->devices.playback.cfg.alsa.channels = 2;
+#elif defined(ENABLE_WASAPI)
+  config->devices.capture.type = AUDIO_BACKEND_TYPE_WASAPI;
+  config->devices.capture.cfg.wasapi.channels = 2;
+  config->devices.playback.type = AUDIO_BACKEND_TYPE_WASAPI;
+  config->devices.playback.cfg.wasapi.channels = 2;
+#else
+  config->devices.capture.type = AUDIO_BACKEND_TYPE_FILE;
+  config->devices.capture.cfg.raw_file.channels = 2;
+  config->devices.playback.type = AUDIO_BACKEND_TYPE_FILE;
+  config->devices.playback.cfg.raw_file.channels = 2;
+#endif
+}
+
+TEST(PipelineReload_AllocationFree) {
+  dsp_config_t config;
+  init_default_config(&config);
+  
+  processing_parameters_t* params = processing_parameters_create(2, 2);
+  pipeline_t* initial_pipeline = pipeline_create(&config, params, 0, NULL);
+  ASSERT_TRUE(initial_pipeline != NULL);
+
+  // Pre-create 30 pipelines
+  pipeline_t* reloaded_pipelines[30];
+  for (int i = 0; i < 30; i++) {
+    reloaded_pipelines[i] = pipeline_create(&config, params, 0, NULL);
+    ASSERT_TRUE(reloaded_pipelines[i] != NULL);
+  }
+
+  engine_shared_state_t* shared = engine_shared_state_create(32, 32);
+  ASSERT_TRUE(shared != NULL);
+
+  engine_state_machine_t* state_machine = engine_state_machine_create();
+  engine_state_machine_set_state(state_machine, PROCESSING_STATE_RUNNING);
+
+  audio_chunk_t* resampler_scratch = audio_chunk_create(1024, 2);
+  audio_chunk_t* pipeline_scratch = audio_chunk_create(1024, 2);
+
+  round_robin_chunk_pool_t* scratch_pool =
+      round_robin_chunk_pool_create(32, 1024, 2);
+
+  pipeline_reload_test_ctx_t ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.shared = shared;
+  ctx.reloaded_pipelines = reloaded_pipelines;
+  ctx.input_chunk = audio_chunk_create(1024, 2);
+  audio_chunk_set_valid_frames(ctx.input_chunk, 1024);
+
+  engine_sem_init(&ctx.thread_id_sem);
+  engine_sem_init(&ctx.processed_sem);
+  atomic_init(&ctx.watched_thread_id, 0);
+
+  engine_processing_loop_t* loop = engine_processing_loop_create(
+      shared, state_machine, params, 44100,
+      NULL, // resampler
+      initial_pipeline,
+      NULL, // dop_encoder
+      resampler_scratch, pipeline_scratch, scratch_pool,
+      on_chunk_captured_cb, NULL,
+      on_chunk_processed_cb, &ctx);
+  ASSERT_TRUE(loop != NULL);
+  ctx.loop = loop;
+
+  // Spawn processing loop thread
+  pthread_t thread;
+  pthread_create(&thread, NULL, test_processing_thread_run, loop);
+
+  // Warmup / get thread ID
+  spsc_queue_enqueue(shared->captured_queue, ctx.input_chunk);
+  engine_processing_loop_set_pipeline(loop, reloaded_pipelines[0]);
+  engine_sem_signal(shared->captured_semaphore);
+
+  engine_sem_wait(ctx.thread_id_sem);
+  engine_sem_wait(ctx.processed_sem);
+
+  // Clean up queues after warmup
+  void* processed = spsc_queue_dequeue(shared->processed_queue);
+  (void)processed;
+  void* garbage = NULL;
+  while ((garbage = spsc_queue_dequeue(shared->pipeline_garbage_queue)) != NULL) {
+    pipeline_free((pipeline_t*)garbage);
+  }
+
+  uintptr_t tid = atomic_load(&ctx.watched_thread_id);
+
+  // Run measured iterations
+  assert_allocation_free_on_thread("Pipeline C hot reload", tid, 0, 20,
+                                   reload_iter_c, &ctx);
+
+  // Stop the thread
+  atomic_store_explicit(&shared->should_stop, true, memory_order_release);
+  engine_sem_signal(shared->captured_semaphore);
+  pthread_join(thread, NULL);
+
+  // Cleanup
+  engine_processing_loop_free(loop);
+  for (int i = 21; i < 30; i++) {
+    pipeline_free(reloaded_pipelines[i]);
+  }
+
+  audio_chunk_free(ctx.input_chunk);
+  audio_chunk_free(resampler_scratch);
+  audio_chunk_free(pipeline_scratch);
+  round_robin_chunk_pool_free(scratch_pool);
+  engine_shared_state_free(shared);
+  engine_state_machine_free(state_machine);
+  processing_parameters_free(params);
+
+  engine_sem_destroy(&ctx.thread_id_sem);
+  engine_sem_destroy(&ctx.processed_sem);
 }
 
 TEST_MAIN()
