@@ -521,4 +521,85 @@ import Testing
 
     }
   }
+
+  @Test func PipelineReload_StatePreserved() throws {
+    // 1. Setup Peak EQ Biquad Filter config
+    var filterParams = BiquadParameters()
+    filterParams.type = .peaking
+    filterParams.freq = 1000.0
+    filterParams.gain = 12.0
+    filterParams.q = 1.0
+
+    var config = DSPConfiguration(
+      devices: DevicesConfig(
+        samplerate: 44100, chunksize: 1024,
+        capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+
+    var filters = [String: FilterConfig]()
+    filters["mybiquad"] = .biquad(filterParams)
+    config.filters = filters
+
+    let pipelineConfig = PipelineStep(type: .filter, channel: 0, names: ["mybiquad"])
+    config.pipeline = [pipelineConfig]
+
+    let procParams = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
+
+    // 2. Create pipeline 1
+    let pipeline1 = try Pipeline(config: config, processingParams: procParams)
+
+    // 3. Prepare impulse chunk (1.0 at index 0, then zeros)
+    let impulseChunk = AudioChunk(frames: 1024, channels: 2)
+    for ch in 0..<2 {
+      guard let base = impulseChunk[ch].baseAddress else { continue }
+      base[0] = 1.0
+      for t in 1..<1024 {
+        base[t] = 0.0
+      }
+    }
+
+    // 4. Prepare zero chunk
+    let zeroChunk = AudioChunk(frames: 1024, channels: 2)
+    for ch in 0..<2 {
+      guard let base = zeroChunk[ch].baseAddress else { continue }
+      for t in 0..<1024 {
+        base[t] = 0.0
+      }
+    }
+
+    // 5. Process impulse through pipeline 1
+    var outputChunk1_1 = AudioChunk(frames: 1024, channels: 2)
+    try pipeline1.process(input: impulseChunk, into: &outputChunk1_1)
+
+    // 6. Process zero chunk through pipeline 1 (decay output)
+    var outputChunk1_2 = AudioChunk(frames: 1024, channels: 2)
+    try pipeline1.process(input: zeroChunk, into: &outputChunk1_2)
+
+    guard let decBase1_2 = outputChunk1_2[0].baseAddress else { return }
+    let expectedFirstDecaySample = decBase1_2[0]
+    #expect(expectedFirstDecaySample != 0.0)
+
+    // 7. Create pipeline 2 (rebuilt)
+    let pipeline2 = try Pipeline(config: config, processingParams: procParams)
+
+    // 8. Process zero chunk through pipeline 2 (without transfer)
+    var outputChunk2 = AudioChunk(frames: 1024, channels: 2)
+    try pipeline2.process(input: zeroChunk, into: &outputChunk2)
+
+    guard let outBase2 = outputChunk2[0].baseAddress else { return }
+    #expect(outBase2[0] == 0.0)
+
+    // 9. Create pipeline 3 (rebuilt)
+    let pipeline3 = try Pipeline(config: config, processingParams: procParams)
+
+    // 10. Transfer state
+    pipeline3.transferState(from: pipeline1)
+
+    // 11. Process zero chunk through pipeline 3
+    var outputChunk3 = AudioChunk(frames: 1024, channels: 2)
+    try pipeline3.process(input: zeroChunk, into: &outputChunk3)
+
+    guard let outBase3 = outputChunk3[0].baseAddress else { return }
+    #expect(abs(outBase3[0] - expectedFirstDecaySample) < 1e-12)
+  }
 }

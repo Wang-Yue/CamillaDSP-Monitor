@@ -42,6 +42,28 @@ void dsp_processor_update_parameters(dsp_processor_t* proc,
   }
 }
 
+void dsp_processor_transfer_state(dsp_processor_t* dest,
+                                  const dsp_processor_t* src) {
+  if (!dest || !src) return;
+  if (dest->type != src->type) return;
+  switch (dest->type) {
+    case PROCESSOR_IMPL_COMPRESSOR:
+      compressor_processor_transfer_state(
+          (compressor_processor_t*)dest->impl,
+          (const compressor_processor_t*)src->impl);
+      break;
+    case PROCESSOR_IMPL_NOISE_GATE:
+      noise_gate_processor_transfer_state(
+          (noise_gate_processor_t*)dest->impl,
+          (const noise_gate_processor_t*)src->impl);
+      break;
+    case PROCESSOR_IMPL_RACE:
+      race_processor_transfer_state((race_processor_t*)dest->impl,
+                                    (const race_processor_t*)src->impl);
+      break;
+  }
+}
+
 const char* dsp_processor_get_name(const dsp_processor_t* proc) {
   return (proc && proc->get_name) ? proc->get_name(proc) : "";
 }

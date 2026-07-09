@@ -255,6 +255,16 @@ void biquad_combo_filter_update_parameters(biquad_combo_filter_t* filter,
   }
 }
 
+void biquad_combo_filter_transfer_state(biquad_combo_filter_t* dest,
+                                        const biquad_combo_filter_t* src) {
+  if (!dest || !src) return;
+  size_t count = dest->num_sections < src->num_sections ? dest->num_sections
+                                                        : src->num_sections;
+  for (size_t i = 0; i < count; i++) {
+    biquad_filter_transfer_state(dest->sections[i], src->sections[i]);
+  }
+}
+
 void biquad_combo_filter_free(biquad_combo_filter_t* filter) {
   if (!filter) return;
   for (size_t i = 0; i < filter->num_sections; i++) {

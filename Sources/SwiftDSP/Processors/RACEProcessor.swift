@@ -88,4 +88,10 @@ final class RACEProcessor: Processor {
     let gainParams = Self.gainConfig(p)
     self.gain.updateParameters(.gain(gainParams), sampleRate: sampleRate)
   }
+
+  func transferState(from src: Processor) {
+    guard let srcRace = src as? RACEProcessor else { return }
+    self.feedbackA = srcRace.feedbackA
+    self.feedbackB = srcRace.feedbackB
+  }
 }

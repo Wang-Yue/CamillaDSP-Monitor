@@ -237,3 +237,9 @@ void noise_gate_processor_update_parameters(noise_gate_processor_t* processor,
   processor->threshold = params->threshold;
   processor->factor = double_from_db(-params->attenuation);
 }
+
+void noise_gate_processor_transfer_state(noise_gate_processor_t* dest,
+                                         const noise_gate_processor_t* src) {
+  if (!dest || !src) return;
+  dest->prev_loudness = src->prev_loudness;
+}

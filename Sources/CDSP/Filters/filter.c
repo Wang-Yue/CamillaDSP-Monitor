@@ -221,6 +221,37 @@ void filter_update_parameters(filter_t* filter, const filter_config_t* config,
   }
 }
 
+void filter_transfer_state(filter_t* dest, const filter_t* src) {
+  if (!dest || !src) return;
+  if (dest->type != src->type) return;
+
+  switch (dest->type) {
+    case FILTER_INSTANCE_BIQUAD:
+      biquad_filter_transfer_state((biquad_filter_t*)dest->instance,
+                                   (const biquad_filter_t*)src->instance);
+      break;
+    case FILTER_INSTANCE_BIQUAD_COMBO:
+      biquad_combo_filter_transfer_state(
+          (biquad_combo_filter_t*)dest->instance,
+          (const biquad_combo_filter_t*)src->instance);
+      break;
+    case FILTER_INSTANCE_LOUDNESS:
+      loudness_filter_transfer_state((loudness_filter_t*)dest->instance,
+                                     (const loudness_filter_t*)src->instance);
+      break;
+    case FILTER_INSTANCE_VOLUME:
+      volume_filter_transfer_state((volume_filter_t*)dest->instance,
+                                   (const volume_filter_t*)src->instance);
+      break;
+    default:
+      break;
+  }
+}
+
+const char* filter_get_name(const filter_t* filter) {
+  return filter ? filter->name : "";
+}
+
 void filter_free(filter_t* filter) {
   if (!filter) return;
   if (filter->instance) {

@@ -63,6 +63,14 @@ final class BiquadFilter: Filter {
       }
     }
   }
+
+  func transferState(from src: Filter) {
+    guard let srcBiquad = src as? BiquadFilter else { return }
+    if let destSetup = self.setup, let srcSetup = srcBiquad.setup {
+      vDSP_biquadm_CopyStateD(destSetup, srcSetup)
+    }
+  }
+
   static func computeCoefficients(_ params: BiquadParameters, sampleRate: Int) throws
     -> BiquadCoefficients
   {

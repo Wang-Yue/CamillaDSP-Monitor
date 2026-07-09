@@ -60,6 +60,15 @@ void loudness_filter_update_parameters(loudness_filter_t* filter,
                                        int sample_rate);
 
 /**
+ * @brief Transfers nested shelf filter states and last volume level from src to dest.
+ *
+ * @param dest The destination loudness filter instance.
+ * @param src The source loudness filter instance.
+ */
+void loudness_filter_transfer_state(loudness_filter_t* dest,
+                                    const loudness_filter_t* src);
+
+/**
  * @brief Frees the resources allocated for the loudness filter instance.
  *
  * @param filter Pointer to the loudness filter instance to free.

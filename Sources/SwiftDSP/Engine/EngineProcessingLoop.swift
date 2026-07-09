@@ -126,6 +126,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
           // Run through the pipeline using pre-allocated output
           // scratch.
           if let nextPipeline = pipelineQueue.dequeue() {
+            nextPipeline.transferState(from: activePipeline)
             _ = shared.pipelineGarbageQueue.enqueue(activePipeline)
             activePipeline = nextPipeline
           }

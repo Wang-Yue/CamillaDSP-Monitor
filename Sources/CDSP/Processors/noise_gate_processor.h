@@ -99,4 +99,13 @@ void noise_gate_processor_update_parameters(noise_gate_processor_t* processor,
                                             const processor_config_t* config,
                                             int sample_rate);
 
+/**
+ * @brief Transfers running envelope loudness state from src to dest.
+ *
+ * @param dest The destination noise gate processor instance.
+ * @param src The source noise gate processor instance.
+ */
+void noise_gate_processor_transfer_state(noise_gate_processor_t* dest,
+                                         const noise_gate_processor_t* src);
+
 #endif  // CLIB_PROCESSORS_NOISE_GATE_PROCESSOR_H

@@ -255,4 +255,12 @@ final class BiquadComboFilter: Filter {
 
     return sections
   }
+
+  func transferState(from src: Filter) {
+    guard let srcCombo = src as? BiquadComboFilter else { return }
+    let count = min(self.sections.count, srcCombo.sections.count)
+    for i in 0..<count {
+      self.sections[i].transferState(from: srcCombo.sections[i])
+    }
+  }
 }

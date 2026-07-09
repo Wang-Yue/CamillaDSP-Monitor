@@ -774,4 +774,118 @@ TEST(ConfigLoaderParseAndValidate) {
   ASSERT_EQ(CONFIG_ERR_VALIDATION, err.type);
 }
 
+TEST(PipelineReload_StatePreserved) {
+  dsp_config_t config;
+  init_default_config(&config);
+
+  // 1. Setup Peak EQ Biquad Filter config
+  named_filter_config_t filter_cfg;
+  memset(&filter_cfg, 0, sizeof(filter_cfg));
+  strcpy(filter_cfg.name, "mybiquad");
+  filter_cfg.filter.type = FILTER_TYPE_BIQUAD;
+  filter_cfg.filter.parameters.biquad.type = BIQUAD_TYPE_PEAKING;
+  filter_cfg.filter.parameters.biquad.freq = 1000.0;
+  filter_cfg.filter.parameters.biquad.gain = 12.0;
+  filter_cfg.filter.parameters.biquad.q = 1.0;
+  filter_cfg.filter.parameters.biquad.steepness_type = STEEPNESS_TYPE_Q;
+  config.filters = &filter_cfg;
+  config.filters_count = 1;
+
+  char* filter_name = strdup("mybiquad");
+  pipeline_step_t step;
+  memset(&step, 0, sizeof(step));
+  step.type = PIPELINE_STEP_TYPE_FILTER;
+  step.channel = 0;
+  step.has_channel = true;
+  step.names = &filter_name;
+  step.names_count = 1;
+  config.pipeline = &step;
+  config.pipeline_count = 1;
+
+  processing_parameters_t* params = processing_parameters_create(2, 2);
+  
+  // 2. Create pipeline 1
+  pipeline_t* pipeline1 = pipeline_create(&config, params, 0, NULL);
+  ASSERT_TRUE(pipeline1 != NULL);
+
+  // 3. Prepare an impulse chunk (1.0 at index 0, then zeros)
+  audio_chunk_t* impulse_chunk = audio_chunk_create(1024, 2);
+  for (size_t ch = 0; ch < 2; ch++) {
+    mutable_waveform_t buf = audio_chunk_get_channel(impulse_chunk, ch);
+    buf[0] = 1.0;
+    for (size_t t = 1; t < 1024; t++) {
+      buf[t] = 0.0;
+    }
+  }
+  audio_chunk_set_valid_frames(impulse_chunk, 1024);
+
+  // 4. Prepare a zero chunk (for decay)
+  audio_chunk_t* zero_chunk = audio_chunk_create(1024, 2);
+  for (size_t ch = 0; ch < 2; ch++) {
+    mutable_waveform_t buf = audio_chunk_get_channel(zero_chunk, ch);
+    for (size_t t = 0; t < 1024; t++) {
+      buf[t] = 0.0;
+    }
+  }
+  audio_chunk_set_valid_frames(zero_chunk, 1024);
+
+  // 5. Process impulse through pipeline 1 (this updates internal z1, z2 state)
+  audio_chunk_t* output_chunk1_1 = audio_chunk_create(1024, 2);
+  pipeline_error_t perr = pipeline_process(pipeline1, impulse_chunk, output_chunk1_1);
+  ASSERT_EQ(PIPELINE_OK, perr);
+
+  // 6. Process zero chunk through pipeline 1 (natural decay output)
+  audio_chunk_t* output_chunk1_2 = audio_chunk_create(1024, 2);
+  perr = pipeline_process(pipeline1, zero_chunk, output_chunk1_2);
+  ASSERT_EQ(PIPELINE_OK, perr);
+
+  // Read first decay sample
+  waveform_t dec_out1_2 = audio_chunk_get_channel(output_chunk1_2, 0);
+  double expected_first_decay_sample = dec_out1_2[0];
+  // Ensure it's not zero (otherwise the test is trivial/faulty)
+  ASSERT_NE(0.0, expected_first_decay_sample);
+
+  // 7. Create pipeline 2 (a rebuilt pipeline with same config)
+  pipeline_t* pipeline2 = pipeline_create(&config, params, 0, NULL);
+  ASSERT_TRUE(pipeline2 != NULL);
+
+  // 8. Process zero chunk through pipeline 2 (without state transfer)
+  audio_chunk_t* output_chunk2 = audio_chunk_create(1024, 2);
+  perr = pipeline_process(pipeline2, zero_chunk, output_chunk2);
+  ASSERT_EQ(PIPELINE_OK, perr);
+
+  // Without state transfer, the output should be exactly 0.0
+  waveform_t out_chunk2 = audio_chunk_get_channel(output_chunk2, 0);
+  ASSERT_EQ(0.0, out_chunk2[0]);
+
+  // 9. Create pipeline 3 (another rebuilt pipeline)
+  pipeline_t* pipeline3 = pipeline_create(&config, params, 0, NULL);
+  ASSERT_TRUE(pipeline3 != NULL);
+
+  // 10. Transfer state from pipeline1 (after it processed chunk 1) to pipeline3
+  pipeline_transfer_state(pipeline3, pipeline1);
+
+  // 11. Process zero chunk through pipeline 3 (should seamlessly continue decay)
+  audio_chunk_t* output_chunk3 = audio_chunk_create(1024, 2);
+  perr = pipeline_process(pipeline3, zero_chunk, output_chunk3);
+  ASSERT_EQ(PIPELINE_OK, perr);
+
+  waveform_t out_chunk3 = audio_chunk_get_channel(output_chunk3, 0);
+  // Output should match the expected decay value!
+  ASSERT_NEAR(expected_first_decay_sample, out_chunk3[0], 1e-12);
+
+  // Cleanup
+  free(filter_name);
+  pipeline_free(pipeline1);
+  pipeline_free(pipeline2);
+  pipeline_free(pipeline3);
+  audio_chunk_free(impulse_chunk);
+  audio_chunk_free(zero_chunk);
+  audio_chunk_free(output_chunk1_1);
+  audio_chunk_free(output_chunk1_2);
+  audio_chunk_free(output_chunk2);
+  audio_chunk_free(output_chunk3);
+  processing_parameters_free(params);
+}
+
 TEST_MAIN()

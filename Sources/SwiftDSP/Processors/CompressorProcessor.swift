@@ -155,4 +155,9 @@ final class CompressorProcessor: Processor {
       self.limiter = nil
     }
   }
+
+  func transferState(from src: Processor) {
+    guard let srcComp = src as? CompressorProcessor else { return }
+    self.prevLoudness = srcComp.prevLoudness
+  }
 }

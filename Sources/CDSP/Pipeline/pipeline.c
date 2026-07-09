@@ -78,6 +78,55 @@ static bool string_list_contains(const char* const* list, size_t count,
   return false;
 }
 
+void pipeline_transfer_state(pipeline_t* dest, const pipeline_t* src) {
+  if (!dest || !src) return;
+
+  // 1. Transfer master volume state
+  if (dest->master_volume && src->master_volume) {
+    volume_filter_transfer_state(dest->master_volume, src->master_volume);
+  }
+
+  // 2. Transfer steps state
+  for (size_t d = 0; d < dest->steps_count; d++) {
+    pipeline_exec_step_t* dest_step = &dest->steps[d];
+
+    if (dest_step->type == EXEC_STEP_FILTER) {
+      // Find matching filter step by channel
+      for (size_t s = 0; s < src->steps_count; s++) {
+        const pipeline_exec_step_t* src_step = &src->steps[s];
+        if (src_step->type == EXEC_STEP_FILTER && src_step->channel == dest_step->channel) {
+          // Transfer individual filters by name matching
+          for (size_t df = 0; df < dest_step->filters_count; df++) {
+            filter_t* dest_f = dest_step->filters[df];
+            const char* dest_name = filter_get_name(dest_f);
+            for (size_t sf = 0; sf < src_step->filters_count; sf++) {
+              filter_t* src_f = src_step->filters[sf];
+              if (strcmp(filter_get_name(src_f), dest_name) == 0) {
+                filter_transfer_state(dest_f, src_f);
+                break;
+              }
+            }
+          }
+          break;
+        }
+      }
+    } else if (dest_step->type == EXEC_STEP_PROCESSOR) {
+      // Find matching processor step by name
+      const char* dest_name = dsp_processor_get_name(dest_step->processor);
+      for (size_t s = 0; s < src->steps_count; s++) {
+        const pipeline_exec_step_t* src_step = &src->steps[s];
+        if (src_step->type == EXEC_STEP_PROCESSOR) {
+          const char* src_name = dsp_processor_get_name(src_step->processor);
+          if (strcmp(src_name, dest_name) == 0) {
+            dsp_processor_transfer_state(dest_step->processor, src_step->processor);
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
 /// Destroy and free the pipeline.
 void pipeline_free(pipeline_t* pipeline) {
   if (!pipeline) return;
@@ -544,10 +593,13 @@ void pipeline_update_parameters(pipeline_t* pipeline,
       case EXEC_STEP_FILTER:
         for (size_t j = 0; j < step->filters_count; j++) {
           filter_t* f = step->filters[j];
-          if (f && string_list_contains(filters, filters_count, f->name)) {
-            filter_config_t* f_cfg = dsp_config_get_filter(config, f->name);
-            if (f_cfg) {
-              filter_update_parameters(f, f_cfg, pipeline->rate);
+          if (f) {
+            const char* f_name = filter_get_name(f);
+            if (string_list_contains(filters, filters_count, f_name)) {
+              filter_config_t* f_cfg = dsp_config_get_filter(config, f_name);
+              if (f_cfg) {
+                filter_update_parameters(f, f_cfg, pipeline->rate);
+              }
             }
           }
         }

@@ -85,6 +85,24 @@ void filter_update_parameters(filter_t* filter, const filter_config_t* config,
                               int sample_rate);
 
 /**
+ * @brief Transfers history state from src to dest generic filter wrapper.
+ *
+ * Only applies to stateful filter types (Biquad, BiquadCombo, Loudness, Volume).
+ *
+ * @param dest The destination filter wrapper instance.
+ * @param src The source filter wrapper instance.
+ */
+void filter_transfer_state(filter_t* dest, const filter_t* src);
+
+/**
+ * @brief Gets the unique name of this filter instance.
+ *
+ * @param filter Pointer to the filter wrapper instance.
+ * @return The unique name of the filter.
+ */
+const char* filter_get_name(const filter_t* filter);
+
+/**
  * @brief Free the filter instance and its resources.
  *
  * @param filter Pointer to the filter instance to free.

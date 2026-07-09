@@ -131,6 +131,15 @@ void biquad_filter_update_parameters(biquad_filter_t* filter,
                                      int sample_rate);
 
 /**
+ * @brief Transfers internal history state (delay line registers) from src to dest.
+ *
+ * @param dest The destination biquad filter instance.
+ * @param src The source biquad filter instance.
+ */
+void biquad_filter_transfer_state(biquad_filter_t* dest,
+                                  const biquad_filter_t* src);
+
+/**
  * @brief Frees the biquad filter instance.
  *
  * @param filter The filter instance to free.

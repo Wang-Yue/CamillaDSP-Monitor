@@ -409,6 +409,19 @@ void biquad_filter_update_parameters(biquad_filter_t* filter,
   }
 }
 
+void biquad_filter_transfer_state(biquad_filter_t* dest,
+                                  const biquad_filter_t* src) {
+  if (!dest || !src) return;
+#ifdef ENABLE_ACCELERATE
+  if (dest->setup && src->setup) {
+    vDSP_biquadm_CopyStateD(dest->setup, src->setup);
+  }
+#else
+  dest->z1 = src->z1;
+  dest->z2 = src->z2;
+#endif
+}
+
 void biquad_filter_free(biquad_filter_t* filter) {
   if (!filter) return;
 #ifdef ENABLE_ACCELERATE

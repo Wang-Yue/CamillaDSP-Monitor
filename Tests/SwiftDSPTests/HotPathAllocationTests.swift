@@ -557,7 +557,7 @@ private enum AllocationCounter {
 
     let threadIdSem = DispatchSemaphore(value: 0)
     let processedSem = DispatchSemaphore(value: 0)
-    
+
     // We store the processing thread ID once we intercept it in the callback
     let watchedThreadId = Atomic<UInt>(0)
 
@@ -575,7 +575,8 @@ private enum AllocationCounter {
       onChunkProcessed: { _ in
         // Runs on processing thread.
         let tid = UInt(bitPattern: Int(bitPattern: pthread_self()))
-        let old = watchedThreadId.compareExchange(expected: 0, desired: tid, ordering: .acquiringAndReleasing)
+        let old = watchedThreadId.compareExchange(
+          expected: 0, desired: tid, ordering: .acquiringAndReleasing)
         if old.exchanged {
           threadIdSem.signal()
         }
@@ -599,11 +600,11 @@ private enum AllocationCounter {
     _ = shared.capturedQueue.enqueue(chunk)
     loopInstance.setPipeline(reloadedPipelines[0])
     shared.capturedSemaphore.signal()
-    
+
     // Wait for the thread to process the first chunk and record its thread ID
     threadIdSem.wait()
     processedSem.wait()
-    
+
     // Clean up queues
     _ = shared.processedQueue.dequeue()
     while shared.pipelineGarbageQueue.dequeue() != nil {}
@@ -611,12 +612,14 @@ private enum AllocationCounter {
     let tid = watchedThreadId.load(ordering: .acquiring)
 
     // 2. Run measured iterations
-    assertAllocationFreeOnThread(label: "Pipeline hot reload", threadId: tid, warmup: 0, iterations: 20) { i in
+    assertAllocationFreeOnThread(
+      label: "Pipeline hot reload", threadId: tid, warmup: 0, iterations: 20
+    ) { i in
       // Put chunk and new pipeline
       _ = shared.capturedQueue.enqueue(chunk)
-      loopInstance.setPipeline(reloadedPipelines[i + 1]) // start from index 1 since 0 was used in warmup
+      loopInstance.setPipeline(reloadedPipelines[i + 1])  // start from index 1 since 0 was used in warmup
       shared.capturedSemaphore.signal()
-      
+
       // Wait for completion
       processedSem.wait()
 
@@ -627,8 +630,8 @@ private enum AllocationCounter {
 
     // Stop thread.
     shared.shouldStop.store(true, ordering: .releasing)
-    shared.capturedSemaphore.signal() // wake thread if waiting
-    exitSem.wait() // wait for thread to terminate
+    shared.capturedSemaphore.signal()  // wake thread if waiting
+    exitSem.wait()  // wait for thread to terminate
 
     withExtendedLifetime(keepAlive) {
       keepAlive.removeAll()

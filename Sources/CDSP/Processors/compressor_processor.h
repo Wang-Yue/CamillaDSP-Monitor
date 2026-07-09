@@ -110,4 +110,13 @@ void compressor_processor_update_parameters(compressor_processor_t* processor,
                                             const processor_config_t* config,
                                             int sample_rate);
 
+/**
+ * @brief Transfers running envelope loudness state from src to dest.
+ *
+ * @param dest The destination compressor processor instance.
+ * @param src The source compressor processor instance.
+ */
+void compressor_processor_transfer_state(compressor_processor_t* dest,
+                                         const compressor_processor_t* src);
+
 #endif  // CLIB_PROCESSORS_COMPRESSOR_PROCESSOR_H

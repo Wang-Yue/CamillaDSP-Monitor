@@ -289,3 +289,9 @@ void compressor_processor_update_parameters(compressor_processor_t* processor,
     }
   }
 }
+
+void compressor_processor_transfer_state(compressor_processor_t* dest,
+                                         const compressor_processor_t* src) {
+  if (!dest || !src) return;
+  dest->prev_loudness = src->prev_loudness;
+}

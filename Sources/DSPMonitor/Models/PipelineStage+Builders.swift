@@ -463,7 +463,8 @@ extension PipelineStage {
     sampleRate: Int
   ) -> [PipelineStep] {
     guard isActive else { return [] }
-    if type == .balance || type == .width || type == .msProc || type == .crossfeed || type == .race {
+    if type == .balance || type == .width || type == .msProc || type == .crossfeed || type == .race
+    {
       guard leftChannel < channelCount && rightChannel < channelCount else {
         return []
       }

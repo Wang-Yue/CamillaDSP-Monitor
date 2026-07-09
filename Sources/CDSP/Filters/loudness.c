@@ -166,6 +166,14 @@ void loudness_filter_update_parameters(loudness_filter_t* filter,
   filter->is_processing_active = false;
 }
 
+void loudness_filter_transfer_state(loudness_filter_t* dest,
+                                    const loudness_filter_t* src) {
+  if (!dest || !src) return;
+  biquad_filter_transfer_state(dest->low_shelf_filter, src->low_shelf_filter);
+  biquad_filter_transfer_state(dest->high_shelf_filter, src->high_shelf_filter);
+  dest->last_volume = src->last_volume;
+}
+
 void loudness_filter_free(loudness_filter_t* filter) {
   if (!filter) return;
   if (filter->low_shelf_filter) biquad_filter_free(filter->low_shelf_filter);

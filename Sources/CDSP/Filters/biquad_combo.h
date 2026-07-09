@@ -87,6 +87,15 @@ void biquad_combo_filter_update_parameters(biquad_combo_filter_t* filter,
                                            int sample_rate);
 
 /**
+ * @brief Transfers history state of nested biquad sections from src to dest.
+ *
+ * @param dest The destination combo filter instance.
+ * @param src The source combo filter instance.
+ */
+void biquad_combo_filter_transfer_state(biquad_combo_filter_t* dest,
+                                        const biquad_combo_filter_t* src);
+
+/**
  * @brief Frees the combined biquad filter instance.
  *
  * @param filter The filter instance to free.

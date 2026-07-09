@@ -81,6 +81,15 @@ void volume_filter_update_parameters(volume_filter_t* filter,
                                      int sample_rate);
 
 /**
+ * @brief Transfers current volume, fader target level, and ramp state from src to dest.
+ *
+ * @param dest The destination volume filter instance.
+ * @param src The source volume filter instance.
+ */
+void volume_filter_transfer_state(volume_filter_t* dest,
+                                  const volume_filter_t* src);
+
+/**
  * @brief Frees the resources allocated for the volume filter instance.
  *
  * @param filter Pointer to the volume filter instance to free.

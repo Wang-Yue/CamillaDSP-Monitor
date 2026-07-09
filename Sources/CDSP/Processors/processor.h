@@ -93,6 +93,15 @@ void dsp_processor_update_parameters(dsp_processor_t* proc,
                                      int sample_rate);
 
 /**
+ * @brief Transfers internal history state (loudness envelope, feedback, etc.) from src to dest.
+ *
+ * @param dest The destination processor wrapper instance.
+ * @param src The source processor wrapper instance.
+ */
+void dsp_processor_transfer_state(dsp_processor_t* dest,
+                                  const dsp_processor_t* src);
+
+/**
  * @brief Gets the unique name of this processor instance.
  *
  * @param proc Pointer to the generic processor wrapper.

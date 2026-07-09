@@ -11,6 +11,13 @@ protocol Processor: AnyObject {
 
   /// Update the processor parameters dynamically.
   func updateParameters(_ config: ProcessorConfig, sampleRate: Int)
+
+  /// Transfer history state from another processor of the same type.
+  func transferState(from src: Processor)
+}
+
+extension Processor {
+  func transferState(from src: Processor) {}
 }
 
 enum ProcessorFactory {

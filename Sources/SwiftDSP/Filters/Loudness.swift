@@ -80,4 +80,11 @@ final class LoudnessFilter: Filter {
     self.params = p
     self.isProcessingActive = false
   }
+
+  func transferState(from src: Filter) {
+    guard let srcLoudness = src as? LoudnessFilter else { return }
+    self.lowShelfFilter.transferState(from: srcLoudness.lowShelfFilter)
+    self.highShelfFilter.transferState(from: srcLoudness.highShelfFilter)
+    self.lastVolume = srcLoudness.lastVolume
+  }
 }

@@ -117,4 +117,13 @@ void race_processor_update_parameters(race_processor_t* processor,
                                       const processor_config_t* config,
                                       int sample_rate);
 
+/**
+ * @brief Transfers recursive feedback loop registers from src to dest.
+ *
+ * @param dest The destination RACE processor instance.
+ * @param src The source RACE processor instance.
+ */
+void race_processor_transfer_state(race_processor_t* dest,
+                                   const race_processor_t* src);
+
 #endif  // CLIB_PROCESSORS_RACE_PROCESSOR_H

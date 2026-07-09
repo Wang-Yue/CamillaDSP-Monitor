@@ -82,6 +82,17 @@ void pipeline_update_parameters(pipeline_t* pipeline,
                                 size_t processors_count);
 
 /**
+ * @brief Transfers all stateful filter/processor history variables from src to dest pipeline.
+ *
+ * Scans the pipeline steps, matches filters/processors by name and type, and
+ * transfers their internal states to prevent dynamic glitches on swaps.
+ *
+ * @param dest The destination pipeline instance (newly built).
+ * @param src The source pipeline instance (currently active).
+ */
+void pipeline_transfer_state(pipeline_t* dest, const pipeline_t* src);
+
+/**
  * @brief Destroy and free the pipeline.
  *
  * @param[in] pipeline The pipeline instance to free.

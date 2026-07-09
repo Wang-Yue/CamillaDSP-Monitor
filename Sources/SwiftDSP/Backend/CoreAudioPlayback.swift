@@ -450,10 +450,13 @@ private func playbackCallback(
     guard let firstBuffer = buffers.first, let data = firstBuffer.mData else { return noErr }
     let floatPtr = data.assumingMemoryBound(to: Float.self)
     for ch in 0..<playback.channels {
-      let copied = playback.playbackRings[ch].consume(into: floatPtr + ch, count: toCopy, stride: playback.channels)
+      let copied = playback.playbackRings[ch].consume(
+        into: floatPtr + ch, count: toCopy, stride: playback.channels)
       if copied < frameCount {
         var zero: Float = 0
-        vDSP_vfill(&zero, floatPtr + ch + (copied * playback.channels), playback.channels, vDSP_Length(frameCount - copied))
+        vDSP_vfill(
+          &zero, floatPtr + ch + (copied * playback.channels), playback.channels,
+          vDSP_Length(frameCount - copied))
       }
     }
   } else {

@@ -228,6 +228,22 @@ void volume_filter_update_parameters(volume_filter_t* filter,
   }
 }
 
+void volume_filter_transfer_state(volume_filter_t* dest,
+                                  const volume_filter_t* src) {
+  if (!dest || !src) return;
+  dest->current_volume = src->current_volume;
+  dest->target_volume = src->target_volume;
+  dest->target_linear_gain = src->target_linear_gain;
+  dest->mute = src->mute;
+  dest->ramp_start = src->ramp_start;
+  dest->ramp_step = src->ramp_step;
+  if (dest->chunk_size == src->chunk_size && dest->current_ramp_gains &&
+      src->current_ramp_gains) {
+    memcpy(dest->current_ramp_gains, src->current_ramp_gains,
+           dest->chunk_size * sizeof(double));
+  }
+}
+
 void volume_filter_free(volume_filter_t* filter) {
   if (!filter) return;
   if (filter->current_ramp_gains) free(filter->current_ramp_gains);

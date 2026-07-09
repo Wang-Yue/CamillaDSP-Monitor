@@ -121,4 +121,9 @@ final class NoiseGateProcessor: Processor {
     self.threshold = p.threshold
     self.factor = Double.fromDB(-p.attenuation)
   }
+
+  func transferState(from src: Processor) {
+    guard let srcGate = src as? NoiseGateProcessor else { return }
+    self.prevLoudness = srcGate.prevLoudness
+  }
 }

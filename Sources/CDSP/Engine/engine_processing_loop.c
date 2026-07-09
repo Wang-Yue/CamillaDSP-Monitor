@@ -208,6 +208,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
           (pipeline_t*)spsc_queue_dequeue(loop->pipeline_queue);
       if (next_pipeline) {
         if (loop->active_pipeline) {
+          pipeline_transfer_state(next_pipeline, loop->active_pipeline);
           if (!spsc_queue_enqueue(loop->shared->pipeline_garbage_queue,
                                   loop->active_pipeline)) {
             pipeline_free(loop->active_pipeline);

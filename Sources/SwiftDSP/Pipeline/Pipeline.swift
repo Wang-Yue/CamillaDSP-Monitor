@@ -261,4 +261,38 @@ final class Pipeline {
       }
     }
   }
+
+  func transferState(from src: Pipeline) {
+    // 1. Transfer master volume
+    self.masterVolume.transferState(from: src.masterVolume)
+
+    // 2. Transfer steps
+    for destStep in self.processingSteps {
+      switch destStep {
+      case .filter(let destCh, let destFilters, _):
+        // Find matching filter step in src by channel
+        for srcStep in src.processingSteps {
+          if case .filter(let srcCh, let srcFilters, _) = srcStep, srcCh == destCh {
+            // Match individual filters by name
+            for destF in destFilters {
+              if let srcF = srcFilters.first(where: { $0.name == destF.name }) {
+                destF.transferState(from: srcF)
+              }
+            }
+            break
+          }
+        }
+      case .processor(let destProc, _):
+        // Find matching processor step in src by name
+        for srcStep in src.processingSteps {
+          if case .processor(let srcProc, _) = srcStep, srcProc.name == destProc.name {
+            destProc.transferState(from: srcProc)
+            break
+          }
+        }
+      case .mixer:
+        break
+      }
+    }
+  }
 }

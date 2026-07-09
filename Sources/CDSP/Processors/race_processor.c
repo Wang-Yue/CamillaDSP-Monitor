@@ -254,3 +254,10 @@ void race_processor_update_parameters(race_processor_t* processor,
   if (processor->gain)
     gain_filter_update_parameters(processor->gain, &gconfig, sample_rate);
 }
+
+void race_processor_transfer_state(race_processor_t* dest,
+                                   const race_processor_t* src) {
+  if (!dest || !src) return;
+  dest->feedback_a = src->feedback_a;
+  dest->feedback_b = src->feedback_b;
+}

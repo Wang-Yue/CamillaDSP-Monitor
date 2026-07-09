@@ -166,4 +166,17 @@ final class VolumeFilter: Filter {
       currentVolume = volumeLimit
     }
   }
+
+  func transferState(from src: Filter) {
+    guard let srcVol = src as? VolumeFilter else { return }
+    self.currentVolume = srcVol.currentVolume
+    self.targetVolume = srcVol.targetVolume
+    self.targetLinearGain = srcVol.targetLinearGain
+    self.mute = srcVol.mute
+    self.rampStart = srcVol.rampStart
+    self.rampStep = srcVol.rampStep
+    if self.chunkSize == srcVol.chunkSize {
+      self.currentRampGains.initialize(from: srcVol.currentRampGains, count: chunkSize)
+    }
+  }
 }
