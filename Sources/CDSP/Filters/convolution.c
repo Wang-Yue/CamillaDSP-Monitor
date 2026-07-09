@@ -18,6 +18,16 @@ struct convolution_filter {
   double* spec_accum_im;
 };
 
+typedef double double2 __attribute__((vector_size(16), aligned(8)));
+
+static inline double2 load_double2(const double* p) {
+  return *(const double2*)p;
+}
+
+static inline void store_double2(double* p, double2 v) {
+  *(double2*)p = v;
+}
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -484,9 +494,6 @@ static void process_chunk(convolution_filter_t* filter,
   // 3. Spectrum-domain multiply-accumulate across the segment
   //    history. seg=0 pairs the newest input with coeff[0]; seg=k
   //    pairs the input from `k` blocks ago with coeff[k].
-  //
-  //    First segment uses zvmul (writes the accumulator); subsequent
-  //    segments use zvma (D = A·B + C, called in-place with C == D).
   for (size_t s = 0; s < num_seg; s++) {
     size_t hidx = (widx + num_seg - s) % num_seg;
     const double* hre = filter->hist_re[hidx];
@@ -496,7 +503,58 @@ static void process_chunk(convolution_filter_t* filter,
     double* acc_re = filter->spec_accum_re;
     double* acc_im = filter->spec_accum_im;
 
-    for (size_t k = 0; k < spec_len; k++) {
+    size_t vec_len = (spec_len / 8) * 8;
+    for (size_t k = 0; k < vec_len; k += 8) {
+      double2 h_re0 = load_double2(&hre[k]);
+      double2 h_im0 = load_double2(&him[k]);
+      double2 s_re0 = load_double2(&sre[k]);
+      double2 s_im0 = load_double2(&sim[k]);
+      double2 a_re0 = load_double2(&acc_re[k]);
+      double2 a_im0 = load_double2(&acc_im[k]);
+
+      double2 h_re1 = load_double2(&hre[k + 2]);
+      double2 h_im1 = load_double2(&him[k + 2]);
+      double2 s_re1 = load_double2(&sre[k + 2]);
+      double2 s_im1 = load_double2(&sim[k + 2]);
+      double2 a_re1 = load_double2(&acc_re[k + 2]);
+      double2 a_im1 = load_double2(&acc_im[k + 2]);
+
+      double2 h_re2 = load_double2(&hre[k + 4]);
+      double2 h_im2 = load_double2(&him[k + 4]);
+      double2 s_re2 = load_double2(&sre[k + 4]);
+      double2 s_im2 = load_double2(&sim[k + 4]);
+      double2 a_re2 = load_double2(&acc_re[k + 4]);
+      double2 a_im2 = load_double2(&acc_im[k + 4]);
+
+      double2 h_re3 = load_double2(&hre[k + 6]);
+      double2 h_im3 = load_double2(&him[k + 6]);
+      double2 s_re3 = load_double2(&sre[k + 6]);
+      double2 s_im3 = load_double2(&sim[k + 6]);
+      double2 a_re3 = load_double2(&acc_re[k + 6]);
+      double2 a_im3 = load_double2(&acc_im[k + 6]);
+
+      a_re0 += h_re0 * s_re0 - h_im0 * s_im0;
+      a_im0 += h_re0 * s_im0 + h_im0 * s_re0;
+
+      a_re1 += h_re1 * s_re1 - h_im1 * s_im1;
+      a_im1 += h_re1 * s_im1 + h_im1 * s_re1;
+
+      a_re2 += h_re2 * s_re2 - h_im2 * s_im2;
+      a_im2 += h_re2 * s_im2 + h_im2 * s_re2;
+
+      a_re3 += h_re3 * s_re3 - h_im3 * s_im3;
+      a_im3 += h_re3 * s_im3 + h_im3 * s_re3;
+
+      store_double2(&acc_re[k], a_re0);
+      store_double2(&acc_im[k], a_im0);
+      store_double2(&acc_re[k + 2], a_re1);
+      store_double2(&acc_im[k + 2], a_im1);
+      store_double2(&acc_re[k + 4], a_re2);
+      store_double2(&acc_im[k + 4], a_im2);
+      store_double2(&acc_re[k + 6], a_re3);
+      store_double2(&acc_im[k + 6], a_im3);
+    }
+    for (size_t k = vec_len; k < spec_len; k++) {
       acc_re[k] += hre[k] * sre[k] - him[k] * sim[k];
       acc_im[k] += hre[k] * sim[k] + him[k] * sre[k];
     }

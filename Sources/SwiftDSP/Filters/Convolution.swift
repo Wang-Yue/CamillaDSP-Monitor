@@ -329,28 +329,79 @@ final class ConvolutionFilter: Filter {
     // 3. Spectrum-domain multiply-accumulate across the segment
     //    history. seg=0 pairs the newest input with coeff[0]; seg=k
     //    pairs the input from `k` blocks ago with coeff[k].
-    //
-    //    First segment uses zvmul (writes the accumulator); subsequent
-    //    segments use zvma (D = A·B + C, called in-place with C == D).
-    var tempSplit = DSPDoubleSplitComplex(realp: tempRe, imagp: tempIm)
-    var coSplit0 = DSPDoubleSplitComplex(realp: coeffsFRe, imagp: coeffsFIm)
-    var inSplit0 = DSPDoubleSplitComplex(realp: inSlotRe, imagp: inSlotIm)
-    vDSP_zvmulD(
-      &inSplit0, 1, &coSplit0, 1, &tempSplit, 1,
-      vDSP_Length(bins), 1)
+    vDSP_vclrD(tempRe, 1, vDSP_Length(bins))
+    vDSP_vclrD(tempIm, 1, vDSP_Length(bins))
 
-    if nsegments > 1 {
-      for seg in 1..<nsegments {
-        let histIdx = (index + nsegments - seg) % nsegments
-        let inRe = inputFRe + histIdx * bins
-        let inIm = inputFIm + histIdx * bins
-        let coRe = coeffsFRe + seg * bins
-        let coIm = coeffsFIm + seg * bins
-        var inSplit = DSPDoubleSplitComplex(realp: inRe, imagp: inIm)
-        var coSplit = DSPDoubleSplitComplex(realp: coRe, imagp: coIm)
-        vDSP_zvmaD(
-          &inSplit, 1, &coSplit, 1, &tempSplit, 1, &tempSplit, 1,
-          vDSP_Length(bins))
+    for seg in 0..<nsegments {
+      let histIdx = (index + nsegments - seg) % nsegments
+      let inRe = inputFRe + histIdx * bins
+      let inIm = inputFIm + histIdx * bins
+      let coRe = coeffsFRe + seg * bins
+      let coIm = coeffsFIm + seg * bins
+
+      let vecLen = (bins / 8) * 8
+
+      let p_hre = UnsafeRawPointer(inRe).assumingMemoryBound(to: SIMD2<Double>.self)
+      let p_him = UnsafeRawPointer(inIm).assumingMemoryBound(to: SIMD2<Double>.self)
+      let p_sre = UnsafeRawPointer(coRe).assumingMemoryBound(to: SIMD2<Double>.self)
+      let p_sim = UnsafeRawPointer(coIm).assumingMemoryBound(to: SIMD2<Double>.self)
+      let p_acc_re = UnsafeMutableRawPointer(tempRe).assumingMemoryBound(to: SIMD2<Double>.self)
+      let p_acc_im = UnsafeMutableRawPointer(tempIm).assumingMemoryBound(to: SIMD2<Double>.self)
+
+      for k in stride(from: 0, to: vecLen / 2, by: 4) {
+        let h_re0 = p_hre[k]
+        let h_im0 = p_him[k]
+        let s_re0 = p_sre[k]
+        let s_im0 = p_sim[k]
+        var a_re0 = p_acc_re[k]
+        var a_im0 = p_acc_im[k]
+
+        let h_re1 = p_hre[k + 1]
+        let h_im1 = p_him[k + 1]
+        let s_re1 = p_sre[k + 1]
+        let s_im1 = p_sim[k + 1]
+        var a_re1 = p_acc_re[k + 1]
+        var a_im1 = p_acc_im[k + 1]
+
+        let h_re2 = p_hre[k + 2]
+        let h_im2 = p_him[k + 2]
+        let s_re2 = p_sre[k + 2]
+        let s_im2 = p_sim[k + 2]
+        var a_re2 = p_acc_re[k + 2]
+        var a_im2 = p_acc_im[k + 2]
+
+        let h_re3 = p_hre[k + 3]
+        let h_im3 = p_him[k + 3]
+        let s_re3 = p_sre[k + 3]
+        let s_im3 = p_sim[k + 3]
+        var a_re3 = p_acc_re[k + 3]
+        var a_im3 = p_acc_im[k + 3]
+
+        a_re0 += h_re0 * s_re0 - h_im0 * s_im0
+        a_im0 += h_re0 * s_im0 + h_im0 * s_re0
+
+        a_re1 += h_re1 * s_re1 - h_im1 * s_im1
+        a_im1 += h_re1 * s_im1 + h_im1 * s_re1
+
+        a_re2 += h_re2 * s_re2 - h_im2 * s_im2
+        a_im2 += h_re2 * s_im2 + h_im2 * s_re2
+
+        a_re3 += h_re3 * s_re3 - h_im3 * s_im3
+        a_im3 += h_re3 * s_im3 + h_im3 * s_re3
+
+        p_acc_re[k] = a_re0
+        p_acc_im[k] = a_im0
+        p_acc_re[k + 1] = a_re1
+        p_acc_im[k + 1] = a_im1
+        p_acc_re[k + 2] = a_re2
+        p_acc_im[k + 2] = a_im2
+        p_acc_re[k + 3] = a_re3
+        p_acc_im[k + 3] = a_im3
+      }
+
+      for k in vecLen..<bins {
+        tempRe[k] += inRe[k] * coRe[k] - inIm[k] * coIm[k]
+        tempIm[k] += inRe[k] * coIm[k] + inIm[k] * coRe[k]
       }
     }
 
