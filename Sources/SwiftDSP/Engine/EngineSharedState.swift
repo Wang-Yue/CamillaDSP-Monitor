@@ -57,6 +57,10 @@ final class EngineSharedState: Sendable {
   /// Each loop polls between iterations and exits when set.
   let shouldStop = Atomic<Bool>(false)
 
+  /// Pipeline status flags to propagate graceful EOF sequentially.
+  let captureFinished = Atomic<Bool>(false)
+  let processingFinished = Atomic<Bool>(false)
+
   /// Resampler relative-ratio (≈ 1.0). Published by the playback
   /// thread (rate-adjust controller); consumed by the processing
   /// thread once per chunk via `setRelativeRatio`.

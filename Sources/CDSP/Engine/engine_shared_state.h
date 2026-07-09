@@ -199,6 +199,12 @@ typedef struct {
   _Atomic bool stop_reason_written;
 
   /**
+   * @brief Pipeline status flags to propagate graceful EOF sequentially.
+   */
+  _Atomic bool capture_finished;
+  _Atomic bool processing_finished;
+
+  /**
    * @brief Stop reason explaining why the loop stopped (e.g. format change).
    */
   processing_stop_reason_t stop_reason;

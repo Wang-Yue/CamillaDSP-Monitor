@@ -91,16 +91,22 @@ final class EngineProcessingLoop: @unchecked Sendable {
 
     var processedCount = 0
 
-    while !shared.shouldStop.load(ordering: .acquiring) {
+    while true {
       shared.capturedSemaphore.wait()
-      if shared.shouldStop.load(ordering: .acquiring) { break }
+
+      let emergency = shared.shouldStop.load(ordering: .acquiring) &&
+                      stateMachine.stopReason != .done
+      let graceful = shared.captureFinished.load(ordering: .acquiring) &&
+                     shared.capturedQueue.count == 0
+      if emergency || graceful {
+        break
+      }
 
       // Drain everything the capture thread enqueued since the last
       // wake. One semaphore signal can correspond to multiple
       // enqueues if the producer outran us briefly; the inner loop
       // catches up before we wait again.
       while var chunk = shared.capturedQueue.dequeue() {
-        if shared.shouldStop.load(ordering: .acquiring) { return }
         processedCount += 1
 
         do {
@@ -191,6 +197,9 @@ final class EngineProcessingLoop: @unchecked Sendable {
         }
       }
     }
+    shared.processingFinished.store(true, ordering: .releasing)
+    shared.processedSemaphore.signal()
+
     logger.info("Processing thread stopped")
   }
 

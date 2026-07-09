@@ -143,11 +143,16 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
                                audio_chunk_get_frames(loop->pipeline_scratch),
                                loop->pipeline_rate);
 
-  while (
-      !atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
+  while (1) {
     engine_sem_wait(loop->shared->captured_semaphore);
-    if (atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire))
+
+    bool emergency = atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire) &&
+                     loop->shared->stop_reason.type != STOP_REASON_DONE;
+    bool graceful = atomic_load_explicit(&loop->shared->capture_finished, memory_order_acquire) &&
+                    spsc_queue_get_count(loop->shared->captured_queue) == 0;
+    if (emergency || graceful) {
       break;
+    }
 
     // Drain everything the capture thread enqueued since the last
     // wake. One semaphore signal can correspond to multiple
@@ -156,10 +161,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
     audio_chunk_t* chunk = NULL;
     while ((chunk = (audio_chunk_t*)spsc_queue_dequeue(
                 loop->shared->captured_queue)) != NULL) {
-      if (atomic_load_explicit(&loop->shared->should_stop,
-                               memory_order_acquire)) {
-        return;
-      }
 
       uint64_t res_start = 0;
       uint64_t res_end = 0;
@@ -310,6 +311,10 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       engine_sem_signal(loop->shared->processed_semaphore);
     }
   }
+
+  // Propagate graceful shutdown sequentially.
+  atomic_store_explicit(&loop->shared->processing_finished, true, memory_order_release);
+  engine_sem_signal(loop->shared->processed_semaphore);
 
   logger_info(&logger, "Processing thread stopped", log_arg_none(),
               log_arg_none(), log_arg_none(), log_arg_none());

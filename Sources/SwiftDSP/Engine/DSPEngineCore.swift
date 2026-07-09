@@ -132,6 +132,8 @@ internal final class DSPEngineCore {
 
     stateMachine.setState(.starting)
     shared.shouldStop.store(false, ordering: .releasing)
+    shared.captureFinished.store(false, ordering: .releasing)
+    shared.processingFinished.store(false, ordering: .releasing)
     logger.info("Starting DSP engine")
 
     let runtime = try buildRuntime()
@@ -345,6 +347,7 @@ internal final class DSPEngineCore {
     let targetLevel = currentConfig.devices.targetLevel ?? (runtime.playbackChunkSize * 2)
     let playbackLoop = EnginePlaybackLoop(
       shared: shared,
+      stateMachine: stateMachine,
       capture: runtime.capture,
       playback: runtime.playback,
       processingParams: processingParams,

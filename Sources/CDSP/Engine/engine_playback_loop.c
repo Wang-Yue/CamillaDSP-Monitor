@@ -164,20 +164,20 @@ void engine_playback_loop_run(engine_playback_loop_t* loop) {
     stopwatch_restart(&stopwatch);
   }
 
-  while (
-      !atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
+  while (1) {
     engine_sem_wait(loop->shared->processed_semaphore);
-    if (atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire))
+
+    bool emergency = atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire) &&
+                     loop->shared->stop_reason.type != STOP_REASON_DONE;
+    bool graceful = atomic_load_explicit(&loop->shared->processing_finished, memory_order_acquire) &&
+                    spsc_queue_get_count(loop->shared->processed_queue) == 0;
+    if (emergency || graceful) {
       break;
+    }
 
     audio_chunk_t* chunk = NULL;
     while ((chunk = (audio_chunk_t*)spsc_queue_dequeue(
                 loop->shared->processed_queue)) != NULL) {
-      if (atomic_load_explicit(&loop->shared->should_stop,
-                               memory_order_acquire)) {
-        if (rate_controller) pi_rate_controller_free(rate_controller);
-        return;
-      }
 
       // Calculate total buffer level: frames in the hardware playback buffer
       // plus frames currently queued in the SPSC queue waiting to be written.

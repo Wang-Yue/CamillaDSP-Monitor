@@ -38,6 +38,7 @@ final class EnginePlaybackLoop: @unchecked Sendable {
   private let logger = Logger(label: "dsp.playback")
 
   private let shared: EngineSharedState
+  private let stateMachine: EngineStateMachine
   private let capture: CaptureBackend
   private let playback: PlaybackBackend
   private let processingParams: ProcessingParameters?
@@ -54,6 +55,7 @@ final class EnginePlaybackLoop: @unchecked Sendable {
 
   init(
     shared: EngineSharedState,
+    stateMachine: EngineStateMachine,
     capture: CaptureBackend,
     playback: PlaybackBackend,
     processingParams: ProcessingParameters?,
@@ -65,6 +67,7 @@ final class EnginePlaybackLoop: @unchecked Sendable {
     onStop: @escaping (ProcessingStopReason) -> Void
   ) {
     self.shared = shared
+    self.stateMachine = stateMachine
     self.capture = capture
     self.playback = playback
     self.processingParams = processingParams
@@ -96,12 +99,18 @@ final class EnginePlaybackLoop: @unchecked Sendable {
       stopwatch.restart()
     }
 
-    while !shared.shouldStop.load(ordering: .acquiring) {
+    while true {
       shared.processedSemaphore.wait()
-      if shared.shouldStop.load(ordering: .acquiring) { break }
+
+      let emergency = shared.shouldStop.load(ordering: .acquiring) &&
+                      stateMachine.stopReason != .done
+      let graceful = shared.processingFinished.load(ordering: .acquiring) &&
+                     shared.processedQueue.count == 0
+      if emergency || graceful {
+        break
+      }
 
       while let chunk = shared.processedQueue.dequeue() {
-        if shared.shouldStop.load(ordering: .acquiring) { return }
 
         let ringFill = playback.bufferLevel
         let queuedFrames = shared.processedQueue.count * chunkSize

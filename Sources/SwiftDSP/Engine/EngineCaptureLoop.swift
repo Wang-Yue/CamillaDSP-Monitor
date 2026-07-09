@@ -169,6 +169,9 @@ final class EngineCaptureLoop: @unchecked Sendable {
         return
       }
     }
+    shared.captureFinished.store(true, ordering: .releasing)
+    shared.capturedSemaphore.signal()
+
     logger.info("Capture thread stopped")
   }
 

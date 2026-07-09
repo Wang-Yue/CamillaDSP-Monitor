@@ -23,7 +23,8 @@ typedef enum {
   BACKEND_ERROR_DEVICE_BUSY,           /**< Audio device is busy. */
   BACKEND_ERROR_INITIALIZATION_FAILED, /**< Backend initialization failed. */
   BACKEND_ERROR_READ_ERROR,            /**< Error reading from device. */
-  BACKEND_ERROR_WRITE_ERROR            /**< Error writing to device. */
+  BACKEND_ERROR_WRITE_ERROR,           /**< Error writing to device. */
+  BACKEND_ERROR_READ_EOF               /**< End of file/stream reached. */
 } backend_error_type_t;
 
 /**

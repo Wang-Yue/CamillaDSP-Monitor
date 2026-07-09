@@ -631,6 +631,12 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
 
   audio_chunk_set_valid_frames(chunk, frames_read);
 
+  if (frames_read == 0) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_READ_EOF, "End of file/stream reached");
+    }
+  }
+
   return (frames_read > 0);
 }
 
@@ -833,6 +839,9 @@ bool file_playback_write(file_playback_t* playback, const audio_chunk_t* chunk,
 
   size_t bytes_written =
       fwrite(playback->raw_buf, 1, required_bytes, playback->f);
+  if (bytes_written > 0) {
+    fflush(playback->f);
+  }
   playback->total_bytes_written += bytes_written;
 
   return (bytes_written == required_bytes);

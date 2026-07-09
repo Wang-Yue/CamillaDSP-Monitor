@@ -168,6 +168,14 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
     bool got_data =
         capture_backend_read(loop->capture, loop->chunk_size, chunk, &err);
     if (!got_data) {
+      if (err.type == BACKEND_ERROR_READ_EOF) {
+        logger_info(&logger, "Capture reached End-of-Stream; stopping engine gracefully",
+                    log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
+        processing_stop_reason_t reason = {.type = STOP_REASON_DONE};
+        snprintf(reason.message, sizeof(reason.message), "EOF");
+        engine_shared_state_request_stop(loop->shared, reason);
+        break;
+      }
       // If reading fails with an error, trigger an engine stop.
       if (err.type != BACKEND_ERROR_NONE) {
         static char s_capture_err_log[256];
@@ -275,6 +283,10 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       engine_sem_signal(loop->shared->captured_semaphore);
     }
   }
+
+  // Propagate graceful shutdown sequentially.
+  atomic_store_explicit(&loop->shared->capture_finished, true, memory_order_release);
+  engine_sem_signal(loop->shared->captured_semaphore);
 
   logger_info(&logger, "Capture thread stopped", log_arg_none(), log_arg_none(),
               log_arg_none(), log_arg_none());
