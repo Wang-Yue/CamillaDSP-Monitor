@@ -28,8 +28,7 @@ internal enum SpectrumError: Error, Sendable, CustomStringConvertible {
 /// Pure spectrum analyzer that operates on an `AudioHistoryBuffer`.
 final class SpectrumAnalyzer {
   private let fftN: Int = 4096
-  private let log2n: vDSP_Length
-  private let fftSetup: FFTSetup
+  private let fft: GenericRealFFT<Float>
   private let window: [Float]
 
   // Preallocated reusable scratch buffers to eliminate frame-by-frame allocations
@@ -52,26 +51,17 @@ final class SpectrumAnalyzer {
 
   init() {
     let n = 4096
-    let log2nVal = vDSP_Length(log2(Double(n)))
-    self.log2n = log2nVal
-    guard let setup = vDSP_create_fftsetup(log2nVal, FFTRadix(kFFTRadix2)) else {
-      fatalError("Failed to create FFT setup for SpectrumAnalyzer")
-    }
-    self.fftSetup = setup
+    self.fft = GenericRealFFT<Float>(length: n)
 
     var w = [Float](repeating: 0, count: n)
     vDSP_hann_window(&w, vDSP_Length(n), 0)
     self.window = w
 
     self.data = [Float](repeating: 0, count: n)
-    self.realp = [Float](repeating: 0, count: n / 2)
-    self.imagp = [Float](repeating: 0, count: n / 2)
+    self.realp = [Float](repeating: 0, count: n / 2 + 1)
+    self.imagp = [Float](repeating: 0, count: n / 2 + 1)
     self.magnitudes = [Float](repeating: 0, count: n / 2 + 1)
     self.dbMagnitudes = [Float](repeating: 0, count: n / 2 + 1)
-  }
-
-  deinit {
-    vDSP_destroy_fftsetup(fftSetup)
   }
 
   /// Compute a spectrum on demand (consumer side).
@@ -107,25 +97,8 @@ final class SpectrumAnalyzer {
     // 1. Apply Hann window in-place
     vDSP.multiply(self.data, self.window, result: &self.data)
 
-    // 2. Perform FFT using reusable split-complex buffers
-    try self.data.withUnsafeBytes { inputPtr in
-      guard let complexBase = inputPtr.bindMemory(to: DSPComplex.self).baseAddress else {
-        throw SpectrumError.invalidParameters("FFT input bytes have no base address")
-      }
-      try self.realp.withUnsafeMutableBufferPointer { realPtr in
-        guard let realBase = realPtr.baseAddress else {
-          throw SpectrumError.invalidParameters("FFT real-part buffer has no base address")
-        }
-        try self.imagp.withUnsafeMutableBufferPointer { imagPtr in
-          guard let imagBase = imagPtr.baseAddress else {
-            throw SpectrumError.invalidParameters("FFT imag-part buffer has no base address")
-          }
-          var splitComplex = DSPSplitComplex(realp: realBase, imagp: imagBase)
-          vDSP_ctoz(complexBase, 2, &splitComplex, 1, vDSP_Length(fftN / 2))
-          vDSP_fft_zrip(fftSetup, &splitComplex, 1, log2n, FFTDirection(kFFTDirection_Forward))
-        }
-      }
-    }
+    // 2. Perform FFT using unified RealFFT
+    fft.forward(realIn: self.data, specRe: &self.realp, specIm: &self.imagp)
 
     // 3. Compute magnitudes in dB directly into preallocated arrays
     let scale = 2.0 / Float(fftN)
@@ -149,48 +122,25 @@ final class SpectrumAnalyzer {
               throw SpectrumError.invalidParameters("dbMagnitudes buffer has no base address")
             }
 
-            // Calculate magnitudes of complex bins [1 .. halfN - 1] via vector absolute value
-            var splitComplex = DSPSplitComplex(
-              realp: realBase.advanced(by: 1),
-              imagp: imagBase.advanced(by: 1)
-            )
-            vDSP_zvabs(
-              &splitComplex, 1,
-              magBase.advanced(by: 1), 1,
-              vDSP_Length(halfN - 1)
-            )
+            // Calculate magnitudes of all complex bins [0 .. halfN] via vector absolute value
+            var splitComplex = DSPSplitComplex(realp: realBase, imagp: imagBase)
+            vDSP_zvabs(&splitComplex, 1, magBase, 1, vDSP_Length(halfN + 1))
 
-            // Scale the complex bins
-            var nonConstScale = scale
-            vDSP_vsmul(
-              magBase.advanced(by: 1), 1,
-              &nonConstScale,
-              magBase.advanced(by: 1), 1,
-              vDSP_Length(halfN - 1)
-            )
+            // Scale all bins (bins 1..halfN-1 represent conjugate pairs, so they are doubled)
+            var scaleAll = scale
+            vDSP_vsmul(magBase, 1, &scaleAll, magBase, 1, vDSP_Length(halfN + 1))
 
-            // Set DC and Nyquist bins
-            magBase[0] = abs(realBase[0]) / Float(fftN)
-            magBase[halfN] = abs(imagBase[0]) / Float(fftN)
+            // Correct scaling for DC and Nyquist (they are not doubled, so scale by 1.0/N instead of 2.0/N)
+            magBase[0] *= 0.5
+            magBase[halfN] *= 0.5
 
             // Threshold the entire magnitudes array to floorVal in-place
             var nonConstFloor = floorVal
-            vDSP_vthr(
-              magBase, 1,
-              &nonConstFloor,
-              magBase, 1,
-              vDSP_Length(halfN + 1)
-            )
+            vDSP_vthr(magBase, 1, &nonConstFloor, magBase, 1, vDSP_Length(halfN + 1))
 
             // Convert the entire magnitudes array to decibels (dBFS)
             var ref: Float = 1.0
-            vDSP_vdbcon(
-              magBase, 1,
-              &ref,
-              dbBase, 1,
-              vDSP_Length(halfN + 1),
-              1
-            )
+            vDSP_vdbcon(magBase, 1, &ref, dbBase, 1, vDSP_Length(halfN + 1), 1)
           }
         }
       }

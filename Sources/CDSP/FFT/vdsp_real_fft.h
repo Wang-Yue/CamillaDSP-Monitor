@@ -92,6 +92,22 @@ static inline real_fft_backend_t* vdsp_real_fft_as_backend(
     vdsp_real_fft_t* fft) {
   return (real_fft_backend_t*)fft;
 }
+
+// Single-precision (float) vDSP FFT declarations
+typedef struct vdsp_real_fftf vdsp_real_fftf_t;
+
+vdsp_real_fftf_t* vdsp_real_fftf_create(size_t length);
+void vdsp_real_fftf_forward(vdsp_real_fftf_t* fft, const float* real_in,
+                            float* spec_re, float* spec_im);
+void vdsp_real_fftf_inverse(vdsp_real_fftf_t* fft, const float* spec_re,
+                            const float* spec_im, float* real_out);
+void vdsp_real_fftf_free(vdsp_real_fftf_t* fft);
+
+static inline real_fftf_backend_t* vdsp_real_fftf_as_backend(
+    vdsp_real_fftf_t* fft) {
+  return (real_fftf_backend_t*)fft;
+}
+
 #endif  // ENABLE_ACCELERATE
 
 #endif  // CLIB_FFT_VDSPREALFFT_H

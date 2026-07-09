@@ -163,4 +163,108 @@ void vdsp_real_fft_free(vdsp_real_fft_t* fft) {
   if (fft->scratch_im) free(fft->scratch_im);
   free(fft);
 }
+
+// Single-precision (float) vDSP FFT implementation
+struct vdsp_real_fftf {
+  real_fftf_backend_t base;
+  size_t half_n;
+  vDSP_Length log2n;
+  FFTSetup setup;
+  float* scratch_re;
+  float* scratch_im;
+};
+
+static void vdsp_real_fftf_forward_wrapper(void* ctx, const float* real_in,
+                                           float* spec_re, float* spec_im) {
+  vdsp_real_fftf_forward((vdsp_real_fftf_t*)ctx, real_in, spec_re, spec_im);
+}
+
+static void vdsp_real_fftf_inverse_wrapper(void* ctx, const float* spec_re,
+                                           const float* spec_im,
+                                           float* real_out) {
+  vdsp_real_fftf_inverse((vdsp_real_fftf_t*)ctx, spec_re, spec_im, real_out);
+}
+
+static void vdsp_real_fftf_free_wrapper(void* ctx) {
+  vdsp_real_fftf_free((vdsp_real_fftf_t*)ctx);
+}
+
+vdsp_real_fftf_t* vdsp_real_fftf_create(size_t length) {
+  if (length < 8 || (length & (length - 1)) != 0) return NULL;
+
+  vDSP_Length log2n = 0;
+  size_t temp = length;
+  while (temp > 1) {
+    log2n++;
+    temp >>= 1;
+  }
+  FFTSetup setup = vDSP_create_fftsetup(log2n, kFFTRadix2);
+  if (!setup) return NULL;
+
+  vdsp_real_fftf_t* fft = (vdsp_real_fftf_t*)malloc(sizeof(vdsp_real_fftf_t));
+  if (!fft) {
+    vDSP_destroy_fftsetup(setup);
+    return NULL;
+  }
+  size_t half_n = length / 2;
+  fft->base.ctx = fft;
+  fft->base.forward = vdsp_real_fftf_forward_wrapper;
+  fft->base.inverse = vdsp_real_fftf_inverse_wrapper;
+  fft->base.free = vdsp_real_fftf_free_wrapper;
+  fft->half_n = half_n;
+  fft->log2n = log2n;
+  fft->setup = setup;
+  fft->scratch_re = (float*)malloc(half_n * sizeof(float));
+  fft->scratch_im = (float*)malloc(half_n * sizeof(float));
+  if (!fft->scratch_re || !fft->scratch_im) {
+    vdsp_real_fftf_free(fft);
+    return NULL;
+  }
+  return fft;
+}
+
+void vdsp_real_fftf_forward(vdsp_real_fftf_t* fft, const float* real_in,
+                            float* spec_re, float* spec_im) {
+  if (!fft) return;
+  size_t n = fft->half_n;
+  DSPSplitComplex split = {fft->scratch_re, fft->scratch_im};
+  vDSP_ctoz((const DSPComplex*)real_in, 2, &split, 1, (vDSP_Length)n);
+  vDSP_fft_zrip(fft->setup, &split, 1, fft->log2n, FFT_FORWARD);
+
+  float half = 0.5f;
+  vDSP_vsmul(fft->scratch_re, 1, &half, spec_re, 1, (vDSP_Length)n);
+  if (n > 1) {
+    vDSP_vsmul(fft->scratch_im + 1, 1, &half, spec_im + 1, 1,
+               (vDSP_Length)(n - 1));
+  }
+  spec_im[0] = 0.0f;
+  spec_re[n] = fft->scratch_im[0] * 0.5f;
+  spec_im[n] = 0.0f;
+}
+
+void vdsp_real_fftf_inverse(vdsp_real_fftf_t* fft, const float* spec_re,
+                            const float* spec_im, float* real_out) {
+  if (!fft) return;
+  size_t n = fft->half_n;
+  fft->scratch_re[0] = spec_re[0];
+  fft->scratch_im[0] = spec_re[n];
+  if (n > 1) {
+    memcpy(fft->scratch_re + 1, spec_re + 1, (n - 1) * sizeof(float));
+    memcpy(fft->scratch_im + 1, spec_im + 1, (n - 1) * sizeof(float));
+  }
+
+  DSPSplitComplex split = {fft->scratch_re, fft->scratch_im};
+  vDSP_fft_zrip(fft->setup, &split, 1, fft->log2n, FFT_INVERSE);
+
+  vDSP_ztoc(&split, 1, (DSPComplex*)real_out, 2, (vDSP_Length)n);
+}
+
+void vdsp_real_fftf_free(vdsp_real_fftf_t* fft) {
+  if (!fft) return;
+  if (fft->setup) vDSP_destroy_fftsetup(fft->setup);
+  if (fft->scratch_re) free(fft->scratch_re);
+  if (fft->scratch_im) free(fft->scratch_im);
+  free(fft);
+}
+
 #endif  // ENABLE_ACCELERATE

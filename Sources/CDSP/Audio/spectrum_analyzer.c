@@ -2,6 +2,8 @@
 
 #include <math.h>
 
+#include "FFT/real_fft.h"
+
 typedef struct {
   int low_k;
   int high_k;
@@ -20,15 +22,7 @@ typedef struct {
 
 struct spectrum_analyzer {
   size_t fft_n;
-#ifdef ENABLE_ACCELERATE
-  vDSP_Length log2n;
-  FFTSetup fft_setup;
-#else
-  void* fft_setup;
-  double* fft_in_d;
-  double* fft_re_d;
-  double* fft_im_d;
-#endif
+  real_fftf_t* fft_setup;
   float* window;
   // Preallocated reusable scratch buffers to eliminate frame-by-frame
   // allocations
@@ -46,8 +40,6 @@ struct spectrum_analyzer {
 #include <stdlib.h>
 #include <string.h>
 
-#include "FFT/real_fft.h"
-
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -57,19 +49,11 @@ spectrum_analyzer_t* spectrum_analyzer_create(void) {
       (spectrum_analyzer_t*)calloc(1, sizeof(spectrum_analyzer_t));
   if (!analyzer) return NULL;
   analyzer->fft_n = 4096;
-#ifdef ENABLE_ACCELERATE
-  analyzer->log2n = (vDSP_Length)log2(4096.0);
-  analyzer->fft_setup = vDSP_create_fftsetup(analyzer->log2n, kFFTRadix2);
-#else
-  analyzer->fft_setup = (void*)real_fft_create(4096);
-  analyzer->fft_in_d = (double*)calloc(4096, sizeof(double));
-  analyzer->fft_re_d = (double*)calloc(2049, sizeof(double));
-  analyzer->fft_im_d = (double*)calloc(2049, sizeof(double));
-#endif
+  analyzer->fft_setup = real_fftf_create(4096);
   analyzer->window = (float*)calloc(analyzer->fft_n, sizeof(float));
   analyzer->data = (float*)calloc(analyzer->fft_n, sizeof(float));
-  analyzer->realp = (float*)calloc(analyzer->fft_n / 2, sizeof(float));
-  analyzer->imagp = (float*)calloc(analyzer->fft_n / 2, sizeof(float));
+  analyzer->realp = (float*)calloc(analyzer->fft_n / 2 + 1, sizeof(float));
+  analyzer->imagp = (float*)calloc(analyzer->fft_n / 2 + 1, sizeof(float));
   analyzer->magnitudes = (float*)calloc(analyzer->fft_n / 2 + 1, sizeof(float));
   analyzer->db_magnitudes =
       (float*)calloc(analyzer->fft_n / 2 + 1, sizeof(float));
@@ -97,10 +81,10 @@ spectrum_analyzer_t* spectrum_analyzer_create(void) {
   analyzer->out_magnitudes =
       (float*)calloc(analyzer->out_capacity, sizeof(float));
 
-  if (!analyzer->window || !analyzer->data || !analyzer->realp ||
-      !analyzer->imagp || !analyzer->magnitudes || !analyzer->db_magnitudes ||
-      !analyzer->plan.frequencies || !analyzer->plan.ranges ||
-      !analyzer->out_magnitudes) {
+  if (!analyzer->fft_setup || !analyzer->window || !analyzer->data ||
+      !analyzer->realp || !analyzer->imagp || !analyzer->magnitudes ||
+      !analyzer->db_magnitudes || !analyzer->plan.frequencies ||
+      !analyzer->plan.ranges || !analyzer->out_magnitudes) {
     spectrum_analyzer_free(analyzer);
     return NULL;
   }
@@ -110,14 +94,7 @@ spectrum_analyzer_t* spectrum_analyzer_create(void) {
 
 void spectrum_analyzer_free(spectrum_analyzer_t* analyzer) {
   if (!analyzer) return;
-#ifdef ENABLE_ACCELERATE
-  if (analyzer->fft_setup) vDSP_destroy_fftsetup(analyzer->fft_setup);
-#else
-  if (analyzer->fft_setup) real_fft_free((real_fft_t*)analyzer->fft_setup);
-  if (analyzer->fft_in_d) free(analyzer->fft_in_d);
-  if (analyzer->fft_re_d) free(analyzer->fft_re_d);
-  if (analyzer->fft_im_d) free(analyzer->fft_im_d);
-#endif
+  if (analyzer->fft_setup) real_fftf_free(analyzer->fft_setup);
   if (analyzer->window) free(analyzer->window);
   if (analyzer->data) free(analyzer->data);
   if (analyzer->realp) free(analyzer->realp);
@@ -166,41 +143,29 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   }
 #endif
 
-  // 2. Perform FFT using reusable split-complex buffers.
-  // Uses vDSP on macOS/iOS or falls back to a custom double-precision FFT.
+  // 2. Perform FFT using unified real_fftf
   size_t half_n = analyzer->fft_n / 2;
-#ifdef ENABLE_ACCELERATE
-  DSPSplitComplex split_complex = {analyzer->realp, analyzer->imagp};
-  vDSP_ctoz((const DSPComplex*)analyzer->data, 2, &split_complex, 1,
-            (vDSP_Length)half_n);
-  vDSP_fft_zrip(analyzer->fft_setup, &split_complex, 1, analyzer->log2n,
-                kFFTDirection_Forward);
-#else
-  for (size_t i = 0; i < analyzer->fft_n; i++) {
-    analyzer->fft_in_d[i] = (double)analyzer->data[i];
-  }
-  real_fft_forward((real_fft_t*)analyzer->fft_setup, analyzer->fft_in_d,
-                   analyzer->fft_re_d, analyzer->fft_im_d);
-#endif
+  real_fftf_forward(analyzer->fft_setup, analyzer->data, analyzer->realp,
+                    analyzer->imagp);
 
   // 3. Compute magnitudes in dBFS directly into preallocated arrays
   float scale = 2.0f / (float)analyzer->fft_n;
   float floor_val = 1e-10f;  // Threshold to prevent log10(0)
 
 #ifdef ENABLE_ACCELERATE
-  // Calculate magnitudes of complex bins [1 .. half_n - 1] via vector absolute
+  // Calculate magnitudes of all complex bins [0 .. half_n] via vector absolute
   // value
-  DSPSplitComplex split_complex1 = {analyzer->realp + 1, analyzer->imagp + 1};
-  vDSP_zvabs(&split_complex1, 1, analyzer->magnitudes + 1, 1,
-             (vDSP_Length)(half_n - 1));
-  // Scale the complex bins
-  vDSP_vsmul(analyzer->magnitudes + 1, 1, &scale, analyzer->magnitudes + 1, 1,
-             (vDSP_Length)(half_n - 1));
+  DSPSplitComplex split_complex = {analyzer->realp, analyzer->imagp};
+  vDSP_zvabs(&split_complex, 1, analyzer->magnitudes, 1,
+             (vDSP_Length)(half_n + 1));
+  // Scale the bins (doubled for conjugate pairs)
+  vDSP_vsmul(analyzer->magnitudes, 1, &scale, analyzer->magnitudes, 1,
+             (vDSP_Length)(half_n + 1));
 
-  // Set DC and Nyquist bins (handled specially in vDSP packed format)
-  analyzer->magnitudes[0] = fabsf(analyzer->realp[0]) / (float)analyzer->fft_n;
-  analyzer->magnitudes[half_n] =
-      fabsf(analyzer->imagp[0]) / (float)analyzer->fft_n;
+  // Correct scaling for DC and Nyquist (they are not doubled, so scale by 1.0/N
+  // instead of 2.0/N)
+  analyzer->magnitudes[0] *= 0.5f;
+  analyzer->magnitudes[half_n] *= 0.5f;
 
   // Threshold the entire magnitudes array to floor_val in-place
   vDSP_vthr(analyzer->magnitudes, 1, &floor_val, analyzer->magnitudes, 1,
@@ -211,14 +176,13 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
               (vDSP_Length)(half_n + 1), 1);
 #else
   // Manual magnitude calculation for fallback FFT
-  analyzer->magnitudes[0] =
-      fabsf((float)analyzer->fft_re_d[0]) / (float)analyzer->fft_n;
+  analyzer->magnitudes[0] = fabsf(analyzer->realp[0]) / (float)analyzer->fft_n;
   analyzer->magnitudes[half_n] =
-      fabsf((float)analyzer->fft_re_d[half_n]) / (float)analyzer->fft_n;
+      fabsf(analyzer->realp[half_n]) / (float)analyzer->fft_n;
   for (size_t i = 1; i < half_n; i++) {
-    double re = analyzer->fft_re_d[i];
-    double im = analyzer->fft_im_d[i];
-    analyzer->magnitudes[i] = (float)(sqrt(re * re + im * im) * (double)scale);
+    float re = analyzer->realp[i];
+    float im = analyzer->imagp[i];
+    analyzer->magnitudes[i] = sqrtf(re * re + im * im) * scale;
   }
   for (size_t i = 0; i <= half_n; i++) {
     float mag = analyzer->magnitudes[i];

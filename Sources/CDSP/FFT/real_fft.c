@@ -30,7 +30,7 @@ size_t real_fft_get_spectrum_length(const real_fft_t* fft) {
 // ------------------------------------------------
 //   1. `length` is a power of two `≥ 8`
 //      → `VDSPRealFFT` (`VDSPRealFFT.swift`), wrapping Apple's
-//      `vDSP_fft_zripD` (radix-2 split-complex real FFT, hand-tuned
+//      `vDSP_fft_zrip` / `vDSP_fft_zripD` (radix-2 split-complex real FFT, hand-tuned
 //      NEON on Apple Silicon).
 //   2. Otherwise (arbitrary even length): a 2N-point real FFT is built
 //      from one N-point complex FFT plus an O(N) untwiddle pass —
@@ -116,6 +116,39 @@ real_fft_t* real_fft_create(size_t length) {
   fft->backend = complex_inner_real_fft_as_backend(complex_inner);
   return fft;
 }
+
+// Single-precision (float) Accelerate context
+struct real_fftf {
+  size_t length;
+  size_t spectrum_length;
+  real_fftf_backend_t* backend;
+};
+
+size_t real_fftf_get_length(const real_fftf_t* fft) {
+  return fft ? fft->length : 0;
+}
+
+size_t real_fftf_get_spectrum_length(const real_fftf_t* fft) {
+  return fft ? fft->spectrum_length : 0;
+}
+
+real_fftf_t* real_fftf_create(size_t length) {
+  if (length == 0 || length % 2 != 0) return NULL;
+  real_fftf_t* fft = (real_fftf_t*)malloc(sizeof(real_fftf_t));
+  if (!fft) return NULL;
+  fft->length = length;
+  fft->spectrum_length = length / 2 + 1;
+
+  vdsp_real_fftf_t* vdsp = vdsp_real_fftf_create(length);
+  if (vdsp) {
+    fft->backend = vdsp_real_fftf_as_backend(vdsp);
+    return fft;
+  }
+
+  free(fft);
+  return NULL;
+}
+
 
 #elif defined(ENABLE_FFTW)
 
@@ -241,6 +274,111 @@ real_fft_t* real_fft_create(size_t length) {
   return fft;
 }
 
+// Single-precision (float) FFTW context and implementation
+struct real_fftf {
+  size_t length;
+  size_t spectrum_length;
+  real_fftf_backend_t* backend;
+};
+
+struct fftwf_real_fft_ctx {
+  real_fftf_backend_t base;
+  size_t length;
+  size_t spectrum_length;
+  float* in_real;
+  fftwf_complex* out_complex;
+  fftwf_plan plan_forward;
+  fftwf_plan plan_inverse;
+};
+
+static void fftwf_real_fft_forward(void* ctx, const float* real_in,
+                                   float* spec_re, float* spec_im) {
+  struct fftwf_real_fft_ctx* fft = (struct fftwf_real_fft_ctx*)ctx;
+  memcpy(fft->in_real, real_in, fft->length * sizeof(float));
+  fftwf_execute(fft->plan_forward);
+  for (size_t i = 0; i < fft->spectrum_length; i++) {
+    spec_re[i] = __real__(fft->out_complex[i]);
+    spec_im[i] = __imag__(fft->out_complex[i]);
+  }
+}
+
+static void fftwf_real_fft_inverse(void* ctx, const float* spec_re,
+                                   const float* spec_im, float* real_out) {
+  struct fftwf_real_fft_ctx* fft = (struct fftwf_real_fft_ctx*)ctx;
+  for (size_t i = 0; i < fft->spectrum_length; i++) {
+    __real__(fft->out_complex[i]) = spec_re[i];
+    __imag__(fft->out_complex[i]) = spec_im[i];
+  }
+  fftwf_execute(fft->plan_inverse);
+  memcpy(real_out, fft->in_real, fft->length * sizeof(float));
+}
+
+static void fftwf_real_fft_free(void* ctx) {
+  struct fftwf_real_fft_ctx* fft = (struct fftwf_real_fft_ctx*)ctx;
+  if (!fft) return;
+  if (fft->plan_forward) fftwf_destroy_plan(fft->plan_forward);
+  if (fft->plan_inverse) fftwf_destroy_plan(fft->plan_inverse);
+  if (fft->in_real) fftwf_free(fft->in_real);
+  if (fft->out_complex) fftwf_free(fft->out_complex);
+  free(fft);
+}
+
+size_t real_fftf_get_length(const real_fftf_t* fft) {
+  return fft ? fft->length : 0;
+}
+
+size_t real_fftf_get_spectrum_length(const real_fftf_t* fft) {
+  return fft ? fft->spectrum_length : 0;
+}
+
+real_fftf_t* real_fftf_create(size_t length) {
+  if (length == 0 || length % 2 != 0) return NULL;
+  real_fftf_t* fft = (real_fftf_t*)malloc(sizeof(real_fftf_t));
+  if (!fft) return NULL;
+  fft->length = length;
+  fft->spectrum_length = length / 2 + 1;
+
+  struct fftwf_real_fft_ctx* ctx =
+      (struct fftwf_real_fft_ctx*)malloc(sizeof(struct fftwf_real_fft_ctx));
+  if (!ctx) {
+    free(fft);
+    return NULL;
+  }
+  ctx->length = length;
+  ctx->spectrum_length = length / 2 + 1;
+  ctx->in_real = (float*)fftwf_malloc(length * sizeof(float));
+  ctx->out_complex = (fftwf_complex*)fftwf_malloc(ctx->spectrum_length *
+                                                   sizeof(fftwf_complex));
+  if (!ctx->in_real || !ctx->out_complex) {
+    if (ctx->in_real) fftwf_free(ctx->in_real);
+    if (ctx->out_complex) fftwf_free(ctx->out_complex);
+    free(ctx);
+    free(fft);
+    return NULL;
+  }
+  ctx->plan_forward = fftwf_plan_dft_r2c_1d((int)length, ctx->in_real,
+                                            ctx->out_complex, FFTW_ESTIMATE);
+  ctx->plan_inverse = fftwf_plan_dft_c2r_1d((int)length, ctx->out_complex,
+                                            ctx->in_real, FFTW_ESTIMATE);
+  if (!ctx->plan_forward || !ctx->plan_inverse) {
+    if (ctx->plan_forward) fftwf_destroy_plan(ctx->plan_forward);
+    if (ctx->plan_inverse) fftwf_destroy_plan(ctx->plan_inverse);
+    fftwf_free(ctx->in_real);
+    fftwf_free(ctx->out_complex);
+    free(ctx);
+    free(fft);
+    return NULL;
+  }
+  ctx->base.ctx = ctx;
+  ctx->base.forward = fftwf_real_fft_forward;
+  ctx->base.inverse = fftwf_real_fft_inverse;
+  ctx->base.free = fftwf_real_fft_free;
+
+  fft->backend = (real_fftf_backend_t*)&ctx->base;
+  return fft;
+}
+
+
 #else
 #error "No FFT backend enabled! Enable either ENABLE_ACCELERATE or ENABLE_FFTW."
 #endif
@@ -261,6 +399,29 @@ void real_fft_inverse(real_fft_t* fft, waveform_t spec_re, waveform_t spec_im,
 }
 
 void real_fft_free(real_fft_t* fft) {
+  if (fft) {
+    if (fft->backend && fft->backend->free) {
+      fft->backend->free(fft->backend->ctx);
+    }
+    free(fft);
+  }
+}
+
+void real_fftf_forward(real_fftf_t* fft, const float* real_in, float* spec_re,
+                       float* spec_im) {
+  if (fft && fft->backend && fft->backend->forward) {
+    fft->backend->forward(fft->backend->ctx, real_in, spec_re, spec_im);
+  }
+}
+
+void real_fftf_inverse(real_fftf_t* fft, const float* spec_re,
+                       const float* spec_im, float* real_out) {
+  if (fft && fft->backend && fft->backend->inverse) {
+    fft->backend->inverse(fft->backend->ctx, spec_re, spec_im, real_out);
+  }
+}
+
+void real_fftf_free(real_fftf_t* fft) {
   if (fft) {
     if (fft->backend && fft->backend->free) {
       fft->backend->free(fft->backend->ctx);

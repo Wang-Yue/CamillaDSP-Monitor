@@ -13,7 +13,7 @@
  * Decision tree (top-to-bottom, first match wins):
  *   1. `length` is a power of two `≥ 8`
  *      → `VDSPRealFFT` (`VDSPRealFFT.swift`), wrapping Apple's
- *      `vDSP_fft_zripD` (radix-2 split-complex real FFT, hand-tuned
+ *      `vDSP_fft_zrip` / `vDSP_fft_zripD` (radix-2 split-complex real FFT, hand-tuned
  *      NEON on Apple Silicon).
  *   2. Otherwise (arbitrary even length): a 2N-point real FFT is built
  *      from one N-point complex FFT plus an O(N) untwiddle pass —
@@ -166,5 +166,31 @@ void real_fft_inverse(real_fft_t* fft, waveform_t spec_re, waveform_t spec_im,
  * @param fft The context to destroy.
  */
 void real_fft_free(real_fft_t* fft);
+
+// Single-precision (float) Real FFT declarations
+typedef struct real_fftf real_fftf_t;
+
+typedef void (*real_fftf_backend_forward_fn)(void* ctx, const float* real_in,
+                                             float* spec_re, float* spec_im);
+typedef void (*real_fftf_backend_inverse_fn)(void* ctx, const float* spec_re,
+                                             const float* spec_im,
+                                             float* real_out);
+typedef void (*real_fftf_backend_free_fn)(void* ctx);
+
+typedef struct {
+  void* ctx;
+  real_fftf_backend_forward_fn forward;
+  real_fftf_backend_inverse_fn inverse;
+  real_fftf_backend_free_fn free;
+} real_fftf_backend_t;
+
+size_t real_fftf_get_length(const real_fftf_t* fft);
+size_t real_fftf_get_spectrum_length(const real_fftf_t* fft);
+real_fftf_t* real_fftf_create(size_t length);
+void real_fftf_forward(real_fftf_t* fft, const float* real_in, float* spec_re,
+                       float* spec_im);
+void real_fftf_inverse(real_fftf_t* fft, const float* spec_re,
+                       const float* spec_im, float* real_out);
+void real_fftf_free(real_fftf_t* fft);
 
 #endif  // CLIB_FFT_REALFFT_H
