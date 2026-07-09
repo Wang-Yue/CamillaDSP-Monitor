@@ -18,10 +18,23 @@ enum PipelineError: Error, Sendable, CustomStringConvertible {
   }
 }
 
-/// A single step in the processing pipeline
-enum PipelineExecutionStep {
-  /// Filter chain applied to a single channel
-  case filter(channel: Int, filters: [Filter], bypassed: Bool)
+/// The execution mode of the audio processing pipeline.
+public enum ProcessingMode: Sendable {
+  case singleThreaded
+  case multiThreaded
+}
+
+/// A filter chain applied to a single channel in parallel.
+struct ParallelFilterChain: @unchecked Sendable {
+  let channel: Int
+  let filters: [Filter]
+  let bypassed: Bool
+}
+
+/// A single stage in the processing pipeline.
+enum PipelineExecutionStage {
+  /// Contiguous filter chains that can be processed in parallel.
+  case parallelFilters([ParallelFilterChain])
   /// Mixer that changes channel routing.
   case mixer(AudioMixer)
   /// Audio processor applied to the chunk in-place.
@@ -30,7 +43,8 @@ enum PipelineExecutionStep {
 
 /// The main audio processing pipeline.
 final class Pipeline {
-  private var processingSteps: [PipelineExecutionStep] = []
+  private var processingStages: [PipelineExecutionStage] = []
+  private let mode: ProcessingMode
   /// Implicit main volume filter with smooth ramping
   private let masterVolume: VolumeFilter
   /// Working scratch the pipeline copies the caller's input into at the start
@@ -50,8 +64,10 @@ final class Pipeline {
   init(
     config: DSPConfiguration,
     processingParams: ProcessingParameters,
-    explicitChunkSize: Int? = nil
+    explicitChunkSize: Int? = nil,
+    mode: ProcessingMode = .singleThreaded
   ) throws {
+    self.mode = mode
     self.framesPerChunk = explicitChunkSize ?? config.devices.chunksize
     self.rate = config.devices.samplerate
     // Create the implicit master volume filter — equivalent to the
@@ -97,6 +113,7 @@ final class Pipeline {
             channelsToApply = Array(0..<currentChannels)
           }
 
+          var newChains: [ParallelFilterChain] = []
           // Create a separate filter chain for each target channel
           for ch in channelsToApply {
             var filters: [Filter] = []
@@ -113,7 +130,20 @@ final class Pipeline {
               )
               filters.append(filter)
             }
-            processingSteps.append(.filter(channel: ch, filters: filters, bypassed: isBypassed))
+            newChains.append(ParallelFilterChain(channel: ch, filters: filters, bypassed: isBypassed))
+          }
+
+          // Merge adjacent filter steps if they target disjoint sets of channels
+          if !processingStages.isEmpty, case .parallelFilters(let existingChains) = processingStages.last! {
+            let existingChannels = Set(existingChains.map { $0.channel })
+            let newChannels = Set(newChains.map { $0.channel })
+            if existingChannels.isDisjoint(with: newChannels) {
+              processingStages[processingStages.count - 1] = .parallelFilters(existingChains + newChains)
+            } else {
+              processingStages.append(.parallelFilters(newChains))
+            }
+          } else {
+            processingStages.append(.parallelFilters(newChains))
           }
 
         case .mixer:
@@ -124,7 +154,7 @@ final class Pipeline {
           currentChannels = mixerConfig.channelsOut
 
           scratchesForMixers.append(AudioChunk(frames: framesPerChunk, channels: currentChannels))
-          processingSteps.append(.mixer(mixer))
+          processingStages.append(.mixer(mixer))
 
         case .processor:
           guard let processorName = step.name,
@@ -139,7 +169,7 @@ final class Pipeline {
             sampleRate: rate,
             chunkSize: framesPerChunk
           )
-          processingSteps.append(
+          processingStages.append(
             .processor(processor, bypassed: isBypassed))
         }
       }
@@ -187,33 +217,45 @@ final class Pipeline {
     }
     masterVolume.advanceRamp()
 
-    // 4. Execute pipeline steps sequentially.
+    // 4. Execute pipeline stages.
     var mixerIdx = 0
 
-    try processingSteps.withUnsafeBufferPointer { steps in
-      for i in 0..<steps.count {
-        switch steps[i] {
-        case .filter(let ch, let filters, let bypassed):
-          if bypassed { continue }
-          guard ch < currentChunk.channels else { continue }
-          let buf = currentChunk[ch]
-          let slice = UnsafeMutableBufferPointer(start: buf.baseAddress, count: validFrames)
-          filters.withUnsafeBufferPointer { filterBuf in
-            for j in 0..<filterBuf.count {
-              filterBuf[j].process(waveform: slice)
+    for stage in processingStages {
+      switch stage {
+      case .parallelFilters(let chains):
+        let chunk = currentChunk
+        if mode == .multiThreaded && chains.count > 1 {
+          DispatchQueue.concurrentPerform(iterations: chains.count) { idx in
+            let chain = chains[idx]
+            if chain.bypassed { return }
+            guard chain.channel < chunk.channels else { return }
+            let buf = chunk[chain.channel]
+            let slice = UnsafeMutableBufferPointer(start: buf.baseAddress, count: validFrames)
+            for j in 0..<chain.filters.count {
+              chain.filters[j].process(waveform: slice)
             }
           }
-
-        case .mixer(let mixer):
-          var scratch = scratchesForMixers[mixerIdx]
-          try mixer.process(input: currentChunk, into: &scratch)
-          currentChunk = scratch
-          mixerIdx += 1
-
-        case .processor(let processor, let bypassed):
-          if bypassed { continue }
-          try processor.process(chunk: &currentChunk)
+        } else {
+          for chain in chains {
+            if chain.bypassed { continue }
+            guard chain.channel < chunk.channels else { continue }
+            let buf = chunk[chain.channel]
+            let slice = UnsafeMutableBufferPointer(start: buf.baseAddress, count: validFrames)
+            for j in 0..<chain.filters.count {
+              chain.filters[j].process(waveform: slice)
+            }
+          }
         }
+
+      case .mixer(let mixer):
+        var scratch = scratchesForMixers[mixerIdx]
+        try mixer.process(input: currentChunk, into: &scratch)
+        currentChunk = scratch
+        mixerIdx += 1
+
+      case .processor(let processor, let bypassed):
+        if bypassed { continue }
+        try processor.process(chunk: &currentChunk)
       }
     }
 
@@ -234,13 +276,15 @@ final class Pipeline {
     mixers: [String],
     processors: [String]
   ) {
-    for i in 0..<processingSteps.count {
-      switch processingSteps[i] {
-      case .filter(_, let filterList, _):
-        for filter in filterList {
-          if filters.contains(filter.name) {
-            if let filterConfig = config.filters?[filter.name] {
-              filter.updateParameters(filterConfig, sampleRate: rate)
+    for stage in processingStages {
+      switch stage {
+      case .parallelFilters(let chains):
+        for chain in chains {
+          for filter in chain.filters {
+            if filters.contains(filter.name) {
+              if let filterConfig = config.filters?[filter.name] {
+                filter.updateParameters(filterConfig, sampleRate: rate)
+              }
             }
           }
         }
@@ -266,26 +310,29 @@ final class Pipeline {
     // 1. Transfer master volume
     self.masterVolume.transferState(from: src.masterVolume)
 
-    // 2. Transfer steps
-    for destStep in self.processingSteps {
-      switch destStep {
-      case .filter(let destCh, let destFilters, _):
-        // Find matching filter step in src by channel
-        for srcStep in src.processingSteps {
-          if case .filter(let srcCh, let srcFilters, _) = srcStep, srcCh == destCh {
-            // Match individual filters by name
-            for destF in destFilters {
-              if let srcF = srcFilters.first(where: { $0.name == destF.name }) {
-                destF.transferState(from: srcF)
+    // 2. Transfer stages
+    for destStage in self.processingStages {
+      switch destStage {
+      case .parallelFilters(let destChains):
+        for destChain in destChains {
+          // Find matching filter chain in src by channel
+          for srcStage in src.processingStages {
+            if case .parallelFilters(let srcChains) = srcStage {
+              if let srcChain = srcChains.first(where: { $0.channel == destChain.channel }) {
+                // Match individual filters by name
+                for destF in destChain.filters {
+                  if let srcF = srcChain.filters.first(where: { $0.name == destF.name }) {
+                    destF.transferState(from: srcF)
+                  }
+                }
               }
             }
-            break
           }
         }
       case .processor(let destProc, _):
         // Find matching processor step in src by name
-        for srcStep in src.processingSteps {
-          if case .processor(let srcProc, _) = srcStep, srcProc.name == destProc.name {
+        for srcStage in src.processingStages {
+          if case .processor(let srcProc, _) = srcStage, srcProc.name == destProc.name {
             destProc.transferState(from: srcProc)
             break
           }

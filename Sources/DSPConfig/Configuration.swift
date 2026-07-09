@@ -129,6 +129,11 @@ extension DSPConfiguration {
         throw ConfigError.validationError("target_level cannot be larger than \(targetLimit)")
       }
     }
+    if let threads = devices.workerThreads {
+      guard threads > 0 else {
+        throw ConfigError.validationError("worker_threads must be positive")
+      }
+    }
   }
 
   private func validatePipeline() throws {

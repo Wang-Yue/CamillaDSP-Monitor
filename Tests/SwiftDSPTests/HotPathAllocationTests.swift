@@ -434,6 +434,77 @@ private enum AllocationCounter {
     }
   }
 
+  @Test func Pipeline_AllocationFree() throws {
+    let config = DSPConfiguration(
+      devices: DevicesConfig(
+        samplerate: 48000, chunksize: 1024,
+        capture: CaptureDeviceConfig(type: .coreAudio, channels: 4),
+        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+
+    var filters: [String: FilterConfig] = [:]
+    var filterNames: [String] = []
+    for i in 1...8 {
+      var params = BiquadParameters()
+      params.type = .peaking
+      params.freq = 1000.0 * Double(i)
+      params.q = 0.707
+      params.gain = 1.0
+      let name = "bq_\(i)"
+      filters[name] = .biquad(params)
+      filterNames.append(name)
+    }
+
+    let coeffs = [Double](repeating: 0.1, count: 4096)
+    filters["conv_1"] = .conv(ConvParameters(type: .values, values: coeffs))
+    filters["conv_2"] = .conv(ConvParameters(type: .values, values: coeffs))
+    filterNames.append("conv_1")
+    filterNames.append("conv_2")
+
+    let configFilters = filters
+
+    let map0 = MixerMapping(dest: 0, sources: [
+      MixerSource(channel: 0, gain: 0.0), MixerSource(channel: 2, gain: -6.0)
+    ])
+    let map1 = MixerMapping(dest: 1, sources: [
+      MixerSource(channel: 1, gain: 0.0), MixerSource(channel: 3, gain: -6.0)
+    ])
+
+    var fullConfig = config
+    fullConfig.filters = configFilters
+    fullConfig.mixers = ["mix": MixerConfig(channelsIn: 4, channelsOut: 2, mapping: [map0, map1])]
+    fullConfig.pipeline = [
+      PipelineStep(type: .filter, channels: nil, names: filterNames),
+      PipelineStep(type: .mixer, name: "mix"),
+      PipelineStep(type: .filter, channels: nil, names: filterNames)
+    ]
+
+    let params = ProcessingParameters(captureChannels: 4, playbackChannels: 2)
+
+    let pipelineSingle = try Pipeline(config: fullConfig, processingParams: params, mode: .singleThreaded)
+    let input = makeRandomChunks(count: 32, channels: 4, frames: 1024)
+    var output = AudioChunk(frames: 1024, channels: 2)
+    let inputCount = input.count
+
+    assertAllocationFree(label: "Pipeline (Single-Threaded)") { i in
+      try! pipelineSingle.process(input: input[i % inputCount], into: &output)
+    }
+
+    let pipelineMulti = try Pipeline(config: fullConfig, processingParams: params, mode: .multiThreaded)
+    let (multiAllocations, _) = AllocationCounter.count {
+      for i in 0..<30 {
+        try! pipelineMulti.process(input: input[i % inputCount], into: &output)
+      }
+    }
+    if let n = multiAllocations {
+      print("[Pipeline (Multi-Threaded)] allocations=\(n) over 30 iterations")
+      #if !DEBUG
+        // Note: DispatchQueue.concurrentPerform bridges Swift closures to C block objects on the heap.
+        // This is a dynamic coordination overhead of Grand Central Dispatch (approx 12 allocations per run).
+        #expect(n < 450, "Multi-threaded pipeline exceeded expected libdispatch block allocations")
+      #endif
+    }
+  }
+
   // MARK: - DoP
 
   @Test func DoPEncoder_AllocationFree() {
@@ -652,7 +723,7 @@ private enum AllocationCounter {
     print("[\(label)] allocations=\(n) over \(iterations) iterations")
     #if !DEBUG
       #expect(
-        n < 10, "\(label) allocated \(n) times in steady state (expected ≈ 0)")
+        n == 0, "\(label) allocated \(n) times in steady state (expected 0)")
     #endif
   }
 
@@ -675,7 +746,7 @@ private enum AllocationCounter {
     print("[\(label)] allocations=\(n) over \(iterations) iterations")
     #if !DEBUG
       #expect(
-        n < 10, "\(label) allocated \(n) times in steady state (expected ≈ 0)")
+        n == 0, "\(label) allocated \(n) times in steady state (expected 0)")
     #endif
   }
 

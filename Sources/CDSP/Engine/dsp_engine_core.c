@@ -115,6 +115,19 @@ dsp_engine_core_t* dsp_engine_core_create(dsp_config_t* config) {
               log_arg_int((int64_t)queue_limit), log_arg_none(), log_arg_none(),
               log_arg_none());
 
+  if (config->devices.has_rate_measure_interval) {
+    logger_info(&logger, "Rate measure interval configured: %f s (unused on CoreAudio due to event-driven HAL listener)",
+                log_arg_double(config->devices.rate_measure_interval), log_arg_none(), log_arg_none(), log_arg_none());
+  }
+  if (config->devices.has_multithreaded && config->devices.multithreaded) {
+    logger_info(&logger, "Multithreaded processing enabled (using GCD thread pool)",
+                log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
+  }
+  if (config->devices.has_worker_threads) {
+    logger_info(&logger, "Worker threads requested: %d (ignored on Apple platform as GCD automatically manages worker thread pools)",
+                log_arg_int((int64_t)config->devices.worker_threads), log_arg_none(), log_arg_none(), log_arg_none());
+  }
+
   return core;
 }
 

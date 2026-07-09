@@ -176,7 +176,7 @@ $(RUST_HARNESS_BINS): $(RUST_HARNESS_SRCS)
 ## test-swift: Run only the Swift test suite (pure Swift path only)
 test-swift:
 	@echo "🧪 Running Swift tests..."
-	$(SWIFT) test --test-product DSPMonitorPackageTests --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests
+	$(SWIFT) test --test-product DSPMonitorPackageTests --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests --skip PipelineBenchmarkTests
 
 ## test-c: Run C unit tests (except benchmark tests)
 test-c:
@@ -188,7 +188,7 @@ test:
 ifeq ($(ENGINE),swift)
 	@$(MAKE) test-rust-build
 	@echo "🧪 Running Swift tests (with Rust harness comparison tests enabled)..."
-	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests
+	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests --skip PipelineBenchmarkTests
 else
 	@$(MAKE) test-rust-build
 	@echo "🧪 Running C unit tests..."
@@ -205,6 +205,8 @@ ifeq ($(ENGINE),swift)
 	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter ResamplerComparisonMatrix
 	@echo "⏱️  Running DoP benchmarks in release mode..."
 	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter DoPBenchmarkTests
+	@echo "⏱️  Running Pipeline benchmarks in release mode..."
+	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter PipelineBenchmarkTests
 else
 	@$(MAKE) test-rust-build
 	@echo "⏱️  Running C benchmark tests..."

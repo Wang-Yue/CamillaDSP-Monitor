@@ -125,7 +125,7 @@ static void assert_allocation_free(const char* label, int warmup,
   }
   printf("[%s] allocations=%llu over %d iterations\n", label,
          (unsigned long long)count, iterations);
-  ASSERT_TRUE(count < 10);
+  ASSERT_EQ(0, count);
 }
 
 static bool count_allocations_on_thread(void (*body)(void*), void* ctx,
@@ -170,7 +170,7 @@ static void assert_allocation_free_on_thread(const char* label,
   }
   printf("[%s] allocations=%llu over %d iterations\n", label,
          (unsigned long long)count, iterations);
-  ASSERT_TRUE(count < 10);
+  ASSERT_EQ(0, count);
 }
 
 
@@ -758,7 +758,7 @@ static void logger_iter(int i, void* ctx) {
 }
 
 TEST(Logger_AllocationFree) {
-  assert_allocation_free("Logger various arguments", 0, 30, logger_iter, NULL);
+  assert_allocation_free("Logger various arguments", 1, 30, logger_iter, NULL);
 }
 
 typedef struct {
@@ -967,4 +967,137 @@ TEST(PipelineReload_AllocationFree) {
   engine_sem_destroy(&ctx.processed_sem);
 }
 
+typedef struct {
+  pipeline_t* pipeline;
+  audio_chunk_t* input;
+  audio_chunk_t* output;
+} pipeline_test_ctx_t;
+
+static void pipeline_iter(int i, void* ctx) {
+  (void)i;
+  pipeline_test_ctx_t* c = (pipeline_test_ctx_t*)ctx;
+  pipeline_error_t err = pipeline_process(c->pipeline, c->input, c->output);
+  (void)err;
+}
+
+TEST(Pipeline_AllocationFree) {
+  dsp_config_t config;
+  memset(&config, 0, sizeof(dsp_config_t));
+  config.devices.samplerate = 48000;
+  config.devices.chunksize = 1024;
+  config.devices.capture.type = AUDIO_BACKEND_TYPE_FILE;
+  config.devices.capture.cfg.raw_file.channels = 4;
+  config.devices.playback.type = AUDIO_BACKEND_TYPE_FILE;
+  config.devices.playback.cfg.raw_file.channels = 2;
+
+  named_filter_config_t filters[10];
+  memset(filters, 0, sizeof(filters));
+
+  for (int i = 0; i < 8; i++) {
+    sprintf(filters[i].name, "bq_%d", i + 1);
+    filters[i].filter.type = FILTER_TYPE_BIQUAD;
+    filters[i].filter.parameters.biquad.type = BIQUAD_TYPE_PEAKING;
+    filters[i].filter.parameters.biquad.freq = 1000.0 * (i + 1);
+    filters[i].filter.parameters.biquad.q = 0.707;
+    filters[i].filter.parameters.biquad.gain = 1.0;
+  }
+
+  double ir[1024];
+  for (int i = 0; i < 1024; i++) {
+    ir[i] = i == 0 ? 1.0 : 0.0;
+  }
+
+  strcpy(filters[8].name, "conv_1");
+  filters[8].filter.type = FILTER_TYPE_CONV;
+  filters[8].filter.parameters.conv.type = CONV_TYPE_VALUES;
+  filters[8].filter.parameters.conv.values = ir;
+  filters[8].filter.parameters.conv.values_count = 1024;
+
+  strcpy(filters[9].name, "conv_2");
+  filters[9].filter.type = FILTER_TYPE_CONV;
+  filters[9].filter.parameters.conv.type = CONV_TYPE_VALUES;
+  filters[9].filter.parameters.conv.values = ir;
+  filters[9].filter.parameters.conv.values_count = 1024;
+
+  config.filters = filters;
+  config.filters_count = 10;
+
+  mixer_source_t src0[2] = {
+    {.channel = 0, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
+    {.channel = 2, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}
+  };
+  mixer_source_t src1[2] = {
+    {.channel = 1, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
+    {.channel = 3, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}
+  };
+  mixer_mapping_t maps[2] = {
+    {.dest = 0, .sources_count = 2, .sources = src0, .mute = false},
+    {.dest = 1, .sources_count = 2, .sources = src1, .mute = false}
+  };
+  named_mixer_config_t mixer_cfg;
+  memset(&mixer_cfg, 0, sizeof(mixer_cfg));
+  strcpy(mixer_cfg.name, "mix");
+  mixer_cfg.mixer.channels_in = 4;
+  mixer_cfg.mixer.channels_out = 2;
+  mixer_cfg.mixer.mapping_count = 2;
+  mixer_cfg.mixer.mapping = maps;
+
+  config.mixers = &mixer_cfg;
+  config.mixers_count = 1;
+
+  pipeline_step_t steps[3];
+  memset(steps, 0, sizeof(steps));
+
+  steps[0].type = PIPELINE_STEP_TYPE_FILTER;
+  steps[0].has_channel = false;
+  char* pre_names[10];
+  for (int i = 0; i < 10; i++) {
+    pre_names[i] = filters[i].name;
+  }
+  steps[0].names = pre_names;
+  steps[0].names_count = 10;
+
+  steps[1].type = PIPELINE_STEP_TYPE_MIXER;
+  strcpy(steps[1].name, "mix");
+  steps[1].has_name = true;
+
+  steps[2].type = PIPELINE_STEP_TYPE_FILTER;
+  steps[2].has_channel = false;
+  char* post_names[10];
+  for (int i = 0; i < 10; i++) {
+    post_names[i] = filters[i].name;
+  }
+  steps[2].names = post_names;
+  steps[2].names_count = 10;
+
+  config.pipeline = steps;
+  config.pipeline_count = 3;
+
+  processing_parameters_t* params = processing_parameters_create(4, 2);
+  ASSERT_TRUE(params != NULL);
+
+  pipeline_t* pipeline = pipeline_create(&config, params, 0, NULL);
+  ASSERT_TRUE(pipeline != NULL);
+
+  audio_chunk_t* input = audio_chunk_create(1024, 4);
+  audio_chunk_t* output = audio_chunk_create(1024, 2);
+
+  for (size_t ch = 0; ch < 4; ch++) {
+    mutable_waveform_t w = audio_chunk_get_channel(input, ch);
+    for (size_t t = 0; t < 1024; t++) {
+      w[t] = 0.05 * (double)(t % 20 - 10);
+    }
+  }
+  audio_chunk_set_valid_frames(input, 1024);
+
+  pipeline_test_ctx_t ctx = {pipeline, input, output};
+  assert_allocation_free("Pipeline C (Single-Threaded)", 0, 30, pipeline_iter, &ctx);
+
+  audio_chunk_free(input);
+  audio_chunk_free(output);
+  pipeline_free(pipeline);
+  processing_parameters_free(params);
+}
+
 TEST_MAIN()
+

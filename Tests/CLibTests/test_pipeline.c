@@ -88,6 +88,89 @@ TEST(PipelineProcessPassthrough) {
   processing_parameters_free(params);
 }
 
+TEST(PipelineMultithreadedCorrectness) {
+  dsp_config_t config;
+  memset(&config, 0, sizeof(dsp_config_t));
+  config.devices.samplerate = 48000;
+  config.devices.chunksize = 1024;
+  config.devices.capture.type = AUDIO_BACKEND_TYPE_FILE;
+  config.devices.capture.cfg.raw_file.channels = 4;
+  config.devices.playback.type = AUDIO_BACKEND_TYPE_FILE;
+  config.devices.playback.cfg.raw_file.channels = 4;
+
+  named_filter_config_t filters[4];
+  memset(filters, 0, sizeof(filters));
+
+  for (int i = 0; i < 4; i++) {
+    sprintf(filters[i].name, "gain_%d", i + 1);
+    filters[i].filter.type = FILTER_TYPE_GAIN;
+    filters[i].filter.parameters.gain.gain = -3.0 * (i + 1);
+    filters[i].filter.parameters.gain.has_gain = true;
+    filters[i].filter.parameters.gain.scale = GAIN_SCALE_DB;
+  }
+
+  config.filters = filters;
+  config.filters_count = 4;
+
+  pipeline_step_t step;
+  memset(&step, 0, sizeof(step));
+  step.type = PIPELINE_STEP_TYPE_FILTER;
+  step.has_channel = false;
+  char* filter_names[4] = {"gain_1", "gain_2", "gain_3", "gain_4"};
+  step.names = filter_names;
+  step.names_count = 4;
+
+  config.pipeline = &step;
+  config.pipeline_count = 1;
+
+  processing_parameters_t* params = processing_parameters_create(4, 4);
+  ASSERT_TRUE(params != NULL);
+
+  // 1. Run single-threaded
+  config.devices.multithreaded = false;
+  config.devices.has_multithreaded = true;
+  pipeline_t* pipeline_single = pipeline_create(&config, params, 0, NULL);
+  ASSERT_TRUE(pipeline_single != NULL);
+
+  audio_chunk_t* input = audio_chunk_create(1024, 4);
+  for (size_t ch = 0; ch < 4; ch++) {
+    mutable_waveform_t w = audio_chunk_get_channel(input, ch);
+    for (size_t t = 0; t < 1024; t++) {
+      w[t] = 0.1 * (double)(t % 10 + 1);
+    }
+  }
+  audio_chunk_set_valid_frames(input, 1024);
+
+  audio_chunk_t* output_single = audio_chunk_create(1024, 4);
+  pipeline_error_t err = pipeline_process(pipeline_single, input, output_single);
+  ASSERT_EQ(PIPELINE_OK, err);
+
+  // 2. Run multi-threaded
+  config.devices.multithreaded = true;
+  pipeline_t* pipeline_multi = pipeline_create(&config, params, 0, NULL);
+  ASSERT_TRUE(pipeline_multi != NULL);
+
+  audio_chunk_t* output_multi = audio_chunk_create(1024, 4);
+  err = pipeline_process(pipeline_multi, input, output_multi);
+  ASSERT_EQ(PIPELINE_OK, err);
+
+  // 3. Compare outputs
+  for (size_t ch = 0; ch < 4; ch++) {
+    waveform_t w_single = audio_chunk_get_channel(output_single, ch);
+    waveform_t w_multi = audio_chunk_get_channel(output_multi, ch);
+    for (size_t t = 0; t < 1024; t++) {
+      ASSERT_NEAR(w_single[t], w_multi[t], 1e-9);
+    }
+  }
+
+  audio_chunk_free(input);
+  audio_chunk_free(output_single);
+  audio_chunk_free(output_multi);
+  pipeline_free(pipeline_single);
+  pipeline_free(pipeline_multi);
+  processing_parameters_free(params);
+}
+
 TEST(PipelineWithFilter) {
   dsp_config_t config;
   init_default_config(&config);

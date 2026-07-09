@@ -114,13 +114,11 @@ internal final class DSPEngineCore {
         .double(rateMeasure))
     }
     if config.devices.multithreaded == true {
-      logger.info(
-        "Multithreaded processing is not supported in this Swift engine; running sequentially on the real-time audio thread."
-      )
+      logger.info("Multithreaded processing enabled (using GCD thread pool)")
     }
     if let workerThreads = config.devices.workerThreads {
       logger.info(
-        "Worker threads: %d (ignored because multithreading is disabled)", .int(workerThreads))
+        "Worker threads requested: %d (ignored on Apple platform as GCD automatically manages worker thread pools)", .int(workerThreads))
     }
   }
 
@@ -206,9 +204,11 @@ internal final class DSPEngineCore {
 
     guard state != .inactive else { return }
 
+    let mode: ProcessingMode = (currentConfig.devices.multithreaded == true) ? .multiThreaded : .singleThreaded
     let newPipeline = try Pipeline(
       config: currentConfig, processingParams: processingParams,
-      explicitChunkSize: effectivePlaybackChunkSize)
+      explicitChunkSize: effectivePlaybackChunkSize,
+      mode: mode)
     processingLoop?.setPipeline(newPipeline)
     logger.info("Pipeline rebuilt without audio-device restart")
   }
@@ -289,9 +289,11 @@ internal final class DSPEngineCore {
       channels: currentConfig.devices.capture.channels ?? 0)
     resamplerScratch.validFrames = 0
 
+    let mode: ProcessingMode = (currentConfig.devices.multithreaded == true) ? .multiThreaded : .singleThreaded
     let pipeline = try Pipeline(
       config: currentConfig, processingParams: processingParams,
-      explicitChunkSize: playbackChunkSize)
+      explicitChunkSize: playbackChunkSize,
+      mode: mode)
 
     var pipelineScratch = AudioChunk(
       frames: playbackChunkSize, channels: currentConfig.devices.playback.channels)
