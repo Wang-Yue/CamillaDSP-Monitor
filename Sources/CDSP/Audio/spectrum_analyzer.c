@@ -2,6 +2,7 @@
 
 #include <math.h>
 
+#include "Audio/float_helpers.h"
 #include "FFT/real_fft.h"
 
 typedef struct {
@@ -58,19 +59,9 @@ spectrum_analyzer_t* spectrum_analyzer_create(void) {
   analyzer->db_magnitudes =
       (float*)calloc(analyzer->fft_n / 2 + 1, sizeof(float));
 
-#ifdef ENABLE_ACCELERATE
   if (analyzer->window) {
-    vDSP_hann_window(analyzer->window, (vDSP_Length)analyzer->fft_n, 0);
+    dsp_ops_float_hann_window(analyzer->window, analyzer->fft_n);
   }
-#else
-  if (analyzer->window) {
-    for (size_t i = 0; i < analyzer->fft_n; i++) {
-      analyzer->window[i] =
-          0.5f *
-          (1.0f - cosf(2.0f * (float)M_PI * (float)i / (float)analyzer->fft_n));
-    }
-  }
-#endif
 
   analyzer->out_capacity = 256;
   analyzer->plan.frequencies =
@@ -134,14 +125,8 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   }
 
   // 1. Apply Hann window in-place to reduce spectral leakage
-#ifdef ENABLE_ACCELERATE
-  vDSP_vmul(analyzer->data, 1, analyzer->window, 1, analyzer->data, 1,
-            analyzer->fft_n);
-#else
-  for (size_t i = 0; i < analyzer->fft_n; i++) {
-    analyzer->data[i] *= analyzer->window[i];
-  }
-#endif
+  dsp_ops_float_multiply(analyzer->data, analyzer->window, analyzer->data,
+                         analyzer->fft_n);
 
   // 2. Perform FFT using unified real_fftf
   size_t half_n = analyzer->fft_n / 2;
@@ -152,15 +137,10 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   float scale = 2.0f / (float)analyzer->fft_n;
   float floor_val = 1e-10f;  // Threshold to prevent log10(0)
 
-#ifdef ENABLE_ACCELERATE
-  // Calculate magnitudes of all complex bins [0 .. half_n] via vector absolute
-  // value
-  DSPSplitComplex split_complex = {analyzer->realp, analyzer->imagp};
-  vDSP_zvabs(&split_complex, 1, analyzer->magnitudes, 1,
-             (vDSP_Length)(half_n + 1));
-  // Scale the bins (doubled for conjugate pairs)
-  vDSP_vsmul(analyzer->magnitudes, 1, &scale, analyzer->magnitudes, 1,
-             (vDSP_Length)(half_n + 1));
+  dsp_ops_float_zvabs(analyzer->realp, analyzer->imagp, analyzer->magnitudes,
+                      half_n + 1);
+  dsp_ops_float_scalar_multiply(analyzer->magnitudes, scale,
+                                analyzer->magnitudes, half_n + 1);
 
   // Correct scaling for DC and Nyquist (they are not doubled, so scale by 1.0/N
   // instead of 2.0/N)
@@ -168,29 +148,12 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   analyzer->magnitudes[half_n] *= 0.5f;
 
   // Threshold the entire magnitudes array to floor_val in-place
-  vDSP_vthr(analyzer->magnitudes, 1, &floor_val, analyzer->magnitudes, 1,
-            (vDSP_Length)(half_n + 1));
+  dsp_ops_float_vthr(analyzer->magnitudes, floor_val, analyzer->magnitudes,
+                     half_n + 1);
   // Convert the entire magnitudes array to decibels (dBFS)
   float ref = 1.0f;
-  vDSP_vdbcon(analyzer->magnitudes, 1, &ref, analyzer->db_magnitudes, 1,
-              (vDSP_Length)(half_n + 1), 1);
-#else
-  // Manual magnitude calculation for fallback FFT
-  analyzer->magnitudes[0] = fabsf(analyzer->realp[0]) / (float)analyzer->fft_n;
-  analyzer->magnitudes[half_n] =
-      fabsf(analyzer->realp[half_n]) / (float)analyzer->fft_n;
-  for (size_t i = 1; i < half_n; i++) {
-    float re = analyzer->realp[i];
-    float im = analyzer->imagp[i];
-    analyzer->magnitudes[i] = sqrtf(re * re + im * im) * scale;
-  }
-  for (size_t i = 0; i <= half_n; i++) {
-    float mag = analyzer->magnitudes[i];
-    if (mag < floor_val) mag = floor_val;
-    analyzer->magnitudes[i] = mag;
-    analyzer->db_magnitudes[i] = 20.0f * log10f(mag);
-  }
-#endif
+  dsp_ops_float_vdbcon(analyzer->magnitudes, ref, analyzer->db_magnitudes,
+                       half_n + 1);
 
   // 4. Geometric Binning via Cached Plan
   // Reallocate buffers if the requested number of bins exceeds current
@@ -266,16 +229,8 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
     int len = end - start;
 
     if (len > 0) {
-      float max_val = -200.0f;
-#ifdef ENABLE_ACCELERATE
-      vDSP_maxv(analyzer->db_magnitudes + start, 1, &max_val, (vDSP_Length)len);
-#else
-      for (int k = start; k < end; k++) {
-        if (analyzer->db_magnitudes[k] > max_val)
-          max_val = analyzer->db_magnitudes[k];
-      }
-#endif
-      analyzer->out_magnitudes[i] = max_val;
+      analyzer->out_magnitudes[i] =
+          dsp_ops_float_max(analyzer->db_magnitudes + start, len);
     } else {
       // If the range doesn't cover any FFT bin (e.g. low frequencies with small
       // FFT), fallback to the nearest FFT bin.
