@@ -213,22 +213,22 @@ struct DevicePickerView: View {
                 Text(String(format: "%.1f s", bindableSettings.rateMeasureInterval))
                   .font(.system(.body, design: .monospaced))
               }
+            }
 
-              Toggle("Multithreaded", isOn: $bindableSettings.multithreaded)
+            Toggle("Multithreaded", isOn: $bindableSettings.multithreaded)
 
-              if bindableSettings.multithreaded {
-                HStack {
-                  Text("Worker Threads")
-                    .frame(width: 120, alignment: .leading)
-                  Stepper(
-                    bindableSettings.workerThreads == 0
-                      ? "Auto" : "\(bindableSettings.workerThreads)",
-                    value: $bindableSettings.workerThreads, in: 0...32
-                  )
-                  .frame(width: 120)
-                }
-                .padding(.leading, 16)
+            if bindableSettings.multithreaded {
+              HStack {
+                Text("Worker Threads")
+                  .frame(width: 120, alignment: .leading)
+                Stepper(
+                  bindableSettings.workerThreads == 0
+                    ? "Auto" : "\(bindableSettings.workerThreads)",
+                  value: $bindableSettings.workerThreads, in: 0...32
+                )
+                .frame(width: 120)
               }
+              .padding(.leading, 16)
             }
           }
           .padding(4)
