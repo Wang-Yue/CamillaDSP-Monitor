@@ -12,6 +12,7 @@ struct biquad_filter {
   double coeffs_array[5];
 #else
   double z1, z2;
+  double neg_a1, neg_a2;
 #endif
 };
 
@@ -328,6 +329,8 @@ biquad_filter_t* biquad_filter_create(const char* name,
 #else
   filter->z1 = 0.0;
   filter->z2 = 0.0;
+  filter->neg_a1 = -filter->coeffs.a1;
+  filter->neg_a2 = -filter->coeffs.a2;
 #endif
   return filter;
 }
@@ -341,21 +344,20 @@ void biquad_filter_process(biquad_filter_t* filter, mutable_waveform_t waveform,
   double* output_ptr = waveform;
   vDSP_biquadmD(filter->setup, &signal_ptr, 1, &output_ptr, 1, count);
 #else
-  // Direct Form II Transposed (DF2T) implementation.
-  // This structure is preferred for floating-point implementation as it
-  // has better numerical properties and is easy to implement.
+  // Direct Form II Transposed (DF2T) implementation, optimized with FMA.
   double b0 = filter->coeffs.b0;
   double b1 = filter->coeffs.b1;
   double b2 = filter->coeffs.b2;
-  double a1 = filter->coeffs.a1;
-  double a2 = filter->coeffs.a2;
+  double neg_a1 = filter->neg_a1;
+  double neg_a2 = filter->neg_a2;
   double z1 = filter->z1;
   double z2 = filter->z2;
   for (size_t i = 0; i < count; i++) {
     double in = waveform[i];
     double out = b0 * in + z1;
-    z1 = b1 * in - a1 * out + z2;
-    z2 = b2 * in - a2 * out;
+    double tmp = b1 * in + z2;
+    z1 = neg_a1 * out + tmp;
+    z2 = b2 * in + neg_a2 * out;
     waveform[i] = out;
   }
   filter->z1 = z1;
@@ -377,11 +379,10 @@ double biquad_filter_process_single(biquad_filter_t* filter, double sample) {
   double b0 = filter->coeffs.b0;
   double b1 = filter->coeffs.b1;
   double b2 = filter->coeffs.b2;
-  double a1 = filter->coeffs.a1;
-  double a2 = filter->coeffs.a2;
   double out = b0 * sample + filter->z1;
-  filter->z1 = b1 * sample - a1 * out + filter->z2;
-  filter->z2 = b2 * sample - a2 * out;
+  double tmp = b1 * sample + filter->z2;
+  filter->z1 = filter->neg_a1 * out + tmp;
+  filter->z2 = b2 * sample + filter->neg_a2 * out;
   return out;
 #endif
 }
@@ -405,6 +406,9 @@ void biquad_filter_update_parameters(biquad_filter_t* filter,
       vDSP_biquadm_SetCoefficientsDoubleD(filter->setup, filter->coeffs_array,
                                           0, 0, 1, 1);
     }
+#else
+    filter->neg_a1 = -new_coeffs.a1;
+    filter->neg_a2 = -new_coeffs.a2;
 #endif
   }
 }

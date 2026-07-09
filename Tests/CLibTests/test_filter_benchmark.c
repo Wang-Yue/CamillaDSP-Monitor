@@ -111,38 +111,24 @@ static double get_rust_result(const char* name) {
 }
 
 static void run_filter_benchmark(const char* label, const char* rust_name, void* filter, void (*process_fn)(void*, double*, size_t)) {
-  double* input = (double*)malloc(NBR_FRAMES * sizeof(double));
-  make_test_signal(input);
-  double* slice = (double*)malloc(CHUNK_SIZE * sizeof(double));
+  double* buffer = (double*)calloc(CHUNK_SIZE, sizeof(double));
 
   // Warm-up
-  size_t idx = 0;
-  while (idx < NBR_FRAMES) {
-    size_t end = (idx + CHUNK_SIZE < NBR_FRAMES) ? (idx + CHUNK_SIZE) : NBR_FRAMES;
-    size_t count = end - idx;
-    memcpy(slice, &input[idx], count * sizeof(double));
-    process_fn(filter, slice, count);
-    idx = end;
+  for (int i = 0; i < 100; i++) {
+    process_fn(filter, buffer, CHUNK_SIZE);
   }
 
-  int iters = 200;
+  int iters = 5000;
   struct timespec start, end_time;
   clock_gettime(CLOCK_MONOTONIC, &start);
   for (int i = 0; i < iters; i++) {
-    idx = 0;
-    while (idx < NBR_FRAMES) {
-      size_t end = (idx + CHUNK_SIZE < NBR_FRAMES) ? (idx + CHUNK_SIZE) : NBR_FRAMES;
-      size_t count = end - idx;
-      memcpy(slice, &input[idx], count * sizeof(double));
-      process_fn(filter, slice, count);
-      idx = end;
-    }
+    process_fn(filter, buffer, CHUNK_SIZE);
   }
   clock_gettime(CLOCK_MONOTONIC, &end_time);
 
   double elapsed_ns = (double)(end_time.tv_sec - start.tv_sec) * 1e9 +
                       (double)(end_time.tv_nsec - start.tv_nsec);
-  double c_ns_per_frame = elapsed_ns / (double)(NBR_FRAMES * iters);
+  double c_ns_per_frame = elapsed_ns / (double)(CHUNK_SIZE * iters);
 
   double cdsp_ns_per_frame = get_rust_result(rust_name);
 
@@ -163,8 +149,7 @@ static void run_filter_benchmark(const char* label, const char* rust_name, void*
   }
   printf("==================================================\n\n");
 
-  free(slice);
-  free(input);
+  free(buffer);
 }
 
 static void process_conv(void* f, double* w, size_t n) {

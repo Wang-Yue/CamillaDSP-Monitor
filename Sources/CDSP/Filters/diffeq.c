@@ -80,22 +80,29 @@ void diffeq_filter_process(diffeq_filter_t* filter, mutable_waveform_t waveform,
   // samples.
   for (size_t i = 0; i < count; i++) {
     // Advance circular buffer write indices
-    idx_x = (idx_x + 1) % nb;
-    idx_y = (idx_y + 1) % na;
+    idx_x++;
+    if (idx_x >= nb) idx_x = 0;
+    idx_y++;
+    if (idx_y >= na) idx_y = 0;
 
     // Store current input sample
     x[idx_x] = waveform[i];
 
     double out = 0.0;
     // Compute feedforward part: sum(b[n] * x[n-i])
+    int ptr_x = (int)idx_x;
     for (size_t n = 0; n < nb; n++) {
-      size_t n_idx = (idx_x + nb - n) % nb;  // Retrieve x[n-i]
-      out += b[n] * x[n_idx];
+      out += b[n] * x[ptr_x];
+      ptr_x--;
+      if (ptr_x < 0) ptr_x = (int)nb - 1;
     }
     // Compute feedback part: sum(a[p] * y[p-j])
+    int ptr_y = (int)idx_y - 1;
+    if (ptr_y < 0) ptr_y = (int)na - 1;
     for (size_t p = 1; p < na; p++) {
-      size_t p_idx = (idx_y + na - p) % na;  // Retrieve y[n-j]
-      out -= a[p] * y[p_idx];
+      out -= a[p] * y[ptr_y];
+      ptr_y--;
+      if (ptr_y < 0) ptr_y = (int)na - 1;
     }
 
     // Store current output sample and update waveform
