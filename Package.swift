@@ -60,7 +60,11 @@ case "c":
     name: "DSPLib",
     dependencies: ["DSPConfig", "CDSP"],
     path: "Sources/DSPLib",
-    exclude: ["SwiftDSPEngine.swift", "RustDSPEngine.swift", "camilladsp_ffi.swift"]
+    exclude: ["SwiftDSPEngine.swift", "RustDSPEngine.swift", "camilladsp_ffi.swift"],
+    swiftSettings: [
+      .unsafeFlags(["-Xcc", "-DENABLE_COREAUDIO"]),
+      .unsafeFlags(["-Xcc", "-DENABLE_ACCELERATE"]),
+    ]
   )
   dspMonitorDependencies = ["DSPLib", "DSPConfig", "CDSP"]
   engineTargets = [

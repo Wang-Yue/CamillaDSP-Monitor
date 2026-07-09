@@ -24,7 +24,7 @@ extension Fader {
 public actor DSPEngine {
   public static let isCEngine = true
   public static let isRustEngine = false
-  nonisolated(unsafe) private let engine: UnsafeMutablePointer<dsp_engine_t>?
+  nonisolated(unsafe) private let engine: OpaquePointer?
 
   public init() {
     print("[DSPEngine] Initializing C library engine...")
@@ -161,7 +161,7 @@ public actor DSPEngine {
     maxFreq: Double,
     nBins: UInt32
   ) async throws -> Spectrum {
-    guard let e = engine, e.pointee.core != nil else {
+    guard let e = engine else {
       throw AudioBackendError.engineNotRunning
     }
     var res = spectrum_result_t()
