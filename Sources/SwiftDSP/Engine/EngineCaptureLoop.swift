@@ -158,7 +158,10 @@ final class EngineCaptureLoop: @unchecked Sendable {
         // to yield CPU and propagate backpressure upstream.
         if stateMachine.state != .paused {
           while !shared.capturedQueue.enqueue(chunk) {
-            if shared.shouldStop.load(ordering: .acquiring) { break }
+            if shared.shouldStop.load(ordering: .acquiring) &&
+               stateMachine.stopReason != .done {
+              break
+            }
             Thread.sleep(forTimeInterval: 0.002)
           }
           shared.capturedSemaphore.signal()

@@ -186,7 +186,10 @@ final class EngineProcessingLoop: @unchecked Sendable {
           dopEncoder.encode(chunk: &chunk)
 
           while !shared.processedQueue.enqueue(chunk) {
-            if shared.shouldStop.load(ordering: .acquiring) { break }
+            if shared.shouldStop.load(ordering: .acquiring) &&
+               stateMachine.stopReason != .done {
+              break
+            }
             Thread.sleep(forTimeInterval: 0.002)
           }
           shared.processedSemaphore.signal()

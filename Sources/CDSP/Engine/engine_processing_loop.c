@@ -302,9 +302,10 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       // If the queue is full (playback thread falling behind), we block-wait
       // using a short sleep to avoid spinning and wasting CPU.
       while (!spsc_queue_enqueue(loop->shared->processed_queue, chunk)) {
-        if (atomic_load_explicit(&loop->shared->should_stop,
-                                 memory_order_acquire))
+        if (atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire) &&
+            loop->shared->stop_reason.type != STOP_REASON_DONE) {
           break;
+        }
         struct timespec req = {.tv_sec = 0, .tv_nsec = 2000000L};
         nanosleep(&req, NULL);
       }
