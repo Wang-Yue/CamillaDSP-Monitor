@@ -40,7 +40,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
   private let pipelineRate: Int
   private let resampler: AudioResampler?
   private let dopEncoder: DoPEncoder
-  private let pipelineQueue = SPSCQueue<Pipeline>(minimumCapacity: 2)
+  private let nextPipelineSlot = AtomicReference<Pipeline>()
   private var activePipeline: Pipeline
   private var resamplerScratch: AudioChunk
   private var pipelineScratch: AudioChunk
@@ -125,7 +125,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
 
           // Run through the pipeline using pre-allocated output
           // scratch.
-          if let nextPipeline = pipelineQueue.dequeue() {
+          if let nextPipeline = nextPipelineSlot.exchange(nil) {
             nextPipeline.transferState(from: activePipeline)
             _ = shared.pipelineGarbageQueue.enqueue(activePipeline)
             activePipeline = nextPipeline
@@ -195,6 +195,6 @@ final class EngineProcessingLoop: @unchecked Sendable {
   }
 
   func setPipeline(_ newPipeline: sending Pipeline) {
-    _ = pipelineQueue.enqueue(newPipeline)
+    nextPipelineSlot.store(newPipeline)
   }
 }

@@ -22,6 +22,7 @@
 //     OS prefers it over background work.
 #include "engine_processing_loop.h"
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -43,7 +44,7 @@ struct engine_processing_loop {
   audio_resampler_t* resampler;
   pipeline_t* active_pipeline;
   dop_encoder_t* dop_encoder;
-  spsc_queue_t* pipeline_queue;
+  _Atomic(pipeline_t*) next_pipeline;
   audio_chunk_t* resampler_scratch;
   audio_chunk_t* pipeline_scratch;
   round_robin_chunk_pool_t* scratch_pool;
@@ -105,20 +106,16 @@ engine_processing_loop_t* engine_processing_loop_create(
   loop->on_chunk_processed = on_chunk_processed;
   loop->on_chunk_processed_ctx = on_chunk_processed_ctx;
 
-  loop->pipeline_queue = spsc_queue_create(2);
+  atomic_store(&loop->next_pipeline, NULL);
 
   return loop;
 }
 
 void engine_processing_loop_free(engine_processing_loop_t* loop) {
   if (!loop) return;
-  if (loop->pipeline_queue) {
-    pipeline_t* p = NULL;
-    while ((p = (pipeline_t*)spsc_queue_dequeue(loop->pipeline_queue)) !=
-           NULL) {
-      pipeline_free(p);
-    }
-    spsc_queue_free(loop->pipeline_queue);
+  pipeline_t* p = atomic_exchange(&loop->next_pipeline, NULL);
+  if (p) {
+    pipeline_free(p);
   }
   if (loop->active_pipeline) {
     pipeline_free(loop->active_pipeline);
@@ -128,9 +125,10 @@ void engine_processing_loop_free(engine_processing_loop_t* loop) {
 
 void engine_processing_loop_set_pipeline(engine_processing_loop_t* loop,
                                          pipeline_t* new_pipeline) {
-  if (loop && loop->pipeline_queue) {
-    if (!spsc_queue_enqueue(loop->pipeline_queue, new_pipeline)) {
-      pipeline_free(new_pipeline);
+  if (loop) {
+    pipeline_t* old = atomic_exchange(&loop->next_pipeline, new_pipeline);
+    if (old) {
+      pipeline_free(old);
     }
   }
 }
@@ -204,8 +202,7 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
 
       // Run through the pipeline using pre-allocated output
       // scratch.
-      pipeline_t* next_pipeline =
-          (pipeline_t*)spsc_queue_dequeue(loop->pipeline_queue);
+      pipeline_t* next_pipeline = atomic_exchange(&loop->next_pipeline, NULL);
       if (next_pipeline) {
         if (loop->active_pipeline) {
           pipeline_transfer_state(next_pipeline, loop->active_pipeline);
