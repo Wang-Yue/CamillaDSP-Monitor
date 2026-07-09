@@ -227,7 +227,7 @@ windows-cli: $(WIN_LIB_TARGET)
 	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -DENABLE_WASAPI -DENABLE_ASIO -DENABLE_FFTW -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging $(CLI_SRC) $(WIN_LIB_TARGET) /tmp/win_fftw/libfftw3-3.dll /tmp/win_fftw/libfftw3f-3.dll -pthread -lws2_32 -lwinmm -lole32 -luuid -lksuser -lksguid -o $(WIN_CLI_BIN)
 # macOS cross-compilation settings
 MAC_CC := clang
-MAC_SDK_PATH ?= /usr/local/google/home/wangyue/.gemini/jetski/scratch/mac_sdk/MacOSX13.3.sdk
+MAC_SDK_PATH ?= ~/mac_sdk/MacOSX13.3.sdk
 MAC_LDFLAGS := -F$(MAC_SDK_PATH)/System/Library/Frameworks -framework CoreAudio -framework AudioToolbox -framework Accelerate -framework CoreFoundation -fuse-ld=lld
 
 MAC_OBJ_DIR_X86_64 := $(ROOT_DIR)/.build/mac_obj_x86_64

@@ -64,7 +64,10 @@ static int rust_results_count = 0;
 
 static void run_upstream_filter_benchmarks(void) {
   if (rust_results_count > 0) return;
-  const char* cmd = "cd /Users/wangyue/camilladsp && cargo bench --bench filters -- --sample-size 10 --warm-up-time 0.3 --measurement-time 0.5 2>&1";
+  const char* home = getenv("HOME");
+  if (!home) return;
+  char cmd[1024];
+  snprintf(cmd, sizeof(cmd), "cd %s/camilladsp && cargo bench --bench filters -- --sample-size 10 --warm-up-time 0.3 --measurement-time 0.5 2>&1", home);
   FILE* fp = popen(cmd, "r");
   if (!fp) return;
   char line[1024];

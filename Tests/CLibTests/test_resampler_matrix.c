@@ -108,14 +108,20 @@ static bool check_rubato_available(void) {
     }
   }
 
+  static char home_path[1024] = {0};
+  const char* home = getenv("HOME");
+  if (home) {
+    snprintf(home_path, sizeof(home_path), "%s/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/cdsp_resampler_compare", home);
+  }
+
   const char* candidates[] = {
       "Tests/RustHarnesses/target/release/cdsp_resampler_compare",
       "./Tests/RustHarnesses/target/release/cdsp_resampler_compare",
       "../Tests/RustHarnesses/target/release/cdsp_resampler_compare",
       "../../Tests/RustHarnesses/target/release/cdsp_resampler_compare",
-      "/Users/wangyue/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/"
-      "cdsp_resampler_compare"};
+      home_path[0] ? home_path : NULL};
   for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+    if (!candidates[i]) continue;
     FILE* f = fopen(candidates[i], "r");
     if (f) {
       fclose(f);

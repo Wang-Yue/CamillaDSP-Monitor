@@ -65,35 +65,63 @@ static double* build_conv_filter_coefficients(int length) {
   return values;
 }
 
-static void run_swift_rust_comparison(const char* filter, double* rust_single, double* rust_multi,
-                                      double* swift_single, double* swift_multi) {
-  *rust_single = NAN;
-  *rust_multi = NAN;
-  *swift_single = NAN;
-  *swift_multi = NAN;
+typedef struct {
+  double single_ms;
+  double multi_ms;
+} pipeline_rust_results_t;
 
-  char cmd[512];
-  snprintf(cmd, sizeof(cmd),
-           "ENGINE=swift swift test -c release --test-product DSPMonitorPackageTests --filter %s 2>&1",
-           filter);
+static pipeline_rust_results_t run_upstream_pipeline_benchmark(const char* variant_single, const char* variant_multi) {
+  pipeline_rust_results_t results = {.single_ms = NAN, .multi_ms = NAN};
+  const char* home = getenv("HOME");
+  if (!home) return results;
+
+  char cmd[1024];
+  snprintf(cmd, sizeof(cmd), "cd %s/camilladsp && cargo bench --bench pipeline -- --sample-size 10 --warm-up-time 0.3 --measurement-time 0.5 2>&1", home);
   FILE* fp = popen(cmd, "r");
-  if (!fp) return;
+  if (!fp) return results;
 
   char line[1024];
+  char last_variant[128] = {0};
   while (fgets(line, sizeof(line), fp)) {
-    if (strstr(line, "CamillaDSP (Rust)")) {
-      char* p = strchr(line, '|');
+    if (strstr(line, "complete_pipeline_chunk/variant/")) {
+      char* p = strrchr(line, '/');
       if (p) {
-        sscanf(p + 1, "%lf | %lf", rust_single, rust_multi);
+        char* end = p + 1;
+        while (*end && *end != '\n' && *end != '\r' && *end != ' ') end++;
+        size_t len = end - (p + 1);
+        if (len < sizeof(last_variant)) {
+          strncpy(last_variant, p + 1, len);
+          last_variant[len] = '\0';
+        }
       }
-    } else if (strstr(line, "SwiftDSP (Swift)")) {
-      char* p = strchr(line, '|');
-      if (p) {
-        sscanf(p + 1, "%lf | %lf", swift_single, swift_multi);
+    } else if (strstr(line, "time:") && last_variant[0] != '\0') {
+      for (char* p = line; *p; p++) {
+        if (*p == '[' || *p == ']') *p = ' ';
       }
+      char* time_ptr = strstr(line, "time:");
+      double val1 = 0, val2 = 0, val3 = 0;
+      char unit[32] = {0};
+      int count = sscanf(time_ptr, "time: %lf %31s %lf %31s %lf %31s",
+                         &val1, unit, &val2, unit, &val3, unit);
+      if (count >= 4) {
+        double val_ms = val2;
+        if (strcmp(unit, "µs") == 0 || strstr(unit, "u")) {
+          val_ms = val2 / 1000.0;
+        } else if (strcmp(unit, "ns") == 0) {
+          val_ms = val2 / 1000000.0;
+        }
+        
+        if (strcmp(last_variant, variant_single) == 0) {
+          results.single_ms = val_ms;
+        } else if (strcmp(last_variant, variant_multi) == 0) {
+          results.multi_ms = val_ms;
+        }
+      }
+      last_variant[0] = '\0';
     }
   }
   pclose(fp);
+  return results;
 }
 
 static void print_comparison_table(const char* label, double rust_single, double rust_multi,
@@ -263,10 +291,10 @@ TEST(Pipeline_Biquads_Benchmark) {
   double c_multi_ms = multi_ns / (double)ITERS / 1e6;
 
   // Load Swift and Rust results
-  double rust_single = NAN, rust_multi = NAN;
   double swift_single = NAN, swift_multi = NAN;
-  run_swift_rust_comparison("Pipeline_UpstreamMatch_Biquads_Benchmark",
-                            &rust_single, &rust_multi, &swift_single, &swift_multi);
+  pipeline_rust_results_t rust = run_upstream_pipeline_benchmark("biquad_single", "biquad_multi");
+  double rust_single = rust.single_ms;
+  double rust_multi = rust.multi_ms;
 
   print_comparison_table("Upstream Match: 4-in 2-out Biquad Pipeline (96 EQ evaluations)",
                          rust_single, rust_multi, swift_single, swift_multi,
@@ -441,10 +469,10 @@ TEST(Pipeline_Biquads_Conv_Benchmark) {
   double c_multi_ms = multi_ns / 10.0 / 1e6;
 
   // Load Swift and Rust results
-  double rust_single = NAN, rust_multi = NAN;
   double swift_single = NAN, swift_multi = NAN;
-  run_swift_rust_comparison("Pipeline_UpstreamMatch_Biquads_Conv_Benchmark",
-                            &rust_single, &rust_multi, &swift_single, &swift_multi);
+  pipeline_rust_results_t rust = run_upstream_pipeline_benchmark("biquad_conv_single", "biquad_conv_multi");
+  double rust_single = rust.single_ms;
+  double rust_multi = rust.multi_ms;
 
   print_comparison_table("Upstream Match: 4-in 2-out Biquad + Convolution Pipeline (96 EQ + 12 long convolve)",
                          rust_single, rust_multi, swift_single, swift_multi,

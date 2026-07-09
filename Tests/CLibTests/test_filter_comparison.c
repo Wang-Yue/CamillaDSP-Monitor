@@ -80,13 +80,18 @@ static const char* get_harness_binary(void) {
   if (env && access(env, X_OK) == 0) {
     return env;
   }
+  static char home_path[1024] = {0};
+  const char* home = getenv("HOME");
+  if (home) {
+    snprintf(home_path, sizeof(home_path), "%s/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/cdsp_filter_compare", home);
+  }
   const char* paths[] = {
       "../Tests/RustHarnesses/target/release/cdsp_filter_compare",
       "Tests/RustHarnesses/target/release/cdsp_filter_compare",
-      "/Users/wangyue/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/"
-      "cdsp_filter_compare"};
+      "../../Tests/RustHarnesses/target/release/cdsp_filter_compare",
+      home_path[0] ? home_path : NULL};
   for (size_t i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
-    if (access(paths[i], X_OK) == 0) {
+    if (paths[i] && access(paths[i], X_OK) == 0) {
       return paths[i];
     }
   }

@@ -11,7 +11,12 @@
 #include "Mixer/mixer.h"
 #include "Processors/processor.h"
 
+#if defined(__APPLE__) || defined(USE_LIBDISPATCH)
 #include <dispatch/dispatch.h>
+#define HAS_DISPATCH 1
+#else
+#define HAS_DISPATCH 0
+#endif
 
 #include "Audio/audio_buffers.h"
 #include "Audio/double_helpers.h"
@@ -536,6 +541,7 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
   return pipeline;
 }
 
+#if HAS_DISPATCH
 typedef struct {
   audio_chunk_t* current_chunk;
   size_t valid_frames;
@@ -555,6 +561,7 @@ static void parallel_filter_worker(void* context, size_t idx) {
     }
   }
 }
+#endif
 
 /// Process an input audio chunk into an output audio chunk.
 pipeline_error_t pipeline_process(pipeline_t* pipeline,
@@ -613,10 +620,19 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
     switch (step->type) {
       case EXEC_STEP_PARALLEL_FILTERS: {
         if (step->bypassed) continue;
+        bool use_multithreading = false;
+#if HAS_DISPATCH
         if (pipeline->multithreaded && step->chains_count > 1) {
+          use_multithreading = true;
+        }
+#endif
+
+        if (use_multithreading) {
+#if HAS_DISPATCH
           dispatch_ctx_t dctx = {current_chunk, valid_frames, step->chains};
           dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0);
           dispatch_apply_f(step->chains_count, queue, &dctx, parallel_filter_worker);
+#endif
         } else {
           for (size_t idx = 0; idx < step->chains_count; idx++) {
             parallel_filter_chain_t* chain = &step->chains[idx];
