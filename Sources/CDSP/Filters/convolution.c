@@ -18,16 +18,6 @@ struct convolution_filter {
   double* spec_accum_im;
 };
 
-typedef double double2 __attribute__((vector_size(16), aligned(8)));
-
-static inline double2 load_double2(const double* p) {
-  return *(const double2*)p;
-}
-
-static inline void store_double2(double* p, double2 v) {
-  *(double2*)p = v;
-}
-
 typedef double double4 __attribute__((vector_size(32), aligned(8)));
 
 static inline double4 load_double4(const double* p) {
