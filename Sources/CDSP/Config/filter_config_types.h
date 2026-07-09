@@ -327,7 +327,7 @@ typedef struct {
  * @brief Parameters for a Volume control filter.
  */
 typedef struct {
-  double ramp_time;   /**< Volume ramp time (seconds). */
+  double ramp_time;   /**< Volume ramp time (milliseconds). */
   bool has_ramp_time; /**< True if `ramp_time` is specified. */
   double limit;       /**< Volume limit (dB). */
   bool has_limit;     /**< True if `limit` is specified. */

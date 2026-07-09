@@ -309,15 +309,9 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   // errors. If rate adjust is enabled, we match its target level; otherwise, we
   // pre-fill 4 chunks.
   size_t prefill_frames =
-      (core->current_config->devices.has_enable_rate_adjust &&
-       core->current_config->devices.enable_rate_adjust &&
-       core->current_config->devices.has_target_level)
+      core->current_config->devices.has_target_level
           ? (size_t)core->current_config->devices.target_level
-          : (playback_chunk_size * 2);
-  if (!core->current_config->devices.has_enable_rate_adjust ||
-      !core->current_config->devices.enable_rate_adjust) {
-    prefill_frames = playback_chunk_size * 4;
-  }
+          : playback_chunk_size;
   playback_backend_prefill_silence(core->playback, prefill_frames, &berr);
 
   // 7. Allocate scratch chunks.
@@ -415,7 +409,7 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
                              : 10.0;
   int target_level = core->current_config->devices.has_target_level
                          ? core->current_config->devices.target_level
-                         : (int)(playback_chunk_size * 2);
+                         : (int)playback_chunk_size;
 
   core->playback_loop = engine_playback_loop_create(
       core->shared, core->capture, core->playback, core->processing_params,

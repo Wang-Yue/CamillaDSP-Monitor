@@ -145,13 +145,18 @@ final class EngineCaptureLoop: @unchecked Sendable {
 
         // Increment captured frames and check sample rate drift.
         if let measuredRate = rateWatcher.tick(frames: chunkSize) {
-          logger.warning(
-            "Sample rate change detected (measured: %f Hz, expected: %d Hz); stopping engine",
-            .double(measuredRate), .int(samplerate)
-          )
           if rateWatcher.stopOnRateChange {
+            logger.warning(
+              "Sample rate change detected (measured: %f Hz, expected: %d Hz); stopping engine",
+              .double(measuredRate), .int(samplerate)
+            )
             onStop(.captureFormatChange(Int(measuredRate.rounded())))
             return
+          } else {
+            logger.warning(
+              "Sample rate change detected (measured: %f Hz, expected: %d Hz); stop on rate change is disabled, continuing",
+              .double(measuredRate), .int(samplerate)
+            )
           }
         }
 

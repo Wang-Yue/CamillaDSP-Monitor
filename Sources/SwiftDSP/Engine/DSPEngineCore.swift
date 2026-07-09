@@ -148,12 +148,7 @@ internal final class DSPEngineCore {
     // thread has a buffer of silence to drain during startup. If
     // rate adjust is enabled we match its target level; otherwise
     // we pre-fill a safe 4-chunk headroom.
-    let prefillFrames: Int
-    if currentConfig.devices.enableRateAdjust == true {
-      prefillFrames = currentConfig.devices.targetLevel ?? (runtime.playbackChunkSize * 2)
-    } else {
-      prefillFrames = runtime.playbackChunkSize * 4
-    }
+    let prefillFrames = currentConfig.devices.targetLevel ?? runtime.playbackChunkSize
     try runtime.playback.prefillSilence(frames: prefillFrames)
 
     spawnThreads(runtime: runtime)
@@ -346,7 +341,7 @@ internal final class DSPEngineCore {
 
     let rateAdjustEnabled = currentConfig.devices.enableRateAdjust == true
     let adjustPeriod = currentConfig.devices.adjustPeriod ?? 10.0
-    let targetLevel = currentConfig.devices.targetLevel ?? (runtime.playbackChunkSize * 2)
+    let targetLevel = currentConfig.devices.targetLevel ?? runtime.playbackChunkSize
     let playbackLoop = EnginePlaybackLoop(
       shared: shared,
       stateMachine: stateMachine,

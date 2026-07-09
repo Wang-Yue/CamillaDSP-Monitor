@@ -830,7 +830,7 @@ typedef struct {
   double silence_timeout;     /**< Silence detection timeout (seconds). 0 =
                                  disabled. */
   bool has_silence_timeout;   /**< True if silence_timeout is specified. */
-  double volume_ramp_time;   /**< Volume ramp time (seconds) for mute/unmute. */
+  double volume_ramp_time;   /**< Volume ramp time (milliseconds) for mute/unmute. */
   bool has_volume_ramp_time; /**< True if volume_ramp_time is specified. */
   double volume_limit;       /**< Maximum volume limit (dB). */
   bool has_volume_limit;     /**< True if volume_limit is specified. */
