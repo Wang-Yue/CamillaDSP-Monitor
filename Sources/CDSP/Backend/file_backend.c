@@ -9,6 +9,7 @@
 #include <time.h>
 #if !defined(_WIN32)
 #include <poll.h>
+#include <sys/stat.h>
 #endif
 
 #include "Logging/app_logger.h"
@@ -253,119 +254,201 @@ static void write_wav_header_to_file(FILE* f, size_t channels,
 }
 
 /**
- * @brief Decode a binary sample to double in range [-1.0, 1.0].
+ * @brief Decode multiple interleaved binary samples to deinterleaved double channels in range [-1.0, 1.0].
  *
- * Handles sign extension for 24-bit formats.
- *
- * @param src Pointer to the binary sample data.
- * @param format The sample format.
- * @return Decoded sample value as a double.
+ * @param dst_channels Array of pointers to destination channel buffers.
+ * @param src Pointer to the binary source data buffer.
+ * @param frames Number of frames to decode.
+ * @param channels Number of audio channels.
+ * @param format The source sample format.
  */
-static inline double decode_sample(const uint8_t* src,
-                                   binary_sample_format_t format) {
+static inline void decode_samples_deinterleave(double* const* dst_channels,
+                                               const uint8_t* src,
+                                               size_t frames,
+                                               int channels,
+                                               binary_sample_format_t format) {
   switch (format) {
     case BINARY_SAMPLE_FORMAT_S16_LE: {
-      int16_t val = src[0] | (src[1] << 8);
-      return (double)val / 32768.0;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 2;
+          int16_t val = src[offset] | (src[offset + 1] << 8);
+          dst_channels[c][f] = (double)val * (1.0 / 32768.0);
+        }
+      }
+      break;
     }
     case BINARY_SAMPLE_FORMAT_S24_3_LE: {
-      int32_t val = src[0] | (src[1] << 8) | (src[2] << 16);
-      // Sign extend 24-bit signed integer to 32-bit.
-      if (val & 0x800000) val |= ~0xFFFFFF;
-      return (double)val / 8388608.0;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 3;
+          int32_t val = src[offset] | (src[offset + 1] << 8) | (src[offset + 2] << 16);
+          if (val & 0x800000) val |= ~0xFFFFFF;
+          dst_channels[c][f] = (double)val * (1.0 / 8388608.0);
+        }
+      }
+      break;
     }
     case BINARY_SAMPLE_FORMAT_S24_4_RJ_LE: {
-      int32_t val = src[0] | (src[1] << 8) | (src[2] << 16);
-      // Sign extend 24-bit signed integer to 32-bit (Right Justified).
-      if (val & 0x800000) val |= ~0xFFFFFF;
-      return (double)val / 8388608.0;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 4;
+          int32_t val = src[offset] | (src[offset + 1] << 8) | (src[offset + 2] << 16);
+          if (val & 0x800000) val |= ~0xFFFFFF;
+          dst_channels[c][f] = (double)val * (1.0 / 8388608.0);
+        }
+      }
+      break;
     }
     case BINARY_SAMPLE_FORMAT_S24_4_LJ_LE: {
-      int32_t val = (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
-      return (double)val / 2147483648.0;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 4;
+          int32_t val;
+          memcpy(&val, src + offset, 4);
+          dst_channels[c][f] = (double)val * (1.0 / 2147483648.0);
+        }
+      }
+      break;
     }
     case BINARY_SAMPLE_FORMAT_S32_LE: {
-      int32_t val = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
-      return (double)val / 2147483648.0;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 4;
+          int32_t val;
+          memcpy(&val, src + offset, 4);
+          dst_channels[c][f] = (double)val * (1.0 / 2147483648.0);
+        }
+      }
+      break;
     }
     case BINARY_SAMPLE_FORMAT_F32_LE: {
-      float val;
-      memcpy(&val, src, 4);
-      return (double)val;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 4;
+          float val;
+          memcpy(&val, src + offset, 4);
+          dst_channels[c][f] = (double)val;
+        }
+      }
+      break;
     }
     case BINARY_SAMPLE_FORMAT_F64_LE: {
-      double val;
-      memcpy(&val, src, 8);
-      return val;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 8;
+          double val;
+          memcpy(&val, src + offset, 8);
+          dst_channels[c][f] = val;
+        }
+      }
+      break;
     }
     default:
-      return 0.0;
+      break;
   }
 }
 
 /**
- * @brief Encode a double sample in range [-1.0, 1.0] to binary format.
+ * @brief Encode multiple deinterleaved double channels in range [-1.0, 1.0] to interleaved binary format.
  *
- * Clips values outside [-1.0, 1.0].
- *
- * @param dst Pointer to destination buffer.
- * @param value The double sample value.
+ * @param dst Pointer to destination interleaved binary buffer.
+ * @param src_channels Array of pointers to source double channel buffers.
+ * @param frames Number of frames to encode.
+ * @param channels Number of audio channels.
  * @param format The target sample format.
  */
-static inline void encode_sample(uint8_t* dst, double value,
-                                 binary_sample_format_t format) {
-  // Hard clip the input double value to the valid range [-1.0, 1.0]
-  // to prevent overflow when converting to integer formats.
-  if (value > 1.0)
-    value = 1.0;
-  else if (value < -1.0)
-    value = -1.0;
+static inline void encode_samples_interleave(uint8_t* dst,
+                                             const double* const* src_channels,
+                                             size_t frames,
+                                             int channels,
+                                             binary_sample_format_t format) {
   switch (format) {
     case BINARY_SAMPLE_FORMAT_S16_LE: {
-      int16_t val = (int16_t)round(value * 32767.0);
-      dst[0] = val & 0xFF;
-      dst[1] = (val >> 8) & 0xFF;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 2;
+          double value = src_channels[c][f];
+          value = value > 1.0 ? 1.0 : (value < -1.0 ? -1.0 : value);
+          int16_t val = (int16_t)round(value * 32767.0);
+          memcpy(dst + offset, &val, 2);
+        }
+      }
       break;
     }
     case BINARY_SAMPLE_FORMAT_S24_3_LE: {
-      int32_t val = (int32_t)round(value * 8388607.0);
-      dst[0] = val & 0xFF;
-      dst[1] = (val >> 8) & 0xFF;
-      dst[2] = (val >> 16) & 0xFF;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 3;
+          double value = src_channels[c][f];
+          value = value > 1.0 ? 1.0 : (value < -1.0 ? -1.0 : value);
+          int32_t val = (int32_t)round(value * 8388607.0);
+          dst[offset] = val & 0xFF;
+          dst[offset + 1] = (val >> 8) & 0xFF;
+          dst[offset + 2] = (val >> 16) & 0xFF;
+        }
+      }
       break;
     }
     case BINARY_SAMPLE_FORMAT_S24_4_RJ_LE: {
-      int32_t val = (int32_t)round(value * 8388607.0);
-      dst[0] = val & 0xFF;
-      dst[1] = (val >> 8) & 0xFF;
-      dst[2] = (val >> 16) & 0xFF;
-      dst[3] = (val & 0x800000) ? 0xFF : 0x00;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 4;
+          double value = src_channels[c][f];
+          value = value > 1.0 ? 1.0 : (value < -1.0 ? -1.0 : value);
+          int32_t val = (int32_t)round(value * 8388607.0);
+          memcpy(dst + offset, &val, 4);
+        }
+      }
       break;
     }
     case BINARY_SAMPLE_FORMAT_S24_4_LJ_LE: {
-      int32_t val = (int32_t)round(value * 8388607.0);
-      dst[0] = 0x00;
-      dst[1] = val & 0xFF;
-      dst[2] = (val >> 8) & 0xFF;
-      dst[3] = (val >> 16) & 0xFF;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 4;
+          double value = src_channels[c][f];
+          value = value > 1.0 ? 1.0 : (value < -1.0 ? -1.0 : value);
+          int32_t val = (int32_t)round(value * 8388607.0);
+          int32_t shifted = val << 8;
+          memcpy(dst + offset, &shifted, 4);
+        }
+      }
       break;
     }
     case BINARY_SAMPLE_FORMAT_S32_LE: {
-      int32_t val = (int32_t)round(value * 2147483647.0);
-      dst[0] = val & 0xFF;
-      dst[1] = (val >> 8) & 0xFF;
-      dst[2] = (val >> 16) & 0xFF;
-      dst[3] = (val >> 24) & 0xFF;
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 4;
+          double value = src_channels[c][f];
+          value = value > 1.0 ? 1.0 : (value < -1.0 ? -1.0 : value);
+          int32_t val = (int32_t)round(value * 2147483647.0);
+          memcpy(dst + offset, &val, 4);
+        }
+      }
       break;
     }
     case BINARY_SAMPLE_FORMAT_F32_LE: {
-      float val = (float)value;
-      memcpy(dst, &val, 4);
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 4;
+          double value = src_channels[c][f];
+          value = value > 1.0 ? 1.0 : (value < -1.0 ? -1.0 : value);
+          float val = (float)value;
+          memcpy(dst + offset, &val, 4);
+        }
+      }
       break;
     }
     case BINARY_SAMPLE_FORMAT_F64_LE: {
-      double val = value;
-      memcpy(dst, &val, 8);
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < channels; c++) {
+          size_t offset = (f * channels + c) * 8;
+          double value = src_channels[c][f];
+          value = value > 1.0 ? 1.0 : (value < -1.0 ? -1.0 : value);
+          double val = value;
+          memcpy(dst + offset, &val, 8);
+        }
+      }
       break;
     }
     default:
@@ -560,22 +643,30 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
   }
 
 #if !defined(_WIN32)
-  // Poll the file descriptor to see if data is readable.
-  // Timeout is set to 50ms. If no data, return false (no data read) so that
-  // the engine capture loop doesn't block forever and can check should_stop.
-  struct pollfd pfd = {
-      .fd = fileno(capture->f), .events = POLLIN, .revents = 0};
-  int poll_ret = poll(&pfd, 1, 50);
-  if (poll_ret == 0) {
-    // Timeout
-    audio_chunk_set_valid_frames(chunk, 0);
-    return false;
-  } else if (poll_ret < 0) {
-    if (err) {
-      backend_error_init(err, BACKEND_ERROR_READ_ERROR, "Poll error");
+  bool should_poll = true;
+  struct stat st;
+  if (fstat(fileno(capture->f), &st) == 0 && S_ISREG(st.st_mode)) {
+    should_poll = false;
+  }
+
+  if (should_poll) {
+    // Poll the file descriptor to see if data is readable.
+    // Timeout is set to 50ms. If no data, return false (no data read) so that
+    // the engine capture loop doesn't block forever and can check should_stop.
+    struct pollfd pfd = {
+        .fd = fileno(capture->f), .events = POLLIN, .revents = 0};
+    int poll_ret = poll(&pfd, 1, 50);
+    if (poll_ret == 0) {
+      // Timeout
+      audio_chunk_set_valid_frames(chunk, 0);
+      return false;
+    } else if (poll_ret < 0) {
+      if (err) {
+        backend_error_init(err, BACKEND_ERROR_READ_ERROR, "Poll error");
+      }
+      audio_chunk_set_valid_frames(chunk, 0);
+      return false;
     }
-    audio_chunk_set_valid_frames(chunk, 0);
-    return false;
   }
 #endif
 
@@ -598,13 +689,11 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
   size_t frames_read = bytes_read / (capture->channels * sample_size);
 
   // Decode read frames
-  for (size_t f = 0; f < frames_read; f++) {
-    for (int c = 0; c < capture->channels; c++) {
-      size_t offset = (f * capture->channels + c) * sample_size;
-      audio_chunk_get_channel(chunk, c)[f] =
-          decode_sample(capture->raw_buf + offset, capture->format);
-    }
+  double* dst_channels[capture->channels];
+  for (int c = 0; c < capture->channels; c++) {
+    dst_channels[c] = audio_chunk_get_channel(chunk, c);
   }
+  decode_samples_deinterleave(dst_channels, capture->raw_buf, frames_read, capture->channels, capture->format);
 
   // Check EOF and generate extra samples if configured
   // If we read fewer frames than requested (e.g., EOF), and we have configured
@@ -829,13 +918,11 @@ bool file_playback_write(file_playback_t* playback, const audio_chunk_t* chunk,
   }
 
   // Encode samples
-  for (size_t f = 0; f < frames; f++) {
-    for (int c = 0; c < playback->channels; c++) {
-      size_t offset = (f * playback->channels + c) * sample_size;
-      encode_sample(playback->raw_buf + offset,
-                    audio_chunk_get_channel(chunk, c)[f], playback->format);
-    }
+  const double* src_channels[playback->channels];
+  for (int c = 0; c < playback->channels; c++) {
+    src_channels[c] = audio_chunk_get_channel((audio_chunk_t*)chunk, c);
   }
+  encode_samples_interleave(playback->raw_buf, src_channels, frames, playback->channels, playback->format);
 
   size_t bytes_written =
       fwrite(playback->raw_buf, 1, required_bytes, playback->f);

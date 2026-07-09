@@ -557,9 +557,17 @@ int main(int argc, char** argv) {
   }
 
   printf("Press Ctrl+C to stop.\n");
+  bool started = (config_path != NULL);
   while (keep_running) {
     usleep(100000);  // 100ms
     dsp_engine_poll(engine);
+    if (started) {
+      state_update_t status = dsp_engine_get_status(engine);
+      if (status.state == PROCESSING_STATE_INACTIVE) {
+        printf("Engine finished processing. Exiting.\n");
+        break;
+      }
+    }
   }
 
   if (server) websocket_server_free(server);
