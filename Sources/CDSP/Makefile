@@ -225,7 +225,65 @@ windows-lib: $(WIN_OBJS)
 windows-cli: $(WIN_LIB_TARGET)
 	@mkdir -p $(dir $(WIN_CLI_BIN))
 	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -DENABLE_WASAPI -DENABLE_ASIO -DENABLE_FFTW -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging $(CLI_SRC) $(WIN_LIB_TARGET) /tmp/win_fftw/libfftw3-3.dll /tmp/win_fftw/libfftw3f-3.dll -pthread -lws2_32 -lwinmm -lole32 -luuid -lksuser -lksguid -o $(WIN_CLI_BIN)
+# macOS cross-compilation settings
+MAC_CC := clang
+MAC_SDK_PATH ?= /usr/local/google/home/wangyue/.gemini/jetski/scratch/mac_sdk/MacOSX13.3.sdk
+MAC_LDFLAGS := -F$(MAC_SDK_PATH)/System/Library/Frameworks -framework CoreAudio -framework AudioToolbox -framework Accelerate -framework CoreFoundation -fuse-ld=lld
+
+MAC_OBJ_DIR_X86_64 := $(ROOT_DIR)/.build/mac_obj_x86_64
+MAC_OBJ_DIR_ARM64 := $(ROOT_DIR)/.build/mac_obj_arm64
+
+MAC_SRCS := $(filter-out %/alsa_capture.c %/alsa_playback.c %/alsa_device.c %/alsa_capabilities.c \
+                         %/pulse_backend.c \
+                         %/pipewire_backend.c \
+                         %/wasapi_backend.c %/wasapi_capabilities.c \
+                         %/asio_backend.c %/asio_capabilities.c \
+                         %/jack_backend.c %/bluez_backend.c, $(ALL_SRCS))
+
+MAC_OBJS_X86_64 := $(patsubst $(ROOT_DIR)/%.c, $(MAC_OBJ_DIR_X86_64)/%.o, $(MAC_SRCS))
+MAC_OBJS_ARM64 := $(patsubst $(ROOT_DIR)/%.c, $(MAC_OBJ_DIR_ARM64)/%.o, $(MAC_SRCS))
+
+MAC_LIB_X86_64 := $(ROOT_DIR)/Sources/CDSP/libdsp_mac_x86_64.a
+MAC_LIB_ARM64 := $(ROOT_DIR)/Sources/CDSP/libdsp_mac_arm64.a
+
+MAC_CLI_X86_64 := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli-mac-x86_64
+MAC_CLI_ARM64 := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli-mac-arm64
+MAC_CLI_UNIVERSAL := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli-mac
+
+MAC_CFLAGS_COMMON := -O3 -Wall -Wextra -std=c11 -DUNICODE -D_UNICODE -DENABLE_COREAUDIO -DENABLE_ACCELERATE -isysroot $(MAC_SDK_PATH) -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging
+
+$(MAC_OBJ_DIR_X86_64)/%.o: $(ROOT_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(MAC_CC) -target x86_64-apple-darwin $(MAC_CFLAGS_COMMON) -c $< -o $@
+
+$(MAC_OBJ_DIR_ARM64)/%.o: $(ROOT_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(MAC_CC) -target arm64-apple-darwin $(MAC_CFLAGS_COMMON) -c $< -o $@
+
+.PHONY: macos macos-lib-x86_64 macos-lib-arm64 macos-cli-x86_64 macos-cli-arm64 macos-universal
+
+macos: macos-universal
+
+macos-lib-x86_64: $(MAC_OBJS_X86_64)
+	@rm -f $(MAC_LIB_X86_64)
+	$(AR) rcs $(MAC_LIB_X86_64) $(MAC_OBJS_X86_64)
+
+macos-lib-arm64: $(MAC_OBJS_ARM64)
+	@rm -f $(MAC_LIB_ARM64)
+	$(AR) rcs $(MAC_LIB_ARM64) $(MAC_OBJS_ARM64)
+
+macos-cli-x86_64: macos-lib-x86_64
+	@mkdir -p $(dir $(MAC_CLI_X86_64))
+	$(MAC_CC) -target x86_64-apple-darwin $(MAC_CFLAGS_COMMON) $(CLI_SRC) $(MAC_LIB_X86_64) $(MAC_LDFLAGS) -o $(MAC_CLI_X86_64)
+
+macos-cli-arm64: macos-lib-arm64
+	@mkdir -p $(dir $(MAC_CLI_ARM64))
+	$(MAC_CC) -target arm64-apple-darwin $(MAC_CFLAGS_COMMON) $(CLI_SRC) $(MAC_LIB_ARM64) $(MAC_LDFLAGS) -o $(MAC_CLI_ARM64)
+
+macos-universal: macos-cli-x86_64 macos-cli-arm64
+	@mkdir -p $(dir $(MAC_CLI_UNIVERSAL))
+	llvm-lipo -create -output $(MAC_CLI_UNIVERSAL) $(MAC_CLI_X86_64) $(MAC_CLI_ARM64)
 
 clean:
-	rm -rf $(OBJ_DIR) $(WIN_OBJ_DIR) $(LIB_TARGET) $(WIN_LIB_TARGET) $(ROOT_DIR)/Tests/CLibTests/bin $(ROOT_DIR)/Sources/CDSP/bin
+	rm -rf $(OBJ_DIR) $(WIN_OBJ_DIR) $(MAC_OBJ_DIR_X86_64) $(MAC_OBJ_DIR_ARM64) $(LIB_TARGET) $(WIN_LIB_TARGET) $(MAC_LIB_X86_64) $(MAC_LIB_ARM64) $(ROOT_DIR)/Tests/CLibTests/bin $(ROOT_DIR)/Sources/CDSP/bin
 

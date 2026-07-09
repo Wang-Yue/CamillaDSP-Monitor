@@ -24,8 +24,22 @@
 #include "dop_encoder.h"
 
 #include "sigma_delta_modulator.h"
+#if defined(ENABLE_BLAS)
+#include <cblas.h>
+#elif defined(ENABLE_ACCELERATE)
+#include <Accelerate/Accelerate.h>
+#endif
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+
+typedef double double4 __attribute__ ((vector_size (32)));
+
+static inline double4 load_double4(const double* p) {
+  double4 v;
+  memcpy(&v, p, sizeof(double4));
+  return v;
+}
 
 /**
  * @brief State for a single DoP encoder channel.
@@ -39,6 +53,13 @@ typedef struct {
   uint8_t marker;
   /** Sigma-delta modulator instance for this channel. */
   sigma_delta_modulator_t* modulator;
+#if defined(ENABLE_BLAS)
+  // Scratch buffers for batched BLAS processing
+  double* padded_buf;
+  double* scratch_X;
+  double* scratch_Y;
+  size_t scratch_capacity;
+#endif
 } dop_encoder_channel_state_t;
 
 struct dop_encoder {
@@ -246,6 +267,88 @@ dop_encoder_t* dop_encoder_create(int channels, double sample_rate,
  * @param frames Number of frames in the buffer.
  * @param coeffs Polyphase filter coefficients.
  */
+#if defined(ENABLE_BLAS)
+static bool ensure_scratch_capacity(dop_encoder_channel_state_t* state, size_t capacity) {
+  if (state->scratch_capacity >= capacity) return true;
+
+  double* p = (double*)realloc(state->padded_buf, (32 + capacity) * sizeof(double));
+  if (!p) return false;
+  state->padded_buf = p;
+
+  p = (double*)realloc(state->scratch_X, capacity * 32 * sizeof(double));
+  if (!p) return false;
+  state->scratch_X = p;
+
+  p = (double*)realloc(state->scratch_Y, capacity * 16 * sizeof(double));
+  if (!p) return false;
+  state->scratch_Y = p;
+
+  state->scratch_capacity = capacity;
+  return true;
+}
+
+static void encode_channel(dop_encoder_channel_state_t* state,
+                           mutable_waveform_t buf, size_t frames,
+                           const double* coeffs);
+
+static void encode_channel_batched(dop_encoder_channel_state_t* state,
+                                   mutable_waveform_t buf, size_t frames,
+                                   const double* coeffs) {
+  if (!buf || frames == 0) return;
+  if (!ensure_scratch_capacity(state, frames)) {
+    encode_channel(state, buf, frames, coeffs);
+    return;
+  }
+
+  double* padded_buf = state->padded_buf;
+  double* X = state->scratch_X;
+  double* Y = state->scratch_Y;
+
+  // Copy history from FIFO
+  memcpy(padded_buf, state->fifo + state->fifo_pos, 32 * sizeof(double));
+
+  // Copy current frames
+  memcpy(padded_buf + 32, buf, frames * sizeof(double));
+
+  // Populate X matrix
+  for (size_t t = 0; t < frames; t++) {
+    memcpy(X + t * 32, padded_buf + t + 1, 32 * sizeof(double));
+  }
+
+  // Perform matrix multiplication
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
+              (int)frames, 16, 32,
+              1.0, X, 32,
+              coeffs, 32,
+              0.0, Y, 16);
+
+  uint8_t marker = state->marker;
+  sigma_delta_modulator_t* mod = state->modulator;
+  for (size_t t = 0; t < frames; t++) {
+    uint16_t word = 0;
+    for (int p = 0; p < 16; p++) {
+      double acc = Y[t * 16 + p];
+      double dsd = sigma_delta_modulator_sample(mod, acc * 0.5);
+      if (dsd > 0.0) {
+        word |= (uint16_t)(1 << (15 - p));
+      }
+    }
+
+    uint32_t val24 = ((uint32_t)marker << 16) | (uint32_t)word;
+    int32_t int_val = (int32_t)(val24 << 8) >> 8;
+    buf[t] = (double)int_val / 8388608.0;
+
+    marker = (marker == 0x05) ? 0xFA : 0x05;
+  }
+
+  // Update history in FIFO
+  memcpy(state->fifo, padded_buf + frames, 32 * sizeof(double));
+  memcpy(state->fifo + 32, padded_buf + frames, 32 * sizeof(double));
+  state->fifo_pos = 0;
+  state->marker = marker;
+}
+#endif
+
 static void encode_channel(dop_encoder_channel_state_t* state,
                            mutable_waveform_t buf, size_t frames,
                            const double* coeffs) {
@@ -271,25 +374,127 @@ static void encode_channel(dop_encoder_channel_state_t* state,
     // the LSB. This matches the bit ordering used by `DoPDecoder`.
     uint16_t word = 0;
     int base_idx = pos + 1;
+    const double* fifo_p = fifo + base_idx;
+#if defined(ENABLE_BLAS)
+    double acc[16];
+    cblas_dgemv(CblasRowMajor, CblasNoTrans, 16, 32, 1.0, coeffs, 32, fifo_p, 1, 0.0, acc, 1);
     for (int p = 0; p < 16; p++) {
-      const double* coeff_p = coeffs + p * 32;
-      const double* fifo_p = fifo + base_idx;
-      double acc = 0.0;
-#ifdef ENABLE_ACCELERATE
-      // Use Apple's Accelerate framework for optimized dot product if
-      // available.
-      vDSP_dotprD(coeff_p, 1, fifo_p, 1, &acc, 32);
-#else
-      for (int m = 0; m < 32; m++) {
-        acc += coeff_p[m] * fifo_p[m];
-      }
-#endif
-      // Scale input by 0.5 for SDM headroom.
-      double dsd = sigma_delta_modulator_sample(mod, acc * 0.5);
+      double dsd = sigma_delta_modulator_sample(mod, acc[p] * 0.5);
       if (dsd > 0.0) {
         word |= (uint16_t)(1 << (15 - p));
       }
     }
+#else
+    double4 f0 = load_double4(fifo_p);
+    double4 f1 = load_double4(fifo_p + 4);
+    double4 f2 = load_double4(fifo_p + 8);
+    double4 f3 = load_double4(fifo_p + 12);
+    double4 f4 = load_double4(fifo_p + 16);
+    double4 f5 = load_double4(fifo_p + 20);
+    double4 f6 = load_double4(fifo_p + 24);
+    double4 f7 = load_double4(fifo_p + 28);
+
+    for (int p = 0; p < 16; p += 4) {
+      const double* coeff_p0 = coeffs + p * 32;
+      const double* coeff_p1 = coeffs + (p + 1) * 32;
+      const double* coeff_p2 = coeffs + (p + 2) * 32;
+      const double* coeff_p3 = coeffs + (p + 3) * 32;
+
+      double4 c0_0 = load_double4(coeff_p0);
+      double4 c0_1 = load_double4(coeff_p0 + 4);
+      double4 c0_2 = load_double4(coeff_p0 + 8);
+      double4 c0_3 = load_double4(coeff_p0 + 12);
+      double4 c0_4 = load_double4(coeff_p0 + 16);
+      double4 c0_5 = load_double4(coeff_p0 + 20);
+      double4 c0_6 = load_double4(coeff_p0 + 24);
+      double4 c0_7 = load_double4(coeff_p0 + 28);
+
+      double4 c1_0 = load_double4(coeff_p1);
+      double4 c1_1 = load_double4(coeff_p1 + 4);
+      double4 c1_2 = load_double4(coeff_p1 + 8);
+      double4 c1_3 = load_double4(coeff_p1 + 12);
+      double4 c1_4 = load_double4(coeff_p1 + 16);
+      double4 c1_5 = load_double4(coeff_p1 + 20);
+      double4 c1_6 = load_double4(coeff_p1 + 24);
+      double4 c1_7 = load_double4(coeff_p1 + 28);
+
+      double4 c2_0 = load_double4(coeff_p2);
+      double4 c2_1 = load_double4(coeff_p2 + 4);
+      double4 c2_2 = load_double4(coeff_p2 + 8);
+      double4 c2_3 = load_double4(coeff_p2 + 12);
+      double4 c2_4 = load_double4(coeff_p2 + 16);
+      double4 c2_5 = load_double4(coeff_p2 + 20);
+      double4 c2_6 = load_double4(coeff_p2 + 24);
+      double4 c2_7 = load_double4(coeff_p2 + 28);
+
+      double4 c3_0 = load_double4(coeff_p3);
+      double4 c3_1 = load_double4(coeff_p3 + 4);
+      double4 c3_2 = load_double4(coeff_p3 + 8);
+      double4 c3_3 = load_double4(coeff_p3 + 12);
+      double4 c3_4 = load_double4(coeff_p3 + 16);
+      double4 c3_5 = load_double4(coeff_p3 + 20);
+      double4 c3_6 = load_double4(coeff_p3 + 24);
+      double4 c3_7 = load_double4(coeff_p3 + 28);
+
+      double4 sum0 = c0_0 * f0;
+      double4 sum1 = c1_0 * f0;
+      double4 sum2 = c2_0 * f0;
+      double4 sum3 = c3_0 * f0;
+
+      sum0 += c0_1 * f1;
+      sum1 += c1_1 * f1;
+      sum2 += c2_1 * f1;
+      sum3 += c3_1 * f1;
+
+      sum0 += c0_2 * f2;
+      sum1 += c1_2 * f2;
+      sum2 += c2_2 * f2;
+      sum3 += c3_2 * f2;
+
+      sum0 += c0_3 * f3;
+      sum1 += c1_3 * f3;
+      sum2 += c2_3 * f3;
+      sum3 += c3_3 * f3;
+
+      sum0 += c0_4 * f4;
+      sum1 += c1_4 * f4;
+      sum2 += c2_4 * f4;
+      sum3 += c3_4 * f4;
+
+      sum0 += c0_5 * f5;
+      sum1 += c1_5 * f5;
+      sum2 += c2_5 * f5;
+      sum3 += c3_5 * f5;
+
+      sum0 += c0_6 * f6;
+      sum1 += c1_6 * f6;
+      sum2 += c2_6 * f6;
+      sum3 += c3_6 * f6;
+
+      sum0 += c0_7 * f7;
+      sum1 += c1_7 * f7;
+      sum2 += c2_7 * f7;
+      sum3 += c3_7 * f7;
+
+      double acc0 = sum0[0] + sum0[1] + sum0[2] + sum0[3];
+      double acc1 = sum1[0] + sum1[1] + sum1[2] + sum1[3];
+      double acc2 = sum2[0] + sum2[1] + sum2[2] + sum2[3];
+      double acc3 = sum3[0] + sum3[1] + sum3[2] + sum3[3];
+
+      if (sigma_delta_modulator_sample(mod, acc0 * 0.5) > 0.0) {
+        word |= (uint16_t)(1 << (15 - p));
+      }
+      if (sigma_delta_modulator_sample(mod, acc1 * 0.5) > 0.0) {
+        word |= (uint16_t)(1 << (15 - (p + 1)));
+      }
+      if (sigma_delta_modulator_sample(mod, acc2 * 0.5) > 0.0) {
+        word |= (uint16_t)(1 << (15 - (p + 2)));
+      }
+      if (sigma_delta_modulator_sample(mod, acc3 * 0.5) > 0.0) {
+        word |= (uint16_t)(1 << (15 - (p + 3)));
+      }
+    }
+#endif
 
     // 24-bit DoP container: marker in bits 23..16, DSD word in bits 15..0.
     // Sign-extend from int24 and normalize back to ±1.0 float for the
@@ -315,8 +520,14 @@ void dop_encoder_encode(dop_encoder_t* encoder, audio_chunk_t* chunk) {
   if (n == 0 || (int)audio_chunk_get_channels(chunk) != encoder->channels)
     return;
   for (int ch = 0; ch < encoder->channels; ch++) {
+#if defined(ENABLE_BLAS)
+    encode_channel_batched(&encoder->channel_states[ch],
+                           audio_chunk_get_channel(chunk, ch), n,
+                           encoder->coeffs);
+#else
     encode_channel(&encoder->channel_states[ch],
                    audio_chunk_get_channel(chunk, ch), n, encoder->coeffs);
+#endif
   }
 }
 
@@ -325,6 +536,11 @@ void dop_encoder_free(dop_encoder_t* encoder) {
   if (encoder->channel_states) {
     for (int ch = 0; ch < encoder->channels; ch++) {
       sigma_delta_modulator_free(encoder->channel_states[ch].modulator);
+#if defined(ENABLE_BLAS)
+      if (encoder->channel_states[ch].padded_buf) free(encoder->channel_states[ch].padded_buf);
+      if (encoder->channel_states[ch].scratch_X) free(encoder->channel_states[ch].scratch_X);
+      if (encoder->channel_states[ch].scratch_Y) free(encoder->channel_states[ch].scratch_Y);
+#endif
     }
     free(encoder->channel_states);
   }

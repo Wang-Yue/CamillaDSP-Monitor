@@ -68,12 +68,12 @@ final class DoPDecoder {
 
     init(fifoSize: Int) {
       self.fifoSize = fifoSize
-      self.fifo = .allocate(capacity: fifoSize)
-      self.fifo.initialize(repeating: DoPDecoder.silenceByte, count: fifoSize)
+      self.fifo = .allocate(capacity: fifoSize * 2)
+      self.fifo.initialize(repeating: DoPDecoder.silenceByte, count: fifoSize * 2)
     }
 
     deinit {
-      fifo.deinitialize(count: fifoSize)
+      fifo.deinitialize(count: fifoSize * 2)
       fifo.deallocate()
     }
   }
@@ -177,52 +177,73 @@ final class DoPDecoder {
     for t in 0..<frames {
       let raw = base[t]
 
-      // Recover both 24- and 32-bit container interpretations. DoP is most
-      // commonly carried as right-aligned 24-bit-in-32-bit (marker at bits
-      // 23..16 of int24). MPD's flavor encodes a true 32-bit value
-      // 0xff05XXXX / 0xfffaXXXX where the top byte sign-extends and the
-      // marker is still at bits 23..16 — same shift, different float scale.
-      var v32 = raw * 2147483648.0
-      v32.round(.toNearestOrEven)
-      let val32: Int32
-      if v32 >= 2147483647.0 {
-        val32 = .max
-      } else if v32 <= -2147483648.0 {
-        val32 = .min
-      } else {
-        val32 = Int32(v32)
-      }
-      let marker32 = UInt8((UInt32(bitPattern: val32) >> 16) & 0xFF)
+      var marker: UInt8 = 0
+      var dsdWord: UInt16 = 0
 
-      var v24 = raw * 8388608.0
-      v24.round(.toNearestOrEven)
-      let val24: Int32
-      if v24 >= 8388607.0 {
-        val24 = 8_388_607
-      } else if v24 <= -8388608.0 {
-        val24 = -8_388_608
+      if state.containerKnown {
+        if state.is32BitContainer {
+          let scaled = raw * 2147483648.0
+          let val32: Int32
+          if scaled >= 2147483647.0 {
+            val32 = .max
+          } else if scaled <= -2147483648.0 {
+            val32 = .min
+          } else {
+            val32 = Int32(lrint(scaled))
+          }
+          marker = UInt8((UInt32(bitPattern: val32) >> 16) & 0xFF)
+          dsdWord = UInt16(UInt32(bitPattern: val32) & 0xFFFF)
+        } else {
+          let scaled = raw * 8388608.0
+          let val24: Int32
+          if scaled >= 8388607.0 {
+            val24 = 8_388_607
+          } else if scaled <= -8388608.0 {
+            val24 = -8_388_608
+          } else {
+            val24 = Int32(lrint(scaled))
+          }
+          marker = UInt8((UInt32(bitPattern: val24) >> 16) & 0xFF)
+          dsdWord = UInt16(UInt32(bitPattern: val24) & 0xFFFF)
+        }
       } else {
-        val24 = Int32(v24)
-      }
-      let marker24 = UInt8((UInt32(bitPattern: val24) >> 16) & 0xFF)
+        let scaled32 = raw * 2147483648.0
+        let val32: Int32
+        if scaled32 >= 2147483647.0 {
+          val32 = .max
+        } else if scaled32 <= -2147483648.0 {
+          val32 = .min
+        } else {
+          val32 = Int32(lrint(scaled32))
+        }
+        let marker32 = UInt8((UInt32(bitPattern: val32) >> 16) & 0xFF)
 
-      if !state.containerKnown {
+        let scaled24 = raw * 8388608.0
+        let val24: Int32
+        if scaled24 >= 8388607.0 {
+          val24 = 8_388_607
+        } else if scaled24 <= -8388608.0 {
+          val24 = -8_388_608
+        } else {
+          val24 = Int32(lrint(scaled24))
+        }
+        let marker24 = UInt8((UInt32(bitPattern: val24) >> 16) & 0xFF)
+
         if marker32 == 0x05 || marker32 == 0xFA {
           state.is32BitContainer = true
+          marker = marker32
+          dsdWord = UInt16(UInt32(bitPattern: val32) & 0xFFFF)
         } else if marker24 == 0x05 || marker24 == 0xFA {
           state.is32BitContainer = false
+          marker = marker24
+          dsdWord = UInt16(UInt32(bitPattern: val24) & 0xFFFF)
+        } else {
+          marker = marker24
+          dsdWord = UInt16(UInt32(bitPattern: val24) & 0xFFFF)
         }
       }
 
-      let marker = state.is32BitContainer ? marker32 : marker24
-      let dsdWord: UInt16 =
-        state.is32BitContainer
-        ? UInt16(UInt32(bitPattern: val32) & 0xFFFF)
-        : UInt16(UInt32(bitPattern: val24) & 0xFFFF)
-
       let isMarkerValid = (marker == 0x05 || marker == 0xFA)
-      // First-ever frame on this channel passes vacuously; subsequent
-      // frames must alternate between 0x05 and 0xFA.
       let alternates = state.lastMarker == 0 || marker != state.lastMarker
       let valid = isMarkerValid && alternates
 
@@ -244,44 +265,44 @@ final class DoPDecoder {
           state.containerKnown = false
           if state.isActive {
             state.isActive = false
-            for i in 0..<state.fifoSize { fifo[i] = DoPDecoder.silenceByte }
+            let totalSize = state.fifoSize * 2
+            for i in 0..<totalSize {
+              fifo[i] = DoPDecoder.silenceByte
+            }
             pos = 0
           }
         }
       }
 
-      // Push the frame's two DSD bytes whenever we either have a
-      // current valid marker (warming the filter pre-lock) or are
-      // already locked on (trusting the lock through isolated marker
-      // bit-errors). Either way, by the time `isActive` flips true the
-      // FIFO already holds 32 frames of real DSD data, so the first
-      // decoded sample is not a silence-fill transient.
       let push = valid || state.isActive
       if push {
         let dsdHi = UInt8((dsdWord >> 8) & 0xFF)
         let dsdLo = UInt8(dsdWord & 0xFF)
         fifo[pos] = dsdHi
+        fifo[pos + state.fifoSize] = dsdHi
         pos = (pos &+ 1) & mask
         fifo[pos] = dsdLo
+        fifo[pos + state.fifoSize] = dsdLo
         pos = (pos &+ 1) & mask
       }
 
       if state.isActive {
-        // y[n] = Σ_{i<numCtables} ctables[i][fifo[(pos-1-i) & mask]].
-        // ctable[i] precomputes the contribution of bits 0..7 of the
-        // byte at offset `i` to filter taps i*8 .. i*8+7 — see
-        // buildCtables for the bit/tap mapping.
-        var acc = 0.0
-        for i in 0..<ncTables {
-          let byteIdx = (pos &- 1 &- i) & mask
-          let b = Int(fifo[byteIdx])
-          acc += tables[i * 256 + b]
+        var acc0 = 0.0
+        var acc1 = 0.0
+        var acc2 = 0.0
+        var acc3 = 0.0
+        let readPtr = pos - 1 + state.fifoSize
+        for i in stride(from: 0, to: ncTables, by: 4) {
+          let b0 = Int(fifo[readPtr - i])
+          let b1 = Int(fifo[readPtr - (i + 1)])
+          let b2 = Int(fifo[readPtr - (i + 2)])
+          let b3 = Int(fifo[readPtr - (i + 3)])
+          acc0 += tables[i * 256 + b0]
+          acc1 += tables[(i + 1) * 256 + b1]
+          acc2 += tables[(i + 2) * 256 + b2]
+          acc3 += tables[(i + 3) * 256 + b3]
         }
-        // The trellis-friendly sigma-delta modulators in the test suite
-        // pre-scale input by 0.5 for noise-shaper headroom; this 2× compensates
-        // so SINAD compares against full-amplitude sin. Real DoP streams
-        // from DACs that don't pre-scale will be 6 dB hot — handle at a higher level
-        // if that becomes a problem.
+        let acc = acc0 + acc1 + acc2 + acc3
         base[t] = Double(acc * 2.0)
       }
     }

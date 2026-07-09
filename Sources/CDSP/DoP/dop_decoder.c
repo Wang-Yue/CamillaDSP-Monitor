@@ -26,6 +26,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define DOP_FIFO_SIZE 64    // power of 2
+#define DOP_FIFO_MASK 63
+
 /**
  * @brief Per-channel state for DoP decoding.
  *
@@ -42,7 +45,7 @@ typedef struct {
                             */
   bool container_known;    /**< Flag indicating if container size has been
                               determined. */
-  uint8_t fifo[64];        /**< Ring buffer for DSD bytes. */
+  uint8_t fifo[DOP_FIFO_SIZE * 2];        /**< Ring buffer for DSD bytes (duplicated for unmasked reads). */
   int fifo_pos;            /**< Current position in the FIFO. */
 } dop_decoder_channel_state_t;
 
@@ -90,8 +93,6 @@ struct dop_decoder {
 #define DOP_REAL_TAPS 511
 #define DOP_NUM_TAPS 512    // padded so 8-bit slicing is exact
 #define DOP_NUM_CTABLES 64  // 64
-#define DOP_FIFO_SIZE 64    // power of 2
-#define DOP_FIFO_MASK 63
 // One of the standard DSD silence patterns. Initializing the FIFO to
 // this rather than zero (= all `-1` = DC saturated) means the first
 // few samples after activation don't produce a click.
@@ -217,7 +218,7 @@ dop_decoder_t* dop_decoder_create(int channels, double sample_rate,
     return NULL;
   }
   for (int ch = 0; ch < channels; ch++) {
-    memset(dec->channel_states[ch].fifo, DOP_SILENCE_BYTE, DOP_FIFO_SIZE);
+    memset(dec->channel_states[ch].fifo, DOP_SILENCE_BYTE, DOP_FIFO_SIZE * 2);
   }
   dec->ctables = build_ctables(sample_rate, cutoff_hz);
   if (!dec->ctables) {
@@ -266,42 +267,67 @@ static void process_channel(dop_decoder_channel_state_t* state,
     // 0xff05XXXX / 0xfffaXXXX where the top byte sign-extends and the
     // marker is still at bits 23..16 — same shift, different float scale.
 
-    // Scale float to 32-bit integer range to check for 32-bit container DoP.
-    double v32 = round(raw * 2147483648.0);
-    int32_t val32 = 0;
-    if (v32 >= 2147483647.0)
-      val32 = 2147483647;
-    else if (v32 <= -2147483648.0)
-      val32 = -2147483647 - 1;
-    else
-      val32 = (int32_t)v32;
-    uint8_t marker32 = (uint8_t)(((uint32_t)val32 >> 16) & 0xFF);
+    uint8_t marker = 0;
+    uint16_t dsd_word = 0;
 
-    // Scale float to 24-bit integer range to check for 24-bit container DoP.
-    double v24 = round(raw * 8388608.0);
-    int32_t val24 = 0;
-    if (v24 >= 8388607.0)
-      val24 = 8388607;
-    else if (v24 <= -8388608.0)
-      val24 = -8388608;
-    else
-      val24 = (int32_t)v24;
-    uint8_t marker24 = (uint8_t)(((uint32_t)val24 >> 16) & 0xFF);
+    if (state->container_known) {
+      if (state->is_32bit_container) {
+        double scaled = raw * 2147483648.0;
+        int32_t val32;
+        if (scaled >= 2147483647.0)
+          val32 = 2147483647;
+        else if (scaled <= -2147483648.0)
+          val32 = -2147483647 - 1;
+        else
+          val32 = (int32_t)lrint(scaled);
+        marker = (uint8_t)(((uint32_t)val32 >> 16) & 0xFF);
+        dsd_word = (uint16_t)((uint32_t)val32 & 0xFFFF);
+      } else {
+        double scaled = raw * 8388608.0;
+        int32_t val24;
+        if (scaled >= 8388607.0)
+          val24 = 8388607;
+        else if (scaled <= -8388608.0)
+          val24 = -8388608;
+        else
+          val24 = (int32_t)lrint(scaled);
+        marker = (uint8_t)(((uint32_t)val24 >> 16) & 0xFF);
+        dsd_word = (uint16_t)((uint32_t)val24 & 0xFFFF);
+      }
+    } else {
+      double scaled32 = raw * 2147483648.0;
+      int32_t val32;
+      if (scaled32 >= 2147483647.0)
+        val32 = 2147483647;
+      else if (scaled32 <= -2147483648.0)
+        val32 = -2147483647 - 1;
+      else
+        val32 = (int32_t)lrint(scaled32);
+      uint8_t marker32 = (uint8_t)(((uint32_t)val32 >> 16) & 0xFF);
 
-    // If container size is not yet known, detect it based on where we see valid
-    // markers.
-    if (!state->container_known) {
+      double scaled24 = raw * 8388608.0;
+      int32_t val24;
+      if (scaled24 >= 8388607.0)
+        val24 = 8388607;
+      else if (scaled24 <= -8388608.0)
+        val24 = -8388608;
+      else
+        val24 = (int32_t)lrint(scaled24);
+      uint8_t marker24 = (uint8_t)(((uint32_t)val24 >> 16) & 0xFF);
+
       if (marker32 == 0x05 || marker32 == 0xFA) {
         state->is_32bit_container = true;
+        marker = marker32;
+        dsd_word = (uint16_t)((uint32_t)val32 & 0xFFFF);
       } else if (marker24 == 0x05 || marker24 == 0xFA) {
         state->is_32bit_container = false;
+        marker = marker24;
+        dsd_word = (uint16_t)((uint32_t)val24 & 0xFFFF);
+      } else {
+        marker = marker24;
+        dsd_word = (uint16_t)((uint32_t)val24 & 0xFFFF);
       }
     }
-
-    uint8_t marker = state->is_32bit_container ? marker32 : marker24;
-    uint16_t dsd_word = state->is_32bit_container
-                            ? (uint16_t)((uint32_t)val32 & 0xFFFF)
-                            : (uint16_t)((uint32_t)val24 & 0xFFFF);
 
     bool is_marker_valid = (marker == 0x05 || marker == 0xFA);
     // First-ever frame on this channel passes vacuously; subsequent
@@ -333,7 +359,7 @@ static void process_channel(dop_decoder_channel_state_t* state,
           state->is_active = false;
           // Fill FIFO with DSD silence to prevent clicks on transition back to
           // PCM.
-          memset(fifo, DOP_SILENCE_BYTE, DOP_FIFO_SIZE);
+          memset(fifo, DOP_SILENCE_BYTE, DOP_FIFO_SIZE * 2);
           pos = 0;
         }
       }
@@ -350,8 +376,10 @@ static void process_channel(dop_decoder_channel_state_t* state,
       uint8_t dsd_hi = (uint8_t)((dsd_word >> 8) & 0xFF);
       uint8_t dsd_lo = (uint8_t)(dsd_word & 0xFF);
       fifo[pos] = dsd_hi;
+      fifo[pos + DOP_FIFO_SIZE] = dsd_hi;
       pos = (pos + 1) & DOP_FIFO_MASK;
       fifo[pos] = dsd_lo;
+      fifo[pos + DOP_FIFO_SIZE] = dsd_lo;
       pos = (pos + 1) & DOP_FIFO_MASK;
     }
 
@@ -361,12 +389,22 @@ static void process_channel(dop_decoder_channel_state_t* state,
       // ctable[i] precomputes the contribution of bits 0..7 of the
       // byte at offset `i` to filter taps i*8 .. i*8+7 — see
       // buildCtables for the bit/tap mapping.
-      double acc = 0.0;
-      for (int i = 0; i < DOP_NUM_CTABLES; i++) {
-        int byte_idx = (pos - 1 - i) & DOP_FIFO_MASK;
-        int b = (int)fifo[byte_idx];
-        acc += tables[i * 256 + b];
+      double acc0 = 0.0;
+      double acc1 = 0.0;
+      double acc2 = 0.0;
+      double acc3 = 0.0;
+      int read_ptr = pos - 1 + DOP_FIFO_SIZE;
+      for (int i = 0; i < DOP_NUM_CTABLES; i += 4) {
+        int b0 = (int)fifo[read_ptr - i];
+        int b1 = (int)fifo[read_ptr - (i + 1)];
+        int b2 = (int)fifo[read_ptr - (i + 2)];
+        int b3 = (int)fifo[read_ptr - (i + 3)];
+        acc0 += tables[i * 256 + b0];
+        acc1 += tables[(i + 1) * 256 + b1];
+        acc2 += tables[(i + 2) * 256 + b2];
+        acc3 += tables[(i + 3) * 256 + b3];
       }
+      double acc = acc0 + acc1 + acc2 + acc3;
       // The trellis-friendly sigma-delta modulators in the test suite
       // pre-scale input by 0.5 for noise-shaper headroom; this 2× compensates
       // so SINAD compares against full-amplitude sin. Real DoP streams

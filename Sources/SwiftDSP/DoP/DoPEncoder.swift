@@ -23,6 +23,7 @@
 
 import DSPConfig
 import Foundation
+import Accelerate
 
 final class DoPEncoder {
   private let logger = Logger(label: "dsp.dop.encode")
@@ -170,49 +171,121 @@ final class DoPEncoder {
       fifoPtr[pos] = sampleVal
       fifoPtr[pos + nTaps] = sampleVal
 
-      // For each of the 16 oversampled phases, compute the interpolated
-      // sample and feed it through the SDM. Phase p=0 is the oldest
-      // sample within this frame's 16-sample window and ends up in the
-      // MSB of the packed word; phase p=15 is the newest and ends up in
-      // the LSB. This matches the bit ordering used by `DoPDecoder`.
-      var word: UInt16 = 0
+      // Load history once for all 16 oversampled phases.
       let baseIdx = pos + 1
-      for p in 0..<16 {
-        let coeffOffset = p * 32
-        let coeffP = coeffPtr + coeffOffset
-        let fifoP = fifoPtr + baseIdx
+      let fifoP = fifoPtr + baseIdx
 
-        let c0 = UnsafeRawPointer(coeffP).loadUnaligned(as: SIMD4<Double>.self)
-        let f0 = UnsafeRawPointer(fifoP).loadUnaligned(as: SIMD4<Double>.self)
-        let c1 = UnsafeRawPointer(coeffP + 4).loadUnaligned(as: SIMD4<Double>.self)
-        let f1 = UnsafeRawPointer(fifoP + 4).loadUnaligned(as: SIMD4<Double>.self)
-        let c2 = UnsafeRawPointer(coeffP + 8).loadUnaligned(as: SIMD4<Double>.self)
-        let f2 = UnsafeRawPointer(fifoP + 8).loadUnaligned(as: SIMD4<Double>.self)
-        let c3 = UnsafeRawPointer(coeffP + 12).loadUnaligned(as: SIMD4<Double>.self)
-        let f3 = UnsafeRawPointer(fifoP + 12).loadUnaligned(as: SIMD4<Double>.self)
-        let c4 = UnsafeRawPointer(coeffP + 16).loadUnaligned(as: SIMD4<Double>.self)
-        let f4 = UnsafeRawPointer(fifoP + 16).loadUnaligned(as: SIMD4<Double>.self)
-        let c5 = UnsafeRawPointer(coeffP + 20).loadUnaligned(as: SIMD4<Double>.self)
-        let f5 = UnsafeRawPointer(fifoP + 20).loadUnaligned(as: SIMD4<Double>.self)
-        let c6 = UnsafeRawPointer(coeffP + 24).loadUnaligned(as: SIMD4<Double>.self)
-        let f6 = UnsafeRawPointer(fifoP + 24).loadUnaligned(as: SIMD4<Double>.self)
-        let c7 = UnsafeRawPointer(coeffP + 28).loadUnaligned(as: SIMD4<Double>.self)
-        let f7 = UnsafeRawPointer(fifoP + 28).loadUnaligned(as: SIMD4<Double>.self)
+      let f0 = UnsafeRawPointer(fifoP).loadUnaligned(as: SIMD4<Double>.self)
+      let f1 = UnsafeRawPointer(fifoP + 4).loadUnaligned(as: SIMD4<Double>.self)
+      let f2 = UnsafeRawPointer(fifoP + 8).loadUnaligned(as: SIMD4<Double>.self)
+      let f3 = UnsafeRawPointer(fifoP + 12).loadUnaligned(as: SIMD4<Double>.self)
+      let f4 = UnsafeRawPointer(fifoP + 16).loadUnaligned(as: SIMD4<Double>.self)
+      let f5 = UnsafeRawPointer(fifoP + 20).loadUnaligned(as: SIMD4<Double>.self)
+      let f6 = UnsafeRawPointer(fifoP + 24).loadUnaligned(as: SIMD4<Double>.self)
+      let f7 = UnsafeRawPointer(fifoP + 28).loadUnaligned(as: SIMD4<Double>.self)
 
-        var sumVec = c0 * f0
-        sumVec += c1 * f1
-        sumVec += c2 * f2
-        sumVec += c3 * f3
-        sumVec += c4 * f4
-        sumVec += c5 * f5
-        sumVec += c6 * f6
-        sumVec += c7 * f7
-        let acc = sumVec.sum()
+      var word: UInt16 = 0
+      for p in stride(from: 0, to: 16, by: 4) {
+        let coeffOffset0 = p * 32
+        let coeffP0 = coeffPtr + coeffOffset0
+        let c0_0 = UnsafeRawPointer(coeffP0).loadUnaligned(as: SIMD4<Double>.self)
+        let c0_1 = UnsafeRawPointer(coeffP0 + 4).loadUnaligned(as: SIMD4<Double>.self)
+        let c0_2 = UnsafeRawPointer(coeffP0 + 8).loadUnaligned(as: SIMD4<Double>.self)
+        let c0_3 = UnsafeRawPointer(coeffP0 + 12).loadUnaligned(as: SIMD4<Double>.self)
+        let c0_4 = UnsafeRawPointer(coeffP0 + 16).loadUnaligned(as: SIMD4<Double>.self)
+        let c0_5 = UnsafeRawPointer(coeffP0 + 20).loadUnaligned(as: SIMD4<Double>.self)
+        let c0_6 = UnsafeRawPointer(coeffP0 + 24).loadUnaligned(as: SIMD4<Double>.self)
+        let c0_7 = UnsafeRawPointer(coeffP0 + 28).loadUnaligned(as: SIMD4<Double>.self)
 
-        let dsd = modulator.sdmSample(acc * 0.5)
+        let coeffOffset1 = (p + 1) * 32
+        let coeffP1 = coeffPtr + coeffOffset1
+        let c1_0 = UnsafeRawPointer(coeffP1).loadUnaligned(as: SIMD4<Double>.self)
+        let c1_1 = UnsafeRawPointer(coeffP1 + 4).loadUnaligned(as: SIMD4<Double>.self)
+        let c1_2 = UnsafeRawPointer(coeffP1 + 8).loadUnaligned(as: SIMD4<Double>.self)
+        let c1_3 = UnsafeRawPointer(coeffP1 + 12).loadUnaligned(as: SIMD4<Double>.self)
+        let c1_4 = UnsafeRawPointer(coeffP1 + 16).loadUnaligned(as: SIMD4<Double>.self)
+        let c1_5 = UnsafeRawPointer(coeffP1 + 20).loadUnaligned(as: SIMD4<Double>.self)
+        let c1_6 = UnsafeRawPointer(coeffP1 + 24).loadUnaligned(as: SIMD4<Double>.self)
+        let c1_7 = UnsafeRawPointer(coeffP1 + 28).loadUnaligned(as: SIMD4<Double>.self)
 
-        if dsd > 0 {
+        let coeffOffset2 = (p + 2) * 32
+        let coeffP2 = coeffPtr + coeffOffset2
+        let c2_0 = UnsafeRawPointer(coeffP2).loadUnaligned(as: SIMD4<Double>.self)
+        let c2_1 = UnsafeRawPointer(coeffP2 + 4).loadUnaligned(as: SIMD4<Double>.self)
+        let c2_2 = UnsafeRawPointer(coeffP2 + 8).loadUnaligned(as: SIMD4<Double>.self)
+        let c2_3 = UnsafeRawPointer(coeffP2 + 12).loadUnaligned(as: SIMD4<Double>.self)
+        let c2_4 = UnsafeRawPointer(coeffP2 + 16).loadUnaligned(as: SIMD4<Double>.self)
+        let c2_5 = UnsafeRawPointer(coeffP2 + 20).loadUnaligned(as: SIMD4<Double>.self)
+        let c2_6 = UnsafeRawPointer(coeffP2 + 24).loadUnaligned(as: SIMD4<Double>.self)
+        let c2_7 = UnsafeRawPointer(coeffP2 + 28).loadUnaligned(as: SIMD4<Double>.self)
+
+        let coeffOffset3 = (p + 3) * 32
+        let coeffP3 = coeffPtr + coeffOffset3
+        let c3_0 = UnsafeRawPointer(coeffP3).loadUnaligned(as: SIMD4<Double>.self)
+        let c3_1 = UnsafeRawPointer(coeffP3 + 4).loadUnaligned(as: SIMD4<Double>.self)
+        let c3_2 = UnsafeRawPointer(coeffP3 + 8).loadUnaligned(as: SIMD4<Double>.self)
+        let c3_3 = UnsafeRawPointer(coeffP3 + 12).loadUnaligned(as: SIMD4<Double>.self)
+        let c3_4 = UnsafeRawPointer(coeffP3 + 16).loadUnaligned(as: SIMD4<Double>.self)
+        let c3_5 = UnsafeRawPointer(coeffP3 + 20).loadUnaligned(as: SIMD4<Double>.self)
+        let c3_6 = UnsafeRawPointer(coeffP3 + 24).loadUnaligned(as: SIMD4<Double>.self)
+        let c3_7 = UnsafeRawPointer(coeffP3 + 28).loadUnaligned(as: SIMD4<Double>.self)
+
+        var sum0 = c0_0 * f0
+        var sum1 = c1_0 * f0
+        var sum2 = c2_0 * f0
+        var sum3 = c3_0 * f0
+
+        sum0 += c0_1 * f1
+        sum1 += c1_1 * f1
+        sum2 += c2_1 * f1
+        sum3 += c3_1 * f1
+
+        sum0 += c0_2 * f2
+        sum1 += c1_2 * f2
+        sum2 += c2_2 * f2
+        sum3 += c3_2 * f2
+
+        sum0 += c0_3 * f3
+        sum1 += c1_3 * f3
+        sum2 += c2_3 * f3
+        sum3 += c3_3 * f3
+
+        sum0 += c0_4 * f4
+        sum1 += c1_4 * f4
+        sum2 += c2_4 * f4
+        sum3 += c3_4 * f4
+
+        sum0 += c0_5 * f5
+        sum1 += c1_5 * f5
+        sum2 += c2_5 * f5
+        sum3 += c3_5 * f5
+
+        sum0 += c0_6 * f6
+        sum1 += c1_6 * f6
+        sum2 += c2_6 * f6
+        sum3 += c3_6 * f6
+
+        sum0 += c0_7 * f7
+        sum1 += c1_7 * f7
+        sum2 += c2_7 * f7
+        sum3 += c3_7 * f7
+
+        let acc0 = sum0.sum()
+        let acc1 = sum1.sum()
+        let acc2 = sum2.sum()
+        let acc3 = sum3.sum()
+
+        if modulator.sdmSample(acc0 * 0.5) > 0 {
           word |= UInt16(1) << (15 - p)
+        }
+        if modulator.sdmSample(acc1 * 0.5) > 0 {
+          word |= UInt16(1) << (15 - (p + 1))
+        }
+        if modulator.sdmSample(acc2 * 0.5) > 0 {
+          word |= UInt16(1) << (15 - (p + 2))
+        }
+        if modulator.sdmSample(acc3 * 0.5) > 0 {
+          word |= UInt16(1) << (15 - (p + 3))
         }
       }
 
