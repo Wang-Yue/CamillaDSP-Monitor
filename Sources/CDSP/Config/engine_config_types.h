@@ -768,15 +768,15 @@ typedef struct {
  * Wraps backend-specific configuration in a union.
  */
 typedef struct {
-  audio_backend_type_t type; /**< Audio backend type. */
-  char** labels;             /**< Optional labels for channels. */
-  size_t labels_count;       /**< Number of labels. */
-  bool has_labels;           /**< True if labels are specified. */
-  bool is_wav;               /**< True if destination is a WAV file. */
-  bool has_is_wav;           /**< True if is_wav is specified. */
-  bool output_dop;                  /**< Enable DoP output. */
-  bool has_output_dop;              /**< True if output_dop is specified. */
-  sdm_filter_t dop_encoder_filter;  /**< SDM filter for DoP encoding. */
+  audio_backend_type_t type;       /**< Audio backend type. */
+  char** labels;                   /**< Optional labels for channels. */
+  size_t labels_count;             /**< Number of labels. */
+  bool has_labels;                 /**< True if labels are specified. */
+  bool is_wav;                     /**< True if destination is a WAV file. */
+  bool has_is_wav;                 /**< True if is_wav is specified. */
+  bool output_dop;                 /**< Enable DoP output. */
+  bool has_output_dop;             /**< True if output_dop is specified. */
+  sdm_filter_t dop_encoder_filter; /**< SDM filter for DoP encoding. */
   bool has_dop_encoder_filter; /**< True if dop_encoder_filter is specified. */
   union {
 #if defined(ENABLE_COREAUDIO)
@@ -830,7 +830,8 @@ typedef struct {
   double silence_timeout;     /**< Silence detection timeout (seconds). 0 =
                                  disabled. */
   bool has_silence_timeout;   /**< True if silence_timeout is specified. */
-  double volume_ramp_time;   /**< Volume ramp time (milliseconds) for mute/unmute. */
+  double
+      volume_ramp_time; /**< Volume ramp time (milliseconds) for mute/unmute. */
   bool has_volume_ramp_time; /**< True if volume_ramp_time is specified. */
   double volume_limit;       /**< Maximum volume limit (dB). */
   bool has_volume_limit;     /**< True if volume_limit is specified. */

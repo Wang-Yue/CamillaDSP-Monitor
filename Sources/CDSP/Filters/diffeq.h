@@ -41,7 +41,6 @@ diffeq_filter_t* diffeq_filter_create(const char* name,
 void diffeq_filter_process(diffeq_filter_t* filter, mutable_waveform_t waveform,
                            size_t count);
 
-
 /**
  * @brief Free the difference equation filter instance and its associated
  * resources.

@@ -102,10 +102,10 @@ final class EnginePlaybackLoop: @unchecked Sendable {
     while true {
       shared.processedSemaphore.wait()
 
-      let emergency = shared.shouldStop.load(ordering: .acquiring) &&
-                      stateMachine.stopReason != .done
-      let graceful = shared.processingFinished.load(ordering: .acquiring) &&
-                     shared.processedQueue.count == 0
+      let emergency =
+        shared.shouldStop.load(ordering: .acquiring) && stateMachine.stopReason != .done
+      let graceful =
+        shared.processingFinished.load(ordering: .acquiring) && shared.processedQueue.count == 0
       if emergency || graceful {
         break
       }

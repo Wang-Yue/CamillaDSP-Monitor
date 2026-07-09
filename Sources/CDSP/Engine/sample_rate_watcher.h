@@ -32,7 +32,8 @@ void sample_rate_watcher_reset(sample_rate_watcher_t* watcher);
  *
  * @param watcher Pointer to the sample rate watcher.
  * @param frames Number of frames read in the chunk.
- * @param out_measured_rate Pointer to double to receive the measured rate if a change is detected.
+ * @param out_measured_rate Pointer to double to receive the measured rate if a
+ * change is detected.
  * @return true if a sample rate change was detected, false otherwise.
  */
 bool sample_rate_watcher_tick(sample_rate_watcher_t* watcher, size_t frames,
@@ -41,6 +42,7 @@ bool sample_rate_watcher_tick(sample_rate_watcher_t* watcher, size_t frames,
 /**
  * @brief Gets whether the watcher is configured to stop on rate changes.
  */
-bool sample_rate_watcher_get_stop_on_rate_change(const sample_rate_watcher_t* watcher);
+bool sample_rate_watcher_get_stop_on_rate_change(
+    const sample_rate_watcher_t* watcher);
 
-#endif // CLIB_ENGINE_SAMPLE_RATE_WATCHER_H
+#endif  // CLIB_ENGINE_SAMPLE_RATE_WATCHER_H

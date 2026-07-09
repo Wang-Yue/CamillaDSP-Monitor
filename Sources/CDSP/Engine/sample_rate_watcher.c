@@ -1,4 +1,5 @@
 #include "sample_rate_watcher.h"
+
 #include <stdlib.h>
 #include <time.h>
 
@@ -35,9 +36,7 @@ sample_rate_watcher_t* sample_rate_watcher_create(double target_rate,
   return watcher;
 }
 
-void sample_rate_watcher_free(sample_rate_watcher_t* watcher) {
-  free(watcher);
-}
+void sample_rate_watcher_free(sample_rate_watcher_t* watcher) { free(watcher); }
 
 void sample_rate_watcher_reset(sample_rate_watcher_t* watcher) {
   if (!watcher) return;
@@ -80,6 +79,7 @@ bool sample_rate_watcher_tick(sample_rate_watcher_t* watcher, size_t frames,
   return false;
 }
 
-bool sample_rate_watcher_get_stop_on_rate_change(const sample_rate_watcher_t* watcher) {
+bool sample_rate_watcher_get_stop_on_rate_change(
+    const sample_rate_watcher_t* watcher) {
   return watcher ? watcher->stop_on_rate_change : false;
 }

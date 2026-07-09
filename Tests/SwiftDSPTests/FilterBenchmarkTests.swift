@@ -1,10 +1,10 @@
 // Filter performance benchmarks comparing Swift throughput against CamillaDSP's reference.
 // Executed in release builds via `make bench`.
 
+import DSPConfig
 import Foundation
 import Testing
 
-import DSPConfig
 @testable import SwiftDSP
 
 @Suite(.serialized) struct FilterBenchmarkTests {
@@ -84,7 +84,9 @@ import DSPConfig
     print("\(swiftLabel) | \(swiftVal)")
 
     let rustLabel = "CamillaDSP (Rust)".padRight(toLength: 24)
-    let rustVal = !cdspNsPerFrame.isNaN ? String(format: "%.1f", cdspNsPerFrame).padLeft(toLength: 15) : "N/A".padLeft(toLength: 15)
+    let rustVal =
+      !cdspNsPerFrame.isNaN
+      ? String(format: "%.1f", cdspNsPerFrame).padLeft(toLength: 15) : "N/A".padLeft(toLength: 15)
     print("\(rustLabel) | \(rustVal)")
     print(String(repeating: "-", count: 50))
 
@@ -171,7 +173,10 @@ import DSPConfig
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     proc.currentDirectoryURL = rustDir
-    proc.arguments = ["cargo", "bench", "--bench", "filters", "--", "--sample-size", "10", "--warm-up-time", "0.3", "--measurement-time", "0.5"]
+    proc.arguments = [
+      "cargo", "bench", "--bench", "filters", "--", "--sample-size", "10", "--warm-up-time", "0.3",
+      "--measurement-time", "0.5",
+    ]
 
     let pipe = Pipe()
     proc.standardOutput = pipe
@@ -200,8 +205,11 @@ import DSPConfig
 
     for line in lines {
       if line.contains("time:") {
-        let cleanLine = line.replacingOccurrences(of: "[", with: "").replacingOccurrences(of: "]", with: "")
-        let parts = cleanLine.split(separator: " ").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let cleanLine = line.replacingOccurrences(of: "[", with: "").replacingOccurrences(
+          of: "]", with: "")
+        let parts = cleanLine.split(separator: " ").map {
+          String($0).trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
         if parts.count >= 6 {
           let name = parts[0]
           if let val = Double(parts[4]) {

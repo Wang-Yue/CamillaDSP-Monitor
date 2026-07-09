@@ -4,11 +4,11 @@
 
 #include <pulse/error.h>
 #include <pulse/simple.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#include <stdatomic.h>
 #include "Logging/app_logger.h"
 
 struct pulse_capture {

@@ -128,7 +128,6 @@ static void gate_process(dsp_processor_t* self, audio_chunk_t* chunk) {
   noise_gate_processor_process((noise_gate_processor_t*)self->impl, chunk);
 }
 
-
 /**
  * @brief Retrieves the name of the wrapped noise gate.
  * @param self The wrapper processor instance.
@@ -175,7 +174,6 @@ dsp_processor_t* dsp_processor_wrap_noise_gate(noise_gate_processor_t* p) {
 static void race_proc(dsp_processor_t* self, audio_chunk_t* chunk) {
   race_processor_process((race_processor_t*)self->impl, chunk);
 }
-
 
 /**
  * @brief Retrieves the name of the wrapped RACE processor.

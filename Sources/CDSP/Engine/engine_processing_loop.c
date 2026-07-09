@@ -146,9 +146,11 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
   while (1) {
     engine_sem_wait(loop->shared->captured_semaphore);
 
-    bool emergency = atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire) &&
+    bool emergency = atomic_load_explicit(&loop->shared->should_stop,
+                                          memory_order_acquire) &&
                      loop->shared->stop_reason.type != STOP_REASON_DONE;
-    bool graceful = atomic_load_explicit(&loop->shared->capture_finished, memory_order_acquire) &&
+    bool graceful = atomic_load_explicit(&loop->shared->capture_finished,
+                                         memory_order_acquire) &&
                     spsc_queue_get_count(loop->shared->captured_queue) == 0;
     if (emergency || graceful) {
       break;
@@ -161,7 +163,6 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
     audio_chunk_t* chunk = NULL;
     while ((chunk = (audio_chunk_t*)spsc_queue_dequeue(
                 loop->shared->captured_queue)) != NULL) {
-
       uint64_t res_start = 0;
       uint64_t res_end = 0;
       if (loop->resampler) {
@@ -302,7 +303,8 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
       // If the queue is full (playback thread falling behind), we block-wait
       // using a short sleep to avoid spinning and wasting CPU.
       while (!spsc_queue_enqueue(loop->shared->processed_queue, chunk)) {
-        if (atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire) &&
+        if (atomic_load_explicit(&loop->shared->should_stop,
+                                 memory_order_acquire) &&
             loop->shared->stop_reason.type != STOP_REASON_DONE) {
           break;
         }
@@ -314,7 +316,8 @@ void engine_processing_loop_run(engine_processing_loop_t* loop) {
   }
 
   // Propagate graceful shutdown sequentially.
-  atomic_store_explicit(&loop->shared->processing_finished, true, memory_order_release);
+  atomic_store_explicit(&loop->shared->processing_finished, true,
+                        memory_order_release);
   engine_sem_signal(loop->shared->processed_semaphore);
 
   logger_info(&logger, "Processing thread stopped", log_arg_none(),

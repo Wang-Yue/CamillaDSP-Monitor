@@ -11,6 +11,9 @@
 #include "../../Sources/CDSP/Audio/processing_parameters.h"
 #include "../../Sources/CDSP/DoP/dop_decoder.h"
 #include "../../Sources/CDSP/DoP/dop_encoder.h"
+#include "../../Sources/CDSP/Engine/engine_processing_loop.h"
+#include "../../Sources/CDSP/Engine/engine_shared_state.h"
+#include "../../Sources/CDSP/Engine/engine_state_machine.h"
 #include "../../Sources/CDSP/Filters/biquad.h"
 #include "../../Sources/CDSP/Filters/biquad_combo.h"
 #include "../../Sources/CDSP/Filters/convolution.h"
@@ -24,6 +27,7 @@
 #include "../../Sources/CDSP/Filters/volume.h"
 #include "../../Sources/CDSP/Logging/app_logger.h"
 #include "../../Sources/CDSP/Mixer/mixer.h"
+#include "../../Sources/CDSP/Pipeline/pipeline.h"
 #include "../../Sources/CDSP/Processors/compressor_processor.h"
 #include "../../Sources/CDSP/Processors/noise_gate_processor.h"
 #include "../../Sources/CDSP/Processors/race_processor.h"
@@ -32,10 +36,6 @@
 #include "../../Sources/CDSP/Resampler/async_sinc_resampler.h"
 #include "../../Sources/CDSP/Resampler/audio_resampler.h"
 #include "../../Sources/CDSP/Resampler/synchronous_resampler.h"
-#include "../../Sources/CDSP/Engine/engine_shared_state.h"
-#include "../../Sources/CDSP/Engine/engine_state_machine.h"
-#include "../../Sources/CDSP/Engine/engine_processing_loop.h"
-#include "../../Sources/CDSP/Pipeline/pipeline.h"
 #include "test_support.h"
 
 #ifndef M_PI
@@ -155,10 +155,9 @@ static bool count_allocations_on_thread(void (*body)(void*), void* ctx,
 }
 
 static void assert_allocation_free_on_thread(const char* label,
-                                             uintptr_t thread_id,
-                                             int warmup, int iterations,
-                                             test_iter_func_t body,
-                                             void* ctx) {
+                                             uintptr_t thread_id, int warmup,
+                                             int iterations,
+                                             test_iter_func_t body, void* ctx) {
   for (int i = 0; i < warmup; i++) {
     body(i, ctx);
   }
@@ -172,7 +171,6 @@ static void assert_allocation_free_on_thread(const char* label,
          (unsigned long long)count, iterations);
   ASSERT_EQ(0, count);
 }
-
 
 static audio_chunk_t** make_random_chunks(int count, int channels, int frames,
                                           double scale) {
@@ -822,13 +820,13 @@ static void reload_iter_c(int i, void* ctx) {
 
   // 1. Enqueue chunk
   spsc_queue_enqueue(c->shared->captured_queue, c->input_chunk);
-  
+
   // 2. Set pipeline (i + 1 because 0 was used in warmup)
   engine_processing_loop_set_pipeline(c->loop, c->reloaded_pipelines[i + 1]);
-  
+
   // 3. Signal captured semaphore
   engine_sem_signal(c->shared->captured_semaphore);
-  
+
   // 4. Wait for processing completion
   engine_sem_wait(c->processed_sem);
 
@@ -837,7 +835,8 @@ static void reload_iter_c(int i, void* ctx) {
   (void)processed;
 
   void* garbage = NULL;
-  while ((garbage = spsc_queue_dequeue(c->shared->pipeline_garbage_queue)) != NULL) {
+  while ((garbage = spsc_queue_dequeue(c->shared->pipeline_garbage_queue)) !=
+         NULL) {
     pipeline_free((pipeline_t*)garbage);
   }
 }
@@ -872,7 +871,7 @@ static void init_default_config(dsp_config_t* config) {
 TEST(PipelineReload_AllocationFree) {
   dsp_config_t config;
   init_default_config(&config);
-  
+
   processing_parameters_t* params = processing_parameters_create(2, 2);
   pipeline_t* initial_pipeline = pipeline_create(&config, params, 0, NULL);
   ASSERT_TRUE(initial_pipeline != NULL);
@@ -909,12 +908,11 @@ TEST(PipelineReload_AllocationFree) {
 
   engine_processing_loop_t* loop = engine_processing_loop_create(
       shared, state_machine, params, 44100,
-      NULL, // resampler
+      NULL,  // resampler
       initial_pipeline,
-      NULL, // dop_encoder
-      resampler_scratch, pipeline_scratch, scratch_pool,
-      on_chunk_captured_cb, NULL,
-      on_chunk_processed_cb, &ctx);
+      NULL,  // dop_encoder
+      resampler_scratch, pipeline_scratch, scratch_pool, on_chunk_captured_cb,
+      NULL, on_chunk_processed_cb, &ctx);
   ASSERT_TRUE(loop != NULL);
   ctx.loop = loop;
 
@@ -934,7 +932,8 @@ TEST(PipelineReload_AllocationFree) {
   void* processed = spsc_queue_dequeue(shared->processed_queue);
   (void)processed;
   void* garbage = NULL;
-  while ((garbage = spsc_queue_dequeue(shared->pipeline_garbage_queue)) != NULL) {
+  while ((garbage = spsc_queue_dequeue(shared->pipeline_garbage_queue)) !=
+         NULL) {
     pipeline_free((pipeline_t*)garbage);
   }
 
@@ -1023,17 +1022,14 @@ TEST(Pipeline_AllocationFree) {
   config.filters_count = 10;
 
   mixer_source_t src0[2] = {
-    {.channel = 0, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
-    {.channel = 2, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}
-  };
+      {.channel = 0, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
+      {.channel = 2, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}};
   mixer_source_t src1[2] = {
-    {.channel = 1, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
-    {.channel = 3, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}
-  };
+      {.channel = 1, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
+      {.channel = 3, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}};
   mixer_mapping_t maps[2] = {
-    {.dest = 0, .sources_count = 2, .sources = src0, .mute = false},
-    {.dest = 1, .sources_count = 2, .sources = src1, .mute = false}
-  };
+      {.dest = 0, .sources_count = 2, .sources = src0, .mute = false},
+      {.dest = 1, .sources_count = 2, .sources = src1, .mute = false}};
   named_mixer_config_t mixer_cfg;
   memset(&mixer_cfg, 0, sizeof(mixer_cfg));
   strcpy(mixer_cfg.name, "mix");
@@ -1091,7 +1087,8 @@ TEST(Pipeline_AllocationFree) {
   audio_chunk_set_valid_frames(input, 1024);
 
   pipeline_test_ctx_t ctx = {pipeline, input, output};
-  assert_allocation_free("Pipeline C (Single-Threaded)", 0, 30, pipeline_iter, &ctx);
+  assert_allocation_free("Pipeline C (Single-Threaded)", 0, 30, pipeline_iter,
+                         &ctx);
 
   audio_chunk_free(input);
   audio_chunk_free(output);
@@ -1100,4 +1097,3 @@ TEST(Pipeline_AllocationFree) {
 }
 
 TEST_MAIN()
-

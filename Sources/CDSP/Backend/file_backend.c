@@ -254,7 +254,8 @@ static void write_wav_header_to_file(FILE* f, size_t channels,
 }
 
 /**
- * @brief Decode multiple interleaved binary samples to deinterleaved double channels in range [-1.0, 1.0].
+ * @brief Decode multiple interleaved binary samples to deinterleaved double
+ * channels in range [-1.0, 1.0].
  *
  * @param dst_channels Array of pointers to destination channel buffers.
  * @param src Pointer to the binary source data buffer.
@@ -264,8 +265,7 @@ static void write_wav_header_to_file(FILE* f, size_t channels,
  */
 static inline void decode_samples_deinterleave(double* const* dst_channels,
                                                const uint8_t* src,
-                                               size_t frames,
-                                               int channels,
+                                               size_t frames, int channels,
                                                binary_sample_format_t format) {
   switch (format) {
     case BINARY_SAMPLE_FORMAT_S16_LE: {
@@ -282,7 +282,8 @@ static inline void decode_samples_deinterleave(double* const* dst_channels,
       for (size_t f = 0; f < frames; f++) {
         for (int c = 0; c < channels; c++) {
           size_t offset = (f * channels + c) * 3;
-          int32_t val = src[offset] | (src[offset + 1] << 8) | (src[offset + 2] << 16);
+          int32_t val =
+              src[offset] | (src[offset + 1] << 8) | (src[offset + 2] << 16);
           if (val & 0x800000) val |= ~0xFFFFFF;
           dst_channels[c][f] = (double)val * (1.0 / 8388608.0);
         }
@@ -293,7 +294,8 @@ static inline void decode_samples_deinterleave(double* const* dst_channels,
       for (size_t f = 0; f < frames; f++) {
         for (int c = 0; c < channels; c++) {
           size_t offset = (f * channels + c) * 4;
-          int32_t val = src[offset] | (src[offset + 1] << 8) | (src[offset + 2] << 16);
+          int32_t val =
+              src[offset] | (src[offset + 1] << 8) | (src[offset + 2] << 16);
           if (val & 0x800000) val |= ~0xFFFFFF;
           dst_channels[c][f] = (double)val * (1.0 / 8388608.0);
         }
@@ -350,7 +352,8 @@ static inline void decode_samples_deinterleave(double* const* dst_channels,
 }
 
 /**
- * @brief Encode multiple deinterleaved double channels in range [-1.0, 1.0] to interleaved binary format.
+ * @brief Encode multiple deinterleaved double channels in range [-1.0, 1.0] to
+ * interleaved binary format.
  *
  * @param dst Pointer to destination interleaved binary buffer.
  * @param src_channels Array of pointers to source double channel buffers.
@@ -360,8 +363,7 @@ static inline void decode_samples_deinterleave(double* const* dst_channels,
  */
 static inline void encode_samples_interleave(uint8_t* dst,
                                              const double* const* src_channels,
-                                             size_t frames,
-                                             int channels,
+                                             size_t frames, int channels,
                                              binary_sample_format_t format) {
   switch (format) {
     case BINARY_SAMPLE_FORMAT_S16_LE: {
@@ -693,7 +695,8 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
   for (int c = 0; c < capture->channels; c++) {
     dst_channels[c] = audio_chunk_get_channel(chunk, c);
   }
-  decode_samples_deinterleave(dst_channels, capture->raw_buf, frames_read, capture->channels, capture->format);
+  decode_samples_deinterleave(dst_channels, capture->raw_buf, frames_read,
+                              capture->channels, capture->format);
 
   // Check EOF and generate extra samples if configured
   // If we read fewer frames than requested (e.g., EOF), and we have configured
@@ -722,7 +725,8 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
 
   if (frames_read == 0) {
     if (err) {
-      backend_error_init(err, BACKEND_ERROR_READ_EOF, "End of file/stream reached");
+      backend_error_init(err, BACKEND_ERROR_READ_EOF,
+                         "End of file/stream reached");
     }
   }
 
@@ -922,7 +926,8 @@ bool file_playback_write(file_playback_t* playback, const audio_chunk_t* chunk,
   for (int c = 0; c < playback->channels; c++) {
     src_channels[c] = audio_chunk_get_channel((audio_chunk_t*)chunk, c);
   }
-  encode_samples_interleave(playback->raw_buf, src_channels, frames, playback->channels, playback->format);
+  encode_samples_interleave(playback->raw_buf, src_channels, frames,
+                            playback->channels, playback->format);
 
   size_t bytes_written =
       fwrite(playback->raw_buf, 1, required_bytes, playback->f);

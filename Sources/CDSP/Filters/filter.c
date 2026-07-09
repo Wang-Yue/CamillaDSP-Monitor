@@ -171,7 +171,6 @@ void filter_process(filter_t* filter, mutable_waveform_t waveform,
   }
 }
 
-
 void filter_transfer_state(filter_t* dest, const filter_t* src) {
   if (!dest || !src) return;
   if (dest->type != src->type) return;

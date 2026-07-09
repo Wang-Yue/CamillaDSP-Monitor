@@ -7,11 +7,11 @@
 #include <unistd.h>
 
 #include "Audio/double_helpers.h"
+#include "Audio/processing_parameters.h"
 #include "Backend/audio_backend.h"
 #include "Config/configuration.h"
 #include "Config/engine_config_types.h"
 #include "Config/log_level.h"
-#include "Audio/processing_parameters.h"
 #include "Engine/dsp_engine.h"
 #include "Pipeline/config_loader.h"
 #include "Pipeline/state_file.h"

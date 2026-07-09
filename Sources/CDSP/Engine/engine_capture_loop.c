@@ -102,7 +102,8 @@ engine_capture_loop_t* engine_capture_loop_create(
     return NULL;
   }
 
-  loop->rate_watcher = sample_rate_watcher_create((double)samplerate, rate_measure_interval, stop_on_rate_change);
+  loop->rate_watcher = sample_rate_watcher_create(
+      (double)samplerate, rate_measure_interval, stop_on_rate_change);
   if (!loop->rate_watcher) {
     silence_counter_free(loop->silence_counter);
     free(loop);
@@ -193,8 +194,10 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
         capture_backend_read(loop->capture, loop->chunk_size, chunk, &err);
     if (!got_data) {
       if (err.type == BACKEND_ERROR_READ_EOF) {
-        logger_info(&logger, "Capture reached End-of-Stream; stopping engine gracefully",
-                    log_arg_none(), log_arg_none(), log_arg_none(), log_arg_none());
+        logger_info(&logger,
+                    "Capture reached End-of-Stream; stopping engine gracefully",
+                    log_arg_none(), log_arg_none(), log_arg_none(),
+                    log_arg_none());
         processing_stop_reason_t reason = {.type = STOP_REASON_DONE};
         snprintf(reason.message, sizeof(reason.message), "EOF");
         engine_shared_state_request_stop(loop->shared, reason);
@@ -262,9 +265,11 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
 
     // 5.5. Rate Watcher Measurement:
     double measured_rate = 0.0;
-    if (sample_rate_watcher_tick(loop->rate_watcher, loop->chunk_size, &measured_rate)) {
+    if (sample_rate_watcher_tick(loop->rate_watcher, loop->chunk_size,
+                                 &measured_rate)) {
       logger_warn(&logger,
-                  "Sample rate change detected (measured: %f Hz, expected: %zu Hz); stopping engine",
+                  "Sample rate change detected (measured: %f Hz, expected: %zu "
+                  "Hz); stopping engine",
                   log_arg_double(measured_rate), log_arg_int(loop->samplerate),
                   log_arg_none(), log_arg_none());
       if (sample_rate_watcher_get_stop_on_rate_change(loop->rate_watcher)) {
@@ -313,7 +318,8 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
     if (engine_state_machine_get_state(loop->state_machine) !=
         PROCESSING_STATE_PAUSED) {
       while (!spsc_queue_enqueue(loop->shared->captured_queue, chunk)) {
-        if (atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire) &&
+        if (atomic_load_explicit(&loop->shared->should_stop,
+                                 memory_order_acquire) &&
             loop->shared->stop_reason.type != STOP_REASON_DONE) {
           break;
         }
@@ -326,7 +332,8 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
   }
 
   // Propagate graceful shutdown sequentially.
-  atomic_store_explicit(&loop->shared->capture_finished, true, memory_order_release);
+  atomic_store_explicit(&loop->shared->capture_finished, true,
+                        memory_order_release);
   engine_sem_signal(loop->shared->captured_semaphore);
 
   logger_info(&logger, "Capture thread stopped", log_arg_none(), log_arg_none(),

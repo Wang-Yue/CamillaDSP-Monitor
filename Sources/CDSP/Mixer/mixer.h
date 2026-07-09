@@ -109,7 +109,6 @@ mixer_error_t audio_mixer_process(audio_mixer_t* mixer,
 audio_chunk_t* audio_mixer_process_chunk(audio_mixer_t* mixer,
                                          const audio_chunk_t* input);
 
-
 /**
  * @brief Frees all resources associated with the audio mixer.
  *

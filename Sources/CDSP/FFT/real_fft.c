@@ -30,8 +30,8 @@ size_t real_fft_get_spectrum_length(const real_fft_t* fft) {
 // ------------------------------------------------
 //   1. `length` is a power of two `≥ 8`
 //      → `VDSPRealFFT` (`VDSPRealFFT.swift`), wrapping Apple's
-//      `vDSP_fft_zrip` / `vDSP_fft_zripD` (radix-2 split-complex real FFT, hand-tuned
-//      NEON on Apple Silicon).
+//      `vDSP_fft_zrip` / `vDSP_fft_zripD` (radix-2 split-complex real FFT,
+//      hand-tuned NEON on Apple Silicon).
 //   2. Otherwise (arbitrary even length): a 2N-point real FFT is built
 //      from one N-point complex FFT plus an O(N) untwiddle pass —
 //      `ComplexInnerRealFFT` (`ComplexInnerRealFFT.swift`). The inner
@@ -148,7 +148,6 @@ real_fftf_t* real_fftf_create(size_t length) {
   free(fft);
   return NULL;
 }
-
 
 #elif defined(ENABLE_FFTW)
 
@@ -348,7 +347,7 @@ real_fftf_t* real_fftf_create(size_t length) {
   ctx->spectrum_length = length / 2 + 1;
   ctx->in_real = (float*)fftwf_malloc(length * sizeof(float));
   ctx->out_complex = (fftwf_complex*)fftwf_malloc(ctx->spectrum_length *
-                                                   sizeof(fftwf_complex));
+                                                  sizeof(fftwf_complex));
   if (!ctx->in_real || !ctx->out_complex) {
     if (ctx->in_real) fftwf_free(ctx->in_real);
     if (ctx->out_complex) fftwf_free(ctx->out_complex);
@@ -377,7 +376,6 @@ real_fftf_t* real_fftf_create(size_t length) {
   fft->backend = (real_fftf_backend_t*)&ctx->base;
   return fft;
 }
-
 
 #else
 #error "No FFT backend enabled! Enable either ENABLE_ACCELERATE or ENABLE_FFTW."

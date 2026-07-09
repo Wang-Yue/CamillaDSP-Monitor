@@ -48,7 +48,6 @@ void gain_filter_process(gain_filter_t* filter, mutable_waveform_t waveform,
  */
 double gain_filter_process_single(gain_filter_t* filter, double sample);
 
-
 /**
  * @brief Free the gain filter instance.
  *

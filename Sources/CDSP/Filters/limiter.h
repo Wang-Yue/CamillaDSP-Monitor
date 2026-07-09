@@ -39,7 +39,6 @@ limiter_filter_t* limiter_filter_create(const char* name,
 void limiter_filter_process(limiter_filter_t* filter,
                             mutable_waveform_t waveform, size_t count);
 
-
 /**
  * @brief Free the limiter filter instance.
  *

@@ -177,8 +177,10 @@ TEST(RealFFTFallbackForPrimeFactors) {
 
   double* input = (double*)calloc(length, sizeof(double));
   input[0] = 1.0;
-  double* spec_re = (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
-  double* spec_im = (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
+  double* spec_re =
+      (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
+  double* spec_im =
+      (double*)calloc(real_fft_get_spectrum_length(real_fft), sizeof(double));
 
   real_fft_forward(real_fft, input, spec_re, spec_im);
   for (size_t k = 0; k < real_fft_get_spectrum_length(real_fft); k++) {

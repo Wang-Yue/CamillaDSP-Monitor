@@ -3,11 +3,11 @@
 
 #include <alloca.h>
 #include <alsa/asoundlib.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#include <stdatomic.h>
 #include "Logging/app_logger.h"
 #include "alsa_device.h"
 

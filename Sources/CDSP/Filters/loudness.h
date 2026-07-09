@@ -48,9 +48,9 @@ loudness_filter_t* loudness_filter_create(const char* name,
 void loudness_filter_process(loudness_filter_t* filter,
                              mutable_waveform_t waveform, size_t count);
 
-
 /**
- * @brief Transfers nested shelf filter states and last volume level from src to dest.
+ * @brief Transfers nested shelf filter states and last volume level from src to
+ * dest.
  *
  * @param dest The destination loudness filter instance.
  * @param src The source loudness filter instance.

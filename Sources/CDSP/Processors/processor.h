@@ -81,9 +81,9 @@ dsp_processor_t* dsp_processor_wrap_race(race_processor_t* p);
  */
 void dsp_processor_process(dsp_processor_t* proc, audio_chunk_t* chunk);
 
-
 /**
- * @brief Transfers internal history state (loudness envelope, feedback, etc.) from src to dest.
+ * @brief Transfers internal history state (loudness envelope, feedback, etc.)
+ * from src to dest.
  *
  * @param dest The destination processor wrapper instance.
  * @param src The source processor wrapper instance.

@@ -156,12 +156,12 @@ static const logger_t server_logger = {"dsp.server.websocket"};
 #define GET_SOCKET_ERROR() WSAGetLastError()
 #define poll_sockets WSAPoll
 #else
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <unistd.h>
-#include <poll.h>
 #include <errno.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #define CLOSE_SOCKET(s) close(s)
 #define INVALID_SOCKET_VAL (-1)
 #define IS_INVALID_SOCKET(s) ((s) < 0)
@@ -3426,27 +3426,33 @@ void websocket_server_free(websocket_server_t* server) {
   free(server);
 }
 
-bool websocket_server_get_client_vu_subscribed(const websocket_server_t* server, int client_idx) {
+bool websocket_server_get_client_vu_subscribed(const websocket_server_t* server,
+                                               int client_idx) {
   if (!server || client_idx < 0 || client_idx >= 32) return false;
   return server->client_sessions[client_idx].vu_subscribed;
 }
 
-double websocket_server_get_client_vu_max_rate(const websocket_server_t* server, int client_idx) {
+double websocket_server_get_client_vu_max_rate(const websocket_server_t* server,
+                                               int client_idx) {
   if (!server || client_idx < 0 || client_idx >= 32) return 0.0;
   return server->client_sessions[client_idx].vu_max_rate;
 }
 
-double websocket_server_get_client_vu_attack(const websocket_server_t* server, int client_idx) {
+double websocket_server_get_client_vu_attack(const websocket_server_t* server,
+                                             int client_idx) {
   if (!server || client_idx < 0 || client_idx >= 32) return 0.0;
   return server->client_sessions[client_idx].vu_attack;
 }
 
-double websocket_server_get_client_vu_release(const websocket_server_t* server, int client_idx) {
+double websocket_server_get_client_vu_release(const websocket_server_t* server,
+                                              int client_idx) {
   if (!server || client_idx < 0 || client_idx >= 32) return 0.0;
   return server->client_sessions[client_idx].vu_release;
 }
 
-void websocket_server_set_client_vu_subscribed(websocket_server_t* server, int client_idx, bool subscribed) {
+void websocket_server_set_client_vu_subscribed(websocket_server_t* server,
+                                               int client_idx,
+                                               bool subscribed) {
   if (!server || client_idx < 0 || client_idx >= 32) return;
   server->client_sessions[client_idx].vu_subscribed = subscribed;
 }

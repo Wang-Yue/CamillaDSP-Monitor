@@ -96,7 +96,6 @@ void compressor_processor_free(compressor_processor_t* processor);
 void compressor_processor_process(compressor_processor_t* processor,
                                   audio_chunk_t* chunk);
 
-
 /**
  * @brief Transfers running envelope loudness state from src to dest.
  *

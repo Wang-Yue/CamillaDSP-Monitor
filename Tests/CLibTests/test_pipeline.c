@@ -142,7 +142,8 @@ TEST(PipelineMultithreadedCorrectness) {
   audio_chunk_set_valid_frames(input, 1024);
 
   audio_chunk_t* output_single = audio_chunk_create(1024, 4);
-  pipeline_error_t err = pipeline_process(pipeline_single, input, output_single);
+  pipeline_error_t err =
+      pipeline_process(pipeline_single, input, output_single);
   ASSERT_EQ(PIPELINE_OK, err);
 
   // 2. Run multi-threaded
@@ -886,7 +887,7 @@ TEST(PipelineReload_StatePreserved) {
   config.pipeline_count = 1;
 
   processing_parameters_t* params = processing_parameters_create(2, 2);
-  
+
   // 2. Create pipeline 1
   pipeline_t* pipeline1 = pipeline_create(&config, params, 0, NULL);
   ASSERT_TRUE(pipeline1 != NULL);
@@ -914,7 +915,8 @@ TEST(PipelineReload_StatePreserved) {
 
   // 5. Process impulse through pipeline 1 (this updates internal z1, z2 state)
   audio_chunk_t* output_chunk1_1 = audio_chunk_create(1024, 2);
-  pipeline_error_t perr = pipeline_process(pipeline1, impulse_chunk, output_chunk1_1);
+  pipeline_error_t perr =
+      pipeline_process(pipeline1, impulse_chunk, output_chunk1_1);
   ASSERT_EQ(PIPELINE_OK, perr);
 
   // 6. Process zero chunk through pipeline 1 (natural decay output)
@@ -948,7 +950,8 @@ TEST(PipelineReload_StatePreserved) {
   // 10. Transfer state from pipeline1 (after it processed chunk 1) to pipeline3
   pipeline_transfer_state(pipeline3, pipeline1);
 
-  // 11. Process zero chunk through pipeline 3 (should seamlessly continue decay)
+  // 11. Process zero chunk through pipeline 3 (should seamlessly continue
+  // decay)
   audio_chunk_t* output_chunk3 = audio_chunk_create(1024, 2);
   perr = pipeline_process(pipeline3, zero_chunk, output_chunk3);
   ASSERT_EQ(PIPELINE_OK, perr);

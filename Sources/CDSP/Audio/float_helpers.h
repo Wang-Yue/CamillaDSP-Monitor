@@ -68,7 +68,8 @@ static inline void dsp_ops_float_hann_window(float* buffer, size_t count) {
   vDSP_hann_window(buffer, (vDSP_Length)count, 0);
 #else
   for (size_t i = 0; i < count; i++) {
-    buffer[i] = 0.5f * (1.0f - cosf(2.0f * (float)M_PI * (float)i / (float)count));
+    buffer[i] =
+        0.5f * (1.0f - cosf(2.0f * (float)M_PI * (float)i / (float)count));
   }
 #endif
 }
@@ -134,7 +135,7 @@ static inline void dsp_ops_float_vdbcon(const float* vector, float reference,
   for (size_t i = 0; i < count; i++) {
     float val = vector[i];
     if (val <= 0.0f) {
-      result[i] = -200.0f; // Limit minimum dB value to prevent log10(0) issues
+      result[i] = -200.0f;  // Limit minimum dB value to prevent log10(0) issues
     } else {
       result[i] = 20.0f * log10f(val / reference);
     }

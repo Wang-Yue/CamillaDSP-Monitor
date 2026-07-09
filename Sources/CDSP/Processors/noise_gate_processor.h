@@ -86,7 +86,6 @@ void noise_gate_processor_free(noise_gate_processor_t* processor);
 void noise_gate_processor_process(noise_gate_processor_t* processor,
                                   audio_chunk_t* chunk);
 
-
 /**
  * @brief Transfers running envelope loudness state from src to dest.
  *

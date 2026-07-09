@@ -67,7 +67,10 @@ static void run_upstream_filter_benchmarks(void) {
   const char* home = getenv("HOME");
   if (!home) return;
   char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "cd %s/camilladsp && cargo bench --bench filters -- --sample-size 10 --warm-up-time 0.3 --measurement-time 0.5 2>&1", home);
+  snprintf(cmd, sizeof(cmd),
+           "cd %s/camilladsp && cargo bench --bench filters -- --sample-size "
+           "10 --warm-up-time 0.3 --measurement-time 0.5 2>&1",
+           home);
   FILE* fp = popen(cmd, "r");
   if (!fp) return;
   char line[1024];
@@ -80,8 +83,8 @@ static void run_upstream_filter_benchmarks(void) {
       char time_lbl[32] = {0};
       double val1 = 0, val2 = 0, val3 = 0;
       char unit[32] = {0};
-      int count = sscanf(line, "%127s %31s %lf %31s %lf %31s %lf %31s",
-                         name, time_lbl, &val1, unit, &val2, unit, &val3, unit);
+      int count = sscanf(line, "%127s %31s %lf %31s %lf %31s %lf %31s", name,
+                         time_lbl, &val1, unit, &val2, unit, &val3, unit);
       if (count >= 8 && strcmp(time_lbl, "time:") == 0) {
         double val_ns = val2;
         if (strcmp(unit, "µs") == 0 || strstr(unit, "u")) {
@@ -110,7 +113,9 @@ static double get_rust_result(const char* name) {
   return NAN;
 }
 
-static void run_filter_benchmark(const char* label, const char* rust_name, void* filter, void (*process_fn)(void*, double*, size_t)) {
+static void run_filter_benchmark(const char* label, const char* rust_name,
+                                 void* filter,
+                                 void (*process_fn)(void*, double*, size_t)) {
   double* buffer = (double*)calloc(CHUNK_SIZE, sizeof(double));
 
   // Warm-up
@@ -145,7 +150,8 @@ static void run_filter_benchmark(const char* label, const char* rust_name, void*
   }
   printf("--------------------------------------------------\n");
   if (!isnan(cdsp_ns_per_frame)) {
-    printf("Relative Speedup        : %14.2fx\n", cdsp_ns_per_frame / c_ns_per_frame);
+    printf("Relative Speedup        : %14.2fx\n",
+           cdsp_ns_per_frame / c_ns_per_frame);
   }
   printf("==================================================\n\n");
 
@@ -166,8 +172,10 @@ static void process_diffeq(void* f, double* w, size_t n) {
 
 TEST(Convolution_1024_Benchmark) {
   double* coeffs = (double*)calloc(1024, sizeof(double));
-  conv_parameters_t params = {.type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 1024};
-  convolution_filter_t* f = convolution_filter_create("conv-1024", &params, CHUNK_SIZE);
+  conv_parameters_t params = {
+      .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 1024};
+  convolution_filter_t* f =
+      convolution_filter_create("conv-1024", &params, CHUNK_SIZE);
   run_filter_benchmark("FftConv_1024", "Conv/FftConv/1024", f, process_conv);
   convolution_filter_free(f);
   free(coeffs);
@@ -175,8 +183,10 @@ TEST(Convolution_1024_Benchmark) {
 
 TEST(Convolution_4096_Benchmark) {
   double* coeffs = (double*)calloc(4096, sizeof(double));
-  conv_parameters_t params = {.type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 4096};
-  convolution_filter_t* f = convolution_filter_create("conv-4096", &params, CHUNK_SIZE);
+  conv_parameters_t params = {
+      .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 4096};
+  convolution_filter_t* f =
+      convolution_filter_create("conv-4096", &params, CHUNK_SIZE);
   run_filter_benchmark("FftConv_4096", "Conv/FftConv/4096", f, process_conv);
   convolution_filter_free(f);
   free(coeffs);
@@ -184,18 +194,21 @@ TEST(Convolution_4096_Benchmark) {
 
 TEST(Convolution_16384_Benchmark) {
   double* coeffs = (double*)calloc(16384, sizeof(double));
-  conv_parameters_t params = {.type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 16384};
-  convolution_filter_t* f = convolution_filter_create("conv-16384", &params, CHUNK_SIZE);
+  conv_parameters_t params = {
+      .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 16384};
+  convolution_filter_t* f =
+      convolution_filter_create("conv-16384", &params, CHUNK_SIZE);
   run_filter_benchmark("FftConv_16384", "Conv/FftConv/16384", f, process_conv);
   convolution_filter_free(f);
   free(coeffs);
 }
 
 TEST(Biquad_Benchmark) {
-  biquad_coefficients_t coeffs = {
-    .b0 = 0.21476322779271284, .b1 = 0.4295264555854257, .b2 = 0.21476322779271284,
-    .a1 = -0.1462978543780541, .a2 = 0.005350765548905586
-  };
+  biquad_coefficients_t coeffs = {.b0 = 0.21476322779271284,
+                                  .b1 = 0.4295264555854257,
+                                  .b2 = 0.21476322779271284,
+                                  .a1 = -0.1462978543780541,
+                                  .a2 = 0.005350765548905586};
   biquad_filter_t* f = biquad_filter_create("biquad", &coeffs);
   run_filter_benchmark("Biquad", "Biquad", f, process_biquad);
   biquad_filter_free(f);

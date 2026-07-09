@@ -21,9 +21,9 @@
 // the polyphase coefficient table is shared across channels and built
 // once at init.
 
+import Accelerate
 import DSPConfig
 import Foundation
-import Accelerate
 
 final class DoPEncoder {
   private let logger = Logger(label: "dsp.dop.encode")

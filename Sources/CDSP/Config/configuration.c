@@ -109,8 +109,10 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     }
   }
 
-  if (config->devices.has_worker_threads && config->devices.worker_threads <= 0) {
-    config_error_set(err, CONFIG_ERR_VALIDATION, "worker_threads must be positive");
+  if (config->devices.has_worker_threads &&
+      config->devices.worker_threads <= 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION,
+                     "worker_threads must be positive");
     return -1;
   }
 

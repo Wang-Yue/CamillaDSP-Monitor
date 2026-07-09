@@ -23,7 +23,7 @@ import Testing
     (120.0, 0.70), (220.0, 0.75), (350.0, 0.80), (500.0, 0.90),
     (700.0, 1.00), (900.0, 1.10), (1200.0, 0.95), (1600.0, 1.05),
     (1800.0, 1.10), (2200.0, 0.90), (2800.0, 0.95), (3200.0, 1.00),
-    (3800.0, 0.85), (4500.0, 0.80), (6200.0, 0.75), (8000.0, 0.70)
+    (3800.0, 0.85), (4500.0, 0.80), (6200.0, 0.75), (8000.0, 0.70),
   ]
 
   // POST_BIQUAD_PARAMS
@@ -31,7 +31,7 @@ import Testing
     (140.0, 0.72), (260.0, 0.78), (400.0, 0.83), (560.0, 0.92),
     (760.0, 1.02), (980.0, 1.08), (1300.0, 0.98), (1700.0, 1.06),
     (2100.0, 1.00), (2500.0, 0.94), (3000.0, 0.92), (3600.0, 0.88),
-    (4200.0, 0.84), (5200.0, 0.80), (6800.0, 0.76), (9200.0, 0.72)
+    (4200.0, 0.84), (5200.0, 0.80), (6800.0, 0.76), (9200.0, 0.72),
   ]
 
   private func buildConvFilterCoefficients(length: Int) -> [Double] {
@@ -80,21 +80,27 @@ import Testing
     config.filters = filters
 
     // Mixer
-    let map0 = MixerMapping(dest: 0, sources: [
-      MixerSource(channel: 0, gain: 0.0, inverted: false, mute: false, scale: .dB),
-      MixerSource(channel: 2, gain: -6.0, inverted: false, mute: false, scale: .dB)
-    ])
-    let map1 = MixerMapping(dest: 1, sources: [
-      MixerSource(channel: 1, gain: 0.0, inverted: false, mute: false, scale: .dB),
-      MixerSource(channel: 3, gain: -6.0, inverted: false, mute: false, scale: .dB)
-    ])
-    config.mixers = ["mix_4_to_2": MixerConfig(channelsIn: 4, channelsOut: 2, mapping: [map0, map1])]
+    let map0 = MixerMapping(
+      dest: 0,
+      sources: [
+        MixerSource(channel: 0, gain: 0.0, inverted: false, mute: false, scale: .dB),
+        MixerSource(channel: 2, gain: -6.0, inverted: false, mute: false, scale: .dB),
+      ])
+    let map1 = MixerMapping(
+      dest: 1,
+      sources: [
+        MixerSource(channel: 1, gain: 0.0, inverted: false, mute: false, scale: .dB),
+        MixerSource(channel: 3, gain: -6.0, inverted: false, mute: false, scale: .dB),
+      ])
+    config.mixers = [
+      "mix_4_to_2": MixerConfig(channelsIn: 4, channelsOut: 2, mapping: [map0, map1])
+    ]
 
     // Pipeline Steps
     config.pipeline = [
       PipelineStep(type: .filter, channels: nil, names: preFilterNames),
       PipelineStep(type: .mixer, name: "mix_4_to_2"),
-      PipelineStep(type: .filter, channels: nil, names: postFilterNames)
+      PipelineStep(type: .filter, channels: nil, names: postFilterNames),
     ]
 
     try runComparison(
@@ -159,21 +165,27 @@ import Testing
     config.filters = filters
 
     // Mixer
-    let map0 = MixerMapping(dest: 0, sources: [
-      MixerSource(channel: 0, gain: 0.0, inverted: false, mute: false, scale: .dB),
-      MixerSource(channel: 2, gain: -6.0, inverted: false, mute: false, scale: .dB)
-    ])
-    let map1 = MixerMapping(dest: 1, sources: [
-      MixerSource(channel: 1, gain: 0.0, inverted: false, mute: false, scale: .dB),
-      MixerSource(channel: 3, gain: -6.0, inverted: false, mute: false, scale: .dB)
-    ])
-    config.mixers = ["mix_4_to_2": MixerConfig(channelsIn: 4, channelsOut: 2, mapping: [map0, map1])]
+    let map0 = MixerMapping(
+      dest: 0,
+      sources: [
+        MixerSource(channel: 0, gain: 0.0, inverted: false, mute: false, scale: .dB),
+        MixerSource(channel: 2, gain: -6.0, inverted: false, mute: false, scale: .dB),
+      ])
+    let map1 = MixerMapping(
+      dest: 1,
+      sources: [
+        MixerSource(channel: 1, gain: 0.0, inverted: false, mute: false, scale: .dB),
+        MixerSource(channel: 3, gain: -6.0, inverted: false, mute: false, scale: .dB),
+      ])
+    config.mixers = [
+      "mix_4_to_2": MixerConfig(channelsIn: 4, channelsOut: 2, mapping: [map0, map1])
+    ]
 
     // Pipeline Steps
     config.pipeline = [
       PipelineStep(type: .filter, channels: nil, names: preFilterNames),
       PipelineStep(type: .mixer, name: "mix_4_to_2"),
-      PipelineStep(type: .filter, channels: nil, names: postFilterNames)
+      PipelineStep(type: .filter, channels: nil, names: postFilterNames),
     ]
 
     try runComparison(
@@ -196,9 +208,11 @@ import Testing
     rustVariantSingle: String,
     rustVariantMulti: String
   ) throws {
-    let params = ProcessingParameters(captureChannels: inputChannels, playbackChannels: outputChannels)
+    let params = ProcessingParameters(
+      captureChannels: inputChannels, playbackChannels: outputChannels)
 
-    let pipelineSingle = try Pipeline(config: config, processingParams: params, mode: .singleThreaded)
+    let pipelineSingle = try Pipeline(
+      config: config, processingParams: params, mode: .singleThreaded)
     let pipelineMulti = try Pipeline(config: config, processingParams: params, mode: .multiThreaded)
 
     let input = makeDummySignal(channels: inputChannels)
@@ -216,7 +230,9 @@ import Testing
       try pipelineSingle.process(input: input, into: &output)
     }
     let elapsedSingle = ContinuousClock.now - startSingle
-    let singleNs = Double(elapsedSingle.components.seconds) * 1e9 + Double(elapsedSingle.components.attoseconds) * 1e-9
+    let singleNs =
+      Double(elapsedSingle.components.seconds) * 1e9 + Double(elapsedSingle.components.attoseconds)
+      * 1e-9
 
     // Benchmark Multi-Threaded
     let startMulti = ContinuousClock.now
@@ -224,12 +240,15 @@ import Testing
       try pipelineMulti.process(input: input, into: &output)
     }
     let elapsedMulti = ContinuousClock.now - startMulti
-    let multiNs = Double(elapsedMulti.components.seconds) * 1e9 + Double(elapsedMulti.components.attoseconds) * 1e-9
+    let multiNs =
+      Double(elapsedMulti.components.seconds) * 1e9 + Double(elapsedMulti.components.attoseconds)
+      * 1e-9
 
     let swiftSingleMs = singleNs / Double(iters) / 1e6
     let swiftMultiMs = multiNs / Double(iters) / 1e6
 
-    let rust = runUpstreamBenchmark(variantSingle: rustVariantSingle, variantMulti: rustVariantMulti)
+    let rust = runUpstreamBenchmark(
+      variantSingle: rustVariantSingle, variantMulti: rustVariantMulti)
 
     let engineH = "Engine".padRight(toLength: 17)
     let singleH = "Single (ms)".padLeft(toLength: 12)
@@ -275,7 +294,9 @@ import Testing
         winner = "CamillaDSP (Rust)"
         factor = swiftMultiMs / rust.multiMs
       }
-      print("Head-to-Head      | \(winner) is \(String(format: "%.2f", factor))x faster in multi-threaded mode")
+      print(
+        "Head-to-Head      | \(winner) is \(String(format: "%.2f", factor))x faster in multi-threaded mode"
+      )
     }
     print(String(repeating: "=", count: 80) + "\n")
   }
@@ -296,11 +317,14 @@ import Testing
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     proc.currentDirectoryURL = rustDir
-    proc.arguments = ["cargo", "bench", "--bench", "pipeline", "--", "--sample-size", "10", "--warm-up-time", "0.3", "--measurement-time", "0.5"]
+    proc.arguments = [
+      "cargo", "bench", "--bench", "pipeline", "--", "--sample-size", "10", "--warm-up-time", "0.3",
+      "--measurement-time", "0.5",
+    ]
 
     let pipe = Pipe()
     proc.standardOutput = pipe
-    proc.standardError = Pipe() // suppress cargo build warnings
+    proc.standardError = Pipe()  // suppress cargo build warnings
 
     do {
       try proc.run()
@@ -331,7 +355,8 @@ import Testing
           lastVariant = last.trimmingCharacters(in: .whitespacesAndNewlines)
         }
       } else if line.contains("time:") && lastVariant != nil {
-        let cleanLine = line.replacingOccurrences(of: "[", with: "").replacingOccurrences(of: "]", with: "")
+        let cleanLine = line.replacingOccurrences(of: "[", with: "").replacingOccurrences(
+          of: "]", with: "")
         let parts = cleanLine.split(separator: " ").map { String($0) }
         if parts.count >= 5 {
           if let val = Double(parts[3]) {
@@ -350,7 +375,9 @@ import Testing
     }
 
     if singleMs.isNaN || multiMs.isNaN {
-      print("⚠️ Could not parse mean times for variants \(variantSingle) and \(variantMulti) from cargo bench output.")
+      print(
+        "⚠️ Could not parse mean times for variants \(variantSingle) and \(variantMulti) from cargo bench output."
+      )
       return nil
     }
 

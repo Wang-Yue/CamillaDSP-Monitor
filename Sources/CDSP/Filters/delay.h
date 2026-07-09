@@ -55,7 +55,6 @@ void delay_filter_process(delay_filter_t* filter, mutable_waveform_t waveform,
  */
 double delay_filter_process_single(delay_filter_t* filter, double sample);
 
-
 /**
  * @brief Free the delay filter instance and its associated resources.
  *

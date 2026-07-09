@@ -75,7 +75,6 @@ biquad_combo_filter_t* biquad_combo_filter_create(
 void biquad_combo_filter_process(biquad_combo_filter_t* filter,
                                  mutable_waveform_t waveform, size_t count);
 
-
 /**
  * @brief Transfers history state of nested biquad sections from src to dest.
  *

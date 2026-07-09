@@ -94,10 +94,10 @@ final class EngineProcessingLoop: @unchecked Sendable {
     while true {
       shared.capturedSemaphore.wait()
 
-      let emergency = shared.shouldStop.load(ordering: .acquiring) &&
-                      stateMachine.stopReason != .done
-      let graceful = shared.captureFinished.load(ordering: .acquiring) &&
-                     shared.capturedQueue.count == 0
+      let emergency =
+        shared.shouldStop.load(ordering: .acquiring) && stateMachine.stopReason != .done
+      let graceful =
+        shared.captureFinished.load(ordering: .acquiring) && shared.capturedQueue.count == 0
       if emergency || graceful {
         break
       }
@@ -186,8 +186,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
           dopEncoder.encode(chunk: &chunk)
 
           while !shared.processedQueue.enqueue(chunk) {
-            if shared.shouldStop.load(ordering: .acquiring) &&
-               stateMachine.stopReason != .done {
+            if shared.shouldStop.load(ordering: .acquiring) && stateMachine.stopReason != .done {
               break
             }
             Thread.sleep(forTimeInterval: 0.002)

@@ -69,9 +69,9 @@ void volume_filter_process(volume_filter_t* filter, mutable_waveform_t waveform,
  */
 void volume_filter_advance_ramp(volume_filter_t* filter);
 
-
 /**
- * @brief Transfers current volume, fader target level, and ramp state from src to dest.
+ * @brief Transfers current volume, fader target level, and ramp state from src
+ * to dest.
  *
  * @param dest The destination volume filter instance.
  * @param src The source volume filter instance.

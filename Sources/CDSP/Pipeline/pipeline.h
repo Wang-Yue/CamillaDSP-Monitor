@@ -61,9 +61,9 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
                                   const audio_chunk_t* input,
                                   audio_chunk_t* output);
 
-
 /**
- * @brief Transfers all stateful filter/processor history variables from src to dest pipeline.
+ * @brief Transfers all stateful filter/processor history variables from src to
+ * dest pipeline.
  *
  * Scans the pipeline steps, matches filters/processors by name and type, and
  * transfers their internal states to prevent dynamic glitches on swaps.

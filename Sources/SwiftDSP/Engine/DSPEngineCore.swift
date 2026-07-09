@@ -118,7 +118,8 @@ internal final class DSPEngineCore {
     }
     if let workerThreads = config.devices.workerThreads {
       logger.info(
-        "Worker threads requested: %d (ignored on Apple platform as GCD automatically manages worker thread pools)", .int(workerThreads))
+        "Worker threads requested: %d (ignored on Apple platform as GCD automatically manages worker thread pools)",
+        .int(workerThreads))
     }
   }
 
@@ -201,7 +202,8 @@ internal final class DSPEngineCore {
 
     guard state != .inactive else { return }
 
-    let mode: ProcessingMode = (currentConfig.devices.multithreaded == true) ? .multiThreaded : .singleThreaded
+    let mode: ProcessingMode =
+      (currentConfig.devices.multithreaded == true) ? .multiThreaded : .singleThreaded
     let newPipeline = try Pipeline(
       config: currentConfig, processingParams: processingParams,
       explicitChunkSize: effectivePlaybackChunkSize,
@@ -286,7 +288,8 @@ internal final class DSPEngineCore {
       channels: currentConfig.devices.capture.channels ?? 0)
     resamplerScratch.validFrames = 0
 
-    let mode: ProcessingMode = (currentConfig.devices.multithreaded == true) ? .multiThreaded : .singleThreaded
+    let mode: ProcessingMode =
+      (currentConfig.devices.multithreaded == true) ? .multiThreaded : .singleThreaded
     let pipeline = try Pipeline(
       config: currentConfig, processingParams: processingParams,
       explicitChunkSize: playbackChunkSize,

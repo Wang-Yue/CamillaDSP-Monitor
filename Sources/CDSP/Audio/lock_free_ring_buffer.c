@@ -305,7 +305,6 @@ size_t spsc_audio_ring_buffer_consume_stride(spsc_audio_ring_buffer_t* ring,
   return n;
 }
 
-
 void spsc_audio_ring_buffer_drain(spsc_audio_ring_buffer_t* ring) {
   if (!ring) return;
   uint64_t w = atomic_load_explicit(&ring->write_index, memory_order_acquire);

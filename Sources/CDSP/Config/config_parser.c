@@ -425,7 +425,8 @@ static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
   final_cap->has_is_wav = temp.has_is_wav;
   final_cap->bypass_dop = temp.has_bypass_dop ? temp.bypass_dop : true;
   final_cap->has_bypass_dop = temp.has_bypass_dop;
-  final_cap->dop_cutoff_hz = temp.has_dop_cutoff_hz ? temp.dop_cutoff_hz : 20000.0;
+  final_cap->dop_cutoff_hz =
+      temp.has_dop_cutoff_hz ? temp.dop_cutoff_hz : 20000.0;
   final_cap->has_dop_cutoff_hz = temp.has_dop_cutoff_hz;
 
   switch (temp.type) {
@@ -777,7 +778,9 @@ static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
   final_play->has_is_wav = temp.has_is_wav;
   final_play->output_dop = temp.has_output_dop ? temp.output_dop : false;
   final_play->has_output_dop = temp.has_output_dop;
-  final_play->dop_encoder_filter = temp.has_dop_encoder_filter ? temp.dop_encoder_filter : SDM_FILTER_INVALID;
+  final_play->dop_encoder_filter = temp.has_dop_encoder_filter
+                                       ? temp.dop_encoder_filter
+                                       : SDM_FILTER_INVALID;
   final_play->has_dop_encoder_filter = temp.has_dop_encoder_filter;
 
   switch (temp.type) {

@@ -130,15 +130,19 @@ final class Pipeline {
               )
               filters.append(filter)
             }
-            newChains.append(ParallelFilterChain(channel: ch, filters: filters, bypassed: isBypassed))
+            newChains.append(
+              ParallelFilterChain(channel: ch, filters: filters, bypassed: isBypassed))
           }
 
           // Merge adjacent filter steps if they target disjoint sets of channels
-          if !processingStages.isEmpty, case .parallelFilters(let existingChains) = processingStages.last! {
+          if !processingStages.isEmpty,
+            case .parallelFilters(let existingChains) = processingStages.last!
+          {
             let existingChannels = Set(existingChains.map { $0.channel })
             let newChannels = Set(newChains.map { $0.channel })
             if existingChannels.isDisjoint(with: newChannels) {
-              processingStages[processingStages.count - 1] = .parallelFilters(existingChains + newChains)
+              processingStages[processingStages.count - 1] = .parallelFilters(
+                existingChains + newChains)
             } else {
               processingStages.append(.parallelFilters(newChains))
             }
@@ -269,7 +273,6 @@ final class Pipeline {
       }
     }
   }
-
 
   func transferState(from src: Pipeline) {
     // 1. Transfer master volume

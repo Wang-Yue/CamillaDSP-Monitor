@@ -462,12 +462,16 @@ private enum AllocationCounter {
 
     let configFilters = filters
 
-    let map0 = MixerMapping(dest: 0, sources: [
-      MixerSource(channel: 0, gain: 0.0), MixerSource(channel: 2, gain: -6.0)
-    ])
-    let map1 = MixerMapping(dest: 1, sources: [
-      MixerSource(channel: 1, gain: 0.0), MixerSource(channel: 3, gain: -6.0)
-    ])
+    let map0 = MixerMapping(
+      dest: 0,
+      sources: [
+        MixerSource(channel: 0, gain: 0.0), MixerSource(channel: 2, gain: -6.0),
+      ])
+    let map1 = MixerMapping(
+      dest: 1,
+      sources: [
+        MixerSource(channel: 1, gain: 0.0), MixerSource(channel: 3, gain: -6.0),
+      ])
 
     var fullConfig = config
     fullConfig.filters = configFilters
@@ -475,12 +479,13 @@ private enum AllocationCounter {
     fullConfig.pipeline = [
       PipelineStep(type: .filter, channels: nil, names: filterNames),
       PipelineStep(type: .mixer, name: "mix"),
-      PipelineStep(type: .filter, channels: nil, names: filterNames)
+      PipelineStep(type: .filter, channels: nil, names: filterNames),
     ]
 
     let params = ProcessingParameters(captureChannels: 4, playbackChannels: 2)
 
-    let pipelineSingle = try Pipeline(config: fullConfig, processingParams: params, mode: .singleThreaded)
+    let pipelineSingle = try Pipeline(
+      config: fullConfig, processingParams: params, mode: .singleThreaded)
     let input = makeRandomChunks(count: 32, channels: 4, frames: 1024)
     var output = AudioChunk(frames: 1024, channels: 2)
     let inputCount = input.count
@@ -489,7 +494,8 @@ private enum AllocationCounter {
       try! pipelineSingle.process(input: input[i % inputCount], into: &output)
     }
 
-    let pipelineMulti = try Pipeline(config: fullConfig, processingParams: params, mode: .multiThreaded)
+    let pipelineMulti = try Pipeline(
+      config: fullConfig, processingParams: params, mode: .multiThreaded)
     let (multiAllocations, _) = AllocationCounter.count {
       for i in 0..<30 {
         try! pipelineMulti.process(input: input[i % inputCount], into: &output)

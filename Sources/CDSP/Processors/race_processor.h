@@ -103,7 +103,6 @@ void race_processor_free(race_processor_t* processor);
  */
 void race_processor_process(race_processor_t* processor, audio_chunk_t* chunk);
 
-
 /**
  * @brief Transfers recursive feedback loop registers from src to dest.
  *

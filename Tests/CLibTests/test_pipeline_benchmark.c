@@ -26,22 +26,18 @@
 #define ITERS 200
 
 static const double pre_bq_freqs[] = {
-  120.0, 220.0, 350.0, 500.0, 700.0, 900.0, 1200.0, 1600.0,
-  1800.0, 2200.0, 2800.0, 3200.0, 3800.0, 4500.0, 6200.0, 8000.0
-};
-static const double pre_bq_qs[] = {
-  0.70, 0.75, 0.80, 0.90, 1.00, 1.10, 0.95, 1.05,
-  1.10, 0.90, 0.95, 1.00, 0.85, 0.80, 0.75, 0.70
-};
+    120.0,  220.0,  350.0,  500.0,  700.0,  900.0,  1200.0, 1600.0,
+    1800.0, 2200.0, 2800.0, 3200.0, 3800.0, 4500.0, 6200.0, 8000.0};
+static const double pre_bq_qs[] = {0.70, 0.75, 0.80, 0.90, 1.00, 1.10,
+                                   0.95, 1.05, 1.10, 0.90, 0.95, 1.00,
+                                   0.85, 0.80, 0.75, 0.70};
 
 static const double post_bq_freqs[] = {
-  140.0, 260.0, 400.0, 560.0, 760.0, 980.0, 1300.0, 1700.0,
-  2100.0, 2500.0, 3000.0, 3600.0, 4200.0, 5200.0, 6800.0, 9200.0
-};
-static const double post_bq_qs[] = {
-  0.72, 0.78, 0.83, 0.92, 1.02, 1.08, 0.98, 1.06,
-  1.00, 0.94, 0.92, 0.88, 0.84, 0.80, 0.76, 0.72
-};
+    140.0,  260.0,  400.0,  560.0,  760.0,  980.0,  1300.0, 1700.0,
+    2100.0, 2500.0, 3000.0, 3600.0, 4200.0, 5200.0, 6800.0, 9200.0};
+static const double post_bq_qs[] = {0.72, 0.78, 0.83, 0.92, 1.02, 1.08,
+                                    0.98, 1.06, 1.00, 0.94, 0.92, 0.88,
+                                    0.84, 0.80, 0.76, 0.72};
 
 static audio_chunk_t* make_dummy_signal(int channels) {
   audio_chunk_t* chunk = audio_chunk_create(CHUNK_SIZE, channels);
@@ -70,13 +66,17 @@ typedef struct {
   double multi_ms;
 } pipeline_rust_results_t;
 
-static pipeline_rust_results_t run_upstream_pipeline_benchmark(const char* variant_single, const char* variant_multi) {
+static pipeline_rust_results_t run_upstream_pipeline_benchmark(
+    const char* variant_single, const char* variant_multi) {
   pipeline_rust_results_t results = {.single_ms = NAN, .multi_ms = NAN};
   const char* home = getenv("HOME");
   if (!home) return results;
 
   char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "cd %s/camilladsp && cargo bench --bench pipeline -- --sample-size 10 --warm-up-time 0.3 --measurement-time 0.5 2>&1", home);
+  snprintf(cmd, sizeof(cmd),
+           "cd %s/camilladsp && cargo bench --bench pipeline -- --sample-size "
+           "10 --warm-up-time 0.3 --measurement-time 0.5 2>&1",
+           home);
   FILE* fp = popen(cmd, "r");
   if (!fp) return results;
 
@@ -101,8 +101,8 @@ static pipeline_rust_results_t run_upstream_pipeline_benchmark(const char* varia
       char* time_ptr = strstr(line, "time:");
       double val1 = 0, val2 = 0, val3 = 0;
       char unit[32] = {0};
-      int count = sscanf(time_ptr, "time: %lf %31s %lf %31s %lf %31s",
-                         &val1, unit, &val2, unit, &val3, unit);
+      int count = sscanf(time_ptr, "time: %lf %31s %lf %31s %lf %31s", &val1,
+                         unit, &val2, unit, &val3, unit);
       if (count >= 4) {
         double val_ms = val2;
         if (strcmp(unit, "µs") == 0 || strstr(unit, "u")) {
@@ -110,7 +110,7 @@ static pipeline_rust_results_t run_upstream_pipeline_benchmark(const char* varia
         } else if (strcmp(unit, "ns") == 0) {
           val_ms = val2 / 1000000.0;
         }
-        
+
         if (strcmp(last_variant, variant_single) == 0) {
           results.single_ms = val_ms;
         } else if (strcmp(last_variant, variant_multi) == 0) {
@@ -124,29 +124,41 @@ static pipeline_rust_results_t run_upstream_pipeline_benchmark(const char* varia
   return results;
 }
 
-static void print_comparison_table(const char* label, double rust_single, double rust_multi,
-                                   double swift_single, double swift_multi,
-                                   double c_single, double c_multi) {
-  printf("\n================================================================================\n");
+static void print_comparison_table(const char* label, double rust_single,
+                                   double rust_multi, double swift_single,
+                                   double swift_multi, double c_single,
+                                   double c_multi) {
+  printf(
+      "\n======================================================================"
+      "==========\n");
   printf("Benchmark: %s\n", label);
-  printf("--------------------------------------------------------------------------------\n");
+  printf(
+      "------------------------------------------------------------------------"
+      "--------\n");
   printf("Engine            |  Single (ms) |   Multi (ms) |    Speedup\n");
-  printf("--------------------------------------------------------------------------------\n");
+  printf(
+      "------------------------------------------------------------------------"
+      "--------\n");
 
   if (!isnan(rust_single)) {
-    printf("CamillaDSP (Rust) | %12.3f | %12.3f | %10.2fx\n", rust_single, rust_multi, rust_single / rust_multi);
+    printf("CamillaDSP (Rust) | %12.3f | %12.3f | %10.2fx\n", rust_single,
+           rust_multi, rust_single / rust_multi);
   } else {
     printf("CamillaDSP (Rust) |          N/A |          N/A |        N/A\n");
   }
 
   if (!isnan(swift_single)) {
-    printf("SwiftDSP (Swift)  | %12.3f | %12.3f | %10.2fx\n", swift_single, swift_multi, swift_single / swift_multi);
+    printf("SwiftDSP (Swift)  | %12.3f | %12.3f | %10.2fx\n", swift_single,
+           swift_multi, swift_single / swift_multi);
   } else {
     printf("SwiftDSP (Swift)  |          N/A |          N/A |        N/A\n");
   }
 
-  printf("Pipeline C (CDSP) | %12.3f | %12.3f | %10.2fx\n", c_single, c_multi, c_single / c_multi);
-  printf("--------------------------------------------------------------------------------\n");
+  printf("Pipeline C (CDSP) | %12.3f | %12.3f | %10.2fx\n", c_single, c_multi,
+         c_single / c_multi);
+  printf(
+      "------------------------------------------------------------------------"
+      "--------\n");
 
   if (!isnan(rust_multi)) {
     const char* winner;
@@ -158,9 +170,12 @@ static void print_comparison_table(const char* label, double rust_single, double
       winner = "CamillaDSP (Rust)";
       factor = c_multi / rust_multi;
     }
-    printf("Head-to-Head      | %s is %.2fx faster in multi-threaded mode\n", winner, factor);
+    printf("Head-to-Head      | %s is %.2fx faster in multi-threaded mode\n",
+           winner, factor);
   }
-  printf("================================================================================\n\n");
+  printf(
+      "========================================================================"
+      "========\n\n");
 }
 
 TEST(Pipeline_Biquads_Benchmark) {
@@ -202,17 +217,14 @@ TEST(Pipeline_Biquads_Benchmark) {
   config.filters_count = 32;
 
   mixer_source_t src0[2] = {
-    {.channel = 0, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
-    {.channel = 2, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}
-  };
+      {.channel = 0, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
+      {.channel = 2, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}};
   mixer_source_t src1[2] = {
-    {.channel = 1, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
-    {.channel = 3, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}
-  };
+      {.channel = 1, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
+      {.channel = 3, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}};
   mixer_mapping_t maps[2] = {
-    {.dest = 0, .sources_count = 2, .sources = src0, .mute = false},
-    {.dest = 1, .sources_count = 2, .sources = src1, .mute = false}
-  };
+      {.dest = 0, .sources_count = 2, .sources = src0, .mute = false},
+      {.dest = 1, .sources_count = 2, .sources = src1, .mute = false}};
   named_mixer_config_t mixer_cfg;
   memset(&mixer_cfg, 0, sizeof(mixer_cfg));
   strcpy(mixer_cfg.name, "mix_4_to_2");
@@ -276,7 +288,7 @@ TEST(Pipeline_Biquads_Benchmark) {
   }
   clock_gettime(CLOCK_MONOTONIC, &end_single);
   double single_ns = (double)(end_single.tv_sec - start_single.tv_sec) * 1e9 +
-                      (double)(end_single.tv_nsec - start_single.tv_nsec);
+                     (double)(end_single.tv_nsec - start_single.tv_nsec);
   double c_single_ms = single_ns / (double)ITERS / 1e6;
 
   // Benchmark Multi
@@ -287,18 +299,20 @@ TEST(Pipeline_Biquads_Benchmark) {
   }
   clock_gettime(CLOCK_MONOTONIC, &end_multi);
   double multi_ns = (double)(end_multi.tv_sec - start_multi.tv_sec) * 1e9 +
-                     (double)(end_multi.tv_nsec - start_multi.tv_nsec);
+                    (double)(end_multi.tv_nsec - start_multi.tv_nsec);
   double c_multi_ms = multi_ns / (double)ITERS / 1e6;
 
   // Load Swift and Rust results
   double swift_single = NAN, swift_multi = NAN;
-  pipeline_rust_results_t rust = run_upstream_pipeline_benchmark("biquad_single", "biquad_multi");
+  pipeline_rust_results_t rust =
+      run_upstream_pipeline_benchmark("biquad_single", "biquad_multi");
   double rust_single = rust.single_ms;
   double rust_multi = rust.multi_ms;
 
-  print_comparison_table("Upstream Match: 4-in 2-out Biquad Pipeline (96 EQ evaluations)",
-                         rust_single, rust_multi, swift_single, swift_multi,
-                         c_single_ms, c_multi_ms);
+  print_comparison_table(
+      "Upstream Match: 4-in 2-out Biquad Pipeline (96 EQ evaluations)",
+      rust_single, rust_multi, swift_single, swift_multi, c_single_ms,
+      c_multi_ms);
 
   audio_chunk_free(input);
   audio_chunk_free(output);
@@ -380,17 +394,14 @@ TEST(Pipeline_Biquads_Conv_Benchmark) {
   config.filters_count = 36;
 
   mixer_source_t src0[2] = {
-    {.channel = 0, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
-    {.channel = 2, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}
-  };
+      {.channel = 0, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
+      {.channel = 2, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}};
   mixer_source_t src1[2] = {
-    {.channel = 1, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
-    {.channel = 3, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}
-  };
+      {.channel = 1, .gain = 0.0, .has_gain = true, .scale = GAIN_SCALE_DB},
+      {.channel = 3, .gain = -6.0, .has_gain = true, .scale = GAIN_SCALE_DB}};
   mixer_mapping_t maps[2] = {
-    {.dest = 0, .sources_count = 2, .sources = src0, .mute = false},
-    {.dest = 1, .sources_count = 2, .sources = src1, .mute = false}
-  };
+      {.dest = 0, .sources_count = 2, .sources = src0, .mute = false},
+      {.dest = 1, .sources_count = 2, .sources = src1, .mute = false}};
   named_mixer_config_t mixer_cfg;
   memset(&mixer_cfg, 0, sizeof(mixer_cfg));
   strcpy(mixer_cfg.name, "mix_4_to_2");
@@ -454,7 +465,7 @@ TEST(Pipeline_Biquads_Conv_Benchmark) {
   }
   clock_gettime(CLOCK_MONOTONIC, &end_single);
   double single_ns = (double)(end_single.tv_sec - start_single.tv_sec) * 1e9 +
-                      (double)(end_single.tv_nsec - start_single.tv_nsec);
+                     (double)(end_single.tv_nsec - start_single.tv_nsec);
   double c_single_ms = single_ns / 10.0 / 1e6;
 
   // Benchmark Multi (10 per user request)
@@ -465,18 +476,21 @@ TEST(Pipeline_Biquads_Conv_Benchmark) {
   }
   clock_gettime(CLOCK_MONOTONIC, &end_multi);
   double multi_ns = (double)(end_multi.tv_sec - start_multi.tv_sec) * 1e9 +
-                     (double)(end_multi.tv_nsec - start_multi.tv_nsec);
+                    (double)(end_multi.tv_nsec - start_multi.tv_nsec);
   double c_multi_ms = multi_ns / 10.0 / 1e6;
 
   // Load Swift and Rust results
   double swift_single = NAN, swift_multi = NAN;
-  pipeline_rust_results_t rust = run_upstream_pipeline_benchmark("biquad_conv_single", "biquad_conv_multi");
+  pipeline_rust_results_t rust = run_upstream_pipeline_benchmark(
+      "biquad_conv_single", "biquad_conv_multi");
   double rust_single = rust.single_ms;
   double rust_multi = rust.multi_ms;
 
-  print_comparison_table("Upstream Match: 4-in 2-out Biquad + Convolution Pipeline (96 EQ + 12 long convolve)",
-                         rust_single, rust_multi, swift_single, swift_multi,
-                         c_single_ms, c_multi_ms);
+  print_comparison_table(
+      "Upstream Match: 4-in 2-out Biquad + Convolution Pipeline (96 EQ + 12 "
+      "long convolve)",
+      rust_single, rust_multi, swift_single, swift_multi, c_single_ms,
+      c_multi_ms);
 
   audio_chunk_free(input);
   audio_chunk_free(output);

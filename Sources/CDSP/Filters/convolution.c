@@ -24,9 +24,7 @@ static inline double4 load_double4(const double* p) {
   return *(const double4*)p;
 }
 
-static inline void store_double4(double* p, double4 v) {
-  *(double4*)p = v;
-}
+static inline void store_double4(double* p, double4 v) { *(double4*)p = v; }
 
 #include <math.h>
 #include <stdio.h>

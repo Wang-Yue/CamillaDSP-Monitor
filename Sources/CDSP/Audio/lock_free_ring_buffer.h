@@ -171,8 +171,9 @@ size_t spsc_audio_ring_buffer_consume(spsc_audio_ring_buffer_t* ring,
 /**
  * @brief Consume samples from the ring buffer with a destination stride.
  *
- * **Consumer-only.** Copy up to `count` samples into `dest` with specified `stride` and advance the
- * read cursor. Returns the number of samples actually copied.
+ * **Consumer-only.** Copy up to `count` samples into `dest` with specified
+ * `stride` and advance the read cursor. Returns the number of samples actually
+ * copied.
  *
  * @param ring Pointer to the ring buffer.
  * @param dest Destination buffer.

@@ -95,7 +95,7 @@ void engine_shared_state_request_stop(engine_shared_state_t* state,
   // to the capture, processing, and playback loops immediately on their next
   // check.
   atomic_store_explicit(&state->should_stop, true, memory_order_release);
-  
+
   // Wake up processing and playback threads if they are blocked waiting.
   engine_sem_signal(state->captured_semaphore);
   engine_sem_signal(state->processed_semaphore);

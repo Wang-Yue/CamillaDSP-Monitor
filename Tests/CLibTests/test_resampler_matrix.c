@@ -111,7 +111,10 @@ static bool check_rubato_available(void) {
   static char home_path[1024] = {0};
   const char* home = getenv("HOME");
   if (home) {
-    snprintf(home_path, sizeof(home_path), "%s/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/cdsp_resampler_compare", home);
+    snprintf(home_path, sizeof(home_path),
+             "%s/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/"
+             "cdsp_resampler_compare",
+             home);
   }
 
   const char* candidates[] = {

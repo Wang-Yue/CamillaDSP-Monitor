@@ -5,12 +5,12 @@
 #include <pipewire/pipewire.h>
 #include <pipewire/stream.h>
 #include <spa/param/audio/format-utils.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #include "Audio/lock_free_ring_buffer.h"
-#include <stdatomic.h>
 #include "Logging/app_logger.h"
 
 struct pipewire_capture {
@@ -706,7 +706,8 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
 
 bool pipewire_playback_write(pipewire_playback_t* playback,
                              const audio_chunk_t* chunk, backend_error_t* err) {
-  if (atomic_load_explicit(&playback->paused, memory_order_acquire)) return true;
+  if (atomic_load_explicit(&playback->paused, memory_order_acquire))
+    return true;
   (void)err;
 
   size_t frames = audio_chunk_get_valid_frames(chunk);

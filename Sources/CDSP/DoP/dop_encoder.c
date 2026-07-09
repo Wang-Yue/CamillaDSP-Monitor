@@ -33,7 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef double double4 __attribute__ ((vector_size (32)));
+typedef double double4 __attribute__((vector_size(32)));
 
 static inline double4 load_double4(const double* p) {
   double4 v;
@@ -268,10 +268,12 @@ dop_encoder_t* dop_encoder_create(int channels, double sample_rate,
  * @param coeffs Polyphase filter coefficients.
  */
 #if defined(ENABLE_BLAS)
-static bool ensure_scratch_capacity(dop_encoder_channel_state_t* state, size_t capacity) {
+static bool ensure_scratch_capacity(dop_encoder_channel_state_t* state,
+                                    size_t capacity) {
   if (state->scratch_capacity >= capacity) return true;
 
-  double* p = (double*)realloc(state->padded_buf, (32 + capacity) * sizeof(double));
+  double* p =
+      (double*)realloc(state->padded_buf, (32 + capacity) * sizeof(double));
   if (!p) return false;
   state->padded_buf = p;
 
@@ -316,11 +318,8 @@ static void encode_channel_batched(dop_encoder_channel_state_t* state,
   }
 
   // Perform matrix multiplication
-  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans,
-              (int)frames, 16, 32,
-              1.0, X, 32,
-              coeffs, 32,
-              0.0, Y, 16);
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, (int)frames, 16, 32, 1.0,
+              X, 32, coeffs, 32, 0.0, Y, 16);
 
   uint8_t marker = state->marker;
   sigma_delta_modulator_t* mod = state->modulator;
@@ -377,7 +376,8 @@ static void encode_channel(dop_encoder_channel_state_t* state,
     const double* fifo_p = fifo + base_idx;
 #if defined(ENABLE_BLAS)
     double acc[16];
-    cblas_dgemv(CblasRowMajor, CblasNoTrans, 16, 32, 1.0, coeffs, 32, fifo_p, 1, 0.0, acc, 1);
+    cblas_dgemv(CblasRowMajor, CblasNoTrans, 16, 32, 1.0, coeffs, 32, fifo_p, 1,
+                0.0, acc, 1);
     for (int p = 0; p < 16; p++) {
       double dsd = sigma_delta_modulator_sample(mod, acc[p] * 0.5);
       if (dsd > 0.0) {
@@ -537,9 +537,12 @@ void dop_encoder_free(dop_encoder_t* encoder) {
     for (int ch = 0; ch < encoder->channels; ch++) {
       sigma_delta_modulator_free(encoder->channel_states[ch].modulator);
 #if defined(ENABLE_BLAS)
-      if (encoder->channel_states[ch].padded_buf) free(encoder->channel_states[ch].padded_buf);
-      if (encoder->channel_states[ch].scratch_X) free(encoder->channel_states[ch].scratch_X);
-      if (encoder->channel_states[ch].scratch_Y) free(encoder->channel_states[ch].scratch_Y);
+      if (encoder->channel_states[ch].padded_buf)
+        free(encoder->channel_states[ch].padded_buf);
+      if (encoder->channel_states[ch].scratch_X)
+        free(encoder->channel_states[ch].scratch_X);
+      if (encoder->channel_states[ch].scratch_Y)
+        free(encoder->channel_states[ch].scratch_Y);
 #endif
     }
     free(encoder->channel_states);

@@ -74,11 +74,11 @@ filter_t* filter_create(const char* name, const filter_config_t* config,
 void filter_process(filter_t* filter, mutable_waveform_t waveform,
                     size_t count);
 
-
 /**
  * @brief Transfers history state from src to dest generic filter wrapper.
  *
- * Only applies to stateful filter types (Biquad, BiquadCombo, Loudness, Volume).
+ * Only applies to stateful filter types (Biquad, BiquadCombo, Loudness,
+ * Volume).
  *
  * @param dest The destination filter wrapper instance.
  * @param src The source filter wrapper instance.

@@ -88,7 +88,6 @@ dither_filter_t* dither_filter_create(const char* name,
 void dither_filter_process(dither_filter_t* filter, mutable_waveform_t waveform,
                            size_t count);
 
-
 /**
  * @brief Free the dither filter instance and its associated resources.
  *

@@ -3,18 +3,20 @@
 #define WIN32_LEAN_AND_MEAN
 #include "wasapi_backend.h"
 
+// clang-format off
 #include <initguid.h>
+// clang-format on
 
 #include <audioclient.h>
 #include <functiondiscoverykeys_devpkey.h>
 #include <ksmedia.h>
 #include <mmdeviceapi.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
 
-#include <stdatomic.h>
 #include "Logging/app_logger.h"
 
 // COM Release helper
@@ -1220,7 +1222,8 @@ error_cleanup:
 
 bool wasapi_playback_write(wasapi_playback_t* playback,
                            const audio_chunk_t* chunk, backend_error_t* err) {
-  if (atomic_load_explicit(&playback->paused, memory_order_acquire)) return true;
+  if (atomic_load_explicit(&playback->paused, memory_order_acquire))
+    return true;
 
   size_t frames_written = 0;
   size_t total_frames = audio_chunk_get_valid_frames(chunk);

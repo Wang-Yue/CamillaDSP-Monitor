@@ -26,7 +26,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define DOP_FIFO_SIZE 64    // power of 2
+#define DOP_FIFO_SIZE 64  // power of 2
 #define DOP_FIFO_MASK 63
 
 /**
@@ -45,8 +45,9 @@ typedef struct {
                             */
   bool container_known;    /**< Flag indicating if container size has been
                               determined. */
-  uint8_t fifo[DOP_FIFO_SIZE * 2];        /**< Ring buffer for DSD bytes (duplicated for unmasked reads). */
-  int fifo_pos;            /**< Current position in the FIFO. */
+  uint8_t fifo[DOP_FIFO_SIZE * 2]; /**< Ring buffer for DSD bytes (duplicated
+                                      for unmasked reads). */
+  int fifo_pos;                    /**< Current position in the FIFO. */
 } dop_decoder_channel_state_t;
 
 struct dop_decoder {

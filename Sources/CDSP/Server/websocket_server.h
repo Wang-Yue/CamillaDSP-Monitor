@@ -77,8 +77,6 @@ typedef struct {
   void (*set_config_path)(void* ctx, const char* path);
 } dsp_engine_interface_t;
 
-
-
 /**
  * @brief Create a new WebSocket control server on the specified port and host.
  *
@@ -140,10 +138,15 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
 
 // MARK: - Testing Helpers
 
-bool websocket_server_get_client_vu_subscribed(const websocket_server_t* server, int client_idx);
-double websocket_server_get_client_vu_max_rate(const websocket_server_t* server, int client_idx);
-double websocket_server_get_client_vu_attack(const websocket_server_t* server, int client_idx);
-double websocket_server_get_client_vu_release(const websocket_server_t* server, int client_idx);
-void websocket_server_set_client_vu_subscribed(websocket_server_t* server, int client_idx, bool subscribed);
+bool websocket_server_get_client_vu_subscribed(const websocket_server_t* server,
+                                               int client_idx);
+double websocket_server_get_client_vu_max_rate(const websocket_server_t* server,
+                                               int client_idx);
+double websocket_server_get_client_vu_attack(const websocket_server_t* server,
+                                             int client_idx);
+double websocket_server_get_client_vu_release(const websocket_server_t* server,
+                                              int client_idx);
+void websocket_server_set_client_vu_subscribed(websocket_server_t* server,
+                                               int client_idx, bool subscribed);
 
 #endif  // CLIB_SERVER_WEBSOCKET_SERVER_H

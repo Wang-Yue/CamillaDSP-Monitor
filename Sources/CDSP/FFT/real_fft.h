@@ -13,8 +13,8 @@
  * Decision tree (top-to-bottom, first match wins):
  *   1. `length` is a power of two `≥ 8`
  *      → `VDSPRealFFT` (`VDSPRealFFT.swift`), wrapping Apple's
- *      `vDSP_fft_zrip` / `vDSP_fft_zripD` (radix-2 split-complex real FFT, hand-tuned
- *      NEON on Apple Silicon).
+ *      `vDSP_fft_zrip` / `vDSP_fft_zripD` (radix-2 split-complex real FFT,
+ *      hand-tuned NEON on Apple Silicon).
  *   2. Otherwise (arbitrary even length): a 2N-point real FFT is built
  *      from one N-point complex FFT plus an O(N) untwiddle pass —
  *      `ComplexInnerRealFFT` (`ComplexInnerRealFFT.swift`). The inner

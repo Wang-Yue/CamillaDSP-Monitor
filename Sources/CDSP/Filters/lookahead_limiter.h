@@ -58,7 +58,6 @@ void lookahead_limiter_filter_process(lookahead_limiter_filter_t* filter,
                                       mutable_waveform_t waveform,
                                       size_t count);
 
-
 /**
  * @brief Free the lookahead limiter filter instance.
  *

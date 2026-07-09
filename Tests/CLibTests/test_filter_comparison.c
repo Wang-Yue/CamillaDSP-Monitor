@@ -83,7 +83,10 @@ static const char* get_harness_binary(void) {
   static char home_path[1024] = {0};
   const char* home = getenv("HOME");
   if (home) {
-    snprintf(home_path, sizeof(home_path), "%s/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/cdsp_filter_compare", home);
+    snprintf(home_path, sizeof(home_path),
+             "%s/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/"
+             "cdsp_filter_compare",
+             home);
   }
   const char* paths[] = {
       "../Tests/RustHarnesses/target/release/cdsp_filter_compare",
