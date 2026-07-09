@@ -58,7 +58,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.deviceChannels = 2
     self.sampleRate = 48000
     self.format = "F32"
-    self.bypassDoP = false
+    self.bypassDoP = true
     self.dopCutoffHz = 20_000
     self.outputDoP = false
     self.dopEncoderFilter = .sdm6

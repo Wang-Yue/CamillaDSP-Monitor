@@ -455,10 +455,6 @@ typedef struct {
   bool has_device;                  /**< True if custom device is specified. */
   coreaudio_sample_format_t format; /**< Sample format. */
   bool has_format;                  /**< True if format is specified. */
-  bool bypass_dop;                  /**< Bypass DoP detection. */
-  bool has_bypass_dop;              /**< True if bypass_dop is specified. */
-  double dop_cutoff_hz;             /**< Cutoff frequency for DoP. */
-  bool has_dop_cutoff_hz;           /**< True if dop_cutoff_hz is specified. */
 } coreaudio_capture_config_t;
 
 /**
@@ -472,10 +468,6 @@ typedef struct {
   bool has_format;                  /**< True if format is specified. */
   bool exclusive;                   /**< Use exclusive mode. */
   bool has_exclusive;               /**< True if exclusive is specified. */
-  bool output_dop;                  /**< Enable DoP output. */
-  bool has_output_dop;              /**< True if output_dop is specified. */
-  sdm_filter_t dop_encoder_filter;  /**< SDM filter for DoP encoding. */
-  bool has_dop_encoder_filter; /**< True if dop_encoder_filter is specified. */
 } coreaudio_playback_config_t;
 #endif
 
@@ -734,6 +726,10 @@ typedef struct {
   bool has_labels;           /**< True if labels are specified. */
   bool is_wav;               /**< True if source is a WAV file. */
   bool has_is_wav;           /**< True if is_wav is specified. */
+  bool bypass_dop;           /**< True to bypass DoP decoding. */
+  bool has_bypass_dop;       /**< True if bypass_dop is specified. */
+  double dop_cutoff_hz;      /**< Cutoff frequency for DoP filter. */
+  bool has_dop_cutoff_hz;    /**< True if dop_cutoff_hz is specified. */
   union {
 #if defined(ENABLE_COREAUDIO)
     coreaudio_capture_config_t coreaudio; /**< CoreAudio config. */
@@ -778,6 +774,10 @@ typedef struct {
   bool has_labels;           /**< True if labels are specified. */
   bool is_wav;               /**< True if destination is a WAV file. */
   bool has_is_wav;           /**< True if is_wav is specified. */
+  bool output_dop;                  /**< Enable DoP output. */
+  bool has_output_dop;              /**< True if output_dop is specified. */
+  sdm_filter_t dop_encoder_filter;  /**< SDM filter for DoP encoding. */
+  bool has_dop_encoder_filter; /**< True if dop_encoder_filter is specified. */
   union {
 #if defined(ENABLE_COREAUDIO)
     coreaudio_playback_config_t coreaudio; /**< CoreAudio config. */

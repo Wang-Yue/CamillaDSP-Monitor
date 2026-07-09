@@ -415,6 +415,8 @@ void capture_device_config_init(capture_device_config_t* config,
   if (!config) return;
   memset(config, 0, sizeof(capture_device_config_t));
   config->type = type;
+  config->bypass_dop = true;
+  config->dop_cutoff_hz = 20000.0;
   switch (type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
@@ -648,26 +650,12 @@ coreaudio_sample_format_t capture_device_config_get_format(
 
 bool capture_device_config_get_bypass_dop(
     const capture_device_config_t* config) {
-  switch (config->type) {
-#if defined(ENABLE_COREAUDIO)
-    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
-      return config->cfg.coreaudio.bypass_dop;
-#endif
-    default:
-      return false;
-  }
+  return config->bypass_dop;
 }
 
 double capture_device_config_get_dop_cutoff_hz(
     const capture_device_config_t* config) {
-  switch (config->type) {
-#if defined(ENABLE_COREAUDIO)
-    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
-      return config->cfg.coreaudio.dop_cutoff_hz;
-#endif
-    default:
-      return 20000.0;
-  }
+  return config->dop_cutoff_hz;
 }
 
 const char* capture_device_config_get_filename(
@@ -850,26 +838,12 @@ bool playback_device_config_get_exclusive(
 
 bool playback_device_config_get_output_dop(
     const playback_device_config_t* config) {
-  switch (config->type) {
-#if defined(ENABLE_COREAUDIO)
-    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
-      return config->cfg.coreaudio.output_dop;
-#endif
-    default:
-      return false;
-  }
+  return config->output_dop;
 }
 
 sdm_filter_t playback_device_config_get_dop_encoder_filter(
     const playback_device_config_t* config) {
-  switch (config->type) {
-#if defined(ENABLE_COREAUDIO)
-    case AUDIO_BACKEND_TYPE_CORE_AUDIO:
-      return config->cfg.coreaudio.dop_encoder_filter;
-#endif
-    default:
-      return SDM_FILTER_INVALID;
-  }
+  return config->dop_encoder_filter;
 }
 
 const char* playback_device_config_get_filename(

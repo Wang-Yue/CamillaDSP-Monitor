@@ -101,7 +101,7 @@ final class DoPDecoder {
   ///   - cutoffHz: Passband cutoff of the post-DSD lowpass (default 20 kHz).
   ///     Lower values trade ultrasonic passband for higher SINAD.
   init(
-    channels: Int, sampleRate: Double, bypassDoP: Bool = false, cutoffHz: Double = 20_000.0
+    channels: Int, sampleRate: Double, bypassDoP: Bool = true, cutoffHz: Double = 20_000.0
   ) {
     self.channels = channels
     self.bypassDoP = bypassDoP

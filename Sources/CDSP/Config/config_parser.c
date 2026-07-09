@@ -423,6 +423,10 @@ static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
   final_cap->has_labels = temp.has_labels;
   final_cap->is_wav = temp.is_wav;
   final_cap->has_is_wav = temp.has_is_wav;
+  final_cap->bypass_dop = temp.has_bypass_dop ? temp.bypass_dop : true;
+  final_cap->has_bypass_dop = temp.has_bypass_dop;
+  final_cap->dop_cutoff_hz = temp.has_dop_cutoff_hz ? temp.dop_cutoff_hz : 20000.0;
+  final_cap->has_dop_cutoff_hz = temp.has_dop_cutoff_hz;
 
   switch (temp.type) {
 #if defined(ENABLE_COREAUDIO)
@@ -433,10 +437,6 @@ static void parse_capture(const cJSON* cap_obj, devices_config_t* devices) {
       final_cap->cfg.coreaudio.has_device = temp.has_device;
       final_cap->cfg.coreaudio.format = temp.format;
       final_cap->cfg.coreaudio.has_format = temp.has_format;
-      final_cap->cfg.coreaudio.bypass_dop = temp.bypass_dop;
-      final_cap->cfg.coreaudio.has_bypass_dop = temp.has_bypass_dop;
-      final_cap->cfg.coreaudio.dop_cutoff_hz = temp.dop_cutoff_hz;
-      final_cap->cfg.coreaudio.has_dop_cutoff_hz = temp.has_dop_cutoff_hz;
       break;
 #endif
 #if defined(ENABLE_ALSA)
@@ -775,6 +775,10 @@ static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
   final_play->has_labels = temp.has_labels;
   final_play->is_wav = temp.is_wav;
   final_play->has_is_wav = temp.has_is_wav;
+  final_play->output_dop = temp.has_output_dop ? temp.output_dop : false;
+  final_play->has_output_dop = temp.has_output_dop;
+  final_play->dop_encoder_filter = temp.has_dop_encoder_filter ? temp.dop_encoder_filter : SDM_FILTER_INVALID;
+  final_play->has_dop_encoder_filter = temp.has_dop_encoder_filter;
 
   switch (temp.type) {
 #if defined(ENABLE_COREAUDIO)
@@ -787,11 +791,6 @@ static void parse_playback(const cJSON* play_obj, devices_config_t* devices) {
       final_play->cfg.coreaudio.has_format = temp.has_format;
       final_play->cfg.coreaudio.exclusive = temp.exclusive;
       final_play->cfg.coreaudio.has_exclusive = temp.has_exclusive;
-      final_play->cfg.coreaudio.output_dop = temp.output_dop;
-      final_play->cfg.coreaudio.has_output_dop = temp.has_output_dop;
-      final_play->cfg.coreaudio.dop_encoder_filter = temp.dop_encoder_filter;
-      final_play->cfg.coreaudio.has_dop_encoder_filter =
-          temp.has_dop_encoder_filter;
       break;
 #endif
 #if defined(ENABLE_ALSA)

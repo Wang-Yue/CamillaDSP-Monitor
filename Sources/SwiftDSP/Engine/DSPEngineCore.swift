@@ -90,7 +90,7 @@ internal final class DSPEngineCore {
     self.dopDecoder = DoPDecoder(
       channels: config.devices.capture.channels ?? 0,
       sampleRate: captureRate,
-      bypassDoP: config.devices.capture.bypassDoP ?? false,
+      bypassDoP: config.devices.capture.bypassDoP ?? true,
       cutoffHz: config.devices.capture.dopCutoffHz ?? 20_000.0
     )
     let playbackRate = Double(config.devices.samplerate)
