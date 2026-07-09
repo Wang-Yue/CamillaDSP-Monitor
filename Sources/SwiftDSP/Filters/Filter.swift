@@ -15,9 +15,6 @@ protocol Filter: AnyObject {
   /// processed range.
   func process(waveform: MutableWaveform)
 
-  /// Update the filter parameters dynamically.
-  func updateParameters(_ config: FilterConfig, sampleRate: Int)
-
   /// Transfer history state from another filter of the same type.
   func transferState(from src: Filter)
 }

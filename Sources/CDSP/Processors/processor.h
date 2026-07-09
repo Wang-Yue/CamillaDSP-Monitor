@@ -81,16 +81,6 @@ dsp_processor_t* dsp_processor_wrap_race(race_processor_t* p);
  */
 void dsp_processor_process(dsp_processor_t* proc, audio_chunk_t* chunk);
 
-/**
- * @brief Updates the processor parameters dynamically.
- *
- * @param proc Pointer to the generic processor wrapper.
- * @param config New processor configuration.
- * @param sample_rate Audio sample rate in Hz.
- */
-void dsp_processor_update_parameters(dsp_processor_t* proc,
-                                     const processor_config_t* config,
-                                     int sample_rate);
 
 /**
  * @brief Transfers internal history state (loudness envelope, feedback, etc.) from src to dest.

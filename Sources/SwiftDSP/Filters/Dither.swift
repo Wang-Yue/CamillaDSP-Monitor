@@ -334,27 +334,6 @@ final class DitherFilter: Filter {
     }
   }
 
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .dither(let params) = config else { return }
-    let bits = params.bits
-    let ditherType = params.type
-    self.scalefact = pow(2.0, Double(bits - 1))
-
-    self.shaper = Self.makeShaper(for: ditherType)
-
-    switch ditherType {
-    case .none:
-      self.ditherer = .noop(NoopDitherer(amplitude: 0.0))
-    case .flat:
-      let amplitude = params.amplitude ?? 2.0
-      self.ditherer = .triangular(TriangularDitherer(amplitude: amplitude))
-    case .highpass:
-      self.ditherer = .highpass(HighpassDitherer(amplitude: 2.0))
-    default:
-      self.ditherer = .triangular(TriangularDitherer(amplitude: 2.0))
-    }
-  }
-
   private static func makeShaper(for ditherType: DitherType) -> NoiseShaper? {
     switch ditherType {
     case .none, .flat, .highpass:

@@ -75,12 +75,6 @@ final class LoudnessFilter: Filter {
     highShelfFilter.updateParameters(.biquad(hpParams), sampleRate: sampleRate)
   }
 
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .loudness(let p) = config else { return }
-    self.params = p
-    self.isProcessingActive = false
-  }
-
   func transferState(from src: Filter) {
     guard let srcLoudness = src as? LoudnessFilter else { return }
     self.lowShelfFilter.transferState(from: srcLoudness.lowShelfFilter)

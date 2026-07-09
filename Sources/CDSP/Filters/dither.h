@@ -88,16 +88,6 @@ dither_filter_t* dither_filter_create(const char* name,
 void dither_filter_process(dither_filter_t* filter, mutable_waveform_t waveform,
                            size_t count);
 
-/**
- * @brief Update the dither filter parameters.
- *
- * @param filter The dither filter instance.
- * @param config The new filter configuration.
- * @param sample_rate The audio sample rate in Hz.
- */
-void dither_filter_update_parameters(dither_filter_t* filter,
-                                     const filter_config_t* config,
-                                     int sample_rate);
 
 /**
  * @brief Free the dither filter instance and its associated resources.

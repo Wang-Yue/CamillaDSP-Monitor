@@ -17,10 +17,6 @@ struct dsp_processor {
   /// Apply the processor to all channels of `chunk` in place.
   void (*process)(struct dsp_processor* self, audio_chunk_t* chunk);
 
-  /// Update the processor parameters dynamically.
-  void (*update_parameters)(struct dsp_processor* self,
-                            const processor_config_t* config, int sample_rate);
-
   /// The unique name of this processor instance.
   const char* (*get_name)(const struct dsp_processor* self);
 
@@ -31,14 +27,6 @@ struct dsp_processor {
 void dsp_processor_process(dsp_processor_t* proc, audio_chunk_t* chunk) {
   if (proc && proc->process) {
     proc->process(proc, chunk);
-  }
-}
-
-void dsp_processor_update_parameters(dsp_processor_t* proc,
-                                     const processor_config_t* config,
-                                     int sample_rate) {
-  if (proc && proc->update_parameters) {
-    proc->update_parameters(proc, config, sample_rate);
   }
 }
 
@@ -92,11 +80,6 @@ static void comp_process(dsp_processor_t* self, audio_chunk_t* chunk) {
  * @param config The new configuration parameters.
  * @param sample_rate The current audio sample rate in Hz.
  */
-static void comp_update(dsp_processor_t* self, const processor_config_t* config,
-                        int sample_rate) {
-  compressor_processor_update_parameters((compressor_processor_t*)self->impl,
-                                         config, sample_rate);
-}
 
 /**
  * @brief Retrieves the name of the wrapped compressor.
@@ -131,7 +114,6 @@ dsp_processor_t* dsp_processor_wrap_compressor(compressor_processor_t* p) {
   wrap->type = PROCESSOR_IMPL_COMPRESSOR;
   wrap->impl = p;
   wrap->process = comp_process;
-  wrap->update_parameters = comp_update;
   wrap->get_name = comp_get_name;
   wrap->free = comp_free;
   return wrap;
@@ -146,17 +128,6 @@ static void gate_process(dsp_processor_t* self, audio_chunk_t* chunk) {
   noise_gate_processor_process((noise_gate_processor_t*)self->impl, chunk);
 }
 
-/**
- * @brief Updates noise gate parameters.
- * @param self The wrapper processor instance.
- * @param config The new configuration parameters.
- * @param sample_rate The current audio sample rate in Hz.
- */
-static void gate_update(dsp_processor_t* self, const processor_config_t* config,
-                        int sample_rate) {
-  noise_gate_processor_update_parameters((noise_gate_processor_t*)self->impl,
-                                         config, sample_rate);
-}
 
 /**
  * @brief Retrieves the name of the wrapped noise gate.
@@ -191,7 +162,6 @@ dsp_processor_t* dsp_processor_wrap_noise_gate(noise_gate_processor_t* p) {
   wrap->type = PROCESSOR_IMPL_NOISE_GATE;
   wrap->impl = p;
   wrap->process = gate_process;
-  wrap->update_parameters = gate_update;
   wrap->get_name = gate_get_name;
   wrap->free = gate_free;
   return wrap;
@@ -206,17 +176,6 @@ static void race_proc(dsp_processor_t* self, audio_chunk_t* chunk) {
   race_processor_process((race_processor_t*)self->impl, chunk);
 }
 
-/**
- * @brief Updates RACE processor parameters.
- * @param self The wrapper processor instance.
- * @param config The new configuration parameters.
- * @param sample_rate The current audio sample rate in Hz.
- */
-static void race_update(dsp_processor_t* self, const processor_config_t* config,
-                        int sample_rate) {
-  race_processor_update_parameters((race_processor_t*)self->impl, config,
-                                   sample_rate);
-}
 
 /**
  * @brief Retrieves the name of the wrapped RACE processor.
@@ -249,7 +208,6 @@ dsp_processor_t* dsp_processor_wrap_race(race_processor_t* p) {
   wrap->type = PROCESSOR_IMPL_RACE;
   wrap->impl = p;
   wrap->process = race_proc;
-  wrap->update_parameters = race_update;
   wrap->get_name = race_get_name;
   wrap->free = race_free_fn;
   return wrap;

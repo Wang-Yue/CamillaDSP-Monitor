@@ -270,41 +270,6 @@ final class Pipeline {
     }
   }
 
-  func updateParameters(
-    config: DSPConfiguration,
-    filters: [String],
-    mixers: [String],
-    processors: [String]
-  ) {
-    for stage in processingStages {
-      switch stage {
-      case .parallelFilters(let chains):
-        for chain in chains {
-          for filter in chain.filters {
-            if filters.contains(filter.name) {
-              if let filterConfig = config.filters?[filter.name] {
-                filter.updateParameters(filterConfig, sampleRate: rate)
-              }
-            }
-          }
-        }
-
-      case .mixer(let mixer):
-        if mixers.contains(mixer.name) {
-          if let mixerConfig = config.mixers?[mixer.name] {
-            mixer.updateParameters(mixerConfig)
-          }
-        }
-
-      case .processor(let processor, _):
-        if processors.contains(processor.name) {
-          if let processorConfig = config.processors?[processor.name] {
-            processor.updateParameters(processorConfig, sampleRate: rate)
-          }
-        }
-      }
-    }
-  }
 
   func transferState(from src: Pipeline) {
     // 1. Transfer master volume

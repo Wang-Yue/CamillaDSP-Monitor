@@ -52,24 +52,6 @@ double gain_filter_process_single(gain_filter_t* filter, double sample) {
   return sample * filter->linear_gain;
 }
 
-void gain_filter_update_parameters(gain_filter_t* filter,
-                                   const filter_config_t* config,
-                                   int sample_rate) {
-  (void)sample_rate;
-  if (!filter || !config) return;
-  if (config->type != FILTER_TYPE_GAIN) return;
-  const gain_parameters_t* params = &config->parameters.gain;
-  filter->muted = params->mute;
-  double gain_val = params->has_gain ? params->gain : 0.0;
-  double computed_gain = (params->scale == GAIN_SCALE_LINEAR)
-                             ? gain_val
-                             : double_from_db(gain_val);
-  if (params->inverted) {
-    computed_gain *= -1.0;
-  }
-  filter->linear_gain = computed_gain;
-}
-
 void gain_filter_free(gain_filter_t* filter) {
   if (filter) free(filter);
 }

@@ -205,29 +205,6 @@ void volume_filter_advance_ramp(volume_filter_t* filter) {
   }
 }
 
-void volume_filter_update_parameters(volume_filter_t* filter,
-                                     const filter_config_t* config,
-                                     int sample_rate) {
-  if (!filter || !config) return;
-  if (config->type != FILTER_TYPE_VOLUME) return;
-  const volume_parameters_t* params = &config->parameters.volume;
-  filter->fader = params->fader;
-  double ramp_time_ms = params->has_ramp_time ? params->ramp_time : 400.0;
-  filter->volume_limit = params->has_limit ? params->limit : 50.0;
-  filter->ramptime_in_chunks =
-      (int)round(ramp_time_ms /
-                 (1000.0 * (double)filter->chunk_size / (double)sample_rate));
-  filter->stale_ramp_threshold_ns =
-      1500000000ULL * (uint64_t)filter->chunk_size / (uint64_t)sample_rate;
-  if (filter->ramptime_in_chunks <= 0 ||
-      filter->ramp_step > filter->ramptime_in_chunks) {
-    filter->ramp_step = 0;
-  }
-  if (filter->volume_limit < filter->current_volume) {
-    filter->current_volume = filter->volume_limit;
-  }
-}
-
 void volume_filter_transfer_state(volume_filter_t* dest,
                                   const volume_filter_t* src) {
   if (!dest || !src) return;

@@ -127,35 +127,4 @@ final class DelayFilter: Filter {
     return out
   }
 
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .delay(let params) = config else { return }
-    let delay = params.delay
-    let unit = params.unit ?? .ms
-    let subsample = params.subsample ?? false
-
-    let delaySamples = Self.computeDelaySamples(delay: delay, unit: unit, sampleRate: sampleRate)
-    let (integerDelay, coeffs) = Self.buildDelay(
-      delaySamples: delaySamples, subsample: subsample
-    )
-    if let q = self.queue {
-      q.deinitialize(count: queueCount)
-      q.deallocate()
-    }
-    if integerDelay > 0 {
-      let ptr = UnsafeMutablePointer<Double>.allocate(capacity: integerDelay)
-      ptr.initialize(repeating: 0.0, count: integerDelay)
-      self.queue = ptr
-      self.queueCount = integerDelay
-    } else {
-      self.queue = nil
-      self.queueCount = 0
-    }
-    self.readIndex = 0
-    if let c = coeffs {
-      self.biquad = BiquadFilter(coefficients: c)
-    } else {
-      self.biquad = nil
-    }
-  }
-
 }

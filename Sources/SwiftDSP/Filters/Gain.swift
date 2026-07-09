@@ -34,16 +34,4 @@ final class GainFilter: Filter {
       return sample * linearGain
     }
   }
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .gain(let params) = config else { return }
-    self.muted = params.mute ?? false
-    let gainValue = params.gain ?? 0.0
-    var computedGain = params.scale == .linear ? gainValue : Double.fromDB(gainValue)
-
-    if params.inverted == true {
-      computedGain *= -1.0
-    }
-
-    self.linearGain = computedGain
-  }
 }

@@ -83,22 +83,6 @@ struct pipeline_s {
   size_t last_error_got;
 };
 
-/**
- * @brief Helper function to check if a string list contains a specific name.
- *
- * @param list The list of strings to search.
- * @param count The number of elements in the list.
- * @param name The string to search for.
- * @return true if the name is found in the list, else false.
- */
-static bool string_list_contains(const char* const* list, size_t count,
-                                 const char* name) {
-  if (!list || !name) return false;
-  for (size_t i = 0; i < count; i++) {
-    if (list[i] && strcmp(list[i], name) == 0) return true;
-  }
-  return false;
-}
 
 static bool has_channel_in_chains(const parallel_filter_chain_t* chains, size_t count, int channel) {
   for (size_t i = 0; i < count; i++) {
@@ -709,61 +693,6 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
   return PIPELINE_OK;
 }
 
-/// Update parameters for filters, mixers, and processors in the pipeline.
-void pipeline_update_parameters(pipeline_t* pipeline,
-                                const dsp_config_t* config,
-                                const char* const* filters,
-                                size_t filters_count, const char* const* mixers,
-                                size_t mixers_count,
-                                const char* const* processors,
-                                size_t processors_count) {
-  if (!pipeline || !config) return;
-  for (size_t i = 0; i < pipeline->steps_count; i++) {
-    pipeline_exec_step_t* step = &pipeline->steps[i];
-    switch (step->type) {
-      case EXEC_STEP_PARALLEL_FILTERS:
-        for (size_t c = 0; c < step->chains_count; c++) {
-          parallel_filter_chain_t* chain = &step->chains[c];
-          for (size_t j = 0; j < chain->filters_count; j++) {
-            filter_t* f = chain->filters[j];
-            if (f) {
-              const char* f_name = filter_get_name(f);
-              if (string_list_contains(filters, filters_count, f_name)) {
-                filter_config_t* f_cfg = dsp_config_get_filter(config, f_name);
-                if (f_cfg) {
-                  filter_update_parameters(f, f_cfg, pipeline->rate);
-                }
-              }
-            }
-          }
-        }
-        break;
-      case EXEC_STEP_MIXER: {
-        const char* m_name = audio_mixer_get_name(step->mixer);
-        if (step->mixer && m_name &&
-            string_list_contains(mixers, mixers_count, m_name)) {
-          mixer_config_t* m_cfg = dsp_config_get_mixer(config, m_name);
-          if (m_cfg) {
-            audio_mixer_update_parameters(step->mixer, m_cfg);
-          }
-        }
-        break;
-      }
-      case EXEC_STEP_PROCESSOR: {
-        const char* p_name = dsp_processor_get_name(step->processor);
-        if (step->processor && p_name &&
-            string_list_contains(processors, processors_count, p_name)) {
-          processor_config_t* p_cfg = dsp_config_get_processor(config, p_name);
-          if (p_cfg) {
-            dsp_processor_update_parameters(step->processor, p_cfg,
-                                            pipeline->rate);
-          }
-        }
-        break;
-      }
-    }
-  }
-}
 
 size_t pipeline_get_last_error_needed(const pipeline_t* pipeline) {
   return pipeline ? pipeline->last_error_needed : 0;

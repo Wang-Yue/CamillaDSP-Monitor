@@ -58,16 +58,6 @@ void lookahead_limiter_filter_process(lookahead_limiter_filter_t* filter,
                                       mutable_waveform_t waveform,
                                       size_t count);
 
-/**
- * @brief Update the lookahead limiter filter parameters dynamically.
- *
- * @param filter Pointer to the lookahead limiter filter instance.
- * @param config Pointer to the new filter configuration.
- * @param sample_rate The sample rate in Hz.
- */
-void lookahead_limiter_filter_update_parameters(
-    lookahead_limiter_filter_t* filter, const filter_config_t* config,
-    int sample_rate);
 
 /**
  * @brief Free the lookahead limiter filter instance.

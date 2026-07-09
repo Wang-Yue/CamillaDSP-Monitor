@@ -39,16 +39,6 @@ limiter_filter_t* limiter_filter_create(const char* name,
 void limiter_filter_process(limiter_filter_t* filter,
                             mutable_waveform_t waveform, size_t count);
 
-/**
- * @brief Update the limiter filter parameters dynamically.
- *
- * @param filter Pointer to the limiter filter instance.
- * @param config Pointer to the new filter configuration.
- * @param sample_rate The sample rate in Hz.
- */
-void limiter_filter_update_parameters(limiter_filter_t* filter,
-                                      const filter_config_t* config,
-                                      int sample_rate);
 
 /**
  * @brief Free the limiter filter instance.

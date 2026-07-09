@@ -76,19 +76,6 @@ final class RACEProcessor: Processor {
     }
   }
 
-  func updateParameters(_ config: ProcessorConfig, sampleRate: Int) {
-    guard case .race(let p) = config else { return }
-    self.channelA = min(p.channelA, p.channelB)
-    self.channelB = max(p.channelA, p.channelB)
-
-    let delayParams = Self.delayConfig(p, sampleRate: sampleRate)
-    self.delayA.updateParameters(.delay(delayParams), sampleRate: sampleRate)
-    self.delayB.updateParameters(.delay(delayParams), sampleRate: sampleRate)
-
-    let gainParams = Self.gainConfig(p)
-    self.gain.updateParameters(.gain(gainParams), sampleRate: sampleRate)
-  }
-
   func transferState(from src: Processor) {
     guard let srcRace = src as? RACEProcessor else { return }
     self.feedbackA = srcRace.feedbackA

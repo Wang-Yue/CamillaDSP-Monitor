@@ -171,55 +171,6 @@ void filter_process(filter_t* filter, mutable_waveform_t waveform,
   }
 }
 
-/// Update the filter parameters dynamically.
-void filter_update_parameters(filter_t* filter, const filter_config_t* config,
-                              int sample_rate) {
-  if (!filter || !config || !filter->instance) return;
-  switch (filter->type) {
-    case FILTER_INSTANCE_BIQUAD:
-      biquad_filter_update_parameters((biquad_filter_t*)filter->instance,
-                                      config, sample_rate);
-      break;
-    case FILTER_INSTANCE_BIQUAD_COMBO:
-      biquad_combo_filter_update_parameters(
-          (biquad_combo_filter_t*)filter->instance, config, sample_rate);
-      break;
-    case FILTER_INSTANCE_DELAY:
-      delay_filter_update_parameters((delay_filter_t*)filter->instance, config,
-                                     sample_rate);
-      break;
-    case FILTER_INSTANCE_DIFF_EQ:
-      diffeq_filter_update_parameters((diffeq_filter_t*)filter->instance,
-                                      config, sample_rate);
-      break;
-    case FILTER_INSTANCE_DITHER:
-      dither_filter_update_parameters((dither_filter_t*)filter->instance,
-                                      config, sample_rate);
-      break;
-    case FILTER_INSTANCE_GAIN:
-      gain_filter_update_parameters((gain_filter_t*)filter->instance, config,
-                                    sample_rate);
-      break;
-    case FILTER_INSTANCE_LIMITER:
-      limiter_filter_update_parameters((limiter_filter_t*)filter->instance,
-                                       config, sample_rate);
-      break;
-    case FILTER_INSTANCE_LOOKAHEAD_LIMITER:
-      lookahead_limiter_filter_update_parameters(
-          (lookahead_limiter_filter_t*)filter->instance, config, sample_rate);
-      break;
-    case FILTER_INSTANCE_LOUDNESS:
-      loudness_filter_update_parameters((loudness_filter_t*)filter->instance,
-                                        config, sample_rate);
-      break;
-    case FILTER_INSTANCE_VOLUME:
-      volume_filter_update_parameters((volume_filter_t*)filter->instance,
-                                      config, sample_rate);
-      break;
-    default:
-      break;
-  }
-}
 
 void filter_transfer_state(filter_t* dest, const filter_t* src) {
   if (!dest || !src) return;

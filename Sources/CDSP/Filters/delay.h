@@ -55,16 +55,6 @@ void delay_filter_process(delay_filter_t* filter, mutable_waveform_t waveform,
  */
 double delay_filter_process_single(delay_filter_t* filter, double sample);
 
-/**
- * @brief Update the delay filter parameters.
- *
- * @param filter The delay filter instance.
- * @param config The new filter configuration.
- * @param sample_rate The audio sample rate in Hz.
- */
-void delay_filter_update_parameters(delay_filter_t* filter,
-                                    const filter_config_t* config,
-                                    int sample_rate);
 
 /**
  * @brief Free the delay filter instance and its associated resources.

@@ -122,40 +122,6 @@ final class CompressorProcessor: Processor {
     }
   }
 
-  func updateParameters(_ config: ProcessorConfig, sampleRate: Int) {
-    guard case .compressor(let p) = config else { return }
-
-    var monitor = p.monitorChannelsArray()
-    if monitor.isEmpty {
-      monitor = Array(0..<p.channels)
-    }
-    self.monitorChannels = monitor
-
-    var process = p.processChannelsArray()
-    if process.isEmpty {
-      process = Array(0..<p.channels)
-    }
-    self.processChannels = process
-
-    let srate = Double(sampleRate)
-    self.attack = exp(-1.0 / srate / p.attack)
-    self.release = exp(-1.0 / srate / p.release)
-    self.threshold = p.threshold
-    self.factor = p.factor
-    self.makeupGain = p.makeupGainValue()
-
-    if let limit = p.clipLimit {
-      let limitParams = LimiterParameters(clipLimit: limit, softClip: p.softClipValue())
-      if let existingLimiter = self.limiter {
-        existingLimiter.updateParameters(.limiter(limitParams), sampleRate: sampleRate)
-      } else {
-        self.limiter = LimiterFilter(parameters: limitParams)
-      }
-    } else {
-      self.limiter = nil
-    }
-  }
-
   func transferState(from src: Processor) {
     guard let srcComp = src as? CompressorProcessor else { return }
     self.prevLoudness = srcComp.prevLoudness

@@ -243,42 +243,4 @@ TEST(VolumeLimit) {
   processing_parameters_free(proc_params);
 }
 
-TEST(VolumeUpdateParametersClampsToLimit) {
-  processing_parameters_t* proc_params = processing_parameters_create(2, 2);
-  processing_parameters_set_target_volume_for_fader(proc_params, 20.0,
-                                                    FADER_MAIN);
-  volume_parameters_t params = {.ramp_time = 0.0,
-                                .has_ramp_time = true,
-                                .limit = 50.0,
-                                .has_limit = true,
-                                .fader = FADER_MAIN};
-  volume_filter_t* filter =
-      volume_filter_create("volume", &params, 44100, 4, proc_params);
-  ASSERT_TRUE(filter != NULL);
-
-  double wave1[] = {1.0, 1.0, 1.0, 1.0};
-  process_vol(filter, wave1, 4);
-
-  filter_config_t cfg;
-  cfg.type = FILTER_TYPE_VOLUME;
-  cfg.parameters.volume.ramp_time = 0.0;
-  cfg.parameters.volume.has_ramp_time = true;
-  cfg.parameters.volume.limit = 10.0;
-  cfg.parameters.volume.has_limit = true;
-  cfg.parameters.volume.fader = FADER_MAIN;
-  volume_filter_update_parameters(filter, &cfg, 44100);
-
-  processing_parameters_set_target_volume_for_fader(proc_params, 10.0,
-                                                    FADER_MAIN);
-  double wave2[] = {1.0, 1.0, 1.0, 1.0};
-  process_vol(filter, wave2, 4);
-
-  double expected_gain = double_from_db(10.0);
-  for (size_t i = 0; i < 4; i++) {
-    ASSERT_NEAR(expected_gain, wave2[i], 1e-6);
-  }
-  volume_filter_free(filter);
-  processing_parameters_free(proc_params);
-}
-
 TEST_MAIN()

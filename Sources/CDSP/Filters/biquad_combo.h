@@ -75,16 +75,6 @@ biquad_combo_filter_t* biquad_combo_filter_create(
 void biquad_combo_filter_process(biquad_combo_filter_t* filter,
                                  mutable_waveform_t waveform, size_t count);
 
-/**
- * @brief Updates the filter parameters from a new configuration.
- *
- * @param filter The filter instance.
- * @param config The new filter configuration.
- * @param sample_rate The sample rate in Hz.
- */
-void biquad_combo_filter_update_parameters(biquad_combo_filter_t* filter,
-                                           const filter_config_t* config,
-                                           int sample_rate);
 
 /**
  * @brief Transfers history state of nested biquad sections from src to dest.

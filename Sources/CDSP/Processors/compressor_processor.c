@@ -238,58 +238,6 @@ void compressor_processor_process(compressor_processor_t* processor,
   }
 }
 
-void compressor_processor_update_parameters(compressor_processor_t* processor,
-                                            const processor_config_t* config,
-                                            int sample_rate) {
-  if (!processor || !config || sample_rate <= 0) return;
-  if (config->type != PROCESSOR_TYPE_COMPRESSOR) return;
-  const compressor_parameters_t* params = &config->parameters.compressor;
-
-  if (params->monitor_channels_count > 0 && params->monitor_channels) {
-    free(processor->monitor_channels);
-    processor->monitor_channels_count = params->monitor_channels_count;
-    processor->monitor_channels =
-        (int*)calloc(processor->monitor_channels_count, sizeof(int));
-    memcpy(processor->monitor_channels, params->monitor_channels,
-           processor->monitor_channels_count * sizeof(int));
-  }
-  if (params->process_channels_count > 0 && params->process_channels) {
-    free(processor->process_channels);
-    processor->process_channels_count = params->process_channels_count;
-    processor->process_channels =
-        (int*)calloc(processor->process_channels_count, sizeof(int));
-    memcpy(processor->process_channels, params->process_channels,
-           processor->process_channels_count * sizeof(int));
-  }
-
-  double srate = (double)sample_rate;
-  processor->attack = exp(-1.0 / srate / params->attack);
-  processor->release = exp(-1.0 / srate / params->release);
-  processor->threshold = params->threshold;
-  processor->factor = params->factor;
-  processor->makeup_gain = params->has_makeup_gain ? params->makeup_gain : 0.0;
-
-  if (params->has_clip_limit) {
-    limiter_parameters_t limit_params = {0};
-    limit_params.clip_limit = params->clip_limit;
-    limit_params.soft_clip = params->soft_clip;
-    if (processor->limiter) {
-      filter_config_t fconfig = {0};
-      fconfig.type = FILTER_TYPE_LIMITER;
-      fconfig.parameters.limiter = limit_params;
-      limiter_filter_update_parameters(processor->limiter, &fconfig,
-                                       sample_rate);
-    } else {
-      processor->limiter = limiter_filter_create("limiter", &limit_params);
-    }
-  } else {
-    if (processor->limiter) {
-      limiter_filter_free(processor->limiter);
-      processor->limiter = NULL;
-    }
-  }
-}
-
 void compressor_processor_transfer_state(compressor_processor_t* dest,
                                          const compressor_processor_t* src) {
   if (!dest || !src) return;

@@ -69,17 +69,6 @@ void limiter_filter_process(limiter_filter_t* filter,
   }
 }
 
-void limiter_filter_update_parameters(limiter_filter_t* filter,
-                                      const filter_config_t* config,
-                                      int sample_rate) {
-  (void)sample_rate;
-  if (!filter || !config) return;
-  if (config->type != FILTER_TYPE_LIMITER) return;
-  const limiter_parameters_t* params = &config->parameters.limiter;
-  filter->clip_limit = double_from_db(params->clip_limit);
-  filter->soft_clip = params->soft_clip;
-}
-
 void limiter_filter_free(limiter_filter_t* filter) {
   if (filter) free(filter);
 }

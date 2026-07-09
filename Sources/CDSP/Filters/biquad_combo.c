@@ -234,27 +234,6 @@ void biquad_combo_filter_process(biquad_combo_filter_t* filter,
   }
 }
 
-void biquad_combo_filter_update_parameters(biquad_combo_filter_t* filter,
-                                           const filter_config_t* config,
-                                           int sample_rate) {
-  if (!filter || !config) return;
-  if (config->type != FILTER_TYPE_BIQUAD_COMBO) return;
-  for (size_t i = 0; i < filter->num_sections; i++) {
-    if (filter->sections[i]) biquad_filter_free(filter->sections[i]);
-  }
-  free(filter->sections);
-  biquad_combo_filter_t* tmp = biquad_combo_filter_create(
-      filter->name, &config->parameters.biquad_combo, sample_rate);
-  if (tmp) {
-    filter->sections = tmp->sections;
-    filter->num_sections = tmp->num_sections;
-    free(tmp);
-  } else {
-    filter->sections = NULL;
-    filter->num_sections = 0;
-  }
-}
-
 void biquad_combo_filter_transfer_state(biquad_combo_filter_t* dest,
                                         const biquad_combo_filter_t* src) {
   if (!dest || !src) return;

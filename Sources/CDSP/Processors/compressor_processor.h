@@ -96,19 +96,6 @@ void compressor_processor_free(compressor_processor_t* processor);
 void compressor_processor_process(compressor_processor_t* processor,
                                   audio_chunk_t* chunk);
 
-/**
- * @brief Updates compressor parameters dynamically.
- *
- * Re-computes attack/release smoothing coefficients and updates limiter
- * settings.
- *
- * @param processor Pointer to compressor processor.
- * @param config New processor configuration.
- * @param sample_rate Audio sample rate in Hz.
- */
-void compressor_processor_update_parameters(compressor_processor_t* processor,
-                                            const processor_config_t* config,
-                                            int sample_rate);
 
 /**
  * @brief Transfers running envelope loudness state from src to dest.

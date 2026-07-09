@@ -156,16 +156,6 @@ void loudness_filter_process(loudness_filter_t* filter,
   }
 }
 
-void loudness_filter_update_parameters(loudness_filter_t* filter,
-                                       const filter_config_t* config,
-                                       int sample_rate) {
-  (void)sample_rate;
-  if (!filter || !config) return;
-  if (config->type != FILTER_TYPE_LOUDNESS) return;
-  filter->params = config->parameters.loudness;
-  filter->is_processing_active = false;
-}
-
 void loudness_filter_transfer_state(loudness_filter_t* dest,
                                     const loudness_filter_t* src) {
   if (!dest || !src) return;

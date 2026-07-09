@@ -100,28 +100,6 @@ final class NoiseGateProcessor: Processor {
     }
   }
 
-  func updateParameters(_ config: ProcessorConfig, sampleRate: Int) {
-    guard case .noiseGate(let p) = config else { return }
-
-    var monitor = p.monitorChannelsArray()
-    if monitor.isEmpty {
-      monitor = Array(0..<p.channels)
-    }
-    self.monitorChannels = monitor
-
-    var process = p.processChannelsArray()
-    if process.isEmpty {
-      process = Array(0..<p.channels)
-    }
-    self.processChannels = process
-
-    let srate = Double(sampleRate)
-    self.attack = exp(-1.0 / srate / p.attack)
-    self.release = exp(-1.0 / srate / p.release)
-    self.threshold = p.threshold
-    self.factor = Double.fromDB(-p.attenuation)
-  }
-
   func transferState(from src: Processor) {
     guard let srcGate = src as? NoiseGateProcessor else { return }
     self.prevLoudness = srcGate.prevLoudness

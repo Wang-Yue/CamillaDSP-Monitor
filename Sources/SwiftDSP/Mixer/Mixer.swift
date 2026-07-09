@@ -111,33 +111,4 @@ final class AudioMixer {
     }
     output.validFrames = frames
   }
-
-  func updateParameters(_ config: MixerConfig) {
-    self.mapping = [[PreparedSource]](repeating: [], count: config.channelsOut)
-
-    for map in config.mapping {
-      let dest = map.dest
-      guard dest < config.channelsOut else { continue }
-
-      if map.mute == true {
-        continue
-      }
-
-      var sources: [PreparedSource] = []
-      for src in map.sources {
-        if src.mute == true { continue }
-
-        let gain = src.gainValue
-        let isLinear = src.scale == .linear
-        var linGain = isLinear ? gain : Double.fromDB(gain)
-
-        if src.inverted == true {
-          linGain *= -1.0
-        }
-
-        sources.append(PreparedSource(inChannel: src.channel, gain: linGain))
-      }
-      self.mapping[dest] = sources
-    }
-  }
 }

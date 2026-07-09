@@ -78,42 +78,4 @@ final class DiffEqFilter: Filter {
       wBase[i] = out
     }
   }
-
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .diffEq(let params) = config else { return }
-    var aCoeffs = params.a ?? [1.0]
-    var bCoeffs = params.b ?? [1.0]
-    if aCoeffs.isEmpty { aCoeffs = [1.0] }
-    if bCoeffs.isEmpty { bCoeffs = [1.0] }
-
-    UnsafeMutablePointer(mutating: self.a).deallocate()
-    UnsafeMutablePointer(mutating: self.b).deallocate()
-
-    let oldACount = self.aCount
-    let oldBCount = self.bCount
-
-    self.aCount = aCoeffs.count
-    self.bCount = bCoeffs.count
-
-    let aPtr = UnsafeMutablePointer<Double>.allocate(capacity: aCoeffs.count)
-    aPtr.initialize(from: aCoeffs, count: aCoeffs.count)
-    self.a = UnsafePointer(aPtr)
-
-    let bPtr = UnsafeMutablePointer<Double>.allocate(capacity: bCoeffs.count)
-    bPtr.initialize(from: bCoeffs, count: bCoeffs.count)
-    self.b = UnsafePointer(bPtr)
-
-    if oldBCount != bCoeffs.count {
-      self.x.deallocate()
-      self.x = .allocate(capacity: bCoeffs.count)
-      self.x.initialize(repeating: 0.0, count: bCoeffs.count)
-      self.idxX = 0
-    }
-    if oldACount != aCoeffs.count {
-      self.y.deallocate()
-      self.y = .allocate(capacity: aCoeffs.count)
-      self.y.initialize(repeating: 0.0, count: aCoeffs.count)
-      self.idxY = 0
-    }
-  }
 }

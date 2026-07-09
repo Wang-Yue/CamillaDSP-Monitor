@@ -109,17 +109,6 @@ mixer_error_t audio_mixer_process(audio_mixer_t* mixer,
 audio_chunk_t* audio_mixer_process_chunk(audio_mixer_t* mixer,
                                          const audio_chunk_t* input);
 
-/**
- * @brief Updates mixer routing parameters dynamically.
- *
- * Re-evaluates the mapping matrix from the configuration and updates internal
- * prepared sources.
- *
- * @param mixer Pointer to audio mixer instance.
- * @param config New mixer configuration.
- */
-void audio_mixer_update_parameters(audio_mixer_t* mixer,
-                                   const mixer_config_t* config);
 
 /**
  * @brief Frees all resources associated with the audio mixer.

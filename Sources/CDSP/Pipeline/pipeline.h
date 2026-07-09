@@ -61,25 +61,6 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
                                   const audio_chunk_t* input,
                                   audio_chunk_t* output);
 
-/**
- * @brief Update parameters for filters, mixers, and processors in the pipeline.
- *
- * @param[in,out] pipeline The pipeline instance.
- * @param[in] config The new DSP configuration containing updated parameters.
- * @param[in] filters Array of filter names to update.
- * @param[in] filters_count Number of filters in the array.
- * @param[in] mixers Array of mixer names to update.
- * @param[in] mixers_count Number of mixers in the array.
- * @param[in] processors Array of processor names to update.
- * @param[in] processors_count Number of processors in the array.
- */
-void pipeline_update_parameters(pipeline_t* pipeline,
-                                const dsp_config_t* config,
-                                const char* const* filters,
-                                size_t filters_count, const char* const* mixers,
-                                size_t mixers_count,
-                                const char* const* processors,
-                                size_t processors_count);
 
 /**
  * @brief Transfers all stateful filter/processor history variables from src to dest pipeline.

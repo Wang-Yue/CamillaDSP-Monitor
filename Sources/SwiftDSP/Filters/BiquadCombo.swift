@@ -18,13 +18,6 @@ final class BiquadComboFilter: Filter {
     }
   }
 
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .biquadCombo(let params) = config else { return }
-    if let newSections = try? Self.buildSections(params: params, sampleRate: sampleRate) {
-      self.sections = newSections
-    }
-  }
-
   private static func buildSections(params: BiquadComboParameters, sampleRate: Int) throws
     -> [BiquadFilter]
   {

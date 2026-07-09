@@ -69,16 +69,6 @@ void volume_filter_process(volume_filter_t* filter, mutable_waveform_t waveform,
  */
 void volume_filter_advance_ramp(volume_filter_t* filter);
 
-/**
- * @brief Updates the volume filter parameters dynamically.
- *
- * @param filter Pointer to the volume filter instance to update.
- * @param config Pointer to the new filter configuration.
- * @param sample_rate The current sample rate.
- */
-void volume_filter_update_parameters(volume_filter_t* filter,
-                                     const filter_config_t* config,
-                                     int sample_rate);
 
 /**
  * @brief Transfers current volume, fader target level, and ramp state from src to dest.

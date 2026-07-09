@@ -464,47 +464,4 @@ final class ConvolutionFilter: Filter {
     }
   }
 
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .conv(let params) = config else { return }
-    guard let coeffs = try? params.loadCoefficients(sampleRate: sampleRate), !coeffs.isEmpty else {
-      return
-    }
-
-    let ns = (coeffs.count + chunkSize - 1) / chunkSize
-
-    if ns != self.nsegments {
-      let oldHistCount = self.nsegments * bins
-      coeffsFRe.deinitialize(count: oldHistCount)
-      coeffsFIm.deinitialize(count: oldHistCount)
-      inputFRe.deinitialize(count: oldHistCount)
-      inputFIm.deinitialize(count: oldHistCount)
-
-      coeffsFRe.deallocate()
-      coeffsFIm.deallocate()
-      inputFRe.deallocate()
-      inputFIm.deallocate()
-
-      self.nsegments = ns
-      let newHistCount = ns * bins
-      coeffsFRe = .allocate(capacity: newHistCount)
-      coeffsFIm = .allocate(capacity: newHistCount)
-      inputFRe = .allocate(capacity: newHistCount)
-      inputFIm = .allocate(capacity: newHistCount)
-
-      coeffsFRe.initialize(repeating: 0, count: newHistCount)
-      coeffsFIm.initialize(repeating: 0, count: newHistCount)
-      inputFRe.initialize(repeating: 0, count: newHistCount)
-      inputFIm.initialize(repeating: 0, count: newHistCount)
-      self.index = 0
-    }
-
-    Self.fftCoefficients(
-      coeffs,
-      chunkSize: chunkSize,
-      nsegments: ns,
-      fft: self.fft,
-      coeffsFRe: self.coeffsFRe,
-      coeffsFIm: self.coeffsFIm
-    )
-  }
 }

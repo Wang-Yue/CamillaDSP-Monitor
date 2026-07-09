@@ -48,16 +48,6 @@ loudness_filter_t* loudness_filter_create(const char* name,
 void loudness_filter_process(loudness_filter_t* filter,
                              mutable_waveform_t waveform, size_t count);
 
-/**
- * @brief Updates the loudness filter parameters dynamically.
- *
- * @param filter Pointer to the loudness filter instance to update.
- * @param config Pointer to the new filter configuration.
- * @param sample_rate The current sample rate.
- */
-void loudness_filter_update_parameters(loudness_filter_t* filter,
-                                       const filter_config_t* config,
-                                       int sample_rate);
 
 /**
  * @brief Transfers nested shelf filter states and last volume level from src to dest.

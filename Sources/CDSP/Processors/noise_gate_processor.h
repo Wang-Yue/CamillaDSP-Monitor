@@ -86,18 +86,6 @@ void noise_gate_processor_free(noise_gate_processor_t* processor);
 void noise_gate_processor_process(noise_gate_processor_t* processor,
                                   audio_chunk_t* chunk);
 
-/**
- * @brief Updates noise gate parameters dynamically.
- *
- * Re-computes attack/release smoothing coefficients and attenuation factor.
- *
- * @param processor Pointer to noise gate processor.
- * @param config New processor configuration.
- * @param sample_rate Audio sample rate in Hz.
- */
-void noise_gate_processor_update_parameters(noise_gate_processor_t* processor,
-                                            const processor_config_t* config,
-                                            int sample_rate);
 
 /**
  * @brief Transfers running envelope loudness state from src to dest.

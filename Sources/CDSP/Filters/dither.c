@@ -376,30 +376,6 @@ void dither_filter_process(dither_filter_t* filter, mutable_waveform_t waveform,
   }
 }
 
-void dither_filter_update_parameters(dither_filter_t* filter,
-                                     const filter_config_t* config,
-                                     int sample_rate) {
-  (void)sample_rate;
-  if (!filter || !config) return;
-  if (config->type != FILTER_TYPE_DITHER) return;
-  const dither_parameters_t* params = &config->parameters.dither;
-
-  filter->scalefact = pow(2.0, (double)(params->bits - 1));
-  filter->type = params->type;
-  if (params->type == DITHER_TYPE_FLAT) {
-    filter->amplitude = params->has_amplitude ? params->amplitude : 2.0;
-  } else if (params->type == DITHER_TYPE_HIGHPASS) {
-    filter->amplitude = 2.0;
-  } else {
-    filter->amplitude = 0.0;
-  }
-
-  if (filter->shaper) {
-    noise_shaper_free(filter->shaper);
-  }
-  filter->shaper = noise_shaper_create_for_type(params->type);
-}
-
 void dither_filter_free(dither_filter_t* filter) {
   if (!filter) return;
   if (filter->shaper) noise_shaper_free(filter->shaper);

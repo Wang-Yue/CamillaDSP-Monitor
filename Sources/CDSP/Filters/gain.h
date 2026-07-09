@@ -48,16 +48,6 @@ void gain_filter_process(gain_filter_t* filter, mutable_waveform_t waveform,
  */
 double gain_filter_process_single(gain_filter_t* filter, double sample);
 
-/**
- * @brief Update the gain filter parameters dynamically.
- *
- * @param filter Pointer to the gain filter instance.
- * @param config Pointer to the new filter configuration.
- * @param sample_rate The sample rate in Hz.
- */
-void gain_filter_update_parameters(gain_filter_t* filter,
-                                   const filter_config_t* config,
-                                   int sample_rate);
 
 /**
  * @brief Free the gain filter instance.

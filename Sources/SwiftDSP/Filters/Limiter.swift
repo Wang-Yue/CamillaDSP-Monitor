@@ -30,9 +30,4 @@ final class LimiterFilter: Filter {
       vDSP_vclipD(base, 1, &lowLimit, &highLimit, base, 1, vDSP_Length(waveform.count))
     }
   }
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .limiter(let params) = config else { return }
-    self.clipLimit = Double.fromDB(params.clipLimit)
-    self.softClip = params.softClip ?? false
-  }
 }

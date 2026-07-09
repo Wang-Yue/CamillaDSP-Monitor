@@ -191,43 +191,6 @@ double delay_filter_process_single(delay_filter_t* filter, double sample) {
   return out;
 }
 
-void delay_filter_update_parameters(delay_filter_t* filter,
-                                    const filter_config_t* config,
-                                    int sample_rate) {
-  if (!filter || !config) return;
-  if (config->type != FILTER_TYPE_DELAY) return;
-  const delay_parameters_t* params = &config->parameters.delay;
-
-  double delay_samples =
-      compute_delay_samples(params->delay, params->unit, sample_rate);
-  int integer_delay = 0;
-  biquad_coefficients_t coeffs;
-  bool has_coeffs = false;
-  build_delay(delay_samples, params->subsample, &integer_delay, &coeffs,
-              &has_coeffs);
-
-  if (filter->queue) {
-    free(filter->queue);
-  }
-  if (integer_delay > 0) {
-    filter->queue = (double*)calloc(integer_delay, sizeof(double));
-    filter->queue_count = integer_delay;
-  } else {
-    filter->queue = NULL;
-    filter->queue_count = 0;
-  }
-  filter->read_index = 0;
-
-  if (filter->biquad) {
-    biquad_filter_free(filter->biquad);
-  }
-  if (has_coeffs) {
-    filter->biquad = biquad_filter_create("delay_biquad", &coeffs);
-  } else {
-    filter->biquad = NULL;
-  }
-}
-
 void delay_filter_free(delay_filter_t* filter) {
   if (!filter) return;
   if (filter->queue) free(filter->queue);

@@ -152,21 +152,6 @@ final class VolumeFilter: Filter {
     }
   }
 
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .volume(let parameters) = config else { return }
-    fader = parameters.fader ?? .main
-    let rampTimeMs = parameters.rampTime ?? 400.0
-    volumeLimit = parameters.limit ?? 50.0
-
-    ramptimeInChunks = Int(
-      (rampTimeMs / (1000.0 * Double(chunkSize) / Double(sampleRate))).rounded())
-    staleRampThresholdNs = UInt64(1_500_000_000) * UInt64(chunkSize) / UInt64(sampleRate)
-
-    if volumeLimit < currentVolume {
-      currentVolume = volumeLimit
-    }
-  }
-
   func transferState(from src: Filter) {
     guard let srcVol = src as? VolumeFilter else { return }
     self.currentVolume = srcVol.currentVolume

@@ -191,20 +191,6 @@ audio_chunk_t* audio_mixer_process_chunk(audio_mixer_t* mixer,
   return output;
 }
 
-void audio_mixer_update_parameters(audio_mixer_t* mixer,
-                                   const mixer_config_t* config) {
-  if (!mixer || !config) return;
-  // Free existing mapping source arrays before re-populating from new config
-  for (size_t i = 0; i < mixer->channels_out; i++) {
-    if (mixer->mapping[i].sources) {
-      free(mixer->mapping[i].sources);
-      mixer->mapping[i].sources = NULL;
-    }
-    mixer->mapping[i].count = 0;
-  }
-  populate_mapping(mixer, config);
-}
-
 void audio_mixer_free(audio_mixer_t* mixer) {
   if (!mixer) return;
   if (mixer->name) free(mixer->name);

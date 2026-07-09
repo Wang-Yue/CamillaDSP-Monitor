@@ -9,9 +9,6 @@ protocol Processor: AnyObject {
   /// Apply the processor to all channels of `chunk` in place.
   func process(chunk: inout AudioChunk) throws
 
-  /// Update the processor parameters dynamically.
-  func updateParameters(_ config: ProcessorConfig, sampleRate: Int)
-
   /// Transfer history state from another processor of the same type.
   func transferState(from src: Processor)
 }

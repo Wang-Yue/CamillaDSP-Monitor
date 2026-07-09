@@ -232,24 +232,4 @@ import Testing
       #expect(abs(sample - expectedGain) <= 1e-6)
     }
   }
-
-  /// updateParameters clamps volume
-  @Test func VolumeUpdateParametersClampsToLimit() throws {
-    let (filter, params) = makeVolumeFilter(rampTimeMs: 0.0, limit: 50.0, currentVolume: 20.0)
-
-    var wave1: [Double] = [1.0, 1.0, 1.0, 1.0]
-    process(filter, &wave1)
-
-    let newParams = VolumeParameters(rampTime: 0.0, limit: 10.0)
-    filter.updateParameters(.volume(newParams), sampleRate: 44100)
-
-    params.setTargetVolume(10.0, for: .main)
-    var wave2: [Double] = [1.0, 1.0, 1.0, 1.0]
-    process(filter, &wave2)
-
-    let expectedGain = Double.fromDB(10.0)
-    for sample in wave2 {
-      #expect(abs(sample - expectedGain) <= 1e-6)
-    }
-  }
 }

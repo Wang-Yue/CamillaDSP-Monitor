@@ -74,15 +74,6 @@ filter_t* filter_create(const char* name, const filter_config_t* config,
 void filter_process(filter_t* filter, mutable_waveform_t waveform,
                     size_t count);
 
-/**
- * @brief Update the filter parameters dynamically.
- *
- * @param filter Pointer to the filter instance.
- * @param config Pointer to the new filter configuration.
- * @param sample_rate The sample rate in Hz.
- */
-void filter_update_parameters(filter_t* filter, const filter_config_t* config,
-                              int sample_rate);
 
 /**
  * @brief Transfers history state from src to dest generic filter wrapper.

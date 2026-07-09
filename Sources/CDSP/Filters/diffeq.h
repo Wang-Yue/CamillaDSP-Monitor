@@ -41,16 +41,6 @@ diffeq_filter_t* diffeq_filter_create(const char* name,
 void diffeq_filter_process(diffeq_filter_t* filter, mutable_waveform_t waveform,
                            size_t count);
 
-/**
- * @brief Update the difference equation filter parameters.
- *
- * @param filter The difference equation filter instance.
- * @param config The new filter configuration.
- * @param sample_rate The audio sample rate in Hz.
- */
-void diffeq_filter_update_parameters(diffeq_filter_t* filter,
-                                     const filter_config_t* config,
-                                     int sample_rate);
 
 /**
  * @brief Free the difference equation filter instance and its associated

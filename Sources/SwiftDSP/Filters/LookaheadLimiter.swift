@@ -165,17 +165,4 @@ final class LookaheadLimiterFilter: Filter {
     // Output
     waveBase.update(from: outputBuffer, count: len)
   }
-
-  func updateParameters(_ config: FilterConfig, sampleRate: Int) {
-    guard case .lookaheadLimiter(let params) = config else { return }
-    let (limit, attackSamples, releaseCoeff) = Self.configure(
-      params: params, sampleRate: sampleRate)
-    self.limit = limit
-    self.attackSamples = attackSamples
-    self.releaseCoeff = releaseCoeff
-
-    for _ in 0..<attackSamples {
-      pushOverwrite(0.0)
-    }
-  }
 }

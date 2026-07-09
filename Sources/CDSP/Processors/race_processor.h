@@ -103,19 +103,6 @@ void race_processor_free(race_processor_t* processor);
  */
 void race_processor_process(race_processor_t* processor, audio_chunk_t* chunk);
 
-/**
- * @brief Updates RACE parameters dynamically.
- *
- * Re-computes compensated delay time and attenuation gain without reallocating
- * delay buffers.
- *
- * @param processor Pointer to RACE processor.
- * @param config New processor configuration.
- * @param sample_rate Audio sample rate in Hz.
- */
-void race_processor_update_parameters(race_processor_t* processor,
-                                      const processor_config_t* config,
-                                      int sample_rate);
 
 /**
  * @brief Transfers recursive feedback loop registers from src to dest.

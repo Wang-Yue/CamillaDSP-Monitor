@@ -257,28 +257,6 @@ void lookahead_limiter_filter_process(lookahead_limiter_filter_t* filter,
   }
 }
 
-void lookahead_limiter_filter_update_parameters(
-    lookahead_limiter_filter_t* filter, const filter_config_t* config,
-    int sample_rate) {
-  if (!filter || !config) return;
-  if (config->type != FILTER_TYPE_LOOKAHEAD_LIMITER) return;
-  const lookahead_limiter_parameters_t* params =
-      &config->parameters.lookahead_limiter;
-
-  double limit;
-  int attack_samples;
-  double release_coeff;
-  configure(params, sample_rate, &limit, &attack_samples, &release_coeff);
-
-  filter->limit = limit;
-  filter->attack_samples = attack_samples;
-  filter->release_coeff = release_coeff;
-
-  for (int i = 0; i < attack_samples; i++) {
-    push_overwrite(filter, 0.0);
-  }
-}
-
 void lookahead_limiter_filter_free(lookahead_limiter_filter_t* filter) {
   if (!filter) return;
   if (filter->lookahead_data) free(filter->lookahead_data);
