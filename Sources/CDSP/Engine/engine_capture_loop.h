@@ -70,7 +70,8 @@ engine_capture_loop_t* engine_capture_loop_create(
     processing_parameters_t* processing_params, dop_decoder_t* dop_decoder,
     round_robin_chunk_pool_t* chunk_pool, size_t chunk_size, size_t channels,
     size_t samplerate, double silence_threshold_db,
-    double silence_timeout_seconds);
+    double silence_timeout_seconds, bool stop_on_rate_change,
+    double rate_measure_interval);
 
 /**
  * @brief Frees the engine capture loop instance.

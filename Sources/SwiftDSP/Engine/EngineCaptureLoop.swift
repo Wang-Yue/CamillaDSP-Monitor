@@ -64,6 +64,8 @@ final class EngineCaptureLoop: @unchecked Sendable {
     samplerate: Int,
     silenceThresholdDb: Double,
     silenceTimeoutSeconds: Double,
+    stopOnRateChange: Bool,
+    rateMeasureInterval: Double,
     onStop: @escaping (ProcessingStopReason) -> Void
   ) {
     self.shared = shared
@@ -82,16 +84,23 @@ final class EngineCaptureLoop: @unchecked Sendable {
       samplerate: samplerate,
       chunksize: chunkSize
     )
+    self.rateWatcher = SampleRateWatcher(
+      targetRate: Double(samplerate),
+      measureIntervalSeconds: rateMeasureInterval,
+      stopOnRateChange: stopOnRateChange
+    )
   }
 
   // Loop-private state.
   private var silenceCounter: SilenceCounter
   private var watchdog = StallWatchdog(timeoutSeconds: 0.5)
+  private var rateWatcher: SampleRateWatcher
 
   func run() {
     logger.info("Capture thread started")
     setRealtimeThreadPriority(name: "Capture", bufferFrames: chunkSize, sampleRate: samplerate)
 
+    rateWatcher.reset()
     var chunkPool = RoundRobinChunkPool(
       capacity: shared.capturedQueue.capacity + 4,
       frames: chunkSize,
@@ -99,6 +108,10 @@ final class EngineCaptureLoop: @unchecked Sendable {
     )
 
     while !shared.shouldStop.load(ordering: .acquiring) {
+      if stateMachine.state == .paused {
+        rateWatcher.reset()
+      }
+
       // Surface a HAL-level sample-rate change before doing any
       // more work. A user (or another app) flipping the device
       // rate in Audio MIDI Setup invalidates the AudioUnit's
@@ -129,6 +142,18 @@ final class EngineCaptureLoop: @unchecked Sendable {
           continue
         }
         watchdog.onSuccessfulRead { logger.info("Capture recovered from stall") }
+
+        // Increment captured frames and check sample rate drift.
+        if let measuredRate = rateWatcher.tick(frames: chunkSize) {
+          logger.warning(
+            "Sample rate change detected (measured: %f Hz, expected: %d Hz); stopping engine",
+            .double(measuredRate), .int(samplerate)
+          )
+          if rateWatcher.stopOnRateChange {
+            onStop(.captureFormatChange(Int(measuredRate.rounded())))
+            return
+          }
+        }
 
         // Decode DoP in place before computing capture levels so the
         // monitoring meters reflect the actual decoded audio rather
@@ -284,5 +309,67 @@ struct StallWatchdog {
   mutating func reset() {
     lastSuccessNs = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
     triggered = false
+  }
+}
+
+// MARK: - SampleRateWatcher
+
+/// Monitors the actual capture rate by counting incoming sample frames
+/// over a rolling time window. If the measured rate deviates significantly
+/// from the expected target rate, it flags a rate change.
+struct SampleRateWatcher {
+  let stopOnRateChange: Bool
+  private let targetRate: Double
+  private let measureIntervalSeconds: Double
+  private let tolerance: Double = 0.04
+  private let consecLimit: Int = 3
+
+  private var capturedFrames: Int = 0
+  private var lastResetNs: UInt64 = 0
+  private var deviationCount: Int = 0
+
+  init(targetRate: Double, measureIntervalSeconds: Double, stopOnRateChange: Bool) {
+    self.targetRate = targetRate
+    self.measureIntervalSeconds = measureIntervalSeconds
+    self.stopOnRateChange = stopOnRateChange
+  }
+
+  /// Reset the rate watcher stats (e.g. when unpausing or starting).
+  mutating func reset() {
+    capturedFrames = 0
+    lastResetNs = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+    deviationCount = 0
+  }
+
+  /// Record a successfully read chunk of size `frames`.
+  /// Returns `measuredRate` (Double) if the measurement interval expired and a rate change was detected,
+  /// otherwise returns `nil`.
+  mutating func tick(frames: Int) -> Double? {
+    if lastResetNs == 0 {
+      lastResetNs = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+    }
+    capturedFrames += frames
+    let now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+    let elapsed = Double(now &- lastResetNs) / 1_000_000_000.0
+
+    guard elapsed >= measureIntervalSeconds else { return nil }
+
+    let measuredRate = Double(capturedFrames) / elapsed
+    capturedFrames = 0
+    lastResetNs = now
+
+    let minVal = targetRate / (1.0 + tolerance)
+    let maxVal = targetRate * (1.0 + tolerance)
+
+    if measuredRate < minVal || measuredRate > maxVal {
+      deviationCount += 1
+    } else {
+      deviationCount = 0
+    }
+
+    if deviationCount >= consecLimit {
+      return measuredRate
+    }
+    return nil
   }
 }

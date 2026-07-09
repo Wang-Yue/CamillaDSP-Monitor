@@ -22,6 +22,7 @@
 #include <stdio.h>
 
 #include "Audio/silence_counter.h"
+#include "sample_rate_watcher.h"
 
 struct engine_capture_loop {
   engine_shared_state_t* shared;
@@ -45,6 +46,8 @@ struct engine_capture_loop {
   uint64_t watchdog_last_success_ns;
   bool watchdog_triggered;
   double watchdog_timeout_seconds;
+
+  sample_rate_watcher_t* rate_watcher;
 };
 #include <stdlib.h>
 #include <time.h>
@@ -76,7 +79,8 @@ engine_capture_loop_t* engine_capture_loop_create(
     processing_parameters_t* processing_params, dop_decoder_t* dop_decoder,
     round_robin_chunk_pool_t* chunk_pool, size_t chunk_size, size_t channels,
     size_t samplerate, double silence_threshold_db,
-    double silence_timeout_seconds) {
+    double silence_timeout_seconds, bool stop_on_rate_change,
+    double rate_measure_interval) {
   engine_capture_loop_t* loop =
       (engine_capture_loop_t*)calloc(1, sizeof(engine_capture_loop_t));
   if (!loop) return NULL;
@@ -91,9 +95,20 @@ engine_capture_loop_t* engine_capture_loop_create(
   loop->chunk_size = chunk_size;
   loop->channels = channels;
   loop->samplerate = samplerate;
-
   loop->silence_counter = silence_counter_create(
       silence_threshold_db, silence_timeout_seconds, samplerate, chunk_size);
+  if (!loop->silence_counter) {
+    free(loop);
+    return NULL;
+  }
+
+  loop->rate_watcher = sample_rate_watcher_create((double)samplerate, rate_measure_interval, stop_on_rate_change);
+  if (!loop->rate_watcher) {
+    silence_counter_free(loop->silence_counter);
+    free(loop);
+    return NULL;
+  }
+
   loop->watchdog_timeout_seconds = 0.5;
   loop->watchdog_last_success_ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
   loop->watchdog_triggered = false;
@@ -105,6 +120,9 @@ void engine_capture_loop_free(engine_capture_loop_t* loop) {
   if (!loop) return;
   if (loop->silence_counter) {
     silence_counter_free(loop->silence_counter);
+  }
+  if (loop->rate_watcher) {
+    sample_rate_watcher_free(loop->rate_watcher);
   }
   free(loop);
 }
@@ -118,8 +136,14 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
   // Set real-time execution priority parameters for this thread.
   set_realtime_thread_priority("Capture", loop->chunk_size, loop->samplerate);
 
+  sample_rate_watcher_reset(loop->rate_watcher);
+
   while (
       !atomic_load_explicit(&loop->shared->should_stop, memory_order_acquire)) {
+    if (engine_state_machine_get_state(loop->state_machine) ==
+        PROCESSING_STATE_PAUSED) {
+      sample_rate_watcher_reset(loop->rate_watcher);
+    }
     // 1. Hardware Sample-Rate Change Check:
     // Check if the hardware sample rates have drifted or been explicitly
     // modified (e.g. by another application or OS settings). An unexpected
@@ -234,6 +258,22 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       loop->watchdog_triggered = false;
       logger_info(&logger, "Capture recovered from stall", log_arg_none(),
                   log_arg_none(), log_arg_none(), log_arg_none());
+    }
+
+    // 5.5. Rate Watcher Measurement:
+    double measured_rate = 0.0;
+    if (sample_rate_watcher_tick(loop->rate_watcher, loop->chunk_size, &measured_rate)) {
+      logger_warn(&logger,
+                  "Sample rate change detected (measured: %f Hz, expected: %zu Hz); stopping engine",
+                  log_arg_double(measured_rate), log_arg_int(loop->samplerate),
+                  log_arg_none(), log_arg_none());
+      if (sample_rate_watcher_get_stop_on_rate_change(loop->rate_watcher)) {
+        processing_stop_reason_t reason = {
+            .type = STOP_REASON_CAPTURE_FORMAT_CHANGE,
+            .format_change_rate = (int)(measured_rate + 0.5)};
+        engine_shared_state_request_stop(loop->shared, reason);
+        break;
+      }
     }
 
     // 6. DoP (DSD over PCM) Decoding:

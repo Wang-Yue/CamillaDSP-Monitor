@@ -202,17 +202,15 @@ struct DevicePickerView: View {
               .frame(width: 120)
             }
 
-            if DSPEngine.isRustEngine {
-              Toggle("Stop on Rate Change", isOn: $bindableSettings.stopOnRateChange)
+            Toggle("Stop on Rate Change", isOn: $bindableSettings.stopOnRateChange)
 
-              HStack {
-                Text("Measure Interval")
-                  .frame(width: 120, alignment: .leading)
-                Slider(value: $bindableSettings.rateMeasureInterval, in: 0.1...10.0, step: 0.1)
-                  .frame(width: 150)
-                Text(String(format: "%.1f s", bindableSettings.rateMeasureInterval))
-                  .font(.system(.body, design: .monospaced))
-              }
+            HStack {
+              Text("Measure Interval")
+                .frame(width: 120, alignment: .leading)
+              Slider(value: $bindableSettings.rateMeasureInterval, in: 0.1...10.0, step: 0.1)
+                .frame(width: 150)
+              Text(String(format: "%.1f s", bindableSettings.rateMeasureInterval))
+                .font(.system(.body, design: .monospaced))
             }
 
             Toggle("Multithreaded", isOn: $bindableSettings.multithreaded)

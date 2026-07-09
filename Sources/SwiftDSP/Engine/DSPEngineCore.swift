@@ -324,6 +324,8 @@ internal final class DSPEngineCore {
       samplerate: runtime.captureRate,
       silenceThresholdDb: currentConfig.devices.silenceThreshold ?? 0,
       silenceTimeoutSeconds: currentConfig.devices.silenceTimeout ?? 0,
+      stopOnRateChange: currentConfig.devices.stopOnRateChange == true,
+      rateMeasureInterval: currentConfig.devices.rateMeasureInterval ?? 1.0,
       onStop: { [weak self] reason in self?.stop(reason: reason) }
     )
 

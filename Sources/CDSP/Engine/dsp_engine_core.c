@@ -390,7 +390,13 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
           : 0.0,
       core->current_config->devices.has_silence_timeout
           ? core->current_config->devices.silence_timeout
-          : 0.0);
+          : 0.0,
+      core->current_config->devices.has_stop_on_rate_change
+          ? core->current_config->devices.stop_on_rate_change
+          : false,
+      core->current_config->devices.has_rate_measure_interval
+          ? core->current_config->devices.rate_measure_interval
+          : 1.0);
 
   core->processing_loop = engine_processing_loop_create(
       core->shared, core->state_machine, core->processing_params, pipeline_rate,
