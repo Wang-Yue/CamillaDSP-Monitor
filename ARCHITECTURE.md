@@ -21,7 +21,7 @@ Real-time audio processing requires processing threads to meet strict, sub-milli
 4. **Platform-Agnostic Vectorization**: Upstream Rust relies on compiler auto-vectorization (SIMD) and generic FFT crates (e.g., `realfft`). This prevents the engine from leveraging hardware-specific, OS-integrated vector libraries like Apple's Accelerate (vDSP) framework, which are hand-optimized and dynamically tuned for the target CPU.
 
 ### 1.2 The Alternative Approach
-Rather than introducing platform-specific forks or breaking modifications into the upstream Rust codebase, we designed and built a clean-sheet alternative engine. To ensure drop-in compatibility with existing integrations (such as the CamillaDSP-Monitor interface), our alternative engine adheres to two strict integration requirements:
+Rather than introducing platform-specific forks or breaking modifications into the upstream Rust codebase, we designed and built a clean-sheet alternative engine. To ensure drop-in compatibility with existing integrations (such as the CamillaDSP-Monitor interface), our alternative engine maintains complete compatibility with **CamillaDSP v4.2.0 (Commit `e3834fc`)** by adhering to two strict integration requirements:
 - **Shared Configuration Format**: The C and Swift engines parse and execute the exact same JSON configuration files.
 - **WebSocket API Compatibility**: The control protocol implements the identical WebSocket interface, including format querying, volume control, level-meter streaming, and live pipeline reloading.
 
