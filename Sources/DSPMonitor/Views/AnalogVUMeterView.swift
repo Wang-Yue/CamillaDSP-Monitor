@@ -365,7 +365,7 @@ struct AnalogVUCard: View {
           }
         }
         .pickerStyle(.segmented)
-        .frame(width: 240)
+        .fixedSize()
       }
 
       let chCount = levels.playbackRms.count

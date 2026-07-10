@@ -71,24 +71,32 @@ struct MeasurementView: View {
 
       HStack(spacing: 0) {
         VStack(spacing: 0) {
-          Group {
-            switch pane {
-            case .magnitude:
-              magnitudePane
-            case .phase:
-              PhasePlot()
-            case .impulse:
-              ImpulsePlot()
-            case .groupDelay:
-              GroupDelayPlot()
-            case .waterfall:
-              WaterfallPlot()
+          if session.positions.isEmpty {
+            ContentUnavailableView(
+              "No measurement loaded",
+              systemImage: "waveform.path",
+              description: Text("Click Mock Measurement to generate synthetic data.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+          } else {
+            Group {
+              switch pane {
+              case .magnitude:
+                magnitudePane
+              case .phase:
+                PhasePlot()
+              case .impulse:
+                ImpulsePlot()
+              case .groupDelay:
+                GroupDelayPlot()
+              case .waterfall:
+                WaterfallPlot()
+              }
             }
-          }
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
 
-          if !session.positions.isEmpty {
             Divider()
             positionsBar
           }
@@ -487,7 +495,7 @@ struct MeasurementView: View {
       }
       .padding()
     }
-    .background(Color(nsColor: .underPageBackgroundColor))
+    .background(Color(nsColor: .windowBackgroundColor))
   }
 
   private func phaseBlendText(_ val: Double) -> String {
@@ -696,11 +704,6 @@ struct MeasurementView: View {
           showCorrected: true),
         showAnalyzerOverlay: false
       )
-    } else {
-      ContentUnavailableView(
-        "No measurement loaded",
-        systemImage: "waveform.path",
-        description: Text("Click Mock Measurement to generate synthetic data."))
     }
   }
 
@@ -906,9 +909,6 @@ private struct PhasePlot: View {
           .background(.thinMaterial, in: Capsule())
           .padding(8)
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-        } else {
-          gridLines(w: w, h: h, minDeg: -180, maxDeg: 180)
-          centerHint("No measurement loaded.")
         }
       }
       .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -1077,8 +1077,6 @@ private struct ImpulsePlot: View {
         RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor))
         if let ir = session.measuredIR {
           plot(ir: ir, w: w, h: h)
-        } else {
-          centerHint("No impulse response loaded.")
         }
       }
       .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -1170,8 +1168,6 @@ private struct GroupDelayPlot: View {
         RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor))
         if let fr = session.measuredFR {
           plot(fr: fr, w: w, h: h)
-        } else {
-          centerHint("No measurement loaded.")
         }
       }
       .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -1240,12 +1236,6 @@ private struct GroupDelayPlot: View {
 private func formatFreq(_ f: Int) -> String {
   if f >= 1000 { return "\(f / 1000)k" }
   return "\(f)"
-}
-
-private func centerHint(_ text: String) -> some View {
-  Text(text)
-    .font(.callout)
-    .foregroundStyle(.secondary)
 }
 
 // MARK: - Subwoofer Assist panel
@@ -1331,7 +1321,7 @@ private struct SidebarSection<Content: View>: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(12)
-      .background(Color(nsColor: .windowBackgroundColor).opacity(0.4))
+      .background(Color(nsColor: .controlBackgroundColor))
       .cornerRadius(8)
       .overlay(
         RoundedRectangle(cornerRadius: 8)
