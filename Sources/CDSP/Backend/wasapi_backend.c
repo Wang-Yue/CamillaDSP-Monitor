@@ -1,13 +1,13 @@
 #if defined(ENABLE_WASAPI)
 
 #define WIN32_LEAN_AND_MEAN
+// clang-format off
+#include <initguid.h>
+// clang-format on
 #include "wasapi_backend.h"
 
 #include "wasapi_capabilities.h"
 
-// clang-format off
-#include <initguid.h>
-// clang-format on
 
 #include <audioclient.h>
 #include <functiondiscoverykeys_devpkey.h>
