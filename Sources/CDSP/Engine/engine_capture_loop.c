@@ -323,8 +323,7 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
             loop->shared->stop_reason.type != STOP_REASON_DONE) {
           break;
         }
-        struct timespec req = {.tv_sec = 0, .tv_nsec = 2000000L};
-        nanosleep(&req, NULL);
+        engine_yield();
       }
       // Signal the processing thread that a new chunk is available.
       engine_sem_signal(loop->shared->captured_semaphore);

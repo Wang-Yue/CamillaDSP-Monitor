@@ -1,11 +1,22 @@
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define CLOSE_SOCKET(s) closesocket(s)
+#define sleep_ms(ms) Sleep(ms)
+#define IS_INVALID_SOCKET(s) ((s) == INVALID_SOCKET)
+typedef SOCKET socket_t;
+#else
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#define CLOSE_SOCKET(s) close(s)
+#define sleep_ms(ms) usleep((ms) * 1000)
+#define IS_INVALID_SOCKET(s) ((s) < 0)
+typedef int socket_t;
+#endif
+#include <string.h>
 
 #include "../../Sources/CDSP/Audio/processing_parameters.h"
 #include "../../Sources/CDSP/Backend/audio_backend.h"
@@ -164,10 +175,10 @@ TEST(test_websocket_commands) {
   bool started = websocket_server_start(server);
   ASSERT_TRUE(started);
 
-  usleep(100000);  // 100ms for server to start listening
+  sleep_ms(100);  // 100ms for server to start listening
 
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
-  ASSERT_TRUE(sock >= 0);
+  socket_t sock = socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT_FALSE(IS_INVALID_SOCKET(sock));
 
   struct sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
@@ -201,7 +212,7 @@ TEST(test_websocket_commands) {
   ASSERT_TRUE(strstr(buf, "\"Ok\"") != NULL);
   ASSERT_TRUE(strstr(buf, "\"Inactive\"") != NULL);
 
-  close(sock);
+  CLOSE_SOCKET(sock);
   websocket_server_stop(server);
   websocket_server_free(server);
 }

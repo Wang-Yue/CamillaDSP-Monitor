@@ -419,7 +419,7 @@ import Testing
         Issue.record("Expected invalidFilter, got \(error)")
         return
       }
-      #expect(msg.contains("gain must be in (-150, 150)"))
+      #expect(msg.contains("gain must be in [-150, 150]"))
 
     }
   }

@@ -24,6 +24,7 @@
 import DSPConfig
 import Foundation
 import Synchronization
+import Darwin
 
 /// `@unchecked Sendable` is a *transfer* vouch, not a *share*
 /// vouch: the instance is safe to cross the Thread spawn boundary
@@ -189,7 +190,7 @@ final class EngineProcessingLoop: @unchecked Sendable {
             if shared.shouldStop.load(ordering: .acquiring) && stateMachine.stopReason != .done {
               break
             }
-            Thread.sleep(forTimeInterval: 0.002)
+            _ = sched_yield()
           }
           shared.processedSemaphore.signal()
         } catch {

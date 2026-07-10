@@ -557,9 +557,11 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
       (mode == AUDCLNT_SHAREMODE_EXCLUSIVE) ? duration : 0, (WAVEFORMATEX*)&wfx,
       NULL);
   if (FAILED(hr)) {
-    if (err)
-      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                         "Failed to initialize IAudioClient");
+    if (err) {
+      char msg[256];
+      snprintf(msg, sizeof(msg), "Failed to initialize IAudioClient (Capture): hr=0x%08lX", (unsigned long)hr);
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, msg);
+    }
     goto error_cleanup;
   }
 
@@ -1036,9 +1038,11 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
                                playback->exclusive ? duration : 0,
                                (WAVEFORMATEX*)&wfx, NULL);
   if (FAILED(hr)) {
-    if (err)
-      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                         "Failed to initialize IAudioClient");
+    if (err) {
+      char msg[256];
+      snprintf(msg, sizeof(msg), "Failed to initialize IAudioClient (Playback): hr=0x%08lX", (unsigned long)hr);
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, msg);
+    }
     goto error_cleanup;
   }
 

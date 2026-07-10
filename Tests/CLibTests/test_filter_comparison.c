@@ -75,6 +75,12 @@ static double* read_raw(const char* path, size_t* out_count) {
   return data;
 }
 
+#ifdef _WIN32
+#define HARNESS_NAME "cdsp_filter_compare.exe"
+#else
+#define HARNESS_NAME "cdsp_filter_compare"
+#endif
+
 static const char* get_harness_binary(void) {
   const char* env = getenv("CDSP_FILTER_BIN");
   if (env && access(env, X_OK) == 0) {
@@ -85,13 +91,13 @@ static const char* get_harness_binary(void) {
   if (home) {
     snprintf(home_path, sizeof(home_path),
              "%s/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/"
-             "cdsp_filter_compare",
+             HARNESS_NAME,
              home);
   }
   const char* paths[] = {
-      "../Tests/RustHarnesses/target/release/cdsp_filter_compare",
-      "Tests/RustHarnesses/target/release/cdsp_filter_compare",
-      "../../Tests/RustHarnesses/target/release/cdsp_filter_compare",
+      "../Tests/RustHarnesses/target/release/" HARNESS_NAME,
+      "Tests/RustHarnesses/target/release/" HARNESS_NAME,
+      "../../Tests/RustHarnesses/target/release/" HARNESS_NAME,
       home_path[0] ? home_path : NULL};
   for (size_t i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
     if (paths[i] && access(paths[i], X_OK) == 0) {

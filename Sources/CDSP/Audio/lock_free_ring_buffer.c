@@ -316,6 +316,13 @@ bool spsc_audio_ring_buffer_read_latest_at(const spsc_audio_ring_buffer_t* ring,
                                            uint64_t written) {
   if (!ring || !dest || count == 0 || count > ring->capacity) return false;
   if (written < (uint64_t)count) return false;
+
+  uint64_t written_before =
+      atomic_load_explicit(&ring->write_index, memory_order_acquire);
+  if (written_before - written > (uint64_t)(ring->capacity - count)) {
+    return false;
+  }
+
   size_t end_idx = (size_t)(written & ring->mask);
   size_t start_idx = (end_idx + ring->capacity - count) & ring->mask;
   size_t first_chunk = ring->capacity - start_idx;
@@ -326,15 +333,33 @@ bool spsc_audio_ring_buffer_read_latest_at(const spsc_audio_ring_buffer_t* ring,
     memcpy(dest + first_chunk, ring->storage,
            (count - first_chunk) * sizeof(float));
   }
+
+  uint64_t written_after =
+      atomic_load_explicit(&ring->write_index, memory_order_acquire);
+  if (written_after - written > (uint64_t)(ring->capacity - count)) {
+    return false;
+  }
   return true;
 }
 
 bool spsc_audio_ring_buffer_read_latest(const spsc_audio_ring_buffer_t* ring,
                                         float* dest, size_t count) {
-  if (!ring) return false;
-  uint64_t written =
-      atomic_load_explicit(&ring->write_index, memory_order_acquire);
-  return spsc_audio_ring_buffer_read_latest_at(ring, dest, count, written);
+  if (!ring || !dest || count == 0 || count > ring->capacity) return false;
+
+  int retries = 5;
+  while (retries > 0) {
+    uint64_t written =
+        atomic_load_explicit(&ring->write_index, memory_order_acquire);
+    if (written >= (uint64_t)count) {
+      if (spsc_audio_ring_buffer_read_latest_at(ring, dest, count, written)) {
+        return true;
+      }
+    } else {
+      return false;
+    }
+    retries--;
+  }
+  return false;
 }
 
 // MARK: - SPSCQueue Implementation

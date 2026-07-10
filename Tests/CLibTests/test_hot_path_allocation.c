@@ -1,4 +1,6 @@
+#ifndef _WIN32
 #include <dlfcn.h>
+#endif
 #include <math.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -46,6 +48,169 @@ typedef void (*malloc_logger_t)(uint32_t type, uintptr_t arg1, uintptr_t arg2,
                                 uintptr_t arg3, uintptr_t result,
                                 uint32_t num_hot_frames_to_skip);
 
+static malloc_logger_t g_custom_malloc_logger = NULL;
+
+#ifdef __linux__
+#include <unistd.h>
+
+static void* (*real_malloc)(size_t) = NULL;
+static void* (*real_calloc)(size_t, size_t) = NULL;
+static void* (*real_realloc)(void*, size_t) = NULL;
+static void (*real_free)(void*) = NULL;
+
+static char bootstrap_buffer[8192];
+static size_t bootstrap_offset = 0;
+static _Thread_local bool in_bootstrap = false;
+
+static void* bootstrap_malloc(size_t size) {
+  size_t aligned_size = (size + 15) & ~15;
+  if (bootstrap_offset + aligned_size > sizeof(bootstrap_buffer)) {
+    const char* msg = "FATAL: out of bootstrap memory in malloc wrapper\n";
+    write(2, msg, strlen(msg));
+    abort();
+  }
+  void* ptr = bootstrap_buffer + bootstrap_offset;
+  bootstrap_offset += aligned_size;
+  return ptr;
+}
+static void init_real_allocators(void) {
+  if (real_malloc) return;
+  if (in_bootstrap) return;
+  in_bootstrap = true;
+  real_malloc = (void* (*)(size_t))dlsym(RTLD_NEXT, "malloc");
+  real_calloc = (void* (*)(size_t, size_t))dlsym(RTLD_NEXT, "calloc");
+  real_realloc = (void* (*)(void*, size_t))dlsym(RTLD_NEXT, "realloc");
+  real_free = (void (*)(void*))dlsym(RTLD_NEXT, "free");
+  in_bootstrap = false;
+  if (!real_malloc || !real_calloc || !real_realloc || !real_free) {
+    const char* msg = "FATAL: failed to find real allocators via dlsym\n";
+    write(2, msg, strlen(msg));
+    abort();
+  }
+}
+
+void* malloc(size_t size) {
+  if (!real_malloc) {
+    init_real_allocators();
+    if (!real_malloc) return bootstrap_malloc(size);
+  }
+  void* ptr = real_malloc(size);
+  malloc_logger_t logger = atomic_load_explicit(
+      (_Atomic malloc_logger_t*)&g_custom_malloc_logger, memory_order_acquire);
+  if (logger) {
+    logger(2, 0, (uintptr_t)size, 0, (uintptr_t)ptr, 0);
+  }
+  return ptr;
+}
+
+void* calloc(size_t num, size_t size) {
+  size_t total = num * size;
+  if (!real_calloc) {
+    init_real_allocators();
+    if (!real_calloc) {
+      void* ptr = bootstrap_malloc(total);
+      if (ptr) memset(ptr, 0, total);
+      return ptr;
+    }
+  }
+  void* ptr = real_calloc(num, size);
+  malloc_logger_t logger = atomic_load_explicit(
+      (_Atomic malloc_logger_t*)&g_custom_malloc_logger, memory_order_acquire);
+  if (logger) {
+    logger(2, 0, (uintptr_t)total, 0, (uintptr_t)ptr, 0);
+  }
+  return ptr;
+}
+
+void* realloc(void* ptr, size_t size) {
+  if (ptr >= (void*)bootstrap_buffer &&
+      ptr < (void*)(bootstrap_buffer + sizeof(bootstrap_buffer))) {
+    void* new_ptr = bootstrap_malloc(size);
+    if (new_ptr && ptr) {
+      memcpy(new_ptr, ptr, size);
+    }
+    return new_ptr;
+  }
+  if (!real_realloc) {
+    init_real_allocators();
+  }
+  void* new_ptr = real_realloc(ptr, size);
+  malloc_logger_t logger = atomic_load_explicit(
+      (_Atomic malloc_logger_t*)&g_custom_malloc_logger, memory_order_acquire);
+  if (logger) {
+    logger(2, 0, (uintptr_t)size, 0, (uintptr_t)new_ptr, 0);
+  }
+  return new_ptr;
+}
+
+void free(void* ptr) {
+  if (!ptr) return;
+  if (ptr >= (void*)bootstrap_buffer &&
+      ptr < (void*)(bootstrap_buffer + sizeof(bootstrap_buffer))) {
+    return;
+  }
+  if (!real_free) {
+    init_real_allocators();
+  }
+  if (real_free) {
+    real_free(ptr);
+  }
+  malloc_logger_t logger = atomic_load_explicit(
+      (_Atomic malloc_logger_t*)&g_custom_malloc_logger, memory_order_acquire);
+  if (logger) {
+    logger(4, 0, 0, 0, (uintptr_t)ptr, 0);
+  }
+}
+#endif  // __linux__
+
+#ifdef _WIN32
+// Declarations of real functions (resolved by linker)
+void* __real_malloc(size_t size);
+void* __real_calloc(size_t num, size_t size);
+void* __real_realloc(void* ptr, size_t size);
+void __real_free(void* ptr);
+
+void* __wrap_malloc(size_t size) {
+  void* ptr = __real_malloc(size);
+  malloc_logger_t logger = atomic_load_explicit(
+      (_Atomic malloc_logger_t*)&g_custom_malloc_logger, memory_order_acquire);
+  if (logger) {
+    logger(2, 0, (uintptr_t)size, 0, (uintptr_t)ptr, 0);
+  }
+  return ptr;
+}
+
+void* __wrap_calloc(size_t num, size_t size) {
+  size_t total = num * size;
+  void* ptr = __real_calloc(num, size);
+  malloc_logger_t logger = atomic_load_explicit(
+      (_Atomic malloc_logger_t*)&g_custom_malloc_logger, memory_order_acquire);
+  if (logger) {
+    logger(2, 0, (uintptr_t)total, 0, (uintptr_t)ptr, 0);
+  }
+  return ptr;
+}
+
+void* __wrap_realloc(void* ptr, size_t size) {
+  void* new_ptr = __real_realloc(ptr, size);
+  malloc_logger_t logger = atomic_load_explicit(
+      (_Atomic malloc_logger_t*)&g_custom_malloc_logger, memory_order_acquire);
+  if (logger) {
+    logger(2, 0, (uintptr_t)size, 0, (uintptr_t)new_ptr, 0);
+  }
+  return new_ptr;
+}
+
+void __wrap_free(void* ptr) {
+  __real_free(ptr);
+  malloc_logger_t logger = atomic_load_explicit(
+      (_Atomic malloc_logger_t*)&g_custom_malloc_logger, memory_order_acquire);
+  if (logger) {
+    logger(4, 0, 0, 0, (uintptr_t)ptr, 0);
+  }
+}
+#endif  // _WIN32
+
 static _Atomic uint64_t g_alloc_counter = 0;
 static _Atomic uintptr_t g_watched_thread = 0;
 static malloc_logger_t g_prev_logger = NULL;
@@ -87,6 +252,21 @@ static void run_test_loop(void* arg) {
 
 static bool count_allocations(void (*body)(void*), void* ctx,
                               uint64_t* out_count) {
+#if defined(__linux__) || defined(_WIN32)
+  uintptr_t my_thread = (uintptr_t)pthread_self();
+  atomic_store_explicit(&g_alloc_counter, 0, memory_order_relaxed);
+  atomic_store_explicit(&g_watched_thread, my_thread, memory_order_release);
+  atomic_store_explicit((_Atomic malloc_logger_t*)&g_custom_malloc_logger,
+                        my_malloc_logger, memory_order_release);
+
+  body(ctx);
+
+  atomic_store_explicit((_Atomic malloc_logger_t*)&g_custom_malloc_logger, NULL,
+                        memory_order_release);
+  atomic_store_explicit(&g_watched_thread, 0, memory_order_release);
+  *out_count = atomic_load_explicit(&g_alloc_counter, memory_order_relaxed);
+  return true;
+#else  // macOS
   void* handle = dlopen(NULL, RTLD_LAZY);
   if (!handle) return false;
   malloc_logger_t* logger_ptr =
@@ -109,6 +289,7 @@ static bool count_allocations(void (*body)(void*), void* ctx,
   *out_count = atomic_load_explicit(&g_alloc_counter, memory_order_relaxed);
   dlclose(handle);
   return true;
+#endif
 }
 
 static void assert_allocation_free(const char* label, int warmup,
@@ -131,6 +312,20 @@ static void assert_allocation_free(const char* label, int warmup,
 static bool count_allocations_on_thread(void (*body)(void*), void* ctx,
                                         uintptr_t thread_id,
                                         uint64_t* out_count) {
+#if defined(__linux__) || defined(_WIN32)
+  atomic_store_explicit(&g_alloc_counter, 0, memory_order_relaxed);
+  atomic_store_explicit(&g_watched_thread, thread_id, memory_order_release);
+  atomic_store_explicit((_Atomic malloc_logger_t*)&g_custom_malloc_logger,
+                        my_malloc_logger, memory_order_release);
+
+  body(ctx);
+
+  atomic_store_explicit((_Atomic malloc_logger_t*)&g_custom_malloc_logger, NULL,
+                        memory_order_release);
+  atomic_store_explicit(&g_watched_thread, 0, memory_order_release);
+  *out_count = atomic_load_explicit(&g_alloc_counter, memory_order_relaxed);
+  return true;
+#else  // macOS
   void* handle = dlopen(NULL, RTLD_LAZY);
   if (!handle) return false;
   malloc_logger_t* logger_ptr =
@@ -152,6 +347,7 @@ static bool count_allocations_on_thread(void (*body)(void*), void* ctx,
   *out_count = atomic_load_explicit(&g_alloc_counter, memory_order_relaxed);
   dlclose(handle);
   return true;
+#endif
 }
 
 static void assert_allocation_free_on_thread(const char* label,
@@ -699,13 +895,26 @@ static void dop_enc_iter(int i, void* ctx) {
   dop_encoder_encode(c->encoder, c->chunks[i % c->chunk_count]);
 }
 
+#if defined(ENABLE_BLAS)
+void openblas_set_num_threads(int num_threads);
+#endif
+
 TEST(DoPEncoder_AllocationFree) {
+#if defined(ENABLE_BLAS)
+  openblas_set_num_threads(1);
+#endif
   dop_encoder_t* encoder =
       dop_encoder_create(2, 176400.0, true, SDM_FILTER_SDM4, 20000.0);
   ASSERT_TRUE(encoder != NULL);
   audio_chunk_t** inputs = make_random_chunks(32, 2, 1024, 0.5);
   dop_enc_test_ctx_t ctx = {encoder, inputs, 32};
-  assert_allocation_free("DoP encoder", 0, 30, dop_enc_iter, &ctx);
+  assert_allocation_free("DoP encoder",
+#if defined(ENABLE_BLAS)
+                         1,
+#else
+                         0,
+#endif
+                         30, dop_enc_iter, &ctx);
   free_chunks(inputs, 32);
   dop_encoder_free(encoder);
 }

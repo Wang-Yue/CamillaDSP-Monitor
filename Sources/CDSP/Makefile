@@ -214,6 +214,9 @@ WIN_CC := x86_64-w64-mingw32-gcc
 WIN_AR := x86_64-w64-mingw32-ar
 WIN_OBJ_DIR := $(ROOT_DIR)/.build/win_obj
 
+WIN_CFLAGS ?= -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -D_USE_MATH_DEFINES -DENABLE_WASAPI -DENABLE_ASIO -DENABLE_FFTW -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging
+WIN_LDFLAGS ?= /tmp/win_fftw/libfftw3-3.dll /tmp/win_fftw/libfftw3f-3.dll -pthread -lws2_32 -lwinmm -lole32 -luuid -lksuser -lksguid
+
 # Filter Windows source files (exclude Linux/Apple specific backends)
 WIN_SRCS := $(filter-out %/alsa_capture.c %/alsa_playback.c %/alsa_device.c %/alsa_capabilities.c \
                         %/pulse_backend.c \
@@ -226,20 +229,47 @@ WIN_LIB_TARGET := $(ROOT_DIR)/Sources/CDSP/libdsp_win.a
 
 $(WIN_OBJ_DIR)/%.o: $(ROOT_DIR)/%.c
 	@mkdir -p $(dir $@)
-	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -DENABLE_WASAPI -DENABLE_ASIO -DENABLE_FFTW -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging -c $< -o $@
+	$(WIN_CC) $(WIN_CFLAGS) -c $< -o $@
 
 WIN_CLI_BIN := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli.exe
 
-.PHONY: windows windows-lib windows-cli
+.PHONY: windows windows-lib windows-cli windows-test windows-test-build
 windows: windows-lib windows-cli
 
-windows-lib: $(WIN_OBJS)
-	@rm -f $(WIN_LIB_TARGET)
-	$(WIN_AR) rcs $(WIN_LIB_TARGET) $(WIN_OBJS)
+$(WIN_LIB_TARGET): $(WIN_OBJS)
+	@rm -f $@
+	$(WIN_AR) rcs $@ $(WIN_OBJS)
+
+windows-lib: $(WIN_LIB_TARGET)
 
 windows-cli: $(WIN_LIB_TARGET)
 	@mkdir -p $(dir $(WIN_CLI_BIN))
-	$(WIN_CC) -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -DENABLE_WASAPI -DENABLE_ASIO -DENABLE_FFTW -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging $(CLI_SRC) $(WIN_LIB_TARGET) /tmp/win_fftw/libfftw3-3.dll /tmp/win_fftw/libfftw3f-3.dll -pthread -lws2_32 -lwinmm -lole32 -luuid -lksuser -lksguid -o $(WIN_CLI_BIN)
+	$(WIN_CC) $(WIN_CFLAGS) $(CLI_SRC) $(WIN_LIB_TARGET) $(WIN_LDFLAGS) -o $(WIN_CLI_BIN)
+
+WIN_TEST_BINS := $(patsubst $(ROOT_DIR)/Tests/CLibTests/test_%.c, $(ROOT_DIR)/Tests/CLibTests/bin/test_%.exe, $(TEST_SRCS))
+WIN_BENCH_BINS := $(patsubst %, $(ROOT_DIR)/Tests/CLibTests/bin/%.exe, $(BENCH_NAMES))
+WIN_UNIT_TEST_BINS := $(filter-out $(WIN_BENCH_BINS), $(WIN_TEST_BINS))
+
+$(ROOT_DIR)/Tests/CLibTests/bin/test_hot_path_allocation.exe: $(ROOT_DIR)/Tests/CLibTests/test_hot_path_allocation.c $(WIN_LIB_TARGET)
+	@mkdir -p $(dir $@)
+	$(WIN_CC) $(WIN_CFLAGS) $< $(WIN_LIB_TARGET) $(WIN_LDFLAGS) -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free -o $@
+
+$(ROOT_DIR)/Tests/CLibTests/bin/test_%.exe: $(ROOT_DIR)/Tests/CLibTests/test_%.c $(WIN_LIB_TARGET)
+	@mkdir -p $(dir $@)
+	$(WIN_CC) $(WIN_CFLAGS) $< $(WIN_LIB_TARGET) $(WIN_LDFLAGS) -o $@
+
+windows-test-build: $(WIN_UNIT_TEST_BINS)
+
+windows-test: windows-test-build
+	@if command -v wine >/dev/null 2>&1; then \
+		echo "\n=== Running Windows Unit Tests under Wine ==="; \
+		for bin in $(WIN_UNIT_TEST_BINS); do \
+			echo ""; \
+			WINEPATH="/usr/x86_64-w64-mingw32/lib;/tmp/win_fftw" wine $$bin || exit 1; \
+		done; \
+	else \
+		echo "\n⚠️  wine not found, skipping test execution. Binaries are built in $(ROOT_DIR)/Tests/CLibTests/bin/"; \
+	fi
 # macOS cross-compilation settings
 MAC_CC := clang
 MAC_SDK_PATH ?= ~/mac_sdk/MacOSX13.3.sdk
