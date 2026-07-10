@@ -216,14 +216,15 @@ Both Swift and C engines build in ~20 seconds, representing a **4.3x to 5x faste
 
 | Engine / Target | Unstripped Executable | Stripped Executable | Size Ratio (Stripped) |
 | :--- | :---: | :---: | :---: |
-| **C Target (`dsp-cli`)** | 392 KB (392,360 B) | **356 KB** (355,800 B) | 🟢 **15.6x smaller** |
-| **Swift Reference (`dsp-cli`)* | 1.75 MB (1,749,112 B) | **908 KB** (907,536 B) | 🟢 **6.1x smaller** |
+| **C Target (`dsp-cli`, Default -O3)** | 366 KB (375,568 B) | **331 KB** (339,080 B) | 🟢 **16.7x smaller** |
+| **C Target (`dsp-cli`, Size-Optimized)** | 252 KB (257,648 B) | **220 KB** (225,048 B) | 🟢 **25.2x smaller** |
+| **Swift Reference (`dsp-cli`)** | 1.75 MB (1,749,112 B) | **908 KB** (907,536 B) | 🟢 **6.1x smaller** |
 | **Rust Engine (`camilladsp`)** | 6.46 MB (6,458,816 B) | **5.54 MB** (5,535,448 B) | |
 
-*\*Note: The Swift binary sizes are measured with size optimization (`-Osize`), debug info disabled (`-gnone`), and reflection metadata omitted (`-disable-reflection-metadata`).*
+*\*Note: The Swift binary sizes are measured with size optimization (`-Osize`), debug info disabled (`-gnone`), and reflection metadata omitted (`-disable-reflection-metadata`). The C Target Size-Optimized build is compiled with `MODE=small` (using `-Oz -flto -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables -Wl,-dead_strip`).*
 
 #### 3.5.3 Architectural Footprint Takeaway
-- **C Target Efficiency**: The C engine compilation produces an incredibly compact **356 KB** stripped executable, making it ideal for resource-constrained platforms, embedded systems, and minimal containers.
+- **C Target Efficiency**: The C engine compilation produces an incredibly compact **220 KB** stripped executable, making it ideal for resource-constrained platforms, embedded systems, and minimal containers.
 - **Swift Reference Overhead**: While Swift includes dynamic type metadata, compiling with reflection metadata disabled shrinks the stripped binary to **908 KB** (6.1x smaller than upstream Rust), proving that even high-level concurrency-safe models can maintain a highly compact footprint.
 
 ---
