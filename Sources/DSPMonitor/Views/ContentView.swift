@@ -672,6 +672,24 @@ struct VectorScopeDetailView: View {
             .frame(width: 140)
           }
 
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Display Mode").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: $vectorscope.showParticles) {
+              Text("Line").tag(false)
+              Text("Particles").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 160)
+          }
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Auto Scale").font(.caption).foregroundStyle(.secondary)
+            Toggle("", isOn: $vectorscope.autoScale)
+              .toggleStyle(.switch)
+              .labelsHidden()
+              .frame(height: 24)
+          }
+
           Spacer()
         }
         .padding(.vertical, 8)

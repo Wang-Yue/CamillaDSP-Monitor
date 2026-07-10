@@ -21,6 +21,12 @@ final class VectorScopeEngine {
   var isCapture: Bool = true {
     didSet { defaults.set(isCapture, forKey: "vectorscope_is_capture") }
   }
+  var showParticles: Bool = true {
+    didSet { defaults.set(showParticles, forKey: "vectorscope_show_particles") }
+  }
+  var autoScale: Bool = true {
+    didSet { defaults.set(autoScale, forKey: "vectorscope_auto_scale") }
+  }
 
   init() {
     let frames = defaults.integer(forKey: "vectorscope_n_frames")
@@ -28,6 +34,14 @@ final class VectorScopeEngine {
 
     if defaults.object(forKey: "vectorscope_is_capture") != nil {
       self.isCapture = defaults.bool(forKey: "vectorscope_is_capture")
+    }
+
+    if defaults.object(forKey: "vectorscope_show_particles") != nil {
+      self.showParticles = defaults.bool(forKey: "vectorscope_show_particles")
+    }
+
+    if defaults.object(forKey: "vectorscope_auto_scale") != nil {
+      self.autoScale = defaults.bool(forKey: "vectorscope_auto_scale")
     }
   }
 
@@ -47,5 +61,7 @@ final class VectorScopeEngine {
   func resetToDefaults() {
     nFrames = 512
     isCapture = true
+    showParticles = true
+    autoScale = true
   }
 }
