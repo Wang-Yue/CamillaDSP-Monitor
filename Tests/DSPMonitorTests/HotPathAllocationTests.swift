@@ -133,11 +133,6 @@ private enum AllocationCounter {
     runResamplerHotPath(resampler, channels: 2, label: "AppleResampler stereo")
   }
 
-  @Test func Synchronous_Stereo() {
-    let resampler = SynchronousResampler(
-      channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
-    runResamplerHotPath(resampler, channels: 2, label: "Synchronous stereo")
-  }
 
   // MARK: - Filters
 

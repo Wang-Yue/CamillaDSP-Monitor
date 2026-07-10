@@ -1,6 +1,5 @@
 // Resampler protocol + shared types.
-// Two resampler implementations conform to `AudioResampler`:
-//   * `SynchronousResampler` — FFT-based fixed-ratio.
+// The resampler implementation conforms to `AudioResampler`:
 //   * `AppleResampler`       — Core Audio AudioConverter wrapper.
 
 import DSPAudio
@@ -11,11 +10,7 @@ public func createResampler(
   config: ResamplerConfig, inputRate: Int, outputRate: Int, channels: Int, chunkSize: Int
 ) throws -> AudioResampler {
   switch config.type {
-  case .synchronous:
-    return SynchronousResampler(
-      channels: channels, inputRate: inputRate, outputRate: outputRate,
-      chunkSize: chunkSize)
-  case .asyncSinc, .asyncPoly:
+  case .synchronous, .asyncSinc, .asyncPoly:
     throw ResamplerError.invalidParameter(
       message: "Resampler type \(config.type.rawValue) is not supported by the native Swift engine"
     )
@@ -66,7 +61,5 @@ public protocol AudioResampler: AnyObject {
   var ratio: Double { get }
 
   /// Apply a multiplicative correction on top of the base ratio.
-  /// `SynchronousResampler` ignores this (its ratio is fixed by
-  /// construction).
   func setRelativeRatio(_ multiplier: Double)
 }

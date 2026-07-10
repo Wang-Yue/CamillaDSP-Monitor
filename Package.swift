@@ -11,22 +11,17 @@ let libTargets: [Target] = [
   .target(name: "DSPAudio", dependencies: [], path: "Sources/Lib/Audio"),
   .target(
     name: "DSPLogging", dependencies: ["DSPConfig", "DSPAudio"], path: "Sources/Lib/Logging"),
-  .target(
-    name: "DSPFFT",
-    dependencies: [],
-    path: "Sources/Lib/FFT",
-    linkerSettings: [.linkedFramework("Accelerate")]
-  ),
+
   .target(name: "DSPMixer", dependencies: ["DSPConfig", "DSPAudio"], path: "Sources/Lib/Mixer"),
   .target(
     name: "DSPFilters",
-    dependencies: ["DSPConfig", "DSPAudio", "DSPFFT"],
+    dependencies: ["DSPConfig", "DSPAudio"],
     path: "Sources/Lib/Filters",
     linkerSettings: [.linkedFramework("Accelerate")]
   ),
   .target(
     name: "DSPResampler",
-    dependencies: ["DSPConfig", "DSPAudio", "DSPFFT", "DSPLogging"],
+    dependencies: ["DSPConfig", "DSPAudio", "DSPLogging"],
     path: "Sources/Lib/Resampler"
   ),
   .target(
@@ -59,7 +54,7 @@ let libTargets: [Target] = [
 ]
 
 let commonLibDeps: [Target.Dependency] = [
-  "DSPConfig", "DSPAudio", "DSPBackend", "DSPDoP", "DSPEngine", "DSPFFT", "DSPFilters",
+  "DSPConfig", "DSPAudio", "DSPBackend", "DSPDoP", "DSPEngine", "DSPFilters",
   "DSPLogging", "DSPMixer", "DSPPipeline", "DSPResampler",
 ]
 

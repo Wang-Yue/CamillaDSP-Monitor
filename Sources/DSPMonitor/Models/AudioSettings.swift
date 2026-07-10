@@ -73,7 +73,7 @@ final class AudioSettings {
       onChanged?()
     }
   }
-  var resamplerType: ResamplerType = .synchronous {
+  var resamplerType: ResamplerType = .apple {
     didSet {
       defaults.set(resamplerType.rawValue, forKey: "resamplerType")
       onChanged?()

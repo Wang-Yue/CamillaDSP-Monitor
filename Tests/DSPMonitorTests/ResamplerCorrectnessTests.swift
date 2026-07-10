@@ -1,4 +1,4 @@
-// Correctness tests for `SynchronousResampler` that aren't part of
+// Correctness tests for `AppleResampler` that aren't part of
 // the cross-implementation comparison matrix:
 //
 //   * Per-channel state isolation — a stereo (2-channel) resampler
@@ -27,7 +27,7 @@ import Testing
   /// as two 1-channel resamplers fed the same per-channel input.
   /// Catches state-corruption bugs where one channel's overlap
   /// buffer leaks into another.
-  @Test func Stereo_MatchesPerChannelMono_Synchronous() throws {
+  @Test func Stereo_MatchesPerChannelMono_Apple() throws {
     let inRate = 44100
     let outRate = 48000
     let chunkSize = 1024
@@ -35,11 +35,11 @@ import Testing
     let left = makeSine(n: nbrIn, rate: inRate, freq: 1000.0)
     let right = makeSine(n: nbrIn, rate: inRate, freq: 1500.0)
 
-    let stereo = SynchronousResampler(
+    let stereo = try! AppleResampler(
       channels: 2, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
-    let monoL = SynchronousResampler(
+    let monoL = try! AppleResampler(
       channels: 1, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
-    let monoR = SynchronousResampler(
+    let monoR = try! AppleResampler(
       channels: 1, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
     let cs = stereo.chunkSize  // possibly rounded up
 
@@ -82,13 +82,13 @@ import Testing
 
   /// `process(input:into:)` (in-place, allocation-free) must produce
   /// the same output as the allocating `process(chunk:)` API.
-  @Test func InoutAPI_Synchronous_MatchesAllocatingAPI() {
+  @Test func InoutAPI_Apple_MatchesAllocatingAPI() {
     let inRate = 44100
     let outRate = 48000
     let chunkSize = 1024
-    let resamplerA = SynchronousResampler(
+    let resamplerA = try! AppleResampler(
       channels: 2, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
-    let resamplerB = SynchronousResampler(
+    let resamplerB = try! AppleResampler(
       channels: 2, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
     let cs = resamplerA.chunkSize
 
@@ -122,7 +122,7 @@ import Testing
     let inRate = 44100
     let outRate = 48000
     let chunkSize = 1024
-    let resampler = SynchronousResampler(
+    let resampler = try! AppleResampler(
       channels: 2, inputRate: inRate, outputRate: outRate, chunkSize: chunkSize)
     let inChunk = AudioChunk(
       waveforms: [[Double]](

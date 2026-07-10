@@ -21,14 +21,8 @@
 //     for relative speed.
 //
 // Output is four printed tables (one per metric) plus one
-// throughput table. The harness asserts per-cell regression bounds
-// for the in-tree `SynchronousResampler` only; Apple and rubato
-// rows are reference points (printed but not asserted) since their
-// behaviour is outside our control.
-//
-// All bounds are clamped to the values currently measured by this
-// test on this machine — any quality or speed regression in
-// `SynchronousResampler` trips the matching expectation.
+// throughput table. The Apple and rubato rows are reference points
+// (printed but not asserted) since their behaviour is outside our control.
 
 import Foundation
 import Testing
@@ -74,56 +68,7 @@ import Testing
     var rtfPerIter: Double?
   }
 
-  // MARK: - Swift Synchronous regression bounds (clamped to measured)
 
-  /// Per-rate-pair regression bounds for `SynchronousResampler`.
-  /// Each bound sits right above (max-type) or below (min-type) the
-  /// value this test produces today. A regression in cutoff design,
-  /// kernel-build, or FFT scaling will trip the matching #expect.
-  ///
-  /// `aliasingMaxDb` is `nil` for upsampling pairs (no in-band
-  /// aliasing target frequency). `symmetry` clamps right above the
-  /// measured asymmetry — for integer 2:1 ratios this is FP noise
-  /// (~1e-16), for non-integer ratios it is the by-construction
-  /// off-grid value (0.2–0.9).
-  private struct SwiftBounds {
-    let aliasingMaxDb: Double?
-    let passbandMaxDb: Double
-    let symmetryMax: Double
-    let sinadMinDb: Double
-  }
-
-  // Quality bounds sit right above (max-type) or below (min-type)
-  // the value the test produces.
-  private static let swiftBounds: [String: SwiftBounds] = [
-    "44.1→48k": SwiftBounds(
-      aliasingMaxDb: nil, passbandMaxDb: 2.0e-2, symmetryMax: 0.92, sinadMinDb: 208.0
-    ),
-    "48→44.1k": SwiftBounds(
-      aliasingMaxDb: -185.0, passbandMaxDb: 5.0e-3, symmetryMax: 0.70, sinadMinDb: 204.0
-    ),
-    "48→96k": SwiftBounds(
-      aliasingMaxDb: nil, passbandMaxDb: 1.0e-2, symmetryMax: 2.0e-15, sinadMinDb: 205.0
-    ),
-    "96→48k": SwiftBounds(
-      aliasingMaxDb: -228.0, passbandMaxDb: 2.5e-2, symmetryMax: 2.0e-12, sinadMinDb: 205.0
-    ),
-    "44.1→88.2k": SwiftBounds(
-      aliasingMaxDb: nil, passbandMaxDb: 1.0e-2, symmetryMax: 2.0e-15, sinadMinDb: 208.0
-    ),
-    "88.2→44.1k": SwiftBounds(
-      aliasingMaxDb: -228.0, passbandMaxDb: 2.5e-2, symmetryMax: 2.0e-12, sinadMinDb: 204.0
-    ),
-    "44.1→192k": SwiftBounds(
-      aliasingMaxDb: nil, passbandMaxDb: 2.0e-2, symmetryMax: 0.32, sinadMinDb: 200.0
-    ),
-    "192→44.1k": SwiftBounds(
-      aliasingMaxDb: -230.0, passbandMaxDb: 1.0e-2, symmetryMax: 0.45, sinadMinDb: 199.0
-    ),
-    "37k→41k": SwiftBounds(
-      aliasingMaxDb: nil, passbandMaxDb: 6.2e-3, symmetryMax: 0.21, sinadMinDb: 250.0
-    ),
-  ]
 
   // MARK: - Top-level test
 
@@ -134,17 +79,17 @@ import Testing
     var entries:
       [(
         index: Int, label: String,
-        swift: Cell, mast: Cell, minPh: Cell, rubato: Cell?
+        mast: Cell, minPh: Cell, rubato: Cell?
       )] = []
     for (i, entry) in Self.rateGrid.enumerated() {
       let r = computeRowForRatePair(
         index: i, inRate: entry.inRate, outRate: entry.outRate, label: entry.label,
         rubatoOK: rubatoOK)
-      entries.append(r)
+      entries.append((r.index, r.label, r.mast, r.minPh, r.rubato))
     }
 
-    let grid: [(label: String, swift: Cell, mast: Cell, minPh: Cell, rubato: Cell?)] =
-      entries.map { ($0.label, $0.swift, $0.mast, $0.minPh, $0.rubato) }
+    let grid: [(label: String, mast: Cell, minPh: Cell, rubato: Cell?)] =
+      entries.map { ($0.label, $0.mast, $0.minPh, $0.rubato) }
 
     // -- Print tables. Rows that are "N/A" for every implementation
     // of a given metric are skipped automatically (e.g. upsampling
@@ -167,32 +112,6 @@ import Testing
     printTable(
       grid: grid, title: "Throughput (real-time factor per iteration)",
       metric: \.rtfPerIter, higherIsBetter: true, format: "%7.1fx")
-
-    // -- Assert Swift Synchronous regressions
-    for entry in grid {
-      guard let bounds = Self.swiftBounds[entry.label] else { continue }
-      let c = entry.swift
-      if let target = bounds.aliasingMaxDb, let measured = c.aliasingDb {
-        #expect(
-          measured < target,
-          "[\(entry.label)] Swift aliasing \(measured) dB shallower than target \(target) dB")
-      }
-      if let measured = c.passbandDb {
-        #expect(
-          measured < bounds.passbandMaxDb,
-          "[\(entry.label)] Swift passband \(measured) dB > target \(bounds.passbandMaxDb) dB")
-      }
-      if let measured = c.symmetry {
-        #expect(
-          measured < bounds.symmetryMax,
-          "[\(entry.label)] Swift impulse asymmetry \(measured) > target \(bounds.symmetryMax)")
-      }
-      if let measured = c.sinadDb {
-        #expect(
-          measured > bounds.sinadMinDb,
-          "[\(entry.label)] Swift round-trip SINAD \(measured) dB < target \(bounds.sinadMinDb) dB")
-      }
-    }
   }
 
   // MARK: - Per-row driver (one rate-pair, all four implementations)
@@ -204,13 +123,8 @@ import Testing
     index: Int, inRate: Int, outRate: Int, label: String, rubatoOK: Bool
   ) -> (
     index: Int, label: String,
-    swift: Cell, mast: Cell, minPh: Cell, rubato: Cell?
+    mast: Cell, minPh: Cell, rubato: Cell?
   ) {
-    let swiftProcess: ProcessFn = { input, ir, or in
-      let res = SynchronousResampler(
-        channels: 1, inputRate: ir, outputRate: or, chunkSize: Self.chunkSize)
-      return self.runResampler(res, input: input)
-    }
     let appleMastProcess: ProcessFn = { input, ir, or in
       guard
         let res = try? AppleResampler(
@@ -232,7 +146,6 @@ import Testing
       return self.runRubatoFft(inRate: ir, outRate: or, input: input)
     }
 
-    var swift = measureQualityCell(inRate: inRate, outRate: outRate, process: swiftProcess)
     var mast = measureQualityCell(inRate: inRate, outRate: outRate, process: appleMastProcess)
     var minPh = measureQualityCell(inRate: inRate, outRate: outRate, process: appleMinPhProcess)
     var rubato: Cell? =
@@ -240,16 +153,6 @@ import Testing
       ? measureQualityCell(inRate: inRate, outRate: outRate, process: rubatoProcess)
       : nil
 
-    if let perf = measureSwiftPerf(
-      inRate: inRate, outRate: outRate,
-      factory: {
-        SynchronousResampler(
-          channels: 1, inputRate: $0, outputRate: $1, chunkSize: Self.chunkSize)
-      })
-    {
-      swift.nsPerOutFrame = perf.nsPerOutFrame
-      swift.rtfPerIter = perf.rtfPerIter
-    }
     if let perf = measureSwiftPerf(
       inRate: inRate, outRate: outRate,
       factory: { i, o in
@@ -280,7 +183,7 @@ import Testing
       rubato = r
     }
 
-    return (index, label, swift, mast, minPh, rubato)
+    return (index, label, mast, minPh, rubato)
   }
 
   // MARK: - Quality measurement (any `process` closure)
@@ -618,14 +521,14 @@ import Testing
   // MARK: - Table printing
 
   private func printTable(
-    grid: [(label: String, swift: Cell, mast: Cell, minPh: Cell, rubato: Cell?)],
+    grid: [(label: String, mast: Cell, minPh: Cell, rubato: Cell?)],
     title: String,
     metric: KeyPath<Cell, Double?>,
     higherIsBetter: Bool,
     format: String
   ) {
     let pairCol = "Pair".padding(toLength: 14, withPad: " ", startingAt: 0)
-    let header = ["Swift Sync", "Apple Mast", "Apple MinPh", "rubato Fft"]
+    let header = ["Apple Mast", "Apple MinPh", "rubato Fft"]
       .map { $0.padding(toLength: 14, withPad: " ", startingAt: 0) }
       .joined(separator: " ")
     let directionStr = higherIsBetter ? "higher is better" : "lower is better"
@@ -633,7 +536,6 @@ import Testing
     print("\(pairCol) \(header)")
     for row in grid {
       let values: [Double?] = [
-        row.swift[keyPath: metric],
         row.mast[keyPath: metric],
         row.minPh[keyPath: metric],
         row.rubato?[keyPath: metric],

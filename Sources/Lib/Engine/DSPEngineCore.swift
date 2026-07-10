@@ -251,12 +251,9 @@ internal final class DSPEngineCore {
       resampler = nil
     }
 
-    // Adopt the resampler's input chunk size. `SynchronousResampler`
-    // rounds the requested size up to the smallest valid multiple
-    // of `inputRate / gcd(in, out)`; the rest of the engine has to
-    // honour that rounded value or `process(input:into:)` will
-    // throw `inputSizeMismatch`. The async resamplers don't round,
-    // so this is a no-op for them.
+    // Adopt the resampler's input chunk size. Some resampler implementations
+    // might round the requested size; the rest of the engine has to
+    // honour that value or `process(input:into:)` will throw `inputSizeMismatch`.
     let requestedChunkSize = currentConfig.devices.chunksize
     let captureChunkSize = resampler?.chunkSize ?? requestedChunkSize
     let playbackChunkSize = resampler?.maxOutputFrames ?? captureChunkSize
