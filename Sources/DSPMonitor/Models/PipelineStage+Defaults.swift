@@ -56,6 +56,10 @@ extension PipelineStage {
     var lookaheadAttack: Double
     var lookaheadRelease: Double
 
+    // Split Width parameters
+    var splitWidthCrossover: Double
+    var splitWidthAmount: Double
+
     // Matrix Mixer channel layouts
     var mixerChannelsIn: Int
     var mixerChannelsOut: Int
@@ -163,6 +167,10 @@ extension PipelineStage {
       lookaheadAttack: lookaheadAttack,
       lookaheadRelease: lookaheadRelease,
 
+      // Split Width
+      splitWidthCrossover: splitWidthCrossover,
+      splitWidthAmount: splitWidthAmount,
+
       // Matrix Mixer
       mixerChannelsIn: mixerChannelsIn,
       mixerChannelsOut: mixerChannelsOut,
@@ -267,6 +275,10 @@ extension PipelineStage {
     lookaheadLimit = s.lookaheadLimit
     lookaheadAttack = s.lookaheadAttack
     lookaheadRelease = s.lookaheadRelease
+
+    // Split Width
+    splitWidthCrossover = s.splitWidthCrossover
+    splitWidthAmount = s.splitWidthAmount
 
     // Matrix Mixer
     mixerChannelsIn = s.mixerChannelsIn

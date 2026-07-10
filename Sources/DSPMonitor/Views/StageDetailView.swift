@@ -59,6 +59,7 @@ private struct StageDetailContent: View {
           case .msProc: MSProcDescription()
           case .phaseInvert: PhaseInvertDescription()
           case .crossfeed: CrossfeedOptions(stage: stage)
+          case .splitWidth: SplitWidthOptions(stage: stage)
           case .eq: EQOptions(stage: stage)
           case .convolution: ConvolutionOptions(stage: stage)
           case .loudness: LoudnessOptions(stage: stage)
@@ -107,7 +108,7 @@ struct StageChannelSelector: View {
     GroupBox("Target Channels") {
       VStack(alignment: .leading, spacing: 10) {
         if stage.type == .balance || stage.type == .width || stage.type == .msProc
-          || stage.type == .crossfeed || stage.type == .race
+          || stage.type == .crossfeed || stage.type == .race || stage.type == .splitWidth
         {
           // Stereo channel pair picker
           HStack(spacing: 24) {
@@ -2053,5 +2054,84 @@ struct VSlider: View {
       )
     }
     .frame(width: 20)
+  }
+}
+
+// MARK: - Split Width Options View
+
+struct SplitWidthOptions: View {
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
+
+  var body: some View {
+    VStack(spacing: 20) {
+      GroupBox("Crossover Frequency") {
+        VStack(alignment: .leading, spacing: 12) {
+          HStack {
+            Text("Crossover")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Slider(value: $stage.splitWidthCrossover, in: 40...1000, step: 5)
+              .onChange(of: stage.splitWidthCrossover) { _, _ in dsp.applyConfig() }
+            Text("\(Int(stage.splitWidthCrossover)) Hz")
+              .font(.system(.body, design: .monospaced).bold())
+              .frame(width: 70, alignment: .trailing)
+          }
+
+          Text(
+            "Frequencies below this crossover will remain centered (mono-summed), while frequencies above this point will be widened."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+      }
+
+      GroupBox("High Band Stereo Width") {
+        VStack(spacing: 12) {
+          HStack {
+            Text("Mono")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Slider(value: $stage.splitWidthAmount, in: 0.0...2.0, step: 0.05)
+              .onChange(of: stage.splitWidthAmount) { _, _ in dsp.applyConfig() }
+            Text("Wide")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+
+          HStack {
+            Text("\(Int(stage.splitWidthAmount * 100))%")
+              .font(.system(.title3, design: .monospaced).bold())
+            Spacer()
+            HStack(spacing: 12) {
+              Button("Mono") {
+                stage.splitWidthAmount = 0.0
+                dsp.applyConfig()
+              }
+              .controlSize(.small)
+              Button("100% (Normal)") {
+                stage.splitWidthAmount = 1.0
+                dsp.applyConfig()
+              }
+              .controlSize(.small)
+              Button("150% (Wide)") {
+                stage.splitWidthAmount = 1.5
+                dsp.applyConfig()
+              }
+              .controlSize(.small)
+            }
+          }
+
+          Text(
+            "Adjusts the stereo width of frequencies above the crossover point. 0% is full mono, 100% is normal stereo, and 150%+ is enhanced width."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 4)
+      }
+    }
   }
 }

@@ -18,6 +18,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
   case msProc = "M/S Proc"
   case phaseInvert = "Phase Invert"
   case crossfeed = "Crossfeed"
+  case splitWidth = "Split Width"
   case eq = "EQ"
   case graphicEQ = "Graphic EQ"
   case convolution = "Convolution"
@@ -47,7 +48,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
       return .mixer
     case .compressor, .noiseGate, .race:
       return .processors
-    case .balance, .width, .msProc, .phaseInvert, .crossfeed, .dcProtection, .emphasis:
+    case .balance, .width, .msProc, .phaseInvert, .crossfeed, .dcProtection, .emphasis, .splitWidth:
       return .others
     }
   }
@@ -59,6 +60,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
     case .msProc: return "waveform.path"
     case .phaseInvert: return "waveform.path.ecg"
     case .crossfeed: return "headphones"
+    case .splitWidth: return "arrow.left.and.right.circle"
     case .eq: return "slider.horizontal.3"
     case .graphicEQ: return "slider.vertical.3"
     case .convolution: return "waveform.badge.magnifyingglass"
@@ -230,6 +232,10 @@ final class PipelineStage: Identifiable, Hashable {
   var limiterLimit: Double = 0.0
   var limiterSoftClip: Bool = false
 
+  // Split Width parameters
+  var splitWidthCrossover: Double = 150.0
+  var splitWidthAmount: Double = 1.5
+
   // Graphic EQ parameters
   var graphicEQFreqMin: Double = 20.0
   var graphicEQFreqMax: Double = 20000.0
@@ -260,6 +266,7 @@ final class PipelineStage: Identifiable, Hashable {
 
     // Set default channels based on type
     if type == .balance || type == .width || type == .msProc || type == .crossfeed || type == .race
+      || type == .splitWidth
     {
       self.leftChannel = 0
       self.rightChannel = 1

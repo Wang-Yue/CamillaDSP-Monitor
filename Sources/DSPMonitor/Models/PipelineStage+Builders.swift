@@ -29,6 +29,14 @@ extension PipelineStage {
         "\(prefix)_lo_gain": .gain(GainParameters(gain: cx.loGain, inverted: false)),
       ]
 
+    case .splitWidth:
+      return [
+        "\(prefix)_lp": .biquadCombo(
+          BiquadComboParameters(type: .linkwitzRileyLowpass, freq: splitWidthCrossover, order: 4)),
+        "\(prefix)_hp": .biquadCombo(
+          BiquadComboParameters(type: .linkwitzRileyHighpass, freq: splitWidthCrossover, order: 4)),
+      ]
+
     case .eq:
       guard let presetID = eqPresetID, let preset = eqPresets.first(where: { $0.id == presetID })
       else { return [:] }
@@ -372,6 +380,69 @@ extension PipelineStage {
         ),
       ]
 
+    case .splitWidth:
+      var otherChannels: [Int] = []
+      for i in 0..<channels {
+        if i != leftChannel && i != rightChannel {
+          otherChannels.append(i)
+        }
+      }
+
+      var mapping2to4 = [
+        MixerMapping(dest: 0, sources: [MixerSource(channel: leftChannel)]),
+        MixerMapping(dest: 1, sources: [MixerSource(channel: rightChannel)]),
+        MixerMapping(dest: 2, sources: [MixerSource(channel: leftChannel)]),
+        MixerMapping(dest: 3, sources: [MixerSource(channel: rightChannel)]),
+      ]
+      for (idx, ch) in otherChannels.enumerated() {
+        mapping2to4.append(
+          MixerMapping(dest: idx + 4, sources: [MixerSource(channel: ch)]))
+      }
+
+      let c1 = 0.5 * (1.0 + splitWidthAmount)
+      let c2 = 0.5 * (1.0 - splitWidthAmount)
+
+      func makeMixerSource(channel: Int, linearGain: Double) -> MixerSource {
+        let absGain = abs(linearGain)
+        let gainDb = absGain > 1e-5 ? 20.0 * log10(absGain) : -120.0
+        let isInverted = linearGain < 0
+        return MixerSource(channel: channel, gain: gainDb, inverted: isInverted)
+      }
+
+      var mapping4to2: [MixerMapping] = Array(
+        repeating: MixerMapping(dest: 0, sources: []), count: channels)
+      mapping4to2[leftChannel] = MixerMapping(
+        dest: leftChannel,
+        sources: [
+          MixerSource(channel: 0),
+          makeMixerSource(channel: 2, linearGain: c1),
+          makeMixerSource(channel: 3, linearGain: c2),
+        ])
+      mapping4to2[rightChannel] = MixerMapping(
+        dest: rightChannel,
+        sources: [
+          MixerSource(channel: 1),
+          makeMixerSource(channel: 2, linearGain: c2),
+          makeMixerSource(channel: 3, linearGain: c1),
+        ])
+      for (idx, ch) in otherChannels.enumerated() {
+        mapping4to2[ch] = MixerMapping(
+          dest: idx + 4, sources: [MixerSource(channel: idx + 4)])
+      }
+
+      return [
+        "\(prefix)_2to4": MixerConfig(
+          channelsIn: channels,
+          channelsOut: channels + 2,
+          mapping: mapping2to4
+        ),
+        "\(prefix)_4to2": MixerConfig(
+          channelsIn: channels + 2,
+          channelsOut: channels,
+          mapping: mapping4to2
+        ),
+      ]
+
     case .mixer:
       var cleanedMapping: [MixerMapping] = []
       for dest in 0..<mixerChannelsOut {
@@ -487,6 +558,16 @@ extension PipelineStage {
         PipelineStep(type: .filter, channels: [0, 3], names: ["\(prefix)_hi"]),
         PipelineStep(
           type: .filter, channels: [1, 2], names: ["\(prefix)_lo", "\(prefix)_lo_gain"]),
+        PipelineStep(type: .mixer, name: "\(prefix)_4to2"),
+      ]
+
+    case .splitWidth:
+      return [
+        PipelineStep(type: .mixer, name: "\(prefix)_2to4"),
+        PipelineStep(
+          type: .filter, channels: [0, 1], names: ["\(prefix)_lp"]),
+        PipelineStep(
+          type: .filter, channels: [2, 3], names: ["\(prefix)_hp"]),
         PipelineStep(type: .mixer, name: "\(prefix)_4to2"),
       ]
 
