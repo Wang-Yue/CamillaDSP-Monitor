@@ -87,91 +87,11 @@ func drawSpectrumBars(
 /// Shared Canvas for drawing dual RMS+Peak level bars.
 /// Used by DualLevelMeterView (dashboard) and MiniMeterRow (mini player).
 struct LevelMeterCanvas: View {
-  let peak: Float
-  let rms: Float
-  /// compact = mini player style: smaller radii, white-based colors, no scale marks
-  var compact: Bool = false
-
-  var body: some View {
-    ZStack {
-      LevelMeterBackground(compact: compact).equatable()
-
-      Canvas { context, size in
-        let w = size.width
-        let h = size.height
-        let halfH = h / 2
-
-        let rmsW = w * normalizedDB(rms)
-        let peakW = w * normalizedDB(peak)
-
-        // Shared shading — same color at the same horizontal position for both bars
-        let shading = GraphicsContext.Shading.linearGradient(
-          .audioLevel, startPoint: .zero, endPoint: CGPoint(x: w, y: 0))
-        let r: CGFloat = compact ? 1.5 : 2
-
-        var barsPath = Path()
-        let cornerSize = CGSize(width: r, height: r)
-        if rmsW > 0 {
-          barsPath.addRoundedRect(
-            in: CGRect(x: 0, y: 0.5, width: rmsW, height: halfH - 1), cornerSize: cornerSize)
-        }
-        if peakW > 0 {
-          barsPath.addRoundedRect(
-            in: CGRect(x: 0, y: halfH + 0.5, width: peakW, height: halfH - 1),
-            cornerSize: cornerSize)
-        }
-        context.fill(barsPath, with: shading)
-      }
-    }
-  }
-}
-
-private struct LevelMeterBackground: View, Equatable {
-  let compact: Bool
-
-  nonisolated static func == (lhs: LevelMeterBackground, rhs: LevelMeterBackground) -> Bool {
-    lhs.compact == rhs.compact
-  }
-
-  var body: some View {
-    Canvas { context, size in
-      let w = size.width
-      let h = size.height
-      let halfH = h / 2
-
-      context.fill(
-        Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: compact ? 2 : 3),
-        with: .color(compact ? Color.white.opacity(0.08) : Color.primary.opacity(0.06)))
-
-      var divider = Path()
-      divider.move(to: CGPoint(x: 0, y: halfH))
-      divider.addLine(to: CGPoint(x: w, y: halfH))
-      context.stroke(
-        divider,
-        with: .color(compact ? Color.white.opacity(0.1) : Color.primary.opacity(0.08)),
-        lineWidth: 0.5)
-
-      if !compact {
-        var marksPath = Path()
-        for dbMark in [-48, -36, -24, -12, -6, -3, 0] {
-          let pos = w * normalizedDB(Float(dbMark))
-          let markH = dbMark == 0 ? h : h * 0.5
-          let markY = dbMark == 0 ? 0 : (h - markH) / 2
-          marksPath.move(to: CGPoint(x: pos, y: markY))
-          marksPath.addLine(to: CGPoint(x: pos, y: markY + markH))
-        }
-        context.stroke(marksPath, with: .color(Color.primary.opacity(0.2)), lineWidth: 1)
-      }
-    }
-  }
-}
-
-// MARK: - Dual Peak/RMS Level Meter
-
-struct DualLevelMeterView: View {
   let isPlayback: Bool
   let channelIndex: Int
   let label: String
+  var compact: Bool = false
+
   @Environment(LevelState.self) var levels
 
   var body: some View {
@@ -188,29 +108,173 @@ struct DualLevelMeterView: View {
       : (levels.captureRms.indices.contains(channelIndex)
         ? levels.captureRms[channelIndex] : -100.0)
 
-    HStack(spacing: 8) {
-      Text(label)
-        .font(.system(.caption, design: .monospaced))
-        .foregroundStyle(.secondary)
-        .frame(width: 14)
-        .fixedSize()
+    Canvas { context, size in
+      let w = size.width
+      let h = size.height
+      let halfH = h / 2
 
-      LevelMeterCanvas(peak: peak, rms: rms)
-        .frame(height: 18)
+      if compact {
+        // --- COMPACT MODE (Mini Player) ---
+        let leftW: CGFloat = 12
+        let rightW: CGFloat = 38
+        let spacing: CGFloat = 6
+        let barStartX = leftW + spacing
+        let barW = w - leftW - rightW - (spacing * 2)
 
-      // dB values: RMS on top, Peak below
-      VStack(alignment: .trailing, spacing: 0) {
-        Text(String(format: "%5.1f", rms))
-          .font(.system(size: 9, design: .monospaced))
-          .foregroundStyle(.secondary)
-          .fixedSize()
-        Text(String(format: "%5.1f", peak))
-          .font(.system(size: 9, design: .monospaced))
-          .foregroundStyle(.tertiary)
-          .fixedSize()
+        // 1. Left Channel Name Label
+        let labelText = context.resolve(
+          Text(label)
+            .font(.system(size: 10, weight: .medium, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.5))
+        )
+        context.draw(labelText, at: CGPoint(x: leftW / 2, y: h / 2), anchor: .center)
+
+        // 2. Bar Background Box
+        let barRect = CGRect(x: barStartX, y: 0, width: barW, height: h)
+        context.fill(
+          Path(roundedRect: barRect, cornerRadius: 2),
+          with: .color(Color.white.opacity(0.08)))
+
+        // 3. Horizontal Divider
+        var divider = Path()
+        divider.move(to: CGPoint(x: barStartX, y: halfH))
+        divider.addLine(to: CGPoint(x: barStartX + barW, y: halfH))
+        context.stroke(divider, with: .color(Color.white.opacity(0.1)), lineWidth: 0.5)
+
+        // 4. Dynamic Level Bars
+        let rmsW = barW * normalizedDB(rms)
+        let peakW = barW * normalizedDB(peak)
+        let shading = GraphicsContext.Shading.linearGradient(
+          .audioLevel, startPoint: CGPoint(x: barStartX, y: 0),
+          endPoint: CGPoint(x: barStartX + barW, y: 0))
+        let r: CGFloat = 1.5
+        let cornerSize = CGSize(width: r, height: r)
+
+        var barsPath = Path()
+        if rmsW > 0 {
+          barsPath.addRoundedRect(
+            in: CGRect(x: barStartX, y: 0.5, width: rmsW, height: halfH - 1), cornerSize: cornerSize)
+        }
+        if peakW > 0 {
+          barsPath.addRoundedRect(
+            in: CGRect(x: barStartX, y: halfH + 0.5, width: peakW, height: halfH - 1),
+            cornerSize: cornerSize)
+        }
+        context.fill(barsPath, with: shading)
+
+        // 5. Dynamic text values (RMS / Peak)
+        let rmsString = String(format: "%5.1f", rms)
+        let peakString = String(format: "%5.1f", peak)
+
+        let rmsText = context.resolve(
+          Text(rmsString)
+            .font(.system(size: 9, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.7))
+        )
+        let peakText = context.resolve(
+          Text(peakString)
+            .font(.system(size: 9, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.4))
+        )
+        context.draw(rmsText, at: CGPoint(x: w, y: 4.5), anchor: .trailing)
+        context.draw(peakText, at: CGPoint(x: w, y: 13.5), anchor: .trailing)
+
+      } else {
+        // --- NORMAL MODE (Dashboard) ---
+        let leftW: CGFloat = 14
+        let rightW: CGFloat = 44
+        let spacing: CGFloat = 8
+        let barStartX = leftW + spacing
+        let barW = w - leftW - rightW - (spacing * 2)
+
+        // 1. Left Channel Name Label
+        let labelText = context.resolve(
+          Text(label)
+            .font(.system(.caption, design: .monospaced))
+            .foregroundStyle(.secondary)
+        )
+        context.draw(labelText, at: CGPoint(x: leftW / 2, y: h / 2), anchor: .center)
+
+        // 2. Bar Background Box
+        let barRect = CGRect(x: barStartX, y: 0, width: barW, height: h)
+        context.fill(
+          Path(roundedRect: barRect, cornerRadius: 3),
+          with: .color(Color.primary.opacity(0.06)))
+
+        // 3. Horizontal Divider
+        var divider = Path()
+        divider.move(to: CGPoint(x: barStartX, y: halfH))
+        divider.addLine(to: CGPoint(x: barStartX + barW, y: halfH))
+        context.stroke(divider, with: .color(Color.primary.opacity(0.08)), lineWidth: 0.5)
+
+        // 4. Tick Marks
+        var marksPath = Path()
+        for dbMark in [-48, -36, -24, -12, -6, -3, 0] {
+          let pos = barStartX + barW * normalizedDB(Float(dbMark))
+          let markH = dbMark == 0 ? h : h * 0.5
+          let markY = dbMark == 0 ? 0 : (h - markH) / 2
+          marksPath.move(to: CGPoint(x: pos, y: markY))
+          marksPath.addLine(to: CGPoint(x: pos, y: markY + markH))
+        }
+        context.stroke(marksPath, with: .color(Color.primary.opacity(0.2)), lineWidth: 1)
+
+        // 5. Dynamic Level Bars
+        let rmsW = barW * normalizedDB(rms)
+        let peakW = barW * normalizedDB(peak)
+        let shading = GraphicsContext.Shading.linearGradient(
+          .audioLevel, startPoint: CGPoint(x: barStartX, y: 0),
+          endPoint: CGPoint(x: barStartX + barW, y: 0))
+        let r: CGFloat = 2
+        let cornerSize = CGSize(width: r, height: r)
+
+        var barsPath = Path()
+        if rmsW > 0 {
+          barsPath.addRoundedRect(
+            in: CGRect(x: barStartX, y: 0.5, width: rmsW, height: halfH - 1), cornerSize: cornerSize)
+        }
+        if peakW > 0 {
+          barsPath.addRoundedRect(
+            in: CGRect(x: barStartX, y: halfH + 0.5, width: peakW, height: halfH - 1),
+            cornerSize: cornerSize)
+        }
+        context.fill(barsPath, with: shading)
+
+        // 6. Dynamic text values (RMS / Peak)
+        let rmsString = String(format: "%5.1f", rms)
+        let peakString = String(format: "%5.1f", peak)
+
+        let rmsText = context.resolve(
+          Text(rmsString)
+            .font(.system(size: 9, design: .monospaced))
+            .foregroundStyle(.secondary)
+        )
+        let peakText = context.resolve(
+          Text(peakString)
+            .font(.system(size: 9, design: .monospaced))
+            .foregroundStyle(.tertiary)
+        )
+        context.draw(rmsText, at: CGPoint(x: w, y: 4.5), anchor: .trailing)
+        context.draw(peakText, at: CGPoint(x: w, y: 13.5), anchor: .trailing)
       }
-      .frame(width: 44, alignment: .trailing)
     }
+  }
+}
+
+// MARK: - Dual Peak/RMS Level Meter
+
+struct DualLevelMeterView: View {
+  let isPlayback: Bool
+  let channelIndex: Int
+  let label: String
+
+  var body: some View {
+    LevelMeterCanvas(
+      isPlayback: isPlayback,
+      channelIndex: channelIndex,
+      label: label,
+      compact: false
+    )
+    .frame(height: 18)
   }
 }
 

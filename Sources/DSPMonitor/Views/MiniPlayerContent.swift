@@ -85,36 +85,15 @@ struct MiniMetersView: View {
 struct MiniMeterRow: View {
   let channelIndex: Int
   let label: String
-  @Environment(LevelState.self) var levels
 
   var body: some View {
-    let peak =
-      levels.playbackPeak.indices.contains(channelIndex)
-      ? levels.playbackPeak[channelIndex] : -100.0
-    let rms =
-      levels.playbackRms.indices.contains(channelIndex) ? levels.playbackRms[channelIndex] : -100.0
-
-    HStack(spacing: 6) {
-      Text(label)
-        .font(.system(size: 10, weight: .medium, design: .monospaced))
-        .foregroundStyle(.white.opacity(0.5))
-        .frame(width: 12)
-        .fixedSize()
-
-      LevelMeterCanvas(peak: peak, rms: rms, compact: true)
-
-      VStack(alignment: .trailing, spacing: 0) {
-        Text(String(format: "%5.1f", rms))
-          .font(.system(size: 9, design: .monospaced))
-          .foregroundStyle(.white.opacity(0.7))
-          .fixedSize()
-        Text(String(format: "%5.1f", peak))
-          .font(.system(size: 9, design: .monospaced))
-          .foregroundStyle(.white.opacity(0.4))
-          .fixedSize()
-      }
-      .frame(width: 38)
-    }
+    LevelMeterCanvas(
+      isPlayback: true,
+      channelIndex: channelIndex,
+      label: label,
+      compact: true
+    )
+    .frame(height: 18)
   }
 }
 
