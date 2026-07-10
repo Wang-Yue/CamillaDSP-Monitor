@@ -2,6 +2,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include "wasapi_backend.h"
+
 #include "wasapi_capabilities.h"
 
 // clang-format off
@@ -404,7 +405,8 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
 
   // Retrieve IMMDevice. If no device name is specified, get default.
   // Otherwise, enumerate endpoints and match friendly name or ID.
-  capture->mm_device = wasapi_find_device_by_name(capture->enumerator, capture->device, !capture->loopback);
+  capture->mm_device = wasapi_find_device_by_name(
+      capture->enumerator, capture->device, !capture->loopback);
 
   if (!capture->mm_device) {
     if (err)
@@ -889,7 +891,8 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
 
   // Retrieve IMMDevice. If no device name is specified, get default.
   // Otherwise, enumerate endpoints and match friendly name or ID.
-  playback->mm_device = wasapi_find_device_by_name(playback->enumerator, playback->device, false);
+  playback->mm_device =
+      wasapi_find_device_by_name(playback->enumerator, playback->device, false);
 
   if (!playback->mm_device) {
     if (err)

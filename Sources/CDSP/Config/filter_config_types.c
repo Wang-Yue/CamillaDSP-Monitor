@@ -508,3 +508,19 @@ int biquad_parameters_validate(const biquad_parameters_t* params,
   }
   return 0;
 }
+
+double compute_delay_samples(double delay, delay_unit_t unit, int sample_rate) {
+  switch (unit) {
+    case DELAY_UNIT_MS:
+      return delay / 1000.0 * (double)sample_rate;
+    case DELAY_UNIT_US:
+      return delay / 1000000.0 * (double)sample_rate;
+    case DELAY_UNIT_SAMPLES:
+      return delay;
+    case DELAY_UNIT_MM:
+      // Compute delay using speed of sound in air (approx. 343 m/s)
+      return delay / 1000.0 * (double)sample_rate / 343.0;
+    default:
+      return delay;
+  }
+}

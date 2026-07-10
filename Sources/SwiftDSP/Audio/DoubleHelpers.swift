@@ -39,6 +39,21 @@ extension Double {
       return release * prev + (1.0 - release) * input
     }
   }
+
+  /// Computes the modified Bessel function of the first kind of order zero, I0(x).
+  @inlinable
+  public static func besselI0(_ x: Double) -> Double {
+    var sum = 1.0
+    var denominator = 1.0
+    var i = 1.0
+    while i < 25.0 {
+      denominator *= i
+      let term = pow(x / 2.0, i) / denominator
+      sum += term * term
+      i += 1.0
+    }
+    return sum
+  }
 }
 
 /// Vectorized DSP operations using Accelerate's Swift `vDSP` namespace.

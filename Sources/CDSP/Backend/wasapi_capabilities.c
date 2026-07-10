@@ -306,10 +306,12 @@ error_cleanup:
   return NULL;
 }
 
-IMMDevice* wasapi_find_device_by_name(IMMDeviceEnumerator* enumerator, const char* device_name, bool is_capture) {
+IMMDevice* wasapi_find_device_by_name(IMMDeviceEnumerator* enumerator,
+                                      const char* device_name,
+                                      bool is_capture) {
   HRESULT hr;
   IMMDevice* device = NULL;
-  
+
   if (device_name[0] == '\0' || strcmp(device_name, "default") == 0) {
     hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
         enumerator, is_capture ? eCapture : eRender, eConsole, &device);
@@ -320,9 +322,9 @@ IMMDevice* wasapi_find_device_by_name(IMMDeviceEnumerator* enumerator, const cha
   }
 
   IMMDeviceCollection* collection = NULL;
-  hr = IMMDeviceEnumerator_EnumAudioEndpoints(
-      enumerator, is_capture ? eCapture : eRender, DEVICE_STATE_ACTIVE,
-      &collection);
+  hr = IMMDeviceEnumerator_EnumAudioEndpoints(enumerator,
+                                              is_capture ? eCapture : eRender,
+                                              DEVICE_STATE_ACTIVE, &collection);
   if (FAILED(hr)) return NULL;
 
   UINT count = 0;
@@ -333,13 +335,12 @@ IMMDevice* wasapi_find_device_by_name(IMMDeviceEnumerator* enumerator, const cha
     bool matched = false;
 
     IPropertyStore* properties = NULL;
-    HRESULT hr_prop =
-        IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
+    HRESULT hr_prop = IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
     if (SUCCEEDED(hr_prop)) {
       PROPVARIANT var;
       PropVariantInit(&var);
-      hr_prop = IPropertyStore_GetValue(properties,
-                                        &PKEY_Device_FriendlyName, &var);
+      hr_prop =
+          IPropertyStore_GetValue(properties, &PKEY_Device_FriendlyName, &var);
       if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
         char friendly_name[256] = {0};
         wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name));

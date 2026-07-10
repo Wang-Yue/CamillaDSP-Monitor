@@ -44,25 +44,11 @@ final class LookaheadLimiterFilter: Filter {
     let limit = Double.fromDB(params.limit)
     let unit = params.unit ?? .ms
     let attackSamples = Int(
-      computeDelaySamples(delay: params.attack, unit: unit, sampleRate: sampleRate).rounded())
-    let releaseSamples = computeDelaySamples(
-      delay: params.release, unit: unit, sampleRate: sampleRate)
+      unit.toSamples(delay: params.attack, sampleRate: Double(sampleRate)).rounded())
+    let releaseSamples = unit.toSamples(
+      delay: params.release, sampleRate: Double(sampleRate))
     let releaseCoeff = exp(-1.0 / releaseSamples)
     return (limit, attackSamples, releaseCoeff)
-  }
-
-  private static func computeDelaySamples(delay: Double, unit: DelayUnit, sampleRate: Int) -> Double
-  {
-    switch unit {
-    case .ms:
-      return delay / 1000.0 * Double(sampleRate)
-    case .us:
-      return delay / 1_000_000.0 * Double(sampleRate)
-    case .samples:
-      return delay
-    case .mm:
-      return delay / 1000.0 * Double(sampleRate) / 343.0
-    }
   }
 
   @inline(__always)

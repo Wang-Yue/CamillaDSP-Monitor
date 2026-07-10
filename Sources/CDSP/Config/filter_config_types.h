@@ -203,6 +203,16 @@ typedef enum {
 } delay_unit_t;
 
 /**
+ * @brief Computes delay in samples from a given delay value and unit.
+ *
+ * @param delay The delay value.
+ * @param unit The unit of the delay (ms, us, samples, or mm).
+ * @param sample_rate The current audio sample rate.
+ * @return The equivalent delay in fractional samples.
+ */
+double compute_delay_samples(double delay, delay_unit_t unit, int sample_rate);
+
+/**
  * @brief Parameters for a Delay filter.
  */
 typedef struct {

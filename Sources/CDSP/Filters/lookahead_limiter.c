@@ -19,31 +19,6 @@ struct lookahead_limiter_filter {
 #include <string.h>
 
 /**
- * @brief Computes delay in samples from a given delay value and unit.
- *
- * @param delay The delay value.
- * @param unit The unit of the delay (ms, us, samples, or mm).
- * @param sample_rate The current audio sample rate.
- * @return The equivalent delay in fractional samples.
- */
-static double compute_delay_samples(double delay, delay_unit_t unit,
-                                    int sample_rate) {
-  switch (unit) {
-    case DELAY_UNIT_MS:
-      return delay / 1000.0 * (double)sample_rate;
-    case DELAY_UNIT_US:
-      return delay / 1000000.0 * (double)sample_rate;
-    case DELAY_UNIT_SAMPLES:
-      return delay;
-    case DELAY_UNIT_MM:
-      // Uses speed of sound = 343 m/s to convert distance to time
-      return delay / 1000.0 * (double)sample_rate / 343.0;
-    default:
-      return delay;
-  }
-}
-
-/**
  * @brief Parses parameters and computes internal filter settings.
  *
  * @param params User-provided filter parameters.

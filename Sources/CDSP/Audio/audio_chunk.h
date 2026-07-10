@@ -141,9 +141,10 @@ void round_robin_chunk_pool_free(round_robin_chunk_pool_t* pool);
 /**
  * @brief Sums multiple audio channels of a chunk into a single buffer.
  *
- * This function performs a vector addition to sum the samples from all specified
- * channels frame-by-frame, writing the result into the provided output buffer.
- * This is typically used to create a mono sum for sidechain processing.
+ * This function performs a vector addition to sum the samples from all
+ * specified channels frame-by-frame, writing the result into the provided
+ * output buffer. This is typically used to create a mono sum for sidechain
+ * processing.
  *
  * @param chunk The audio chunk to sum from.
  * @param channels Array of channel indices to sum.
@@ -151,10 +152,8 @@ void round_robin_chunk_pool_free(round_robin_chunk_pool_t* pool);
  * @param out_sum Output buffer to write the summed samples.
  * @param frames Number of frames to sum.
  */
-void audio_chunk_sum_channels(const audio_chunk_t* chunk,
-                              const int* channels,
-                              size_t channels_count,
-                              double* out_sum,
+void audio_chunk_sum_channels(const audio_chunk_t* chunk, const int* channels,
+                              size_t channels_count, double* out_sum,
                               size_t frames);
 
 /**
@@ -169,10 +168,8 @@ void audio_chunk_sum_channels(const audio_chunk_t* chunk,
  * @param gain_multipliers Array of linear gain multipliers (one per frame).
  * @param frames Number of frames to process.
  */
-void audio_chunk_apply_gain(audio_chunk_t* chunk,
-                            const int* channels,
+void audio_chunk_apply_gain(audio_chunk_t* chunk, const int* channels,
                             size_t channels_count,
-                            const double* gain_multipliers,
-                            size_t frames);
+                            const double* gain_multipliers, size_t frames);
 
 #endif  // CLIB_AUDIO_AUDIO_CHUNK_H

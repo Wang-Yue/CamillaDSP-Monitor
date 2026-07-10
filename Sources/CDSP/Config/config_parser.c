@@ -1817,11 +1817,13 @@ static int parse_processors(const cJSON* processors_obj, dsp_config_t* config,
 
           cJSON* mon_arr =
               cJSON_GetObjectItemCaseSensitive(params, "monitor_channels");
-          cp->monitor_channels = parse_int_array(mon_arr, &cp->monitor_channels_count);
+          cp->monitor_channels =
+              parse_int_array(mon_arr, &cp->monitor_channels_count);
 
           cJSON* proc_arr =
               cJSON_GetObjectItemCaseSensitive(params, "process_channels");
-          cp->process_channels = parse_int_array(proc_arr, &cp->process_channels_count);
+          cp->process_channels =
+              parse_int_array(proc_arr, &cp->process_channels_count);
           break;
         }
         case PROCESSOR_TYPE_NOISE_GATE: {
@@ -1844,11 +1846,13 @@ static int parse_processors(const cJSON* processors_obj, dsp_config_t* config,
 
           cJSON* mon_arr =
               cJSON_GetObjectItemCaseSensitive(params, "monitor_channels");
-          ng->monitor_channels = parse_int_array(mon_arr, &ng->monitor_channels_count);
+          ng->monitor_channels =
+              parse_int_array(mon_arr, &ng->monitor_channels_count);
 
           cJSON* proc_arr =
               cJSON_GetObjectItemCaseSensitive(params, "process_channels");
-          ng->process_channels = parse_int_array(proc_arr, &ng->process_channels_count);
+          ng->process_channels =
+              parse_int_array(proc_arr, &ng->process_channels_count);
           break;
         }
         case PROCESSOR_TYPE_RACE: {

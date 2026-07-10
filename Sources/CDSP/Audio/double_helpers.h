@@ -74,6 +74,27 @@ static inline double double_smooth_envelope(double input, double prev,
   }
 }
 
+/**
+ * @brief Computes modified Bessel function I0(x) using power series.
+ *
+ * Used for Kaiser window calculation.
+ *
+ * @param x Input value.
+ * @return Value of I0(x).
+ */
+static inline double double_bessel_i0(double x) {
+  double sum = 1.0;
+  double denominator = 1.0;
+  double i = 1.0;
+  while (i < 25.0) {
+    denominator *= i;
+    double term = pow(x / 2.0, i) / denominator;
+    sum += term * term;
+    i += 1.0;
+  }
+  return sum;
+}
+
 // Vectorized DSP operations using Apple Accelerate (vDSP) or fallback C loops.
 //
 // The partial-count ops (add, multiply, multiply_add) need to

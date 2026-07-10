@@ -157,11 +157,13 @@ void compressor_processor_process(compressor_processor_t* processor,
                            processor->monitor_channels_count,
                            processor->scratch, count);
 
-  // Step 2: Envelope Detection (Loudness Estimation with Attack/Release Smoothing)
+  // Step 2: Envelope Detection (Loudness Estimation with Attack/Release
+  // Smoothing)
   double prev = processor->prev_loudness;
   for (size_t i = 0; i < count; i++) {
     double val = 20.0 * log10(fabs(processor->scratch[i]) + 1e-9);
-    prev = double_smooth_envelope(val, prev, processor->attack, processor->release);
+    prev = double_smooth_envelope(val, prev, processor->attack,
+                                  processor->release);
     processor->scratch[i] = prev;
   }
   // Store final envelope level for the next chunk's processing.
@@ -189,12 +191,13 @@ void compressor_processor_process(compressor_processor_t* processor,
 
   // Step 4: Apply linear gain to all processed channels
   audio_chunk_apply_gain(chunk, processor->process_channels,
-                         processor->process_channels_count,
-                         processor->scratch, count);
+                         processor->process_channels_count, processor->scratch,
+                         count);
 
   // Step 5: Optionally run post-compression limiter to prevent clipping
   if (processor->limiter) {
-    for (size_t ch_idx = 0; ch_idx < processor->process_channels_count; ch_idx++) {
+    for (size_t ch_idx = 0; ch_idx < processor->process_channels_count;
+         ch_idx++) {
       int ch = processor->process_channels[ch_idx];
       double* wave = audio_chunk_get_channel(chunk, ch);
       if (wave) {

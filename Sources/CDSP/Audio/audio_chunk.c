@@ -1,8 +1,9 @@
 // Non-interleaved float buffers, one vector per channel.
 #include "audio_chunk.h"
-#include "double_helpers.h"
 
 #include <stdlib.h>
+
+#include "double_helpers.h"
 
 struct audio_chunk {
   audio_buffers_t* buffers;
@@ -122,12 +123,11 @@ void round_robin_chunk_pool_free(round_robin_chunk_pool_t* pool) {
   free(pool);
 }
 
-void audio_chunk_sum_channels(const audio_chunk_t* chunk,
-                              const int* channels,
-                              size_t channels_count,
-                              double* out_sum,
+void audio_chunk_sum_channels(const audio_chunk_t* chunk, const int* channels,
+                              size_t channels_count, double* out_sum,
                               size_t frames) {
-  if (!chunk || !channels || channels_count == 0 || !out_sum || frames == 0) return;
+  if (!chunk || !channels || channels_count == 0 || !out_sum || frames == 0)
+    return;
   int ch0 = channels[0];
   const double* src0 = audio_chunk_get_channel((audio_chunk_t*)chunk, ch0);
   if (!src0) {
@@ -150,12 +150,12 @@ void audio_chunk_sum_channels(const audio_chunk_t* chunk,
   }
 }
 
-void audio_chunk_apply_gain(audio_chunk_t* chunk,
-                            const int* channels,
+void audio_chunk_apply_gain(audio_chunk_t* chunk, const int* channels,
                             size_t channels_count,
-                            const double* gain_multipliers,
-                            size_t frames) {
-  if (!chunk || !channels || channels_count == 0 || !gain_multipliers || frames == 0) return;
+                            const double* gain_multipliers, size_t frames) {
+  if (!chunk || !channels || channels_count == 0 || !gain_multipliers ||
+      frames == 0)
+    return;
   for (size_t ch_idx = 0; ch_idx < channels_count; ch_idx++) {
     int ch = channels[ch_idx];
     double* wave = audio_chunk_get_channel(chunk, ch);

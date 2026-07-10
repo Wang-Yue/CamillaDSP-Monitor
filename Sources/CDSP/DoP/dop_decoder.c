@@ -74,6 +74,8 @@ struct dop_decoder {
 #include <stdlib.h>
 #include <string.h>
 
+#include "../Audio/double_helpers.h"
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -98,29 +100,6 @@ struct dop_decoder {
 // this rather than zero (= all `-1` = DC saturated) means the first
 // few samples after activation don't produce a click.
 #define DOP_SILENCE_BYTE 0x69
-
-/**
- * @brief Computes the modified Bessel function of the first kind of order zero,
- * I0(x).
- *
- * This function uses a power series expansion to approximate I0(x).
- * It is used in the calculation of the Kaiser window.
- *
- * @param x The input value.
- * @return The approximated value of I0(x).
- */
-static double bessel_i0(double x) {
-  double sum = 1.0;
-  double denominator = 1.0;
-  double i = 1.0;
-  while (i < 25.0) {
-    denominator *= i;
-    double term = pow(x / 2.0, i) / denominator;
-    sum += term * term;
-    i += 1.0;
-  }
-  return sum;
-}
 
 /// Build the byte-indexed filter lookup tables for a 511-tap, β=11
 /// Kaiser-windowed sinc with cutoff at `cutoffHz / dsd_rate`. The filter
@@ -161,7 +140,7 @@ static double* build_ctables(double sample_rate, double cutoff_hz) {
   double dsd_rate = sample_rate * 16.0;
   double cutoff = cutoff_hz / dsd_rate;
   double alpha = (double)(DOP_REAL_TAPS - 1) / 2.0;
-  double i0_beta = bessel_i0(beta);
+  double i0_beta = double_bessel_i0(beta);
 
   double raw_h[DOP_REAL_TAPS];
   double total_sum = 0.0;
@@ -175,7 +154,7 @@ static double* build_ctables(double sample_rate, double cutoff_hz) {
       sinc_val = sin(angle) / (M_PI * t);
     }
     double widx = sqrt(1.0 - pow(t / alpha, 2.0));
-    double window_val = bessel_i0(beta * widx) / i0_beta;
+    double window_val = double_bessel_i0(beta * widx) / i0_beta;
     raw_h[i] = sinc_val * window_val;
     total_sum += raw_h[i];
   }

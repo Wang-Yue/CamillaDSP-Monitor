@@ -457,6 +457,23 @@ public enum DelayUnit: String, Codable, Sendable {
   case mm
 }
 
+extension DelayUnit {
+  @inlinable
+  public func toSamples(delay: Double, sampleRate: Double) -> Double {
+    switch self {
+    case .ms:
+      return delay / 1000.0 * sampleRate
+    case .us:
+      return delay / 1000000.0 * sampleRate
+    case .samples:
+      return delay
+    case .mm:
+      // Speed of sound in air is approx. 343 m/s
+      return delay / 1000.0 * sampleRate / 343.0
+    }
+  }
+}
+
 public struct DelayParameters: Codable, Sendable, Equatable {
   public var delay: Double
   public var unit: DelayUnit?

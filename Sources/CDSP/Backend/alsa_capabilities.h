@@ -68,8 +68,6 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
                                                       bool is_capture,
                                                       device_error_t* err);
 
-
-
 #endif  // ENABLE_ALSA
 
 #endif  // CLIB_BACKEND_ALSA_CAPABILITIES_H

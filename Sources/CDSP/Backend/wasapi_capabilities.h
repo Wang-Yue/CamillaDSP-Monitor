@@ -8,13 +8,13 @@
 
 #if defined(ENABLE_WASAPI)
 
+#include <mmdeviceapi.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include "Config/engine_config_types.h"
 #include "backend_error.h"
-#include <mmdeviceapi.h>
 
 /**
  * @brief Enumerate available WASAPI devices and return count.
@@ -52,9 +52,8 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
                                                         bool is_capture,
                                                         device_error_t* err);
 
-IMMDevice* wasapi_find_device_by_name(IMMDeviceEnumerator* enumerator, const char* name, bool is_capture);
-
-
+IMMDevice* wasapi_find_device_by_name(IMMDeviceEnumerator* enumerator,
+                                      const char* name, bool is_capture);
 
 #endif  // ENABLE_WASAPI
 

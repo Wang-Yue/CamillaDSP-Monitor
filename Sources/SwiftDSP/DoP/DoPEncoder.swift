@@ -320,20 +320,7 @@ final class DoPEncoder {
     let cutoff = cutoffHz / dsdRate
     let alpha = Double(realTaps - 1) / 2.0
 
-    func besselI0(_ x: Double) -> Double {
-      var sum = 1.0
-      var denominator = 1.0
-      var i = 1.0
-      while i < 25.0 {
-        denominator *= i
-        let term = pow(x / 2.0, i) / denominator
-        sum += term * term
-        i += 1.0
-      }
-      return sum
-    }
-
-    let i0Beta = besselI0(beta)
+    let i0Beta = Double.besselI0(beta)
     var taps = [Double](repeating: 0.0, count: numTaps)  // tap 511 stays 0
     for i in 0..<realTaps {
       let t = Double(i) - alpha
@@ -345,7 +332,7 @@ final class DoPEncoder {
         sincVal = sin(angle) / (Double.pi * t)
       }
       let widx = sqrt(1.0 - pow(t / alpha, 2.0))
-      let windowVal = besselI0(beta * widx) / i0Beta
+      let windowVal = Double.besselI0(beta * widx) / i0Beta
       taps[i] = sincVal * windowVal
     }
 

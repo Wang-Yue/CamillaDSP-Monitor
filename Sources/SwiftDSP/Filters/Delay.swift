@@ -42,7 +42,7 @@ final class DelayFilter: Filter {
     let unit = parameters.unit ?? .ms
     let subsample = parameters.subsample ?? false
 
-    let delaySamples = Self.computeDelaySamples(delay: delay, unit: unit, sampleRate: sampleRate)
+    let delaySamples = unit.toSamples(delay: delay, sampleRate: Double(sampleRate))
     let (integerDelay, coeffs) = Self.buildDelay(
       delaySamples: delaySamples, subsample: subsample
     )
@@ -56,20 +56,6 @@ final class DelayFilter: Filter {
     self.readIndex = 0
     if let c = coeffs {
       self.biquad = BiquadFilter(coefficients: c)
-    }
-  }
-
-  private static func computeDelaySamples(delay: Double, unit: DelayUnit, sampleRate: Int) -> Double
-  {
-    switch unit {
-    case .ms:
-      return delay / 1000.0 * Double(sampleRate)
-    case .us:
-      return delay / 1_000_000.0 * Double(sampleRate)
-    case .samples:
-      return delay
-    case .mm:
-      return delay / 1000.0 * Double(sampleRate) / 343.0
     }
   }
 

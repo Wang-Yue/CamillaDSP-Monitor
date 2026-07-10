@@ -15,31 +15,6 @@ struct delay_filter {
 #include <string.h>
 
 /**
- * @brief Converts a delay value from its input unit to number of samples.
- *
- * @param delay The delay value.
- * @param unit The unit of the delay (ms, us, samples, mm).
- * @param sample_rate The current audio sample rate in Hz.
- * @return The delay in samples as a double.
- */
-static double compute_delay_samples(double delay, delay_unit_t unit,
-                                    int sample_rate) {
-  switch (unit) {
-    case DELAY_UNIT_MS:
-      return delay / 1000.0 * (double)sample_rate;
-    case DELAY_UNIT_US:
-      return delay / 1000000.0 * (double)sample_rate;
-    case DELAY_UNIT_SAMPLES:
-      return delay;
-    case DELAY_UNIT_MM:
-      // Compute delay using speed of sound in air (approx. 343 m/s)
-      return delay / 1000.0 * (double)sample_rate / 343.0;
-    default:
-      return delay;
-  }
-}
-
-/**
  * @brief Calculates integer delay and coefficients for fractional delay.
  *
  * If subsample is enabled, this function designs a Thiran allpass filter
