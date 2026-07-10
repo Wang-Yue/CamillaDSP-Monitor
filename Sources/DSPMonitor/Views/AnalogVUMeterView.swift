@@ -96,13 +96,6 @@ struct AnalogVUMeter: View {
 
   private let refLevel = -18.0
 
-  private let vuMarks: [(v: Double, l: String?)] = [
-    (-20, "20"), (-10, "10"), (-7, "7"), (-5, "5"), (-3, "3"), (-2, "2"), (-1, "1"), (0, "0"),
-    (1, "1"), (2, "2"), (3, "3"),
-  ]
-
-  // MARK: - Theme Color Utilities
-
   private var bulbAmberColor: Color {
     switch params.theme {
     case .vintage: return Color(red: 1.0, green: 0.82, blue: 0.40)
@@ -158,28 +151,23 @@ struct AnalogVUMeter: View {
       let vintageFont = Font.custom("Rockwell", size: 10 * scale)
 
       VStack(spacing: 6 * scale) {
-        Canvas(
-          renderer: { context, size in
-            drawVURenderer(context: &context, size: size, level: level, scale: scale)
-          },
-          symbols: {
-            ForEach(0..<vuMarks.count, id: \.self) { i in
-              if let text = vuMarks[i].l {
-                let color = vuMarks[i].v >= 0 ? redZoneColor : arcColor
-                Text(text)
-                  .font(vintageFont)
-                  .foregroundColor(color.opacity(0.6))
-                  .tag(i)
-              }
-            }
-            ForEach([0, 20, 40, 60, 80, 100], id: \.self) { p in
-              Text("\(p)")
-                .font(vintageFont)
-                .foregroundColor(percentageMarksColor.opacity(0.4))
-                .tag(1000 + p)
-            }
+        ZStack {
+          AnalogVUMeterDial(
+            params: params,
+            scale: scale,
+            vintageFont: vintageFont,
+            bulbAmberColor: bulbAmberColor,
+            bulbHotSpotColor: bulbHotSpotColor,
+            arcColor: arcColor,
+            percentageMarksColor: percentageMarksColor,
+            redZoneColor: redZoneColor
+          )
+          .equatable()
+
+          Canvas { context, size in
+            drawNeedle(context: &context, size: size, scale: scale)
           }
-        )
+        }
         .frame(maxHeight: .infinity)
         .overlay(
           RoundedRectangle(cornerRadius: 6 * scale).stroke(
@@ -197,10 +185,104 @@ struct AnalogVUMeter: View {
     .aspectRatio(1.6, contentMode: .fit)
   }
 
-  private func drawVURenderer(
-    context: inout GraphicsContext, size: CGSize, level: Float, scale: CGFloat
+  private func drawNeedle(
+    context: inout GraphicsContext, size: CGSize, scale: CGFloat
   ) {
     let level = Double(level)
+    let w = size.width
+    let h = size.height
+
+    let center = CGPoint(x: w / 2, y: h * params.pivotY)
+    let radius = h * params.radiusScale
+
+    let startAngle = 235.0
+    let endAngle = 305.0
+    let totalSpan = endAngle - startAngle
+
+    func angleForVU(_ vu: Double) -> Double {
+      let ratio = pow(10.0, vu / 20.0)
+      let minR = 0.1
+      let maxR = 1.412
+      let norm = (ratio - minR) / (maxR - minR)
+      let clippedNorm = min(max(norm, -0.076), 1.1)
+      return startAngle + clippedNorm * totalSpan
+    }
+
+    // 6. Perfected Needle
+    let currentVU = level - refLevel
+    let nAng = angleForVU(currentVU) * .pi / 180
+    let nR = radius + params.needleExtension * scale
+    let ne = CGPoint(x: center.x + cos(nAng) * nR, y: center.y + sin(nAng) * nR)
+    context.stroke(
+      Path { p in
+        p.move(to: center)
+        p.addLine(to: ne)
+      }, with: .color(needleColor), lineWidth: 1.2 * scale)
+
+    // 7. Glass Surface Reflection
+    let glass = GraphicsContext.Shading.linearGradient(
+      Gradient(colors: [.white.opacity(0.25), .clear, .black.opacity(0.05)]), startPoint: .zero,
+      endPoint: CGPoint(x: w, y: h))
+    context.fill(Path(CGRect(origin: .zero, size: size)), with: glass)
+
+    // 8. ADDITIVE LIGHT WASH
+    context.fill(
+      Path(CGRect(origin: .zero, size: size)),
+      with: .color(bulbAmberColor.opacity(params.lightWash)))
+  }
+}
+
+private struct AnalogVUMeterDial: View, Equatable {
+  var params: VUParams
+  let scale: CGFloat
+  let vintageFont: Font
+
+  let bulbAmberColor: Color
+  let bulbHotSpotColor: Color
+  let arcColor: Color
+  let percentageMarksColor: Color
+  let redZoneColor: Color
+
+  private let vuMarks: [(v: Double, l: String?)] = [
+    (-20, "20"), (-10, "10"), (-7, "7"), (-5, "5"), (-3, "3"), (-2, "2"), (-1, "1"), (0, "0"),
+    (1, "1"), (2, "2"), (3, "3"),
+  ]
+
+  nonisolated static func == (lhs: AnalogVUMeterDial, rhs: AnalogVUMeterDial) -> Bool {
+    lhs.scale == rhs.scale && lhs.params.radiusScale == rhs.params.radiusScale
+      && lhs.params.pivotY == rhs.params.pivotY
+      && lhs.params.needleExtension == rhs.params.needleExtension
+      && lhs.params.ambientGlow == rhs.params.ambientGlow
+      && lhs.params.hotSpotAlpha == rhs.params.hotSpotAlpha
+      && lhs.params.lightWash == rhs.params.lightWash && lhs.params.theme == rhs.params.theme
+  }
+
+  var body: some View {
+    Canvas(
+      renderer: { context, size in
+        drawVUDial(context: &context, size: size)
+      },
+      symbols: {
+        ForEach(0..<vuMarks.count, id: \.self) { i in
+          if let text = vuMarks[i].l {
+            let color = vuMarks[i].v >= 0 ? redZoneColor : arcColor
+            Text(text)
+              .font(vintageFont)
+              .foregroundColor(color.opacity(0.6))
+              .tag(i)
+          }
+        }
+        ForEach([0, 20, 40, 60, 80, 100], id: \.self) { p in
+          Text("\(p)")
+            .font(vintageFont)
+            .foregroundColor(percentageMarksColor.opacity(0.4))
+            .tag(1000 + p)
+        }
+      }
+    )
+  }
+
+  private func drawVUDial(context: inout GraphicsContext, size: CGSize) {
     let w = size.width
     let h = size.height
 
@@ -251,10 +333,12 @@ struct AnalogVUMeter: View {
       }, with: .color(arcColor), lineWidth: 1.8 * scale)
 
     // 4. Marks Drawing
-    for (i, m) in vuMarks.enumerated() {
+    var regularMarksPath = Path()
+    var redMarksPath = Path()
+
+    for m in vuMarks {
       let angDeg = angleForVU(m.v)
       let angRad = angDeg * .pi / 180
-      let color = m.v >= 0 ? redZoneColor : arcColor
 
       let cosA = cos(angRad)
       let sinA = sin(angRad)
@@ -262,13 +346,24 @@ struct AnalogVUMeter: View {
       let eR = radius + 7 * scale
       let e = CGPoint(x: center.x + cosA * eR, y: center.y + sinA * eR)
 
-      context.stroke(
-        Path { p in
-          p.move(to: s)
-          p.addLine(to: e)
-        }, with: .color(color.opacity(0.7)), lineWidth: 1.8 * scale)
+      if m.v >= 0 {
+        redMarksPath.move(to: s)
+        redMarksPath.addLine(to: e)
+      } else {
+        regularMarksPath.move(to: s)
+        regularMarksPath.addLine(to: e)
+      }
+    }
 
+    context.stroke(regularMarksPath, with: .color(arcColor.opacity(0.7)), lineWidth: 1.8 * scale)
+    context.stroke(redMarksPath, with: .color(redZoneColor.opacity(0.7)), lineWidth: 1.8 * scale)
+
+    for (i, m) in vuMarks.enumerated() {
       if m.l != nil {
+        let angDeg = angleForVU(m.v)
+        let angRad = angDeg * .pi / 180
+        let cosA = cos(angRad)
+        let sinA = sin(angRad)
         let lR = radius + 18 * scale
         let lp = CGPoint(x: center.x + cosA * lR, y: center.y + sinA * lR)
         context.translateBy(x: lp.x, y: lp.y)
@@ -284,6 +379,7 @@ struct AnalogVUMeter: View {
     }
 
     // Percentage Markings (BELOW)
+    var percentageMarksPath = Path()
     for p in [0, 20, 40, 60, 80, 100] {
       let ratio = Double(p) / 100.0
       let norm = (ratio - 0.1) / (1.412 - 0.1)
@@ -295,12 +391,19 @@ struct AnalogVUMeter: View {
       let eR = radius - 7 * scale
       let e = CGPoint(x: center.x + cosA * eR, y: center.y + sinA * eR)
 
-      context.stroke(
-        Path { p in
-          p.move(to: s)
-          p.addLine(to: e)
-        }, with: .color(percentageMarksColor.opacity(0.4)), lineWidth: 1.0 * scale)
+      percentageMarksPath.move(to: s)
+      percentageMarksPath.addLine(to: e)
+    }
+    context.stroke(
+      percentageMarksPath, with: .color(percentageMarksColor.opacity(0.4)), lineWidth: 1.0 * scale)
 
+    for p in [0, 20, 40, 60, 80, 100] {
+      let ratio = Double(p) / 100.0
+      let norm = (ratio - 0.1) / (1.412 - 0.1)
+      let angRad = (startAngle + norm * totalSpan) * .pi / 180
+
+      let cosA = cos(angRad)
+      let sinA = sin(angRad)
       let lR = radius - 18 * scale
       let lp = CGPoint(x: center.x + cosA * lR, y: center.y + sinA * lR)
       context.translateBy(x: lp.x, y: lp.y)
@@ -322,28 +425,6 @@ struct AnalogVUMeter: View {
           center: center, radius: radius + 2 * scale, startAngle: .degrees(redS),
           endAngle: .degrees(endAngle), clockwise: false)
       }, with: .color(redZoneColor), lineWidth: 4 * scale)
-
-    // 6. Perfected Needle
-    let currentVU = level - refLevel
-    let nAng = angleForVU(currentVU) * .pi / 180
-    let nR = radius + params.needleExtension * scale
-    let ne = CGPoint(x: center.x + cos(nAng) * nR, y: center.y + sin(nAng) * nR)
-    context.stroke(
-      Path { p in
-        p.move(to: center)
-        p.addLine(to: ne)
-      }, with: .color(needleColor), lineWidth: 1.2 * scale)
-
-    // 7. Glass Surface Reflection
-    let glass = GraphicsContext.Shading.linearGradient(
-      Gradient(colors: [.white.opacity(0.25), .clear, .black.opacity(0.05)]), startPoint: .zero,
-      endPoint: CGPoint(x: w, y: h))
-    context.fill(Path(CGRect(origin: .zero, size: size)), with: glass)
-
-    // 8. ADDITIVE LIGHT WASH
-    context.fill(
-      Path(CGRect(origin: .zero, size: size)),
-      with: .color(bulbAmberColor.opacity(params.lightWash)))
   }
 }
 
