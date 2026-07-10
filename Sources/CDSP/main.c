@@ -6,6 +6,10 @@
 #include <strings.h>
 #include <unistd.h>
 
+#if defined(ENABLE_ASIO) || defined(ENABLE_WASAPI)
+#include <objbase.h>
+#endif
+
 #include "Audio/double_helpers.h"
 #include "Audio/processing_parameters.h"
 #include "Backend/audio_backend.h"
@@ -151,6 +155,9 @@ static char* read_file_to_string(const char* path) {
 }
 
 int main(int argc, char** argv) {
+#if defined(ENABLE_ASIO) || defined(ENABLE_WASAPI)
+  CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+#endif
   signal(SIGINT, sig_handler);
   signal(SIGTERM, sig_handler);
 
@@ -574,5 +581,8 @@ int main(int argc, char** argv) {
   dsp_engine_free(engine);
   if (allocated_config_path) free(allocated_config_path);
   printf("Engine stopped.\n");
+#if defined(ENABLE_ASIO) || defined(ENABLE_WASAPI)
+  CoUninitialize();
+#endif
   return 0;
 }
