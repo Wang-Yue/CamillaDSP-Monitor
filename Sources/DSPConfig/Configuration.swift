@@ -165,12 +165,19 @@ extension DSPConfiguration {
           var channelIndices: [Int] = []
           if let ch = step.channel { channelIndices = [ch] }
           if let chs = step.channels { channelIndices = chs }
+          var seenChannels = Set<Int>()
           for ch in channelIndices {
             guard ch < numChannels else {
               throw ConfigError.invalidPipeline(
                 "Filter step \(i) references channel \(ch) but pipeline only has \(numChannels) channel(s) at this point"
               )
             }
+            guard !seenChannels.contains(ch) else {
+              throw ConfigError.invalidPipeline(
+                "Filter step \(i) references duplicated channel \(ch)"
+              )
+            }
+            seenChannels.insert(ch)
           }
 
         case .mixer:

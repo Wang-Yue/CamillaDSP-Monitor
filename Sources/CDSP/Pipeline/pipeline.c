@@ -30,7 +30,6 @@ typedef struct {
   int channel;
   filter_t** filters;
   size_t filters_count;
-  bool bypassed;
 } parallel_filter_chain_t;
 
 /// A single step in the processing pipeline
@@ -46,7 +45,6 @@ typedef enum {
 /// A single step in the processing pipeline
 typedef struct {
   exec_step_type_t type;
-  bool bypassed;
   // For EXEC_STEP_PARALLEL_FILTERS:
   parallel_filter_chain_t* chains;
   size_t chains_count;
@@ -83,23 +81,19 @@ struct pipeline_s {
   size_t last_error_got;
 };
 
-static bool has_channel_in_chains(const parallel_filter_chain_t* chains,
-                                  size_t count, int channel) {
+static void free_filter_chains(parallel_filter_chain_t* chains, size_t count) {
+  if (!chains) return;
   for (size_t i = 0; i < count; i++) {
-    if (chains[i].channel == channel) return true;
+    if (chains[i].filters) {
+      for (size_t j = 0; j < chains[i].filters_count; j++) {
+        if (chains[i].filters[j]) {
+          filter_free(chains[i].filters[j]);
+        }
+      }
+      free(chains[i].filters);
+    }
   }
-  return false;
-}
-
-static bool are_chains_disjoint(const parallel_filter_chain_t* chains1,
-                                size_t count1,
-                                const parallel_filter_chain_t* chains2,
-                                size_t count2) {
-  for (size_t i = 0; i < count2; i++) {
-    if (has_channel_in_chains(chains1, count1, chains2[i].channel))
-      return false;
-  }
-  return true;
+  free(chains);
 }
 
 void pipeline_transfer_state(pipeline_t* dest, const pipeline_t* src) {
@@ -181,20 +175,7 @@ void pipeline_free(pipeline_t* pipeline) {
     for (size_t i = 0; i < pipeline->steps_count; i++) {
       pipeline_exec_step_t* step = &pipeline->steps[i];
       if (step->type == EXEC_STEP_PARALLEL_FILTERS) {
-        if (step->chains) {
-          for (size_t c = 0; c < step->chains_count; c++) {
-            parallel_filter_chain_t* chain = &step->chains[c];
-            if (chain->filters) {
-              for (size_t j = 0; j < chain->filters_count; j++) {
-                if (chain->filters[j]) {
-                  filter_free(chain->filters[j]);
-                }
-              }
-              free(chain->filters);
-            }
-          }
-          free(step->chains);
-        }
+        free_filter_chains(step->chains, step->chains_count);
       } else if (step->type == EXEC_STEP_MIXER) {
         if (step->mixer) {
           audio_mixer_free(step->mixer);
@@ -276,6 +257,7 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
   if (config->pipeline && config->pipeline_count > 0) {
     for (size_t i = 0; i < config->pipeline_count; i++) {
       const pipeline_step_t* step = &config->pipeline[i];
+      if (step->bypassed) continue;
       if (step->type == PIPELINE_STEP_TYPE_FILTER) {
         if (step->channels && step->channels_count > 0) {
           total_exec_steps += step->channels_count;
@@ -325,6 +307,7 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
   if (config->pipeline && config->pipeline_count > 0) {
     for (size_t i = 0; i < config->pipeline_count; i++) {
       const pipeline_step_t* step = &config->pipeline[i];
+      if (step->bypassed) continue;
       switch (step->type) {
         case PIPELINE_STEP_TYPE_FILTER: {
           if (!step->names || step->names_count == 0) {
@@ -376,16 +359,12 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
             int ch = channels_to_apply[c];
             parallel_filter_chain_t* chain = &new_chains[c];
             chain->channel = ch;
-            chain->bypassed = is_bypassed;
             chain->filters_count = step->names_count;
             chain->filters =
                 (filter_t**)calloc(step->names_count, sizeof(filter_t*));
             if (!chain->filters) {
               if (all_chs) free(all_chs);
-              for (size_t k = 0; k < c; k++) {
-                free(new_chains[k].filters);
-              }
-              free(new_chains);
+              free_filter_chains(new_chains, channels_count);
               config_error_set(err, CONFIG_ERR_PARSE,
                                "Memory allocation failure");
               pipeline_free(pipeline);
@@ -397,14 +376,7 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
                   dsp_config_get_filter(config, step->names[j]);
               if (!f_cfg) {
                 if (all_chs) free(all_chs);
-                for (size_t k = 0; k <= c; k++) {
-                  for (size_t f_i = 0; f_i < step->names_count; f_i++) {
-                    if (new_chains[k].filters[f_i])
-                      filter_free(new_chains[k].filters[f_i]);
-                  }
-                  free(new_chains[k].filters);
-                }
-                free(new_chains);
+                free_filter_chains(new_chains, channels_count);
                 config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
                                  "Filter '%s' not defined", step->names[j]);
                 pipeline_free(pipeline);
@@ -415,14 +387,7 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
                                 pipeline->frames_per_chunk, proc_params);
               if (!f) {
                 if (all_chs) free(all_chs);
-                for (size_t k = 0; k <= c; k++) {
-                  for (size_t f_i = 0; f_i < step->names_count; f_i++) {
-                    if (new_chains[k].filters[f_i])
-                      filter_free(new_chains[k].filters[f_i]);
-                  }
-                  free(new_chains[k].filters);
-                }
-                free(new_chains);
+                free_filter_chains(new_chains, channels_count);
                 config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
                                  "Failed to create filter '%s'",
                                  step->names[j]);
@@ -434,40 +399,67 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
           }
           if (all_chs) free(all_chs);
 
-          // Merge adjacent parallel filters targeting disjoint channels
-          if (exec_idx > 0 &&
-              pipeline->steps[exec_idx - 1].type ==
-                  EXEC_STEP_PARALLEL_FILTERS &&
-              are_chains_disjoint(pipeline->steps[exec_idx - 1].chains,
-                                  pipeline->steps[exec_idx - 1].chains_count,
-                                  new_chains, new_chains_count)) {
+          // Merge adjacent parallel filters, combining filter lists for the
+          // same channels
+          if (exec_idx > 0 && pipeline->steps[exec_idx - 1].type ==
+                                  EXEC_STEP_PARALLEL_FILTERS) {
             pipeline_exec_step_t* last = &pipeline->steps[exec_idx - 1];
-            size_t total_count = last->chains_count + new_chains_count;
-            parallel_filter_chain_t* merged = realloc(
-                last->chains, total_count * sizeof(parallel_filter_chain_t));
-            if (!merged) {
-              for (size_t k = 0; k < new_chains_count; k++) {
-                for (size_t f_i = 0; f_i < new_chains[k].filters_count; f_i++) {
-                  if (new_chains[k].filters[f_i])
-                    filter_free(new_chains[k].filters[f_i]);
+            bool alloc_failed = false;
+
+            for (size_t c = 0; c < new_chains_count; c++) {
+              parallel_filter_chain_t* new_chain = &new_chains[c];
+              int found_idx = -1;
+              for (size_t k = 0; k < last->chains_count; k++) {
+                if (last->chains[k].channel == new_chain->channel) {
+                  found_idx = (int)k;
+                  break;
                 }
-                free(new_chains[k].filters);
               }
-              free(new_chains);
+
+              if (found_idx != -1) {
+                // Channel exists. Combine filters.
+                parallel_filter_chain_t* old_chain = &last->chains[found_idx];
+                size_t combined_count =
+                    old_chain->filters_count + new_chain->filters_count;
+                filter_t** combined_filters = realloc(
+                    old_chain->filters, combined_count * sizeof(filter_t*));
+                if (!combined_filters) {
+                  alloc_failed = true;
+                  break;
+                }
+                memcpy(combined_filters + old_chain->filters_count,
+                       new_chain->filters,
+                       new_chain->filters_count * sizeof(filter_t*));
+                old_chain->filters = combined_filters;
+                old_chain->filters_count = combined_count;
+                free(new_chain->filters);
+                new_chain->filters = NULL;
+              } else {
+                // Channel does not exist. Append the new chain.
+                parallel_filter_chain_t* merged =
+                    realloc(last->chains, (last->chains_count + 1) *
+                                              sizeof(parallel_filter_chain_t));
+                if (!merged) {
+                  alloc_failed = true;
+                  break;
+                }
+                merged[last->chains_count] = *new_chain;
+                last->chains = merged;
+                last->chains_count += 1;
+              }
+            }
+
+            if (alloc_failed) {
+              free_filter_chains(new_chains, new_chains_count);
               config_error_set(err, CONFIG_ERR_PARSE,
                                "Memory allocation failure");
               pipeline_free(pipeline);
               return NULL;
             }
-            memcpy(merged + last->chains_count, new_chains,
-                   new_chains_count * sizeof(parallel_filter_chain_t));
-            last->chains = merged;
-            last->chains_count = total_count;
             free(new_chains);
           } else {
             pipeline_exec_step_t* exec = &pipeline->steps[exec_idx++];
             exec->type = EXEC_STEP_PARALLEL_FILTERS;
-            exec->bypassed = is_bypassed;
             exec->chains = new_chains;
             exec->chains_count = new_chains_count;
           }
@@ -510,7 +502,6 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
 
           pipeline_exec_step_t* exec = &pipeline->steps[exec_idx++];
           exec->type = EXEC_STEP_MIXER;
-          exec->bypassed = step->bypassed;
           exec->mixer = m;
           break;
         }
@@ -539,7 +530,6 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
           }
           pipeline_exec_step_t* exec = &pipeline->steps[exec_idx++];
           exec->type = EXEC_STEP_PROCESSOR;
-          exec->bypassed = step->bypassed;
           exec->processor = p;
           break;
         }
@@ -562,7 +552,6 @@ typedef struct {
 static void parallel_filter_worker(void* context, size_t idx) {
   dispatch_ctx_t* ctx = (dispatch_ctx_t*)context;
   parallel_filter_chain_t* chain = &ctx->chains[idx];
-  if (chain->bypassed) return;
   if ((size_t)chain->channel >= audio_chunk_get_channels(ctx->current_chunk))
     return;
   mutable_waveform_t buf =
@@ -634,7 +623,6 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
     pipeline_exec_step_t* step = &pipeline->steps[i];
     switch (step->type) {
       case EXEC_STEP_PARALLEL_FILTERS: {
-        if (step->bypassed) continue;
         bool use_multithreading = false;
 #if HAS_DISPATCH || defined(USE_OPENMP)
         if (pipeline->multithreaded && step->chains_count > 1) {
@@ -653,7 +641,6 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
 #pragma omp parallel for num_threads(step->chains_count)
           for (size_t idx = 0; idx < step->chains_count; idx++) {
             parallel_filter_chain_t* chain = &step->chains[idx];
-            if (chain->bypassed) continue;
             if ((size_t)chain->channel >=
                 audio_chunk_get_channels(current_chunk))
               continue;
@@ -670,7 +657,6 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
         } else {
           for (size_t idx = 0; idx < step->chains_count; idx++) {
             parallel_filter_chain_t* chain = &step->chains[idx];
-            if (chain->bypassed) continue;
             if ((size_t)chain->channel >=
                 audio_chunk_get_channels(current_chunk))
               continue;
@@ -712,7 +698,6 @@ pipeline_error_t pipeline_process(pipeline_t* pipeline,
         break;
       }
       case EXEC_STEP_PROCESSOR: {
-        if (step->bypassed) continue;
         if (step->processor) {
           dsp_processor_process(step->processor, current_chunk);
         }

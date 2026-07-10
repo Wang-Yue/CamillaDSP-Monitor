@@ -28,7 +28,6 @@ public enum ProcessingMode: Sendable {
 struct ParallelFilterChain: @unchecked Sendable {
   let channel: Int
   let filters: [Filter]
-  let bypassed: Bool
 }
 
 /// A single stage in the processing pipeline.
@@ -38,7 +37,7 @@ enum PipelineExecutionStage {
   /// Mixer that changes channel routing.
   case mixer(AudioMixer)
   /// Audio processor applied to the chunk in-place.
-  case processor(Processor, bypassed: Bool)
+  case processor(Processor)
 }
 
 /// The main audio processing pipeline.
@@ -97,12 +96,12 @@ final class Pipeline {
 
     if let steps = config.pipeline {
       for step in steps {
+        if step.bypassed == true { continue }
         switch step.type {
         case .filter:
           guard let filterNames = step.names, !filterNames.isEmpty else {
             throw ConfigError.invalidPipeline("Filter step missing names")
           }
-          let isBypassed = step.bypassed ?? false
 
           let channelsToApply: [Int]
           if let chs = step.channels {
@@ -131,21 +130,25 @@ final class Pipeline {
               filters.append(filter)
             }
             newChains.append(
-              ParallelFilterChain(channel: ch, filters: filters, bypassed: isBypassed))
+              ParallelFilterChain(channel: ch, filters: filters))
           }
 
-          // Merge adjacent filter steps if they target disjoint sets of channels
+          // Merge adjacent filter steps, appending filters to the existing chain if they target the same channel
           if !processingStages.isEmpty,
-            case .parallelFilters(let existingChains) = processingStages.last!
+            case .parallelFilters(var existingChains) = processingStages.last!
           {
-            let existingChannels = Set(existingChains.map { $0.channel })
-            let newChannels = Set(newChains.map { $0.channel })
-            if existingChannels.isDisjoint(with: newChannels) {
-              processingStages[processingStages.count - 1] = .parallelFilters(
-                existingChains + newChains)
-            } else {
-              processingStages.append(.parallelFilters(newChains))
+            for newChain in newChains {
+              if let idx = existingChains.firstIndex(where: { $0.channel == newChain.channel }) {
+                let oldChain = existingChains[idx]
+                existingChains[idx] = ParallelFilterChain(
+                  channel: oldChain.channel,
+                  filters: oldChain.filters + newChain.filters
+                )
+              } else {
+                existingChains.append(newChain)
+              }
             }
+            processingStages[processingStages.count - 1] = .parallelFilters(existingChains)
           } else {
             processingStages.append(.parallelFilters(newChains))
           }
@@ -166,7 +169,6 @@ final class Pipeline {
           else {
             throw ConfigError.invalidPipeline("Processor step missing name or config")
           }
-          let isBypassed = step.bypassed ?? false
           let processor = try ProcessorFactory.create(
             name: processorName,
             config: processorConfig,
@@ -174,7 +176,7 @@ final class Pipeline {
             chunkSize: framesPerChunk
           )
           processingStages.append(
-            .processor(processor, bypassed: isBypassed))
+            .processor(processor))
         }
       }
     }
@@ -231,7 +233,6 @@ final class Pipeline {
         if mode == .multiThreaded && chains.count > 1 {
           DispatchQueue.concurrentPerform(iterations: chains.count) { idx in
             let chain = chains[idx]
-            if chain.bypassed { return }
             guard chain.channel < chunk.channels else { return }
             let buf = chunk[chain.channel]
             let slice = UnsafeMutableBufferPointer(start: buf.baseAddress, count: validFrames)
@@ -241,7 +242,6 @@ final class Pipeline {
           }
         } else {
           for chain in chains {
-            if chain.bypassed { continue }
             guard chain.channel < chunk.channels else { continue }
             let buf = chunk[chain.channel]
             let slice = UnsafeMutableBufferPointer(start: buf.baseAddress, count: validFrames)
@@ -257,8 +257,7 @@ final class Pipeline {
         currentChunk = scratch
         mixerIdx += 1
 
-      case .processor(let processor, let bypassed):
-        if bypassed { continue }
+      case .processor(let processor):
         try processor.process(chunk: &currentChunk)
       }
     }
@@ -297,10 +296,10 @@ final class Pipeline {
             }
           }
         }
-      case .processor(let destProc, _):
+      case .processor(let destProc):
         // Find matching processor step in src by name
         for srcStage in src.processingStages {
-          if case .processor(let srcProc, _) = srcStage, srcProc.name == destProc.name {
+          if case .processor(let srcProc) = srcStage, srcProc.name == destProc.name {
             destProc.transferState(from: srcProc)
             break
           }

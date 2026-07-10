@@ -201,6 +201,15 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
                              i, step->channels[j], num_channels);
             return -1;
           }
+          for (size_t k = 0; k < j; k++) {
+            if (step->channels[j] == step->channels[k]) {
+              config_error_set(
+                  err, CONFIG_ERR_INVALID_PIPELINE,
+                  "Filter step %zu references duplicated channel %d", i,
+                  step->channels[j]);
+              return -1;
+            }
+          }
         }
         break;
       }
