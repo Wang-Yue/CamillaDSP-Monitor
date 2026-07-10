@@ -447,20 +447,6 @@ static bool register_and_wait_asio(bool is_input, const char* driver_name,
     g_asio_shared.stream_started = true;
     g_asio_shared.active_count = 2;
     WakeAllConditionVariable(&g_asio_shared.cond);
-  } else {
-    while (!g_asio_shared.stream_started &&
-           g_asio_shared.setup_error[0] == '\0') {
-      SleepConditionVariableSRW(&g_asio_shared.cond, &g_asio_shared.lock,
-                                INFINITE, 0);
-    }
-
-    if (g_asio_shared.setup_error[0] != '\0') {
-      ReleaseSRWLockExclusive(&g_asio_shared.lock);
-      if (err)
-        backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
-                           g_asio_shared.setup_error);
-      return false;
-    }
   }
 
   *out_iasio = g_asio_shared.iasio;
@@ -1103,6 +1089,7 @@ static void asio_capture_close_internal(void* ctx) {
     capture->is_running = false;
     if (capture->full_duplex) {
       release_shared_asio(true, capture->iasio);
+      capture->iasio = NULL;
     } else {
       capture->iasio->lpVtbl->stop(capture->iasio);
       capture->iasio->lpVtbl->disposeBuffers(capture->iasio);
@@ -1123,8 +1110,14 @@ static void asio_capture_close_internal(void* ctx) {
     capture->callback_buf = NULL;
     capture->callback_buf_size = 0;
   }
-  if (capture->buffer_infos) free(capture->buffer_infos);
-  if (capture->channel_infos) free(capture->channel_infos);
+  if (capture->buffer_infos) {
+    free(capture->buffer_infos);
+    capture->buffer_infos = NULL;
+  }
+  if (capture->channel_infos) {
+    free(capture->channel_infos);
+    capture->channel_infos = NULL;
+  }
   if (g_capture_event) {
     CloseHandle(g_capture_event);
     g_capture_event = NULL;
@@ -1431,6 +1424,7 @@ static void asio_playback_close_internal(void* ctx) {
     playback->is_running = false;
     if (playback->full_duplex) {
       release_shared_asio(false, playback->iasio);
+      playback->iasio = NULL;
     } else {
       playback->iasio->lpVtbl->stop(playback->iasio);
       playback->iasio->lpVtbl->disposeBuffers(playback->iasio);
@@ -1451,8 +1445,14 @@ static void asio_playback_close_internal(void* ctx) {
     playback->callback_buf = NULL;
     playback->callback_buf_size = 0;
   }
-  if (playback->buffer_infos) free(playback->buffer_infos);
-  if (playback->channel_infos) free(playback->channel_infos);
+  if (playback->buffer_infos) {
+    free(playback->buffer_infos);
+    playback->buffer_infos = NULL;
+  }
+  if (playback->channel_infos) {
+    free(playback->channel_infos);
+    playback->channel_infos = NULL;
+  }
   if (g_active_playback == playback) g_active_playback = NULL;
 
   if (playback->com_initialized) {

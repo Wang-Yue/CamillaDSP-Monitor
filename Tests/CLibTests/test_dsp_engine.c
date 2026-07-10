@@ -786,4 +786,214 @@ TEST(DSPEngineE2E_GeneratorFile_SpeedTest) {
       size);
 }
 
+#if defined(ENABLE_ASIO)
+TEST(DSPEngineASIOSetConfigAndReload) {
+  dsp_engine_t* engine = dsp_engine_create();
+  ASSERT_TRUE(engine != NULL);
+
+  const char* json1 =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 48000,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    }\n"
+      "}";
+
+  const char* json2 =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 48000,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    },\n"
+      "    \"mixers\": {\n"
+      "        \"mymixer\": {\n"
+      "            \"channels_in\": 2,\n"
+      "            \"channels_out\": 2,\n"
+      "            \"mapping\": [{\n"
+      "                \"dest\": 0,\n"
+      "                \"sources\": [{\"channel\": 0, \"gain\": 0.0, \"inverted\": false, \"mute\": false}]\n"
+      "            }, {\n"
+      "                \"dest\": 1,\n"
+      "                \"sources\": [{\"channel\": 1, \"gain\": 0.0, \"inverted\": false, \"mute\": false}]\n"
+      "            }]\n"
+      "        }\n"
+      "    },\n"
+      "    \"pipeline\": [{\n"
+      "        \"type\": \"Mixer\",\n"
+      "        \"name\": \"mymixer\"\n"
+      "    }]\n"
+      "}";
+
+  audio_backend_error_t err;
+  memset(&err, 0, sizeof(err));
+  bool success1 = dsp_engine_set_config(engine, json1, &err);
+  if (!success1) {
+    printf("⚠️ [ASIO Warning] Skipping ASIO SetConfigAndReload test (Failed to set config: %s)\n", err.message);
+    dsp_engine_free(engine);
+    return;
+  }
+  ASSERT_TRUE(success1);
+
+  bool success2 = dsp_engine_set_config(engine, json2, &err);
+  ASSERT_TRUE(success2);
+
+  const dsp_config_t* active = dsp_engine_get_active_config(engine);
+  ASSERT_TRUE(active != NULL);
+  ASSERT_EQ(1, active->mixers_count);
+  ASSERT_EQ(1, active->pipeline_count);
+
+  dsp_engine_stop(engine);
+  dsp_engine_free(engine);
+}
+
+TEST(DSPEngineASIOHotParameterReload) {
+  dsp_engine_t* engine = dsp_engine_create();
+  ASSERT_TRUE(engine != NULL);
+
+  const char* json1 =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 48000,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    },\n"
+      "    \"filters\": {\n"
+      "        \"mygain\": {\n"
+      "            \"type\": \"Gain\",\n"
+      "            \"parameters\": {\n"
+      "                \"gain\": -6.0\n"
+      "            }\n"
+      "        }\n"
+      "    },\n"
+      "    \"pipeline\": [{\n"
+      "        \"type\": \"Filter\",\n"
+      "        \"channel\": 0,\n"
+      "        \"names\": [\"mygain\"]\n"
+      "    }]\n"
+      "}";
+
+  const char* json2 =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 48000,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    },\n"
+      "    \"filters\": {\n"
+      "        \"mygain\": {\n"
+      "            \"type\": \"Gain\",\n"
+      "            \"parameters\": {\n"
+      "                \"gain\": -3.0\n"
+      "            }\n"
+      "        }\n"
+      "    },\n"
+      "    \"pipeline\": [{\n"
+      "        \"type\": \"Filter\",\n"
+      "        \"channel\": 0,\n"
+      "        \"names\": [\"mygain\"]\n"
+      "    }]\n"
+      "}";
+
+  audio_backend_error_t err;
+  memset(&err, 0, sizeof(err));
+  bool success1 = dsp_engine_set_config(engine, json1, &err);
+  if (!success1) {
+    printf("⚠️ [ASIO Warning] Skipping ASIO HotParameterReload test (Failed to set config: %s)\n", err.message);
+    dsp_engine_free(engine);
+    return;
+  }
+  ASSERT_TRUE(success1);
+
+  bool success2 = dsp_engine_set_config(engine, json2, &err);
+  ASSERT_TRUE(success2);
+
+  const dsp_config_t* active = dsp_engine_get_active_config(engine);
+  ASSERT_TRUE(active != NULL);
+  ASSERT_EQ(1, active->filters_count);
+  ASSERT_EQ(-3.0, active->filters[0].filter.parameters.gain.gain);
+
+  dsp_engine_stop(engine);
+  dsp_engine_free(engine);
+}
+
+TEST(DSPEngineASIOSetConfigStruct) {
+  dsp_engine_t* engine = dsp_engine_create();
+  ASSERT_TRUE(engine != NULL);
+
+  const char* json =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 48000,\n"
+      "        \"chunksize\": 1024,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Asio\",\n"
+      "            \"channels\": 2\n"
+      "        }\n"
+      "    }\n"
+      "}";
+
+  dsp_config_t* parsed = NULL;
+  config_error_t cerr;
+  int parse_res = config_loader_parse(json, &parsed, &cerr);
+  ASSERT_EQ(0, parse_res);
+  ASSERT_TRUE(parsed != NULL);
+
+  // Apply overrides
+  parsed->devices.samplerate = 48000;
+  capture_device_config_set_channels(&parsed->devices.capture, 2);
+
+  audio_backend_error_t berr;
+  bool ok = dsp_engine_set_config_struct(engine, parsed, &berr);
+  if (!ok) {
+    printf("⚠️ [ASIO Warning] Skipping ASIO SetConfigStruct test (Failed to set config struct: %s)\n", berr.message);
+    dsp_engine_free(engine);
+    return;
+  }
+  ASSERT_TRUE(ok);
+
+  const dsp_config_t* active = dsp_engine_get_active_config(engine);
+  ASSERT_TRUE(active != NULL);
+  ASSERT_EQ(48000, active->devices.samplerate);
+  ASSERT_EQ(2, capture_device_config_get_channels(&active->devices.capture));
+
+  dsp_engine_stop(engine);
+  dsp_engine_free(engine);
+}
+#endif
+
 TEST_MAIN()
+
