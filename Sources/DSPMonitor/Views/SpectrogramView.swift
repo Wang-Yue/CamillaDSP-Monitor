@@ -35,6 +35,7 @@ struct SpectrogramContentView: View {
   @State private var currentX: CGFloat = 0.0
   @State private var bufferSize: CGSize = .zero
   @State private var publishedImage: CGImage?
+  @State private var lastUpdateTime: Date = .distantPast
 
   var body: some View {
     GeometryReader { geometry in
@@ -68,7 +69,12 @@ struct SpectrogramContentView: View {
         }
       }
       .onChange(of: spectroscope.history) { _, newHistory in
-        updateBuffer(with: newHistory, size: geometry.size)
+        let now = Date()
+        let elapsed = lastUpdateTime == .distantPast ? 0.05 : now.timeIntervalSince(lastUpdateTime)
+        if elapsed >= 0.05 {
+          updateBuffer(with: newHistory, size: geometry.size, elapsed: elapsed)
+          lastUpdateTime = now
+        }
       }
       .onChange(of: geometry.size) { _, newSize in
         recreateBuffer(size: newSize, history: spectroscope.history)
@@ -79,7 +85,7 @@ struct SpectrogramContentView: View {
     }
   }
 
-  private func updateBuffer(with history: [SpectrogramFrame], size: CGSize) {
+  private func updateBuffer(with history: [SpectrogramFrame], size: CGSize, elapsed: TimeInterval) {
     guard let context = bitmapContext else { return }
 
     guard let lastFrame = history.last else {
@@ -93,15 +99,7 @@ struct SpectrogramContentView: View {
     let drawWidth = size.width - leftPadding
     let drawHeight = size.height - bottomPadding
 
-    let count = history.count
-    let timeDiff: TimeInterval
-    if count > 1 {
-      timeDiff = lastFrame.timestamp.timeIntervalSince(history[count - 2].timestamp)
-    } else {
-      timeDiff = 0.1  // Fallback
-    }
-
-    let stripWidth = drawWidth * CGFloat(timeDiff / 10.0)
+    let stripWidth = drawWidth * CGFloat(elapsed / 10.0)
     let clearWidth = max(1.0, ceil(stripWidth))
 
     // Clear stale portion before drawing new data
@@ -354,54 +352,81 @@ struct CSDWaterfallView: View {
           context.stroke(path, with: .color(Color.primary.opacity(0.12)), lineWidth: 0.5)
         }
 
+        // Resolve colors once outside the loop
+        let startResolved = Color.blue.opacity(0.3).resolve(in: context.environment)
+        let endResolved = Color.accentColor.resolve(in: context.environment)
+        let r1 = startResolved.red
+        let g1 = startResolved.green
+        let b1 = startResolved.blue
+        let a1: Float = 0.3
+        let r2 = endResolved.red
+        let g2 = endResolved.green
+        let b2 = endResolved.blue
+        let a2: Float = 1.0
+
+        let controlBgResolved = Color(nsColor: .controlBackgroundColor).resolve(in: context.environment)
+        let controlBgColor = Color(controlBgResolved).opacity(0.92)
+
         // Draw stacked curves from back to front
         for i in 0..<count {
           let frame = history[i]
           let t = Double(i) / Double(count - 1)
 
-          var path = Path()
           let nBins = frame.data.count
           guard nBins > 2 else { continue }
 
           let startPt = project(flatX: leftPadding, flatY: baselineY, t: t)
-          path.move(to: startPt)
 
-          for j in 0..<nBins {
+          // 1. Build the filled shape path using a flat coordinates array
+          let drawBins = min(Int(nBins), 100)
+          var points: [CGPoint] = []
+          points.reserveCapacity(drawBins + 3)
+          points.append(startPt)
+
+          for k in 0..<drawBins {
+            let j = Int(round(Double(k) / Double(drawBins - 1) * Double(nBins - 1)))
             let binFrac = Double(j) / Double(nBins - 1)
             let xFlat = leftPadding + CGFloat(binFrac) * drawWidth
             let magnitude = frame.data[j]
             let normMag = normalizedDB(magnitude)
             let yFlat = baselineY - CGFloat(normMag) * drawHeight
             let projPt = project(flatX: xFlat, flatY: yFlat, t: t)
-            path.addLine(to: projPt)
+            points.append(projPt)
           }
 
           let endPt = project(flatX: leftPadding + drawWidth, flatY: baselineY, t: t)
-          path.addLine(to: endPt)
-          path.addLine(to: startPt)
+          points.append(endPt)
+          points.append(startPt)
 
-          context.fill(path, with: .color(Color(nsColor: .controlBackgroundColor).opacity(0.92)))
+          var path = Path()
+          path.addLines(points)
 
-          // Draw the top edge (the actual spectrum wave)
-          var edgePath = Path()
-          let firstPt = project(
-            flatX: leftPadding,
-            flatY: baselineY - CGFloat(normalizedDB(frame.data[0])) * drawHeight, t: t)
-          edgePath.move(to: firstPt)
+          context.fill(path, with: .color(controlBgColor))
 
-          for j in 1..<nBins {
+          // 2. Build the top edge wave path using a flat coordinates array
+          var edgePoints: [CGPoint] = []
+          edgePoints.reserveCapacity(drawBins)
+
+          for k in 0..<drawBins {
+            let j = Int(round(Double(k) / Double(drawBins - 1) * Double(nBins - 1)))
             let binFrac = Double(j) / Double(nBins - 1)
             let xFlat = leftPadding + CGFloat(binFrac) * drawWidth
             let yFlat = baselineY - CGFloat(normalizedDB(frame.data[j])) * drawHeight
             let projPt = project(flatX: xFlat, flatY: yFlat, t: t)
-            edgePath.addLine(to: projPt)
+            edgePoints.append(projPt)
           }
 
-          let ageColor = Color.interpolate(
-            from: Color.blue.opacity(0.3),
-            to: Color.accentColor,
-            fraction: t
-          )
+          var edgePath = Path()
+          edgePath.addLines(edgePoints)
+
+          // Interpolate color components directly
+          let tf = Float(t)
+          let r = r1 + tf * (r2 - r1)
+          let g = g1 + tf * (g2 - g1)
+          let b = b1 + tf * (b2 - b1)
+          let a = a1 + tf * (a2 - a1)
+          let ageColor = Color(red: Double(r), green: Double(g), blue: Double(b), opacity: Double(a))
+
           context.stroke(edgePath, with: .color(ageColor), lineWidth: 1.5)
         }
 
@@ -425,17 +450,4 @@ struct CSDWaterfallView: View {
   }
 }
 
-// MARK: - Color Interpolation Helper
 
-extension Color {
-  static func interpolate(from color1: Color, to color2: Color, fraction: Double) -> Color {
-    let f = min(max(fraction, 0), 1)
-    let ns1 = NSColor(color1).usingColorSpace(.deviceRGB) ?? .blue
-    let ns2 = NSColor(color2).usingColorSpace(.deviceRGB) ?? .cyan
-    let r = ns1.redComponent + CGFloat(f) * (ns2.redComponent - ns1.redComponent)
-    let g = ns1.greenComponent + CGFloat(f) * (ns2.greenComponent - ns1.greenComponent)
-    let b = ns1.blueComponent + CGFloat(f) * (ns2.blueComponent - ns1.blueComponent)
-    let a = ns1.alphaComponent + CGFloat(f) * (ns2.alphaComponent - ns1.alphaComponent)
-    return Color(red: Double(r), green: Double(g), blue: Double(b), opacity: Double(a))
-  }
-}
