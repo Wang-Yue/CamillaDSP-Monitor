@@ -93,6 +93,47 @@ struct LevelMeterCanvas: View {
   var compact: Bool = false
 
   var body: some View {
+    ZStack {
+      LevelMeterBackground(compact: compact).equatable()
+
+      Canvas { context, size in
+        let w = size.width
+        let h = size.height
+        let halfH = h / 2
+
+        let rmsW = w * normalizedDB(rms)
+        let peakW = w * normalizedDB(peak)
+
+        // Shared shading — same color at the same horizontal position for both bars
+        let shading = GraphicsContext.Shading.linearGradient(
+          .audioLevel, startPoint: .zero, endPoint: CGPoint(x: w, y: 0))
+        let r: CGFloat = compact ? 1.5 : 2
+
+        var barsPath = Path()
+        let cornerSize = CGSize(width: r, height: r)
+        if rmsW > 0 {
+          barsPath.addRoundedRect(
+            in: CGRect(x: 0, y: 0.5, width: rmsW, height: halfH - 1), cornerSize: cornerSize)
+        }
+        if peakW > 0 {
+          barsPath.addRoundedRect(
+            in: CGRect(x: 0, y: halfH + 0.5, width: peakW, height: halfH - 1),
+            cornerSize: cornerSize)
+        }
+        context.fill(barsPath, with: shading)
+      }
+    }
+  }
+}
+
+private struct LevelMeterBackground: View, Equatable {
+  let compact: Bool
+
+  nonisolated static func == (lhs: LevelMeterBackground, rhs: LevelMeterBackground) -> Bool {
+    lhs.compact == rhs.compact
+  }
+
+  var body: some View {
     Canvas { context, size in
       let w = size.width
       let h = size.height
@@ -101,26 +142,6 @@ struct LevelMeterCanvas: View {
       context.fill(
         Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: compact ? 2 : 3),
         with: .color(compact ? Color.white.opacity(0.08) : Color.primary.opacity(0.06)))
-
-      let rmsW = w * normalizedDB(rms)
-      let peakW = w * normalizedDB(peak)
-
-      // Shared shading — same color at the same horizontal position for both bars
-      let shading = GraphicsContext.Shading.linearGradient(
-        .audioLevel, startPoint: .zero, endPoint: CGPoint(x: w, y: 0))
-      let r: CGFloat = compact ? 1.5 : 2
-
-      var barsPath = Path()
-      let cornerSize = CGSize(width: r, height: r)
-      if rmsW > 0 {
-        barsPath.addRoundedRect(
-          in: CGRect(x: 0, y: 0.5, width: rmsW, height: halfH - 1), cornerSize: cornerSize)
-      }
-      if peakW > 0 {
-        barsPath.addRoundedRect(
-          in: CGRect(x: 0, y: halfH + 0.5, width: peakW, height: halfH - 1), cornerSize: cornerSize)
-      }
-      context.fill(barsPath, with: shading)
 
       var divider = Path()
       divider.move(to: CGPoint(x: 0, y: halfH))
