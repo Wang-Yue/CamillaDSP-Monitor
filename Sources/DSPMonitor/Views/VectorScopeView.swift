@@ -1,5 +1,3 @@
-// VectorScopeView - Goniometer visualization
-
 import SwiftUI
 
 struct VectorScopeView: View {
@@ -75,7 +73,20 @@ struct VectorScopeContentView: View {
       }
 
       if vectorscope.showParticles {
-        // Draw dynamic decaying phosphor particles
+        let numBins = 32
+        var binPaths = Array(repeating: Path(), count: numBins)
+        var glowPaths = Array(repeating: Path(), count: numBins)
+
+        // Resolve colors once outside the loop using SwiftUI's environment
+        let startColor = Color.indigo.resolve(in: context.environment)
+        let endColor = Color.cyan.resolve(in: context.environment)
+        let r1 = startColor.red
+        let g1 = startColor.green
+        let b1 = startColor.blue
+        let r2 = endColor.red
+        let g2 = endColor.green
+        let b2 = endColor.blue
+
         for i in 0..<count {
           let l = left[i]
           let r = right[i]
@@ -90,19 +101,36 @@ struct VectorScopeContentView: View {
 
           let t = Double(i) / Double(count - 1)
           let size = 1.0 + 3.5 * t
-          let alpha = 0.03 + 0.82 * t
-          let baseColor = Color.interpolate(from: .indigo, to: .cyan, fraction: t)
+          let binIndex = min(Int(t * Double(numBins)), numBins - 1)
+
+          let rect = CGRect(x: px - size / 2, y: py - size / 2, width: size, height: size)
+          binPaths[binIndex].addEllipse(in: rect)
 
           // Glowing halo overlay for head of vector stream
           if t > 0.9 {
             let glowSize = size * 2.0
             let glowRect = CGRect(
               x: px - glowSize / 2, y: py - glowSize / 2, width: glowSize, height: glowSize)
-            context.fill(Path(ellipseIn: glowRect), with: .color(baseColor.opacity(alpha * 0.25)))
+            glowPaths[binIndex].addEllipse(in: glowRect)
           }
+        }
 
-          let rect = CGRect(x: px - size / 2, y: py - size / 2, width: size, height: size)
-          context.fill(Path(ellipseIn: rect), with: .color(baseColor.opacity(alpha)))
+        for binIndex in 0..<numBins {
+          let t = Float(binIndex) / Float(numBins - 1)
+          let alpha = Float(0.03 + 0.82 * Double(t))
+
+          let r = r1 + t * (r2 - r1)
+          let g = g1 + t * (g2 - g1)
+          let b = b1 + t * (b2 - b1)
+          let color = Color(
+            red: Double(r), green: Double(g), blue: Double(b), opacity: Double(alpha))
+
+          if !glowPaths[binIndex].isEmpty {
+            context.fill(glowPaths[binIndex], with: .color(color.opacity(0.25)))
+          }
+          if !binPaths[binIndex].isEmpty {
+            context.fill(binPaths[binIndex], with: .color(color))
+          }
         }
       } else {
         // Draw continuous line path
