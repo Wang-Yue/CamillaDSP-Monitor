@@ -130,8 +130,8 @@ struct SpectrogramContentView: View {
   private func recreateBuffer(size: CGSize, history: [SpectrogramFrame]) {
     guard size.width > 0 && size.height > 0 else { return }
 
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
 
     guard
       let context = CGContext(
@@ -197,17 +197,40 @@ struct SpectrogramContentView: View {
       // Skip very low signals as optimization
       guard normalized > 0.05 else { continue }
 
-      let baseColor = appThemeColor(normalized)
-      let color = normalized < 0.2 ? baseColor.opacity(Double(normalized / 0.2)) : baseColor
+      let alpha = normalized < 0.2 ? CGFloat(normalized / 0.2) : 1.0
+      let cgColor = appThemeCGColor(normalized, alpha: alpha)
 
       let y = bottomPadding + CGFloat(j) * barHeight
       let rect = CGRect(x: x, y: y, width: width, height: barHeight)
 
-      let nsColor = NSColor(color)
-      context.setFillColor(nsColor.cgColor)
+      context.setFillColor(cgColor)
       context.fill(rect)
     }
   }
+}
+
+private func appThemeCGColor(_ value: Float, alpha: CGFloat = 1.0) -> CGColor {
+  let v = Double(value)
+  let r: CGFloat
+  let g: CGFloat
+  let b: CGFloat
+
+  if v < 0.35 {
+    r = 0.0; g = 1.0; b = 0.0
+  } else if v < 0.55 {
+    let t = (v - 0.35) / 0.2
+    r = t; g = 1.0; b = 0.0
+  } else if v < 0.75 {
+    let t = (v - 0.55) / 0.2
+    r = 1.0; g = 1.0 - t * 0.5; b = 0.0
+  } else if v < 0.95 {
+    let t = (v - 0.75) / 0.2
+    r = 1.0; g = 0.5 - t * 0.5; b = 0.0
+  } else {
+    r = 1.0; g = 0.0; b = 0.0
+  }
+
+  return CGColor(srgbRed: r, green: g, blue: b, alpha: alpha)
 }
 
 struct SpectrogramGridView: View, Equatable {

@@ -25,6 +25,7 @@ func appThemeColor(_ value: Float) -> Color {
   }
 }
 
+
 private let barOpacity: Double = 0.9
 
 extension Gradient {

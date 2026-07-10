@@ -71,7 +71,7 @@ struct DashboardView: View {
 
   var body: some View {
     ScrollView {
-      VStack(spacing: 20) {
+      LazyVStack(spacing: 20) {
         PipelineOverview()
 
         if appState.showLevelMetersInDashboard {
