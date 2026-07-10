@@ -60,6 +60,7 @@ struct EQDiagramMode: View {
   var overlay: EQReferenceOverlay? = nil
   var showAnalyzerOverlay: Bool = true
   @AppStorage("eq_show_analyzer") private var showAnalyzer = true
+  @AppStorage("eq_show_loudness_contour") private var showLoudnessContour = false
 
   var body: some View {
     VStack(spacing: 0) {
@@ -78,7 +79,14 @@ struct EQDiagramMode: View {
 
         if showAnalyzerOverlay {
           Toggle(isOn: $showAnalyzer) {
-            Label("Real-time Analyzer", systemImage: "chart.bar.xaxis")
+            Label("Analyzer", systemImage: "chart.bar.xaxis")
+              .font(.caption)
+          }
+          .toggleStyle(.checkbox)
+          .controlSize(.small)
+
+          Toggle(isOn: $showLoudnessContour) {
+            Label("Loudness Contour", systemImage: "ear")
               .font(.caption)
           }
           .toggleStyle(.checkbox)
@@ -110,10 +118,13 @@ struct EQDiagramMode: View {
 struct EQFrequencyResponseView: View {
   let preset: EQPreset
   @Environment(DSPEngineController.self) var dsp: DSPEngineController?
+  @Environment(PipelineStore.self) var pipeline
   @Binding var selectedBandID: UUID?
   let sampleRate: Int
   var overlay: EQReferenceOverlay? = nil
   let showAnalyzer: Bool
+  @Environment(AudioSettings.self) var settings
+  @AppStorage("eq_show_loudness_contour") private var showLoudnessContour = false
   static let bandColors: [Color] = [
     .red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink, .mint, .teal, .indigo, .brown,
   ]
@@ -171,6 +182,10 @@ struct EQFrequencyResponseView: View {
           bandCurve(band: band, w: w, h: h).stroke(
             band.id == selectedBandID ? color : color.opacity(0.35),
             lineWidth: band.id == selectedBandID ? 2 : 1)
+        }
+        if showLoudnessContour {
+          loudnessContourCurve(w: w, h: h, volumeDb: Double(settings.volume))
+            .stroke(Color.orange.opacity(0.65), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
         }
         combinedCurve(w: w, h: h).stroke(Color.accentColor, lineWidth: 2.5)
         ForEach(preset.bands) { band in bandHandle(band: band, w: w, h: h) }
@@ -328,6 +343,48 @@ struct EQFrequencyResponseView: View {
         let x = w * Double(i) / Double(numPoints)
         let f = xToFreq(x, width: w)
         let db = preset.combinedResponse(atFreq: f, sampleRate: sampleRate)
+        let y = dbToY(db, height: h)
+        if i == 0 {
+          path.move(to: CGPoint(x: x, y: y))
+        } else {
+          path.addLine(to: CGPoint(x: x, y: y))
+        }
+      }
+    }
+  }
+  private func loudnessContourCurve(w: Double, h: Double, volumeDb: Double) -> Path {
+    Path { path in
+      // Check if there is an active and enabled Loudness stage in the pipeline
+      let loudnessStage = pipeline.stages.first(where: { $0.type == .loudness && $0.isEnabled })
+
+      let ref: Double
+      let lowBoost: Double
+      let highBoost: Double
+
+      if let stage = loudnessStage {
+        ref = stage.loudnessReference
+        lowBoost = stage.loudnessLowBoost
+        highBoost = stage.loudnessHighBoost
+      } else {
+        // If Loudness is not enabled, we draw a flat 0 dB straight line
+        ref = 0.0
+        lowBoost = 0.0
+        highBoost = 0.0
+      }
+
+      let A = max(0.0, ref - volumeDb)
+      let scaleRange = ref - (-60.0)
+      let factor = scaleRange > 0.1 ? min(1.0, A / scaleRange) : 0.0
+
+      let bassGain = lowBoost * factor
+      let trebleGain = highBoost * factor
+
+      for i in 0...numPoints {
+        let x = w * Double(i) / Double(numPoints)
+        let f = xToFreq(x, width: w)
+        let bassLoss = bassGain * (1.0 / (1.0 + pow(f / 130.0, 2.0)))
+        let trebleLoss = trebleGain * (pow(f / 5000.0, 2.0) / (1.0 + pow(f / 5000.0, 2.0)))
+        let db = clampForPlot(bassLoss + trebleLoss)
         let y = dbToY(db, height: h)
         if i == 0 {
           path.move(to: CGPoint(x: x, y: y))
