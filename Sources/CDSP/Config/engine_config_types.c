@@ -1,6 +1,7 @@
 #include "engine_config_types.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
@@ -966,4 +967,33 @@ void capture_device_config_set_file_format(capture_device_config_t* config,
     config->cfg.raw_file.format = format;
     config->cfg.raw_file.has_format = true;
   }
+}
+
+void free_audio_device_descriptor(audio_device_descriptor_t* desc) {
+  if (!desc) return;
+  if (desc->capability_sets) {
+    for (size_t s = 0; s < desc->capability_sets_count; s++) {
+      device_capability_set_t* set = &desc->capability_sets[s];
+      if (set->capabilities) {
+        for (size_t c = 0; c < set->capabilities_count; c++) {
+          channel_capability_t* ch_cap = &set->capabilities[c];
+          if (ch_cap->samplerates) {
+            for (size_t r = 0; r < ch_cap->samplerates_count; r++) {
+              samplerate_capability_t* rate_cap = &ch_cap->samplerates[r];
+              if (rate_cap->formats) {
+                for (size_t f = 0; f < rate_cap->formats_count; f++) {
+                  free(rate_cap->formats[f]);
+                }
+                free(rate_cap->formats);
+              }
+            }
+            free(ch_cap->samplerates);
+          }
+        }
+        free(set->capabilities);
+      }
+    }
+    free(desc->capability_sets);
+  }
+  free(desc);
 }

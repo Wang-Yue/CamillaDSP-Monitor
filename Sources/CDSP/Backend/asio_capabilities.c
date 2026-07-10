@@ -310,10 +310,7 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
 
   cap->samplerates_count = valid_rates_count;
   if (valid_rates_count == 0) {
-    free(cap->samplerates);
-    free(set->capabilities);
-    free(desc->capability_sets);
-    free(desc);
+    free_audio_device_descriptor(desc);
     desc = NULL;
   }
 
@@ -324,35 +321,6 @@ audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
 error_cleanup:
   CoUninitialize();
   return NULL;
-}
-
-void asio_capabilities_free_descriptor(audio_device_descriptor_t* desc) {
-  if (!desc) return;
-  if (desc->capability_sets) {
-    for (size_t s = 0; s < desc->capability_sets_count; s++) {
-      device_capability_set_t* set = &desc->capability_sets[s];
-      if (set->capabilities) {
-        for (size_t c = 0; c < set->capabilities_count; c++) {
-          channel_capability_t* ch_cap = &set->capabilities[c];
-          if (ch_cap->samplerates) {
-            for (size_t r = 0; r < ch_cap->samplerates_count; r++) {
-              samplerate_capability_t* rate_cap = &ch_cap->samplerates[r];
-              if (rate_cap->formats) {
-                for (size_t f = 0; f < rate_cap->formats_count; f++) {
-                  free(rate_cap->formats[f]);
-                }
-                free(rate_cap->formats);
-              }
-            }
-            free(ch_cap->samplerates);
-          }
-        }
-        free(set->capabilities);
-      }
-    }
-    free(desc->capability_sets);
-  }
-  free(desc);
 }
 
 #endif  // ENABLE_ASIO

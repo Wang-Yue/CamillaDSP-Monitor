@@ -2,6 +2,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include "wasapi_backend.h"
+#include "wasapi_capabilities.h"
 
 // clang-format off
 #include <initguid.h>
@@ -403,64 +404,7 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
 
   // Retrieve IMMDevice. If no device name is specified, get default.
   // Otherwise, enumerate endpoints and match friendly name or ID.
-  if (capture->device[0] == '\0') {
-    hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
-        capture->enumerator, capture->loopback ? eRender : eCapture, eConsole,
-        &capture->mm_device);
-  } else {
-    IMMDeviceCollection* collection = NULL;
-    hr = IMMDeviceEnumerator_EnumAudioEndpoints(
-        capture->enumerator, capture->loopback ? eRender : eCapture,
-        DEVICE_STATE_ACTIVE, &collection);
-    if (SUCCEEDED(hr)) {
-      UINT count = 0;
-      IMMDeviceCollection_GetCount(collection, &count);
-      for (UINT i = 0; i < count; i++) {
-        IMMDevice* dev = NULL;
-        IMMDeviceCollection_Item(collection, i, &dev);
-        bool matched = false;
-
-        IPropertyStore* properties = NULL;
-        HRESULT hr_prop =
-            IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
-        if (SUCCEEDED(hr_prop)) {
-          PROPVARIANT var;
-          PropVariantInit(&var);
-          hr_prop = IPropertyStore_GetValue(properties,
-                                            &PKEY_Device_FriendlyName, &var);
-          if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
-            char friendly_name[256] = {0};
-            wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name));
-            if (strstr(friendly_name, capture->device) != NULL) {
-              matched = true;
-            }
-            PropVariantClear(&var);
-          }
-          SAFE_RELEASE(properties);
-        }
-
-        if (!matched) {
-          LPWSTR id = NULL;
-          IMMDevice_GetId(dev, &id);
-          if (id) {
-            char dev_id_char[256];
-            wcstombs(dev_id_char, id, sizeof(dev_id_char));
-            if (strstr(dev_id_char, capture->device) != NULL) {
-              matched = true;
-            }
-            CoTaskMemFree(id);
-          }
-        }
-
-        if (matched) {
-          capture->mm_device = dev;
-          break;
-        }
-        IMMDevice_Release(dev);
-      }
-      IMMDeviceCollection_Release(collection);
-    }
-  }
+  capture->mm_device = wasapi_find_device_by_name(capture->enumerator, capture->device, !capture->loopback);
 
   if (!capture->mm_device) {
     if (err)
@@ -945,62 +889,7 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
 
   // Retrieve IMMDevice. If no device name is specified, get default.
   // Otherwise, enumerate endpoints and match friendly name or ID.
-  if (playback->device[0] == '\0') {
-    hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
-        playback->enumerator, eRender, eConsole, &playback->mm_device);
-  } else {
-    IMMDeviceCollection* collection = NULL;
-    hr = IMMDeviceEnumerator_EnumAudioEndpoints(
-        playback->enumerator, eRender, DEVICE_STATE_ACTIVE, &collection);
-    if (SUCCEEDED(hr)) {
-      UINT count = 0;
-      IMMDeviceCollection_GetCount(collection, &count);
-      for (UINT i = 0; i < count; i++) {
-        IMMDevice* dev = NULL;
-        IMMDeviceCollection_Item(collection, i, &dev);
-        bool matched = false;
-
-        IPropertyStore* properties = NULL;
-        HRESULT hr_prop =
-            IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
-        if (SUCCEEDED(hr_prop)) {
-          PROPVARIANT var;
-          PropVariantInit(&var);
-          hr_prop = IPropertyStore_GetValue(properties,
-                                            &PKEY_Device_FriendlyName, &var);
-          if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
-            char friendly_name[256] = {0};
-            wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name));
-            if (strstr(friendly_name, playback->device) != NULL) {
-              matched = true;
-            }
-            PropVariantClear(&var);
-          }
-          SAFE_RELEASE(properties);
-        }
-
-        if (!matched) {
-          LPWSTR id = NULL;
-          IMMDevice_GetId(dev, &id);
-          if (id) {
-            char dev_id_char[256];
-            wcstombs(dev_id_char, id, sizeof(dev_id_char));
-            if (strstr(dev_id_char, playback->device) != NULL) {
-              matched = true;
-            }
-            CoTaskMemFree(id);
-          }
-        }
-
-        if (matched) {
-          playback->mm_device = dev;
-          break;
-        }
-        IMMDevice_Release(dev);
-      }
-      IMMDeviceCollection_Release(collection);
-    }
-  }
+  playback->mm_device = wasapi_find_device_by_name(playback->enumerator, playback->device, false);
 
   if (!playback->mm_device) {
     if (err)

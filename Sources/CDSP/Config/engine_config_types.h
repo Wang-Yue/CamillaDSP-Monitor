@@ -1076,4 +1076,15 @@ void capture_device_config_set_format(capture_device_config_t* config,
 void capture_device_config_set_file_format(capture_device_config_t* config,
                                            binary_sample_format_t format);
 
+/**
+ * @brief Recursively frees the memory allocated for an audio device descriptor.
+ *
+ * This function deallocates the top-level descriptor struct as well as all
+ * dynamically allocated capability sets, channels, sample rates, and format
+ * strings nested within it. Safe to call with NULL.
+ *
+ * @param desc Pointer to the descriptor to free.
+ */
+void free_audio_device_descriptor(audio_device_descriptor_t* desc);
+
 #endif  // CLIB_CONFIG_ENGINE_CONFIG_TYPES_H

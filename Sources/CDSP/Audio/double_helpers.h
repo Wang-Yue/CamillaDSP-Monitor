@@ -55,6 +55,25 @@ static inline double double_to_db(double linear) {
   return 20.0 * log10(linear);
 }
 
+/**
+ * @brief Apply attack/release envelope smoothing to an input signal.
+ *
+ * @param input The current input value.
+ * @param prev The smoothed value from the previous step.
+ * @param attack_coeff The attack time constant coefficient.
+ * @param release_coeff The release time constant coefficient.
+ * @return The smoothed envelope value.
+ */
+static inline double double_smooth_envelope(double input, double prev,
+                                            double attack_coeff,
+                                            double release_coeff) {
+  if (input >= prev) {
+    return attack_coeff * prev + (1.0 - attack_coeff) * input;
+  } else {
+    return release_coeff * prev + (1.0 - release_coeff) * input;
+  }
+}
+
 // Vectorized DSP operations using Apple Accelerate (vDSP) or fallback C loops.
 //
 // The partial-count ops (add, multiply, multiply_add) need to

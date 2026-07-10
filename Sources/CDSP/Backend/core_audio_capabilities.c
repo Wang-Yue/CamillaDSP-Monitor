@@ -84,7 +84,7 @@ int core_audio_capabilities_channel_count(const char* device_name,
       }
     }
   }
-  core_audio_capabilities_free_descriptor(desc);
+  free_audio_device_descriptor(desc);
   return max_ch;
 }
 
@@ -354,25 +354,4 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
   return desc;
 }
 
-/// Free the audio device descriptor and its internal capability sets.
-void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc) {
-  if (!desc) return;
-  for (size_t s = 0; s < desc->capability_sets_count; s++) {
-    device_capability_set_t* set = &desc->capability_sets[s];
-    for (size_t c = 0; c < set->capabilities_count; c++) {
-      channel_capability_t* ch_cap = &set->capabilities[c];
-      for (size_t r = 0; r < ch_cap->samplerates_count; r++) {
-        samplerate_capability_t* rate_cap = &ch_cap->samplerates[r];
-        for (size_t f = 0; f < rate_cap->formats_count; f++) {
-          free(rate_cap->formats[f]);
-        }
-        free(rate_cap->formats);
-      }
-      free(ch_cap->samplerates);
-    }
-    free(set->capabilities);
-  }
-  free(desc->capability_sets);
-  free(desc);
-}
 #endif  // ENABLE_COREAUDIO

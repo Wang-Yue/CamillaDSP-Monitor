@@ -58,19 +58,11 @@ bool asio_capabilities_default_device_name(bool is_capture, char* out_name,
  * @param[out] err Pointer to store error details if the probe fails.
  * @return A pointer to a newly allocated audio_device_descriptor_t representing
  * the capabilities, or NULL on failure. The returned descriptor must be freed
- * using asio_capabilities_free_descriptor().
+ * using free_audio_device_descriptor().
  */
 audio_device_descriptor_t* asio_capabilities_describe(const char* device_name,
                                                       bool is_capture,
                                                       device_error_t* err);
-
-/**
- * @brief Free an audio device descriptor allocated by
- * asio_capabilities_describe().
- *
- * @param desc Pointer to the descriptor to free.
- */
-void asio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 
 #endif  // ENABLE_ASIO
 

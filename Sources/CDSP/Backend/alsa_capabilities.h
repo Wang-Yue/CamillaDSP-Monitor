@@ -62,19 +62,13 @@ int alsa_capabilities_channel_count(const char* device_name, bool is_capture);
  * @param err Pointer to a device_error_t to receive error details on failure.
  * @return Pointer to the allocated audio_device_descriptor_t, or NULL on
  * failure. The returned descriptor must be freed with
- * alsa_capabilities_free_descriptor.
+ * free_audio_device_descriptor.
  */
 audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
                                                       bool is_capture,
                                                       device_error_t* err);
 
-/**
- * @brief Frees an audio device descriptor allocated by
- * alsa_capabilities_describe.
- *
- * @param desc Pointer to the descriptor to free.
- */
-void alsa_capabilities_free_descriptor(audio_device_descriptor_t* desc);
+
 
 #endif  // ENABLE_ALSA
 

@@ -153,47 +153,16 @@ void compressor_processor_process(compressor_processor_t* processor,
 
   // Step 1: Sum monitored channels into scratch buffer to evaluate overall
   // signal level (creating a mono sum for sidechain level detection).
-  int ch0 = processor->monitor_channels[0];
-  const double* src0_base = audio_chunk_get_channel(chunk, ch0);
-  if (!src0_base) return;
-  memcpy(processor->scratch, src0_base, count * sizeof(double));
+  audio_chunk_sum_channels(chunk, processor->monitor_channels,
+                           processor->monitor_channels_count,
+                           processor->scratch, count);
 
-  for (size_t ch_idx = 1; ch_idx < processor->monitor_channels_count;
-       ch_idx++) {
-    int ch = processor->monitor_channels[ch_idx];
-    const double* src_base = audio_chunk_get_channel(chunk, ch);
-    if (!src_base) continue;
-    // Perform vector addition to sum the channel's samples into scratch.
-#ifdef ENABLE_ACCELERATE
-    vDSP_vaddD(processor->scratch, 1, src_base, 1, processor->scratch, 1,
-               count);
-#else
-    for (size_t i = 0; i < count; i++) {
-      processor->scratch[i] += src_base[i];
-    }
-#endif
-  }
-
-  // Step 2: Envelope Detection (Loudness Estimation with Attack/Release
-  // Smoothing)
-  // We process sample-by-sample, smoothing the loudness envelope in dB.
+  // Step 2: Envelope Detection (Loudness Estimation with Attack/Release Smoothing)
   double prev = processor->prev_loudness;
   for (size_t i = 0; i < count; i++) {
-    // Convert absolute amplitude to dB. 1e-9 avoids log10(0) which is -inf.
     double val = 20.0 * log10(fabs(processor->scratch[i]) + 1e-9);
-    if (val >= prev) {
-      // Signal level rising: apply attack time constant.
-      // attack coefficient determines how quickly the envelope responds to
-      // level increases.
-      val = processor->attack * prev + (1.0 - processor->attack) * val;
-    } else {
-      // Signal level falling: apply release time constant.
-      // release coefficient determines how slowly the envelope decays back
-      // down.
-      val = processor->release * prev + (1.0 - processor->release) * val;
-    }
-    prev = val;
-    processor->scratch[i] = val;
+    prev = double_smooth_envelope(val, prev, processor->attack, processor->release);
+    processor->scratch[i] = prev;
   }
   // Store final envelope level for the next chunk's processing.
   processor->prev_loudness = prev;
@@ -219,21 +188,18 @@ void compressor_processor_process(compressor_processor_t* processor,
   }
 
   // Step 4: Apply linear gain to all processed channels
-  for (size_t ch_idx = 0; ch_idx < processor->process_channels_count;
-       ch_idx++) {
-    int ch = processor->process_channels[ch_idx];
-    double* wave = audio_chunk_get_channel(chunk, ch);
-    if (!wave) continue;
-#ifdef ENABLE_ACCELERATE
-    vDSP_vmulD(wave, 1, processor->scratch, 1, wave, 1, count);
-#else
-    for (size_t i = 0; i < count; i++) {
-      wave[i] *= processor->scratch[i];
-    }
-#endif
-    // Step 5: Optionally run post-compression limiter to prevent clipping
-    if (processor->limiter) {
-      limiter_filter_process(processor->limiter, wave, count);
+  audio_chunk_apply_gain(chunk, processor->process_channels,
+                         processor->process_channels_count,
+                         processor->scratch, count);
+
+  // Step 5: Optionally run post-compression limiter to prevent clipping
+  if (processor->limiter) {
+    for (size_t ch_idx = 0; ch_idx < processor->process_channels_count; ch_idx++) {
+      int ch = processor->process_channels[ch_idx];
+      double* wave = audio_chunk_get_channel(chunk, ch);
+      if (wave) {
+        limiter_filter_process(processor->limiter, wave, count);
+      }
     }
   }
 }

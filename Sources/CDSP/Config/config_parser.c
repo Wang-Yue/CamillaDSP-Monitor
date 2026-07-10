@@ -42,6 +42,56 @@ static void parse_labels_array(const cJSON* labels_arr, char*** out_labels,
   *out_has_labels = true;
 }
 
+static double* parse_double_array(const cJSON* arr, size_t* out_count) {
+  if (!cJSON_IsArray(arr)) {
+    *out_count = 0;
+    return NULL;
+  }
+  int size = cJSON_GetArraySize(arr);
+  if (size <= 0) {
+    *out_count = 0;
+    return NULL;
+  }
+  double* values = (double*)calloc(size, sizeof(double));
+  if (!values) {
+    *out_count = 0;
+    return NULL;
+  }
+  for (int i = 0; i < size; i++) {
+    cJSON* el = cJSON_GetArrayItem(arr, i);
+    if (cJSON_IsNumber(el)) {
+      values[i] = el->valuedouble;
+    }
+  }
+  *out_count = (size_t)size;
+  return values;
+}
+
+static int* parse_int_array(const cJSON* arr, size_t* out_count) {
+  if (!cJSON_IsArray(arr)) {
+    *out_count = 0;
+    return NULL;
+  }
+  int size = cJSON_GetArraySize(arr);
+  if (size <= 0) {
+    *out_count = 0;
+    return NULL;
+  }
+  int* values = (int*)calloc(size, sizeof(int));
+  if (!values) {
+    *out_count = 0;
+    return NULL;
+  }
+  for (int i = 0; i < size; i++) {
+    cJSON* el = cJSON_GetArrayItem(arr, i);
+    if (cJSON_IsNumber(el)) {
+      values[i] = el->valueint;
+    }
+  }
+  *out_count = (size_t)size;
+  return values;
+}
+
 /**
  * @brief Parses the resampler configuration section.
  *
@@ -1070,31 +1120,12 @@ static int parse_pipeline(const cJSON* pipe_arr, dsp_config_t* config,
     }
 
     cJSON* names_arr = cJSON_GetObjectItemCaseSensitive(step_obj, "names");
-    if (cJSON_IsArray(names_arr)) {
-      int names_size = cJSON_GetArraySize(names_arr);
-      step->names = (char**)calloc(names_size, sizeof(char*));
-      step->names_count = names_size;
-      for (int n = 0; n < names_size; n++) {
-        cJSON* el = cJSON_GetArrayItem(names_arr, n);
-        if (cJSON_IsString(el) && el->valuestring) {
-          step->names[n] = strdup(el->valuestring);
-        }
-      }
-    }
+    bool dummy;
+    parse_labels_array(names_arr, &step->names, &step->names_count, &dummy);
 
     cJSON* channels_arr =
         cJSON_GetObjectItemCaseSensitive(step_obj, "channels");
-    if (cJSON_IsArray(channels_arr)) {
-      int ch_size = cJSON_GetArraySize(channels_arr);
-      step->channels = (int*)calloc(ch_size, sizeof(int));
-      step->channels_count = ch_size;
-      for (int c = 0; c < ch_size; c++) {
-        cJSON* el = cJSON_GetArrayItem(channels_arr, c);
-        if (cJSON_IsNumber(el)) {
-          step->channels[c] = el->valueint;
-        }
-      }
-    }
+    step->channels = parse_int_array(channels_arr, &step->channels_count);
   }
   return 0;
 }
@@ -1503,17 +1534,7 @@ static int parse_filters(const cJSON* filters_obj, dsp_config_t* config,
               cp->type = CONV_TYPE_DUMMY;
           }
           cJSON* val_arr = cJSON_GetObjectItemCaseSensitive(params, "values");
-          if (cJSON_IsArray(val_arr)) {
-            int v_size = cJSON_GetArraySize(val_arr);
-            cp->values = (double*)calloc(v_size, sizeof(double));
-            cp->values_count = v_size;
-            for (int v = 0; v < v_size; v++) {
-              cJSON* el = cJSON_GetArrayItem(val_arr, v);
-              if (cJSON_IsNumber(el)) {
-                cp->values[v] = el->valuedouble;
-              }
-            }
-          }
+          cp->values = parse_double_array(val_arr, &cp->values_count);
           item = cJSON_GetObjectItemCaseSensitive(params, "filename");
           if (cJSON_IsString(item) && item->valuestring) {
             strncpy(cp->filename, item->valuestring, sizeof(cp->filename) - 1);
@@ -1600,45 +1621,15 @@ static int parse_filters(const cJSON* filters_obj, dsp_config_t* config,
 #undef PARSE_COMBO_DOUBLE
 
           cJSON* gains_arr = cJSON_GetObjectItemCaseSensitive(params, "gains");
-          if (cJSON_IsArray(gains_arr)) {
-            int g_size = cJSON_GetArraySize(gains_arr);
-            bcp->gains = (double*)calloc(g_size, sizeof(double));
-            bcp->gains_count = g_size;
-            for (int g = 0; g < g_size; g++) {
-              cJSON* el = cJSON_GetArrayItem(gains_arr, g);
-              if (cJSON_IsNumber(el)) {
-                bcp->gains[g] = el->valuedouble;
-              }
-            }
-          }
+          bcp->gains = parse_double_array(gains_arr, &bcp->gains_count);
           break;
         }
         case FILTER_TYPE_DIFF_EQ: {
           diff_eq_parameters_t* dep = &f_conf->parameters.diff_eq;
           cJSON* a_arr = cJSON_GetObjectItemCaseSensitive(params, "a");
-          if (cJSON_IsArray(a_arr)) {
-            int a_size = cJSON_GetArraySize(a_arr);
-            dep->a = (double*)calloc(a_size, sizeof(double));
-            dep->a_count = a_size;
-            for (int i = 0; i < a_size; i++) {
-              cJSON* el = cJSON_GetArrayItem(a_arr, i);
-              if (cJSON_IsNumber(el)) {
-                dep->a[i] = el->valuedouble;
-              }
-            }
-          }
+          dep->a = parse_double_array(a_arr, &dep->a_count);
           cJSON* b_arr = cJSON_GetObjectItemCaseSensitive(params, "b");
-          if (cJSON_IsArray(b_arr)) {
-            int b_size = cJSON_GetArraySize(b_arr);
-            dep->b = (double*)calloc(b_size, sizeof(double));
-            dep->b_count = b_size;
-            for (int i = 0; i < b_size; i++) {
-              cJSON* el = cJSON_GetArrayItem(b_arr, i);
-              if (cJSON_IsNumber(el)) {
-                dep->b[i] = el->valuedouble;
-              }
-            }
-          }
+          dep->b = parse_double_array(b_arr, &dep->b_count);
           break;
         }
         case FILTER_TYPE_DITHER: {
@@ -1826,31 +1817,11 @@ static int parse_processors(const cJSON* processors_obj, dsp_config_t* config,
 
           cJSON* mon_arr =
               cJSON_GetObjectItemCaseSensitive(params, "monitor_channels");
-          if (cJSON_IsArray(mon_arr)) {
-            int m_size = cJSON_GetArraySize(mon_arr);
-            cp->monitor_channels = (int*)calloc(m_size, sizeof(int));
-            cp->monitor_channels_count = m_size;
-            for (int i = 0; i < m_size; i++) {
-              cJSON* el = cJSON_GetArrayItem(mon_arr, i);
-              if (cJSON_IsNumber(el)) {
-                cp->monitor_channels[i] = el->valueint;
-              }
-            }
-          }
+          cp->monitor_channels = parse_int_array(mon_arr, &cp->monitor_channels_count);
 
           cJSON* proc_arr =
               cJSON_GetObjectItemCaseSensitive(params, "process_channels");
-          if (cJSON_IsArray(proc_arr)) {
-            int p_size = cJSON_GetArraySize(proc_arr);
-            cp->process_channels = (int*)calloc(p_size, sizeof(int));
-            cp->process_channels_count = p_size;
-            for (int i = 0; i < p_size; i++) {
-              cJSON* el = cJSON_GetArrayItem(proc_arr, i);
-              if (cJSON_IsNumber(el)) {
-                cp->process_channels[i] = el->valueint;
-              }
-            }
-          }
+          cp->process_channels = parse_int_array(proc_arr, &cp->process_channels_count);
           break;
         }
         case PROCESSOR_TYPE_NOISE_GATE: {
@@ -1873,31 +1844,11 @@ static int parse_processors(const cJSON* processors_obj, dsp_config_t* config,
 
           cJSON* mon_arr =
               cJSON_GetObjectItemCaseSensitive(params, "monitor_channels");
-          if (cJSON_IsArray(mon_arr)) {
-            int m_size = cJSON_GetArraySize(mon_arr);
-            ng->monitor_channels = (int*)calloc(m_size, sizeof(int));
-            ng->monitor_channels_count = m_size;
-            for (int i = 0; i < m_size; i++) {
-              cJSON* el = cJSON_GetArrayItem(mon_arr, i);
-              if (cJSON_IsNumber(el)) {
-                ng->monitor_channels[i] = el->valueint;
-              }
-            }
-          }
+          ng->monitor_channels = parse_int_array(mon_arr, &ng->monitor_channels_count);
 
           cJSON* proc_arr =
               cJSON_GetObjectItemCaseSensitive(params, "process_channels");
-          if (cJSON_IsArray(proc_arr)) {
-            int p_size = cJSON_GetArraySize(proc_arr);
-            ng->process_channels = (int*)calloc(p_size, sizeof(int));
-            ng->process_channels_count = p_size;
-            for (int i = 0; i < p_size; i++) {
-              cJSON* el = cJSON_GetArrayItem(proc_arr, i);
-              if (cJSON_IsNumber(el)) {
-                ng->process_channels[i] = el->valueint;
-              }
-            }
-          }
+          ng->process_channels = parse_int_array(proc_arr, &ng->process_channels_count);
           break;
         }
         case PROCESSOR_TYPE_RACE: {

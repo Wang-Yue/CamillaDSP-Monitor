@@ -697,16 +697,7 @@ audio_device_descriptor_t* dsp_engine_get_device_capabilities(
 }
 
 void dsp_engine_free_device_capabilities(audio_device_descriptor_t* desc) {
-  if (!desc) return;
-#if defined(ENABLE_COREAUDIO)
-  core_audio_capabilities_free_descriptor(desc);
-#elif defined(ENABLE_ALSA)
-  alsa_capabilities_free_descriptor(desc);
-#elif defined(ENABLE_WASAPI)
-  wasapi_capabilities_free_descriptor(desc);
-#elif defined(ENABLE_ASIO)
-  asio_capabilities_free_descriptor(desc);
-#endif
+  free_audio_device_descriptor(desc);
 }
 
 const dsp_config_t* dsp_engine_get_active_config(const dsp_engine_t* engine) {

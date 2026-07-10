@@ -1,5 +1,6 @@
 // Non-interleaved float buffers, one vector per channel.
 #include "audio_chunk.h"
+#include "double_helpers.h"
 
 #include <stdlib.h>
 
@@ -119,4 +120,52 @@ void round_robin_chunk_pool_free(round_robin_chunk_pool_t* pool) {
     free(pool->pool);
   }
   free(pool);
+}
+
+void audio_chunk_sum_channels(const audio_chunk_t* chunk,
+                              const int* channels,
+                              size_t channels_count,
+                              double* out_sum,
+                              size_t frames) {
+  if (!chunk || !channels || channels_count == 0 || !out_sum || frames == 0) return;
+  int ch0 = channels[0];
+  const double* src0 = audio_chunk_get_channel((audio_chunk_t*)chunk, ch0);
+  if (!src0) {
+    memset(out_sum, 0, frames * sizeof(double));
+    return;
+  }
+  memcpy(out_sum, src0, frames * sizeof(double));
+
+  for (size_t ch_idx = 1; ch_idx < channels_count; ch_idx++) {
+    int ch = channels[ch_idx];
+    const double* src = audio_chunk_get_channel((audio_chunk_t*)chunk, ch);
+    if (!src) continue;
+#ifdef ENABLE_ACCELERATE
+    vDSP_vaddD(out_sum, 1, src, 1, out_sum, 1, frames);
+#else
+    for (size_t i = 0; i < frames; i++) {
+      out_sum[i] += src[i];
+    }
+#endif
+  }
+}
+
+void audio_chunk_apply_gain(audio_chunk_t* chunk,
+                            const int* channels,
+                            size_t channels_count,
+                            const double* gain_multipliers,
+                            size_t frames) {
+  if (!chunk || !channels || channels_count == 0 || !gain_multipliers || frames == 0) return;
+  for (size_t ch_idx = 0; ch_idx < channels_count; ch_idx++) {
+    int ch = channels[ch_idx];
+    double* wave = audio_chunk_get_channel(chunk, ch);
+    if (!wave) continue;
+#ifdef ENABLE_ACCELERATE
+    vDSP_vmulD(wave, 1, gain_multipliers, 1, wave, 1, frames);
+#else
+    for (size_t i = 0; i < frames; i++) {
+      wave[i] *= gain_multipliers[i];
+    }
+#endif
+  }
 }

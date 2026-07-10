@@ -139,63 +139,7 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
     goto error_cleanup;
   }
 
-  if (device_name[0] == '\0' || strcmp(device_name, "default") == 0) {
-    hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
-        enumerator, is_capture ? eCapture : eRender, eConsole, &device);
-  } else {
-    IMMDeviceCollection* collection = NULL;
-    hr = IMMDeviceEnumerator_EnumAudioEndpoints(
-        enumerator, is_capture ? eCapture : eRender, DEVICE_STATE_ACTIVE,
-        &collection);
-    if (SUCCEEDED(hr)) {
-      UINT count = 0;
-      IMMDeviceCollection_GetCount(collection, &count);
-      for (UINT i = 0; i < count; i++) {
-        IMMDevice* dev = NULL;
-        IMMDeviceCollection_Item(collection, i, &dev);
-        bool matched = false;
-
-        IPropertyStore* properties = NULL;
-        HRESULT hr_prop =
-            IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
-        if (SUCCEEDED(hr_prop)) {
-          PROPVARIANT var;
-          PropVariantInit(&var);
-          hr_prop = IPropertyStore_GetValue(properties,
-                                            &PKEY_Device_FriendlyName, &var);
-          if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
-            char friendly_name[256] = {0};
-            wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name));
-            if (strstr(friendly_name, device_name) != NULL) {
-              matched = true;
-            }
-            PropVariantClear(&var);
-          }
-          SAFE_RELEASE(properties);
-        }
-
-        if (!matched) {
-          LPWSTR id = NULL;
-          IMMDevice_GetId(dev, &id);
-          if (id) {
-            char dev_id_char[256];
-            wcstombs(dev_id_char, id, sizeof(dev_id_char));
-            if (strstr(dev_id_char, device_name) != NULL) {
-              matched = true;
-            }
-            CoTaskMemFree(id);
-          }
-        }
-
-        if (matched) {
-          device = dev;
-          break;
-        }
-        IMMDevice_Release(dev);
-      }
-      IMMDeviceCollection_Release(collection);
-    }
-  }
+  device = wasapi_find_device_by_name(enumerator, device_name, is_capture);
 
   if (!device) {
     if (err) {
@@ -362,33 +306,72 @@ error_cleanup:
   return NULL;
 }
 
-void wasapi_capabilities_free_descriptor(audio_device_descriptor_t* desc) {
-  if (!desc) return;
-  if (desc->capability_sets) {
-    for (size_t s = 0; s < desc->capability_sets_count; s++) {
-      device_capability_set_t* set = &desc->capability_sets[s];
-      if (set->capabilities) {
-        for (size_t c = 0; c < set->capabilities_count; c++) {
-          channel_capability_t* ch_cap = &set->capabilities[c];
-          if (ch_cap->samplerates) {
-            for (size_t r = 0; r < ch_cap->samplerates_count; r++) {
-              samplerate_capability_t* rate_cap = &ch_cap->samplerates[r];
-              if (rate_cap->formats) {
-                for (size_t f = 0; f < rate_cap->formats_count; f++) {
-                  free(rate_cap->formats[f]);
-                }
-                free(rate_cap->formats);
-              }
-            }
-            free(ch_cap->samplerates);
-          }
+IMMDevice* wasapi_find_device_by_name(IMMDeviceEnumerator* enumerator, const char* device_name, bool is_capture) {
+  HRESULT hr;
+  IMMDevice* device = NULL;
+  
+  if (device_name[0] == '\0' || strcmp(device_name, "default") == 0) {
+    hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
+        enumerator, is_capture ? eCapture : eRender, eConsole, &device);
+    if (SUCCEEDED(hr)) {
+      return device;
+    }
+    return NULL;
+  }
+
+  IMMDeviceCollection* collection = NULL;
+  hr = IMMDeviceEnumerator_EnumAudioEndpoints(
+      enumerator, is_capture ? eCapture : eRender, DEVICE_STATE_ACTIVE,
+      &collection);
+  if (FAILED(hr)) return NULL;
+
+  UINT count = 0;
+  IMMDeviceCollection_GetCount(collection, &count);
+  for (UINT i = 0; i < count; i++) {
+    IMMDevice* dev = NULL;
+    IMMDeviceCollection_Item(collection, i, &dev);
+    bool matched = false;
+
+    IPropertyStore* properties = NULL;
+    HRESULT hr_prop =
+        IMMDevice_OpenPropertyStore(dev, STGM_READ, &properties);
+    if (SUCCEEDED(hr_prop)) {
+      PROPVARIANT var;
+      PropVariantInit(&var);
+      hr_prop = IPropertyStore_GetValue(properties,
+                                        &PKEY_Device_FriendlyName, &var);
+      if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
+        char friendly_name[256] = {0};
+        wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name));
+        if (strstr(friendly_name, device_name) != NULL) {
+          matched = true;
         }
-        free(set->capabilities);
+        PropVariantClear(&var);
+      }
+      SAFE_RELEASE(properties);
+    }
+
+    if (!matched) {
+      LPWSTR id = NULL;
+      IMMDevice_GetId(dev, &id);
+      if (id) {
+        char dev_id_char[256];
+        wcstombs(dev_id_char, id, sizeof(dev_id_char));
+        if (strstr(dev_id_char, device_name) != NULL) {
+          matched = true;
+        }
+        CoTaskMemFree(id);
       }
     }
-    free(desc->capability_sets);
+
+    if (matched) {
+      device = dev;
+      break;
+    }
+    IMMDevice_Release(dev);
   }
-  free(desc);
+  IMMDeviceCollection_Release(collection);
+  return device;
 }
 
 #endif  // ENABLE_WASAPI

@@ -86,17 +86,10 @@ int core_audio_capabilities_channel_count(const char* device_name,
  * @param err Pointer to device error structure to report errors.
  * @return Pointer to the allocated audio_device_descriptor_t, or NULL on
  * error/not found. Must be freed with
- * core_audio_capabilities_free_descriptor().
+ * free_audio_device_descriptor().
  */
 audio_device_descriptor_t* core_audio_capabilities_describe(
     const char* device_name, bool is_capture, device_error_t* err);
-
-/**
- * @brief Free the audio device descriptor and its internal capability sets.
- *
- * @param desc Pointer to the descriptor to free.
- */
-void core_audio_capabilities_free_descriptor(audio_device_descriptor_t* desc);
 
 #endif  // ENABLE_COREAUDIO
 
