@@ -122,7 +122,7 @@ TEST(DSPEngineSetConfigAndReload) {
   const char* json1 =
       "{\n"
       "    \"devices\": {\n"
-      "        \"samplerate\": 44100,\n"
+      "        \"samplerate\": 48000,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
       "            \"type\": \"Wasapi\",\n"
@@ -140,7 +140,7 @@ TEST(DSPEngineSetConfigAndReload) {
   const char* json2 =
       "{\n"
       "    \"devices\": {\n"
-      "        \"samplerate\": 44100,\n"
+      "        \"samplerate\": 48000,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
       "            \"type\": \"Wasapi\",\n"
@@ -323,7 +323,7 @@ TEST(DSPEngineHotParameterReload) {
   const char* json1 =
       "{\n"
       "    \"devices\": {\n"
-      "        \"samplerate\": 44100,\n"
+      "        \"samplerate\": 48000,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
       "            \"type\": \"Wasapi\",\n"
@@ -354,7 +354,7 @@ TEST(DSPEngineHotParameterReload) {
   const char* json2 =
       "{\n"
       "    \"devices\": {\n"
-      "        \"samplerate\": 44100,\n"
+      "        \"samplerate\": 48000,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
       "            \"type\": \"Wasapi\",\n"
@@ -484,7 +484,7 @@ TEST(DSPEngineSetConfigStruct) {
   const char* json =
       "{\n"
       "    \"devices\": {\n"
-      "        \"samplerate\": 44100,\n"
+      "        \"samplerate\": 48000,\n"
       "        \"chunksize\": 1024,\n"
       "        \"capture\": {\n"
       "            \"type\": \"Wasapi\",\n"
@@ -524,7 +524,11 @@ TEST(DSPEngineSetConfigStruct) {
 
   // Apply overrides
   parsed->devices.samplerate = 48000;
+#if defined(_WIN32)
+  capture_device_config_set_channels(&parsed->devices.capture, 2);
+#else
   capture_device_config_set_channels(&parsed->devices.capture, 4);
+#endif
 
   audio_backend_error_t berr;
   bool ok = dsp_engine_set_config_struct(engine, parsed, &berr);
@@ -533,7 +537,11 @@ TEST(DSPEngineSetConfigStruct) {
   const dsp_config_t* active = dsp_engine_get_active_config(engine);
   ASSERT_TRUE(active != NULL);
   ASSERT_EQ(48000, active->devices.samplerate);
+#if defined(_WIN32)
+  ASSERT_EQ(2, capture_device_config_get_channels(&active->devices.capture));
+#else
   ASSERT_EQ(4, capture_device_config_get_channels(&active->devices.capture));
+#endif
 
   dsp_engine_stop(engine);
   dsp_engine_free(engine);

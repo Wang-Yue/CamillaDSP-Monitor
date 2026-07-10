@@ -21,19 +21,35 @@ ifeq ($(UNAME_S),Darwin)
     ENABLE_ASIO ?= 0
     ENABLE_OPENMP ?= 0
 else
-    # Linux (Default)
-    ENABLE_COREAUDIO ?= 0
-    ENABLE_ACCELERATE ?= 0
-    ENABLE_ALSA ?= 1
-    ENABLE_PULSE ?= 1
-    ENABLE_PIPEWIRE ?= 1
-    ENABLE_JACK ?= 1
-    ENABLE_BLUEZ ?= 1
-    ENABLE_FFTW ?= 1
-    ENABLE_BLAS ?= 1
-    ENABLE_WASAPI ?= 0
-    ENABLE_ASIO ?= 0
-    ENABLE_OPENMP ?= 1
+    ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(UNAME_S)))
+        # Native Windows (MSYS2/MinGW)
+        ENABLE_COREAUDIO ?= 0
+        ENABLE_ACCELERATE ?= 0
+        ENABLE_ALSA ?= 0
+        ENABLE_PULSE ?= 0
+        ENABLE_PIPEWIRE ?= 0
+        ENABLE_JACK ?= 0
+        ENABLE_BLUEZ ?= 0
+        ENABLE_FFTW ?= 1
+        ENABLE_BLAS ?= 0
+        ENABLE_WASAPI ?= 1
+        ENABLE_ASIO ?= 1
+        ENABLE_OPENMP ?= 0
+    else
+        # Linux (Default)
+        ENABLE_COREAUDIO ?= 0
+        ENABLE_ACCELERATE ?= 0
+        ENABLE_ALSA ?= 1
+        ENABLE_PULSE ?= 1
+        ENABLE_PIPEWIRE ?= 1
+        ENABLE_JACK ?= 1
+        ENABLE_BLUEZ ?= 1
+        ENABLE_FFTW ?= 1
+        ENABLE_BLAS ?= 1
+        ENABLE_WASAPI ?= 0
+        ENABLE_ASIO ?= 0
+        ENABLE_OPENMP ?= 1
+    endif
 endif
 
 # Map Flags to CFLAGS preprocessor definitions
@@ -77,46 +93,58 @@ ifeq ($(UNAME_S),Darwin)
     endif
     LDFLAGS += -framework CoreFoundation
 else
-    # Linux
-    CFLAGS += -march=native -D_GNU_SOURCE
-    ifeq ($(USE_LIBDISPATCH),1)
-        CFLAGS += -DUSE_LIBDISPATCH -I/usr/libexec/swift/lib/swift
-        LDFLAGS += -L/usr/libexec/swift/lib/swift/linux -ldispatch -lBlocksRuntime -Wl,-rpath,/usr/libexec/swift/lib/swift/linux
+    ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(UNAME_S)))
+        # Windows Native Setup
+        CFLAGS += -DCOBJMACROS -D_WIN32 -DUNICODE -D_UNICODE -D_USE_MATH_DEFINES
+        ifeq ($(ENABLE_FFTW),1)
+            LDFLAGS += -lfftw3 -lfftw3f
+        endif
+        ifeq ($(ENABLE_BLAS),1)
+            LDFLAGS += -lopenblas
+        endif
+        LDFLAGS += -lws2_32 -lwinmm -lole32 -luuid -lksuser -lksguid
     else
-        ifeq ($(ENABLE_OPENMP),1)
-            CFLAGS += -fopenmp -DUSE_OPENMP
+        # Linux
+        CFLAGS += -march=native -D_GNU_SOURCE
+        ifeq ($(USE_LIBDISPATCH),1)
+            CFLAGS += -DUSE_LIBDISPATCH -I/usr/libexec/swift/lib/swift
+            LDFLAGS += -L/usr/libexec/swift/lib/swift/linux -ldispatch -lBlocksRuntime -Wl,-rpath,/usr/libexec/swift/lib/swift/linux
+        else
+            ifeq ($(ENABLE_OPENMP),1)
+                CFLAGS += -fopenmp -DUSE_OPENMP
+            endif
         endif
-    endif
-    ifeq ($(ENABLE_ALSA),1)
-        LDFLAGS += -lasound
-    endif
-    ifeq ($(ENABLE_PULSE),1)
-        LDFLAGS += -lpulse-simple -lpulse
-    endif
-    ifeq ($(ENABLE_PIPEWIRE),1)
-        LDFLAGS += -lpipewire-0.3
-        CFLAGS += $(shell pkg-config --cflags libpipewire-0.3 2>/dev/null || echo "")
-    endif
-    ifeq ($(ENABLE_FFTW),1)
-        LDFLAGS += -lfftw3 -lfftw3f
-    endif
-    ifeq ($(ENABLE_BLAS),1)
-        LDFLAGS += -lopenblas
-    endif
-    LDFLAGS += -lrt
-    ifneq ($(USE_LIBDISPATCH),1)
-        ifeq ($(ENABLE_OPENMP),1)
-            LDFLAGS += -fopenmp
+        ifeq ($(ENABLE_ALSA),1)
+            LDFLAGS += -lasound
         endif
-    endif
-    ifeq ($(ENABLE_JACK),1)
-        CFLAGS += -DENABLE_JACK
-        LDFLAGS += -ljack
-    endif
-    ifeq ($(ENABLE_BLUEZ),1)
-        CFLAGS += -DENABLE_BLUEZ
-        LDFLAGS += $(shell pkg-config --libs dbus-1 2>/dev/null || echo "-ldbus-1")
-        CFLAGS += $(shell pkg-config --cflags dbus-1 2>/dev/null || echo "")
+        ifeq ($(ENABLE_PULSE),1)
+            LDFLAGS += -lpulse-simple -lpulse
+        endif
+        ifeq ($(ENABLE_PIPEWIRE),1)
+            LDFLAGS += -lpipewire-0.3
+            CFLAGS += $(shell pkg-config --cflags libpipewire-0.3 2>/dev/null || echo "")
+        endif
+        ifeq ($(ENABLE_FFTW),1)
+            LDFLAGS += -lfftw3 -lfftw3f
+        endif
+        ifeq ($(ENABLE_BLAS),1)
+            LDFLAGS += -lopenblas
+        endif
+        LDFLAGS += -lrt
+        ifneq ($(USE_LIBDISPATCH),1)
+            ifeq ($(ENABLE_OPENMP),1)
+                LDFLAGS += -fopenmp
+            endif
+        endif
+        ifeq ($(ENABLE_JACK),1)
+            CFLAGS += -DENABLE_JACK
+            LDFLAGS += -ljack
+        endif
+        ifeq ($(ENABLE_BLUEZ),1)
+            CFLAGS += -DENABLE_BLUEZ
+            LDFLAGS += $(shell pkg-config --libs dbus-1 2>/dev/null || echo "-ldbus-1")
+            CFLAGS += $(shell pkg-config --cflags dbus-1 2>/dev/null || echo "")
+        endif
     endif
 endif
 
@@ -179,6 +207,12 @@ $(LIB_TARGET): $(OBJS)
 	$(AR) rcs $@ $(OBJS)
 
 # Build test binaries by linking against libdsp.a
+ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(UNAME_S)))
+$(ROOT_DIR)/Tests/CLibTests/bin/test_hot_path_allocation: $(ROOT_DIR)/Tests/CLibTests/test_hot_path_allocation.c $(LIB_TARGET)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $< $(LIB_TARGET) $(LDFLAGS) -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free -o $@
+endif
+
 $(ROOT_DIR)/Tests/CLibTests/bin/test_%: $(ROOT_DIR)/Tests/CLibTests/test_%.c $(LIB_TARGET)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $< $(LIB_TARGET) $(LDFLAGS) -o $@
@@ -209,126 +243,9 @@ $(CLI_BIN): $(CLI_SRC) $(LIB_TARGET)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $< $(LIB_TARGET) $(LDFLAGS) -o $@
 
-# Windows cross-compilation settings
-WIN_CC := x86_64-w64-mingw32-gcc
-WIN_AR := x86_64-w64-mingw32-ar
-WIN_OBJ_DIR := $(ROOT_DIR)/.build/win_obj
 
-WIN_CFLAGS ?= -O3 -Wall -Wextra -std=c11 -D_WIN32 -DUNICODE -D_UNICODE -DCOBJMACROS -D_USE_MATH_DEFINES -DENABLE_WASAPI -DENABLE_ASIO -DENABLE_FFTW -I/tmp/win_fftw -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging
-WIN_LDFLAGS ?= /tmp/win_fftw/libfftw3-3.dll /tmp/win_fftw/libfftw3f-3.dll -pthread -lws2_32 -lwinmm -lole32 -luuid -lksuser -lksguid
 
-# Filter Windows source files (exclude Linux/Apple specific backends)
-WIN_SRCS := $(filter-out %/alsa_capture.c %/alsa_playback.c %/alsa_device.c %/alsa_capabilities.c \
-                        %/pulse_backend.c \
-                        %/pipewire_backend.c \
-                        %/core_audio_capture.c %/core_audio_playback.c %/core_audio_device.c %/core_audio_capabilities.c \
-                        %/jack_backend.c %/bluez_backend.c, $(ALL_SRCS))
-
-WIN_OBJS := $(patsubst $(ROOT_DIR)/%.c, $(WIN_OBJ_DIR)/%.o, $(WIN_SRCS))
-WIN_LIB_TARGET := $(ROOT_DIR)/Sources/CDSP/libdsp_win.a
-
-$(WIN_OBJ_DIR)/%.o: $(ROOT_DIR)/%.c
-	@mkdir -p $(dir $@)
-	$(WIN_CC) $(WIN_CFLAGS) -c $< -o $@
-
-WIN_CLI_BIN := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli.exe
-
-.PHONY: windows windows-lib windows-cli windows-test windows-test-build
-windows: windows-lib windows-cli
-
-$(WIN_LIB_TARGET): $(WIN_OBJS)
-	@rm -f $@
-	$(WIN_AR) rcs $@ $(WIN_OBJS)
-
-windows-lib: $(WIN_LIB_TARGET)
-
-windows-cli: $(WIN_LIB_TARGET)
-	@mkdir -p $(dir $(WIN_CLI_BIN))
-	$(WIN_CC) $(WIN_CFLAGS) $(CLI_SRC) $(WIN_LIB_TARGET) $(WIN_LDFLAGS) -o $(WIN_CLI_BIN)
-
-WIN_TEST_BINS := $(patsubst $(ROOT_DIR)/Tests/CLibTests/test_%.c, $(ROOT_DIR)/Tests/CLibTests/bin/test_%.exe, $(TEST_SRCS))
-WIN_BENCH_BINS := $(patsubst %, $(ROOT_DIR)/Tests/CLibTests/bin/%.exe, $(BENCH_NAMES))
-WIN_UNIT_TEST_BINS := $(filter-out $(WIN_BENCH_BINS), $(WIN_TEST_BINS))
-
-$(ROOT_DIR)/Tests/CLibTests/bin/test_hot_path_allocation.exe: $(ROOT_DIR)/Tests/CLibTests/test_hot_path_allocation.c $(WIN_LIB_TARGET)
-	@mkdir -p $(dir $@)
-	$(WIN_CC) $(WIN_CFLAGS) $< $(WIN_LIB_TARGET) $(WIN_LDFLAGS) -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free -o $@
-
-$(ROOT_DIR)/Tests/CLibTests/bin/test_%.exe: $(ROOT_DIR)/Tests/CLibTests/test_%.c $(WIN_LIB_TARGET)
-	@mkdir -p $(dir $@)
-	$(WIN_CC) $(WIN_CFLAGS) $< $(WIN_LIB_TARGET) $(WIN_LDFLAGS) -o $@
-
-windows-test-build: $(WIN_UNIT_TEST_BINS)
-
-windows-test: windows-test-build
-	@if command -v wine >/dev/null 2>&1; then \
-		echo "\n=== Running Windows Unit Tests under Wine ==="; \
-		for bin in $(WIN_UNIT_TEST_BINS); do \
-			echo ""; \
-			WINEPATH="/usr/x86_64-w64-mingw32/lib;/tmp/win_fftw" wine $$bin || exit 1; \
-		done; \
-	else \
-		echo "\n⚠️  wine not found, skipping test execution. Binaries are built in $(ROOT_DIR)/Tests/CLibTests/bin/"; \
-	fi
-# macOS cross-compilation settings
-MAC_CC := clang
-MAC_SDK_PATH ?= ~/mac_sdk/MacOSX13.3.sdk
-MAC_LDFLAGS := -F$(MAC_SDK_PATH)/System/Library/Frameworks -framework CoreAudio -framework AudioToolbox -framework Accelerate -framework CoreFoundation -fuse-ld=lld
-
-MAC_OBJ_DIR_X86_64 := $(ROOT_DIR)/.build/mac_obj_x86_64
-MAC_OBJ_DIR_ARM64 := $(ROOT_DIR)/.build/mac_obj_arm64
-
-MAC_SRCS := $(filter-out %/alsa_capture.c %/alsa_playback.c %/alsa_device.c %/alsa_capabilities.c \
-                         %/pulse_backend.c \
-                         %/pipewire_backend.c \
-                         %/wasapi_backend.c %/wasapi_capabilities.c \
-                         %/asio_backend.c %/asio_capabilities.c \
-                         %/jack_backend.c %/bluez_backend.c, $(ALL_SRCS))
-
-MAC_OBJS_X86_64 := $(patsubst $(ROOT_DIR)/%.c, $(MAC_OBJ_DIR_X86_64)/%.o, $(MAC_SRCS))
-MAC_OBJS_ARM64 := $(patsubst $(ROOT_DIR)/%.c, $(MAC_OBJ_DIR_ARM64)/%.o, $(MAC_SRCS))
-
-MAC_LIB_X86_64 := $(ROOT_DIR)/Sources/CDSP/libdsp_mac_x86_64.a
-MAC_LIB_ARM64 := $(ROOT_DIR)/Sources/CDSP/libdsp_mac_arm64.a
-
-MAC_CLI_X86_64 := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli-mac-x86_64
-MAC_CLI_ARM64 := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli-mac-arm64
-MAC_CLI_UNIVERSAL := $(ROOT_DIR)/Sources/CDSP/bin/dsp-cli-mac
-
-MAC_CFLAGS_COMMON := -O3 -Wall -Wextra -std=c11 -DUNICODE -D_UNICODE -DENABLE_COREAUDIO -DENABLE_ACCELERATE -isysroot $(MAC_SDK_PATH) -I$(ROOT_DIR) -I$(ROOT_DIR)/Sources/CDSP -I$(ROOT_DIR)/Sources/CDSP/Filters -I$(ROOT_DIR)/Sources/CDSP/Audio -I$(ROOT_DIR)/Sources/CDSP/Config -I$(ROOT_DIR)/Sources/CDSP/FFT -I$(ROOT_DIR)/Sources/CDSP/Mixer -I$(ROOT_DIR)/Sources/CDSP/Resampler -I$(ROOT_DIR)/Sources/CDSP/Processors -I$(ROOT_DIR)/Sources/CDSP/DoP -I$(ROOT_DIR)/Sources/CDSP/Pipeline -I$(ROOT_DIR)/Sources/CDSP/Engine -I$(ROOT_DIR)/Sources/CDSP/Server -I$(ROOT_DIR)/Sources/CDSP/Backend -I$(ROOT_DIR)/Sources/CDSP/Logging
-
-$(MAC_OBJ_DIR_X86_64)/%.o: $(ROOT_DIR)/%.c
-	@mkdir -p $(dir $@)
-	$(MAC_CC) -target x86_64-apple-darwin $(MAC_CFLAGS_COMMON) -c $< -o $@
-
-$(MAC_OBJ_DIR_ARM64)/%.o: $(ROOT_DIR)/%.c
-	@mkdir -p $(dir $@)
-	$(MAC_CC) -target arm64-apple-darwin $(MAC_CFLAGS_COMMON) -c $< -o $@
-
-.PHONY: macos macos-lib-x86_64 macos-lib-arm64 macos-cli-x86_64 macos-cli-arm64 macos-universal
-
-macos: macos-universal
-
-macos-lib-x86_64: $(MAC_OBJS_X86_64)
-	@rm -f $(MAC_LIB_X86_64)
-	$(AR) rcs $(MAC_LIB_X86_64) $(MAC_OBJS_X86_64)
-
-macos-lib-arm64: $(MAC_OBJS_ARM64)
-	@rm -f $(MAC_LIB_ARM64)
-	$(AR) rcs $(MAC_LIB_ARM64) $(MAC_OBJS_ARM64)
-
-macos-cli-x86_64: macos-lib-x86_64
-	@mkdir -p $(dir $(MAC_CLI_X86_64))
-	$(MAC_CC) -target x86_64-apple-darwin $(MAC_CFLAGS_COMMON) $(CLI_SRC) $(MAC_LIB_X86_64) $(MAC_LDFLAGS) -o $(MAC_CLI_X86_64)
-
-macos-cli-arm64: macos-lib-arm64
-	@mkdir -p $(dir $(MAC_CLI_ARM64))
-	$(MAC_CC) -target arm64-apple-darwin $(MAC_CFLAGS_COMMON) $(CLI_SRC) $(MAC_LIB_ARM64) $(MAC_LDFLAGS) -o $(MAC_CLI_ARM64)
-
-macos-universal: macos-cli-x86_64 macos-cli-arm64
-	@mkdir -p $(dir $(MAC_CLI_UNIVERSAL))
-	llvm-lipo -create -output $(MAC_CLI_UNIVERSAL) $(MAC_CLI_X86_64) $(MAC_CLI_ARM64)
 
 clean:
-	rm -rf $(OBJ_DIR) $(WIN_OBJ_DIR) $(MAC_OBJ_DIR_X86_64) $(MAC_OBJ_DIR_ARM64) $(LIB_TARGET) $(WIN_LIB_TARGET) $(MAC_LIB_X86_64) $(MAC_LIB_ARM64) $(ROOT_DIR)/Tests/CLibTests/bin $(ROOT_DIR)/Sources/CDSP/bin
+	rm -rf $(OBJ_DIR) $(LIB_TARGET) $(ROOT_DIR)/Tests/CLibTests/bin $(ROOT_DIR)/Sources/CDSP/bin
 
