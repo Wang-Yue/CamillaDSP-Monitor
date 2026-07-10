@@ -25,10 +25,17 @@ EXECUTABLE = .build/$(BUILD_DIR)/$(APP_NAME)
 # Tools
 SWIFT := swift
 
+UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
+
 ifeq ($(GITHUB_ACTIONS),true)
 	CARGO_CMD := MACOSX_DEPLOYMENT_TARGET=15.0 cargo
 else
-	CARGO_CMD := MACOSX_DEPLOYMENT_TARGET=15.0 RUSTFLAGS='-C target-cpu=native' cargo
+	ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(UNAME_S)))
+		CARGO_BIN := $(shell which cargo 2>/dev/null || echo "$(USERPROFILE)/.cargo/bin/cargo.exe")
+		CARGO_CMD := RUSTFLAGS='-C target-cpu=native' "$(CARGO_BIN)"
+	else
+		CARGO_CMD := MACOSX_DEPLOYMENT_TARGET=15.0 RUSTFLAGS='-C target-cpu=native' cargo
+	endif
 endif
 
 export ENGINE
