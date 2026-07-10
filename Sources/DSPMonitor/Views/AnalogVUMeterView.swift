@@ -228,16 +228,6 @@ struct AnalogVUMeter: View {
         p.addLine(to: ne)
       }, with: .color(needleColor), lineWidth: 1.2 * scale)
 
-    // 7. Glass Surface Reflection
-    let glass = GraphicsContext.Shading.linearGradient(
-      Gradient(colors: [.white.opacity(0.25), .clear, .black.opacity(0.05)]), startPoint: .zero,
-      endPoint: CGPoint(x: w, y: h))
-    context.fill(Path(CGRect(origin: .zero, size: size)), with: glass)
-
-    // 8. ADDITIVE LIGHT WASH
-    context.fill(
-      Path(CGRect(origin: .zero, size: size)),
-      with: .color(bulbAmberColor.opacity(params.lightWash)))
   }
 }
 
@@ -434,6 +424,17 @@ private struct AnalogVUMeterDial: View, Equatable {
           center: center, radius: radius + 2 * scale, startAngle: .degrees(redS),
           endAngle: .degrees(endAngle), clockwise: false)
       }, with: .color(redZoneColor), lineWidth: 4 * scale)
+
+    // 6. Glass Surface Reflection (moved from drawNeedle)
+    let glass = GraphicsContext.Shading.linearGradient(
+      Gradient(colors: [.white.opacity(0.25), .clear, .black.opacity(0.05)]), startPoint: .zero,
+      endPoint: CGPoint(x: w, y: h))
+    context.fill(Path(CGRect(origin: .zero, size: size)), with: glass)
+
+    // 7. ADDITIVE LIGHT WASH (moved from drawNeedle)
+    context.fill(
+      Path(CGRect(origin: .zero, size: size)),
+      with: .color(bulbAmberColor.opacity(params.lightWash)))
   }
 }
 
