@@ -10,13 +10,17 @@ struct SpectrogramView: View {
   @Environment(SpectrogramEngine.self) var spectroscope
 
   var body: some View {
-    ZStack {
-      // Static grid and labels layer
-      SpectrogramGridView(frequencies: spectroscope.frequencies, nBins: spectroscope.nBins)
-        .equatable()
+    if spectroscope.show3D {
+      CSDWaterfallView()
+    } else {
+      ZStack {
+        // Static grid and labels layer
+        SpectrogramGridView(frequencies: spectroscope.frequencies, nBins: spectroscope.nBins)
+          .equatable()
 
-      // Dynamic waterfall layer
-      SpectrogramContentView(leftPadding: leftPadding, bottomPadding: bottomPadding)
+        // Dynamic waterfall layer
+        SpectrogramContentView(leftPadding: leftPadding, bottomPadding: bottomPadding)
+      }
     }
   }
 }
@@ -260,5 +264,155 @@ struct SpectrogramGridView: View, Equatable {
           anchor: target == 20 ? .bottomLeading : .topLeading)
       }
     }
+  }
+}
+
+// MARK: - 3D CSD Waterfall Landscape
+
+struct CSDWaterfallView: View {
+  @Environment(SpectrogramEngine.self) var spectroscope
+
+  var body: some View {
+    GeometryReader { geometry in
+      Canvas { context, size in
+        let history = spectroscope.history
+        let count = history.count
+        guard count > 1 else {
+          context.draw(
+            Text("Waiting for audio signal...").font(.headline).foregroundColor(.secondary),
+            at: CGPoint(x: size.width / 2, y: size.height / 2),
+            anchor: .center)
+          return
+        }
+
+        let w = size.width
+        let h = size.height
+
+        let maxShiftX: CGFloat = w * 0.12
+        let maxShiftY: CGFloat = -h * 0.18
+        let maxScale: CGFloat = 0.85
+
+        let baselineY = h * 0.88
+        let drawWidth = w * 0.82
+        let drawHeight = h * 0.58
+        let leftPadding = w * 0.05
+
+        func project(flatX: CGFloat, flatY: CGFloat, t: Double) -> CGPoint {
+          let shiftX = (1.0 - t) * maxShiftX
+          let shiftY = (1.0 - t) * maxShiftY
+          let scale = maxScale + (1.0 - maxScale) * t
+          let currentCenter = CGPoint(x: leftPadding + drawWidth / 2, y: baselineY)
+          let px = currentCenter.x + (flatX - currentCenter.x) * scale + shiftX
+          let py = currentCenter.y + (flatY - currentCenter.y) * scale + shiftY
+          return CGPoint(x: px, y: py)
+        }
+
+        // Draw 3D floor grid lines (Time Grid)
+        for fraction in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0] {
+          var path = Path()
+          let xFlat = leftPadding + CGFloat(fraction) * drawWidth
+          let ptStart = project(flatX: xFlat, flatY: baselineY, t: 0.0)
+          path.move(to: ptStart)
+          for i in 1..<count {
+            let t = Double(i) / Double(count - 1)
+            let pt = project(flatX: xFlat, flatY: baselineY, t: t)
+            path.addLine(to: pt)
+          }
+          context.stroke(path, with: .color(Color.primary.opacity(0.12)), lineWidth: 0.5)
+        }
+
+        // Draw 3D floor grid lines (Frequency/Depth Grid)
+        for t in [0.0, 0.25, 0.5, 0.75, 1.0] {
+          var path = Path()
+          let ptLeft = project(flatX: leftPadding, flatY: baselineY, t: t)
+          let ptRight = project(flatX: leftPadding + drawWidth, flatY: baselineY, t: t)
+          path.move(to: ptLeft)
+          path.addLine(to: ptRight)
+          context.stroke(path, with: .color(Color.primary.opacity(0.12)), lineWidth: 0.5)
+        }
+
+        // Draw stacked curves from back to front
+        for i in 0..<count {
+          let frame = history[i]
+          let t = Double(i) / Double(count - 1)
+
+          var path = Path()
+          let nBins = frame.data.count
+          guard nBins > 2 else { continue }
+
+          let startPt = project(flatX: leftPadding, flatY: baselineY, t: t)
+          path.move(to: startPt)
+
+          for j in 0..<nBins {
+            let binFrac = Double(j) / Double(nBins - 1)
+            let xFlat = leftPadding + CGFloat(binFrac) * drawWidth
+            let magnitude = frame.data[j]
+            let normMag = normalizedDB(magnitude)
+            let yFlat = baselineY - CGFloat(normMag) * drawHeight
+            let projPt = project(flatX: xFlat, flatY: yFlat, t: t)
+            path.addLine(to: projPt)
+          }
+
+          let endPt = project(flatX: leftPadding + drawWidth, flatY: baselineY, t: t)
+          path.addLine(to: endPt)
+          path.addLine(to: startPt)
+
+          context.fill(path, with: .color(Color(nsColor: .controlBackgroundColor).opacity(0.92)))
+
+          // Draw the top edge (the actual spectrum wave)
+          var edgePath = Path()
+          let firstPt = project(
+            flatX: leftPadding,
+            flatY: baselineY - CGFloat(normalizedDB(frame.data[0])) * drawHeight, t: t)
+          edgePath.move(to: firstPt)
+
+          for j in 1..<nBins {
+            let binFrac = Double(j) / Double(nBins - 1)
+            let xFlat = leftPadding + CGFloat(binFrac) * drawWidth
+            let yFlat = baselineY - CGFloat(normalizedDB(frame.data[j])) * drawHeight
+            let projPt = project(flatX: xFlat, flatY: yFlat, t: t)
+            edgePath.addLine(to: projPt)
+          }
+
+          let ageColor = Color.interpolate(
+            from: Color.blue.opacity(0.3),
+            to: Color.accentColor,
+            fraction: t
+          )
+          context.stroke(edgePath, with: .color(ageColor), lineWidth: 1.5)
+        }
+
+        // Draw frequency labels at the front (t = 1.0)
+        let targetFreqs: [Float] = [20, 100, 1000, 10000, 20000]
+        let minLog = log10(20.0)
+        let maxLog = log10(20000.0)
+        for target in targetFreqs {
+          let fraction = (log10(Double(target)) - minLog) / (maxLog - minLog)
+          let xFlat = leftPadding + CGFloat(fraction) * drawWidth
+          let pt = project(flatX: xFlat, flatY: baselineY + 8, t: 1.0)
+          let label = formatFrequency(target)
+          context.draw(
+            Text(label).font(.system(size: 8, design: .monospaced)).foregroundColor(
+              .secondary.opacity(0.7)),
+            at: pt,
+            anchor: .top)
+        }
+      }
+    }
+  }
+}
+
+// MARK: - Color Interpolation Helper
+
+extension Color {
+  static func interpolate(from color1: Color, to color2: Color, fraction: Double) -> Color {
+    let f = min(max(fraction, 0), 1)
+    let ns1 = NSColor(color1).usingColorSpace(.deviceRGB) ?? .blue
+    let ns2 = NSColor(color2).usingColorSpace(.deviceRGB) ?? .cyan
+    let r = ns1.redComponent + CGFloat(f) * (ns2.redComponent - ns1.redComponent)
+    let g = ns1.greenComponent + CGFloat(f) * (ns2.greenComponent - ns1.greenComponent)
+    let b = ns1.blueComponent + CGFloat(f) * (ns2.blueComponent - ns1.blueComponent)
+    let a = ns1.alphaComponent + CGFloat(f) * (ns2.alphaComponent - ns1.alphaComponent)
+    return Color(red: Double(r), green: Double(g), blue: Double(b), opacity: Double(a))
   }
 }

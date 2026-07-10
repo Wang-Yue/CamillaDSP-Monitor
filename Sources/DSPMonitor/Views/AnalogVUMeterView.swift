@@ -3,6 +3,14 @@ import SwiftUI
 
 // MARK: - VU Calibration Settings (Persistent via UserDefaults)
 
+enum VUTheme: String, CaseIterable, Identifiable {
+  case vintage = "Vintage Amber"
+  case stealth = "Dark Stealth"
+  case warmTube = "Warm Tube"
+
+  var id: String { self.rawValue }
+}
+
 @Observable
 class VUSettings {
   private let defaults = UserDefaults.standard
@@ -25,6 +33,9 @@ class VUSettings {
   var lightWash: Double {
     didSet { defaults.set(lightWash, forKey: "vu_light_wash") }
   }
+  var theme: VUTheme {
+    didSet { defaults.set(theme.rawValue, forKey: "vu_theme") }
+  }
 
   init() {
     radiusScale = UserDefaults.standard.object(forKey: "vu_radius_scale") as? Double ?? 1.20
@@ -33,6 +44,14 @@ class VUSettings {
     ambientGlow = UserDefaults.standard.object(forKey: "vu_ambient_glow") as? Double ?? 0.5
     hotSpotAlpha = UserDefaults.standard.object(forKey: "vu_hot_spot_alpha") as? Double ?? 0.5
     lightWash = UserDefaults.standard.object(forKey: "vu_light_wash") as? Double ?? 0.2
+
+    if let themeStr = UserDefaults.standard.string(forKey: "vu_theme"),
+      let loadedTheme = VUTheme(rawValue: themeStr)
+    {
+      theme = loadedTheme
+    } else {
+      theme = .vintage
+    }
   }
 
   func reset() {
@@ -42,6 +61,7 @@ class VUSettings {
     ambientGlow = 0.5
     hotSpotAlpha = 0.5
     lightWash = 0.2
+    theme = .vintage
   }
 
   var params: VUParams {
@@ -51,7 +71,8 @@ class VUSettings {
       needleExtension: needleExtension,
       ambientGlow: ambientGlow,
       hotSpotAlpha: hotSpotAlpha,
-      lightWash: lightWash
+      lightWash: lightWash,
+      theme: theme
     )
   }
 }
@@ -63,6 +84,7 @@ struct VUParams {
   var ambientGlow: Double
   var hotSpotAlpha: Double
   var lightWash: Double
+  var theme: VUTheme
 }
 
 // MARK: - Hyper-Realistic VU Meter
@@ -72,14 +94,62 @@ struct AnalogVUMeter: View {
   let label: String
   var params: VUParams
 
-  private let bulbHotSpotColor = Color(red: 1.0, green: 0.98, blue: 0.88)
-  private let bulbAmberColor = Color(red: 1.0, green: 0.82, blue: 0.40)
   private let refLevel = -18.0
 
   private let vuMarks: [(v: Double, l: String?)] = [
     (-20, "20"), (-10, "10"), (-7, "7"), (-5, "5"), (-3, "3"), (-2, "2"), (-1, "1"), (0, "0"),
     (1, "1"), (2, "2"), (3, "3"),
   ]
+
+  // MARK: - Theme Color Utilities
+
+  private var bulbAmberColor: Color {
+    switch params.theme {
+    case .vintage: return Color(red: 1.0, green: 0.82, blue: 0.40)
+    case .stealth: return Color.black.opacity(0.4)
+    case .warmTube: return Color(red: 0.95, green: 0.45, blue: 0.1)
+    }
+  }
+
+  private var bulbHotSpotColor: Color {
+    switch params.theme {
+    case .vintage: return Color(red: 1.0, green: 0.98, blue: 0.88)
+    case .stealth: return Color.white.opacity(0.15)
+    case .warmTube: return Color(red: 1.0, green: 0.8, blue: 0.3)
+    }
+  }
+
+  private var needleColor: Color {
+    switch params.theme {
+    case .vintage: return .primary.opacity(0.9)
+    case .stealth: return .white
+    case .warmTube: return Color(red: 0.15, green: 0.15, blue: 0.15)
+    }
+  }
+
+  private var arcColor: Color {
+    switch params.theme {
+    case .vintage: return .primary.opacity(0.6)
+    case .stealth: return .primary.opacity(0.3)
+    case .warmTube: return .primary.opacity(0.5)
+    }
+  }
+
+  private var percentageMarksColor: Color {
+    switch params.theme {
+    case .vintage: return .primary.opacity(0.4)
+    case .stealth: return .primary.opacity(0.2)
+    case .warmTube: return .primary.opacity(0.3)
+    }
+  }
+
+  private var redZoneColor: Color {
+    switch params.theme {
+    case .vintage: return .red.opacity(0.8)
+    case .stealth: return .primary.opacity(0.5)
+    case .warmTube: return Color(red: 0.85, green: 0.2, blue: 0.1).opacity(0.8)
+    }
+  }
 
   var body: some View {
     GeometryReader { geometry in
@@ -95,7 +165,7 @@ struct AnalogVUMeter: View {
           symbols: {
             ForEach(0..<vuMarks.count, id: \.self) { i in
               if let text = vuMarks[i].l {
-                let color = vuMarks[i].v >= 0 ? Color.red : Color.primary
+                let color = vuMarks[i].v >= 0 ? redZoneColor : arcColor
                 Text(text)
                   .font(vintageFont)
                   .foregroundColor(color.opacity(0.6))
@@ -105,7 +175,7 @@ struct AnalogVUMeter: View {
             ForEach([0, 20, 40, 60, 80, 100], id: \.self) { p in
               Text("\(p)")
                 .font(vintageFont)
-                .foregroundColor(.primary.opacity(0.3))
+                .foregroundColor(percentageMarksColor.opacity(0.4))
                 .tag(1000 + p)
             }
           }
@@ -178,13 +248,13 @@ struct AnalogVUMeter: View {
         p.addArc(
           center: center, radius: radius, startAngle: .degrees(startAngle),
           endAngle: .degrees(endAngle), clockwise: false)
-      }, with: .color(.primary.opacity(0.6)), lineWidth: 1.8 * scale)
+      }, with: .color(arcColor), lineWidth: 1.8 * scale)
 
     // 4. Marks Drawing
     for (i, m) in vuMarks.enumerated() {
       let angDeg = angleForVU(m.v)
       let angRad = angDeg * .pi / 180
-      let color = m.v >= 0 ? Color.red : Color.primary
+      let color = m.v >= 0 ? redZoneColor : arcColor
 
       let cosA = cos(angRad)
       let sinA = sin(angRad)
@@ -229,7 +299,7 @@ struct AnalogVUMeter: View {
         Path { p in
           p.move(to: s)
           p.addLine(to: e)
-        }, with: .color(.primary.opacity(0.4)), lineWidth: 1.0 * scale)
+        }, with: .color(percentageMarksColor.opacity(0.4)), lineWidth: 1.0 * scale)
 
       let lR = radius - 18 * scale
       let lp = CGPoint(x: center.x + cosA * lR, y: center.y + sinA * lR)
@@ -251,7 +321,7 @@ struct AnalogVUMeter: View {
         p.addArc(
           center: center, radius: radius + 2 * scale, startAngle: .degrees(redS),
           endAngle: .degrees(endAngle), clockwise: false)
-      }, with: .color(.red.opacity(0.8)), lineWidth: 4 * scale)
+      }, with: .color(redZoneColor), lineWidth: 4 * scale)
 
     // 6. Perfected Needle
     let currentVU = level - refLevel
@@ -262,7 +332,7 @@ struct AnalogVUMeter: View {
       Path { p in
         p.move(to: center)
         p.addLine(to: ne)
-      }, with: .color(.primary.opacity(0.9)), lineWidth: 1.2 * scale)
+      }, with: .color(needleColor), lineWidth: 1.2 * scale)
 
     // 7. Glass Surface Reflection
     let glass = GraphicsContext.Shading.linearGradient(
@@ -284,8 +354,19 @@ struct AnalogVUCard: View {
   @Environment(VUSettings.self) var vuSettings
 
   var body: some View {
+    @Bindable var vuSettings = vuSettings
     VStack(alignment: .leading, spacing: 12) {
-      Text("Analog VU").font(.headline)
+      HStack {
+        Text("Analog VU").font(.headline)
+        Spacer()
+        Picker("", selection: $vuSettings.theme) {
+          ForEach(VUTheme.allCases) { theme in
+            Text(theme.rawValue).tag(theme)
+          }
+        }
+        .pickerStyle(.segmented)
+        .frame(width: 240)
+      }
 
       let chCount = levels.playbackRms.count
       if chCount <= 4 {

@@ -21,6 +21,12 @@ final class SpectrogramEngine {
   /// Number of active views currently on screen.
   var visibilityCount: Int = 0
 
+  var show3D: Bool = false {
+    didSet {
+      defaults.set(show3D, forKey: "spectroscope_show_3d")
+    }
+  }
+
   private let defaults = UserDefaults.standard
 
   // Spectrogram configuration
@@ -63,6 +69,10 @@ final class SpectrogramEngine {
       self.channel = chObj
     } else {
       self.channel = nil
+    }
+
+    if defaults.object(forKey: "spectroscope_show_3d") != nil {
+      self.show3D = defaults.bool(forKey: "spectroscope_show_3d")
     }
   }
 

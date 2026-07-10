@@ -606,6 +606,16 @@ struct SpectroscopeDetailView: View {
             .frame(width: 120)
           }
 
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Display Mode").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: $spectroscope.show3D) {
+              Text("2D Waterfall").tag(false)
+              Text("3D Landscape").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 200)
+          }
+
           Spacer()
         }
         .padding(.vertical, 8)
