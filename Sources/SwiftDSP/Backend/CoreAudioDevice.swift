@@ -452,6 +452,50 @@ enum CoreAudioDevice {
 
     return false
   }
+
+  // MARK: Liveness Listener
+
+  /// Registers a liveness listener callback on a device.
+  static func registerLivenessListener(
+    _ deviceID: AudioDeviceID,
+    callback: @escaping (Bool) -> Void
+  ) -> AudioObjectPropertyListenerBlock? {
+    let block: AudioObjectPropertyListenerBlock = { _, _ in
+      var alive: UInt32 = 0
+      var size = UInt32(MemoryLayout<UInt32>.size)
+      var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyDeviceIsAlive,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+      let status = AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &alive)
+      if status == noErr {
+        callback(alive != 0)
+      }
+    }
+
+    var address = AudioObjectPropertyAddress(
+      mSelector: kAudioDevicePropertyDeviceIsAlive,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain)
+
+    let status = AudioObjectAddPropertyListenerBlock(deviceID, &address, .main, block)
+    if status != noErr {
+      return nil
+    }
+    return block
+  }
+
+  /// Unregisters a liveness listener callback from a device.
+  static func unregisterLivenessListener(
+    _ deviceID: AudioDeviceID,
+    block: @escaping AudioObjectPropertyListenerBlock
+  ) {
+    var address = AudioObjectPropertyAddress(
+      mSelector: kAudioDevicePropertyDeviceIsAlive,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain)
+    AudioObjectRemovePropertyListenerBlock(deviceID, &address, .main, block)
+  }
 }
 
 /// Watches a CoreAudio device's `kAudioDevicePropertyNominalSampleRate`

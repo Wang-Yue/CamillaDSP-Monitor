@@ -3,10 +3,10 @@ import Foundation
 
 final class DiffEqFilter: Filter {
   let name: String
-  private var x: UnsafeMutablePointer<Double>
-  private var y: UnsafeMutablePointer<Double>
-  private var a: UnsafePointer<Double>
-  private var b: UnsafePointer<Double>
+  private var x: AudioThreadScratchBuffer
+  private var y: AudioThreadScratchBuffer
+  private var a: AudioThreadScratchBuffer
+  private var b: AudioThreadScratchBuffer
   private var aCount: Int = 0
   private var bCount: Int = 0
   private var idxX: Int = 0
@@ -30,29 +30,14 @@ final class DiffEqFilter: Filter {
     self.aCount = aCoeffs.count
     self.bCount = bCoeffs.count
 
-    let aPtr = UnsafeMutablePointer<Double>.allocate(capacity: aCoeffs.count)
-    aPtr.initialize(from: aCoeffs, count: aCoeffs.count)
-    self.a = UnsafePointer(aPtr)
+    self.a = AudioThreadScratchBuffer(copying: aCoeffs)
+    self.b = AudioThreadScratchBuffer(copying: bCoeffs)
 
-    let bPtr = UnsafeMutablePointer<Double>.allocate(capacity: bCoeffs.count)
-    bPtr.initialize(from: bCoeffs, count: bCoeffs.count)
-    self.b = UnsafePointer(bPtr)
-
-    self.x = .allocate(capacity: bCoeffs.count)
-    self.x.initialize(repeating: 0.0, count: bCoeffs.count)
-
-    self.y = .allocate(capacity: aCoeffs.count)
-    self.y.initialize(repeating: 0.0, count: aCoeffs.count)
+    self.x = AudioThreadScratchBuffer(capacity: bCoeffs.count, repeating: 0.0)
+    self.y = AudioThreadScratchBuffer(capacity: aCoeffs.count, repeating: 0.0)
 
     self.idxX = 0
     self.idxY = 0
-  }
-
-  deinit {
-    UnsafeMutablePointer(mutating: a).deallocate()
-    UnsafeMutablePointer(mutating: b).deallocate()
-    x.deallocate()
-    y.deallocate()
   }
 
   func process(waveform: MutableWaveform) {

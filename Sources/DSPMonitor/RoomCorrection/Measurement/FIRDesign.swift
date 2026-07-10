@@ -95,13 +95,15 @@ enum FIRDesign {
     // Step 1-2: build log-magnitude spectrum from the biquad chain.
     let floorLin = pow(10.0, options.floorDB / 20.0)
     let preampLn = options.preampDB / 20.0 * log(10.0)
+    let computedBiquads = biquads.compactMap {
+      BiquadCoefficients.compute(parameters: $0, sampleRate: sampleRate)
+    }
+
     var logMag = [Double](repeating: 0, count: bins)
     for k in 0..<bins {
       let f = Double(k) * Double(sampleRate) / Double(n)
       var dB: Double = 0
-      for p in biquads {
-        guard let coeffs = BiquadCoefficients.compute(parameters: p, sampleRate: sampleRate)
-        else { continue }
+      for coeffs in computedBiquads {
         dB += coeffs.gainDB(atFreqHz: f, sampleRate: sampleRate)
       }
       let lin = max(floorLin, pow(10.0, dB / 20.0))
@@ -170,12 +172,14 @@ enum FIRDesign {
     // Note: phase shift = e^{−jωτ} where τ = n/2 samples. At bin k,
     // ω = 2π·k/n, so phase = −2π·k·(n/2)/n = −π·k. The cos/sin pair
     // below evaluates that with a single multiply per bin.
+    let computedBiquads = biquads.compactMap {
+      BiquadCoefficients.compute(parameters: $0, sampleRate: sampleRate)
+    }
+
     for k in 0..<bins {
       let f = Double(k) * Double(sampleRate) / Double(n)
       var dB: Double = 0
-      for p in biquads {
-        guard let coeffs = BiquadCoefficients.compute(parameters: p, sampleRate: sampleRate)
-        else { continue }
+      for coeffs in computedBiquads {
         dB += coeffs.gainDB(atFreqHz: f, sampleRate: sampleRate)
       }
       let lin = max(floorLin, pow(10.0, dB / 20.0)) * preampLin

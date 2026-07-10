@@ -24,6 +24,21 @@ extension Double {
     if linear <= 0 { return -1000.0 }
     return 20.0 * log10(linear)
   }
+
+  /// Apply attack/release envelope smoothing to an input signal.
+  @inlinable
+  public static func smoothEnvelope(
+    _ input: Double,
+    prev: Double,
+    attack: Double,
+    release: Double
+  ) -> Double {
+    if input >= prev {
+      return attack * prev + (1.0 - attack) * input
+    } else {
+      return release * prev + (1.0 - release) * input
+    }
+  }
 }
 
 /// Vectorized DSP operations using Accelerate's Swift `vDSP` namespace.

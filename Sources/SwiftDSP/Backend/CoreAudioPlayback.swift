@@ -211,32 +211,16 @@ final class CoreAudioPlayback: PlaybackBackend {
         logger.warning("Playback device refused buffer size of %d frames", .int(chunkSize))
       }
 
-      let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+      let block = CoreAudioDevice.registerLivenessListener(deviceID) { [weak self] alive in
         guard let self = self else { return }
-        var alive: UInt32 = 0
-        var size = UInt32(MemoryLayout<UInt32>.size)
-        var addr = AudioObjectPropertyAddress(
-          mSelector: kAudioDevicePropertyDeviceIsAlive,
-          mScope: kAudioObjectPropertyScopeGlobal,
-          mElement: kAudioObjectPropertyElementMain)
-        let status = AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &alive)
-        if status == noErr {
-          self._isDeviceAlive.store(alive != 0, ordering: .releasing)
-          if alive == 0 {
-            self.logger.error("Playback device disconnected!")
-          }
+        self._isDeviceAlive.store(alive, ordering: .releasing)
+        if !alive {
+          self.logger.error("Playback device disconnected!")
         }
       }
       self.aliveListenerBlock = block
-
-      var address = AudioObjectPropertyAddress(
-        mSelector: kAudioDevicePropertyDeviceIsAlive,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMain)
-
-      let status = AudioObjectAddPropertyListenerBlock(deviceID, &address, .main, block)
-      if status != noErr {
-        logger.warning("Failed to add alive listener: %d", .int(Int(status)))
+      if block == nil {
+        logger.warning("Failed to add alive listener")
       }
     }
 
@@ -379,11 +363,7 @@ final class CoreAudioPlayback: PlaybackBackend {
     rateWatcher = nil
 
     if let block = aliveListenerBlock, let deviceID = openedDeviceID {
-      var address = AudioObjectPropertyAddress(
-        mSelector: kAudioDevicePropertyDeviceIsAlive,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMain)
-      AudioObjectRemovePropertyListenerBlock(deviceID, &address, .main, block)
+      CoreAudioDevice.unregisterLivenessListener(deviceID, block: block)
       aliveListenerBlock = nil
     }
 

@@ -36,10 +36,7 @@ struct WaterfallPlot: View {
             let plotWidth = size.width - totalShiftX
             let plotHeight = size.height - totalDepthY
 
-            // Compute grid points mapping
-            let logMin = log10(fMin)
-            let logMax = log10(fMax)
-            let dLog = logMax - logMin
+            let logAxis = LogScaleAxis(minFreq: fMin, maxFreq: fMax)
 
             // Reference level (first slice peak)
             let refPeak =
@@ -72,8 +69,7 @@ struct WaterfallPlot: View {
                 let clampedDB = max(floorDB, min(10.0, db))
 
                 // Map frequency to X log scale
-                let xFrac = (log10(f) - logMin) / dLog
-                let x = shiftX + xFrac * plotWidth
+                let x = shiftX + logAxis.x(for: f, width: plotWidth)
 
                 // Map magnitude to Y linear scale
                 let yFrac = (clampedDB - floorDB) / (10.0 - floorDB)

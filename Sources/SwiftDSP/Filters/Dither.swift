@@ -49,28 +49,17 @@ private struct HighpassDitherer {
 // MARK: - NoiseShaper
 
 private final class NoiseShaper {
-  private let filterPtr: UnsafePointer<Double>
-  private let bufferPtr: UnsafeMutablePointer<Double>
+  private let filterPtr: AudioThreadScratchBuffer
+  private let bufferPtr: AudioThreadScratchBuffer
   let filterCount: Int
   private var writeIndex: Int
 
   init(filter: [Double]) {
     self.filterCount = filter.count
 
-    let fPtr = UnsafeMutablePointer<Double>.allocate(capacity: filter.count)
-    fPtr.initialize(from: filter, count: filter.count)
-    self.filterPtr = UnsafePointer(fPtr)
-
-    let bPtr = UnsafeMutablePointer<Double>.allocate(capacity: filter.count)
-    bPtr.initialize(repeating: 0.0, count: filter.count)
-    self.bufferPtr = bPtr
-
+    self.filterPtr = AudioThreadScratchBuffer(copying: filter)
+    self.bufferPtr = AudioThreadScratchBuffer(capacity: filter.count, repeating: 0.0)
     self.writeIndex = 0
-  }
-
-  deinit {
-    UnsafeMutablePointer(mutating: filterPtr).deallocate()
-    bufferPtr.deallocate()
   }
 
   func process(scaled: Double, dither: Double) -> Double {

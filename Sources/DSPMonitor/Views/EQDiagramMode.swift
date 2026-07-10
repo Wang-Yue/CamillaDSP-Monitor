@@ -122,16 +122,12 @@ struct EQFrequencyResponseView: View {
     return Self.bandColors[idx % Self.bandColors.count]
   }
   private let minFreq = 20.0, maxFreq = 20000.0, minDB = -24.0, maxDB = 24.0, numPoints = 1000
+  private let logAxis = LogScaleAxis(minFreq: 20.0, maxFreq: 20000.0)
   private func freqToX(_ f: Double, width: Double) -> Double {
-    let logMin = log10(minFreq)
-    let logMax = log10(maxFreq)
-    return (log10(max(f, minFreq)) - logMin) / (logMax - logMin) * width
+    logAxis.x(for: f, width: width)
   }
   private func xToFreq(_ x: Double, width: Double) -> Double {
-    let logMin = log10(minFreq)
-    let logMax = log10(maxFreq)
-    let logF = logMin + (x / width) * (logMax - logMin)
-    return pow(10, logF)
+    logAxis.frequency(for: x, width: width)
   }
   private func dbToY(_ db: Double, height: Double) -> Double {
     return height * (1.0 - (db - minDB) / (maxDB - minDB))
@@ -528,15 +524,13 @@ struct EQSpectrumBackgroundView: View {
       if let bands = spectrum.bands, let frequencies = spectrum.frequencies, !bands.isEmpty,
         bands.count == frequencies.count
       {
-        let logMin = log10(minFreq)
-        let logMax = log10(maxFreq)
+        let logAxis = LogScaleAxis(minFreq: minFreq, maxFreq: maxFreq)
 
         let points: [CGPoint] = (0..<bands.count).map { i in
           let f = Double(frequencies[i])
           let db = Double(bands[i])
 
-          let logF = log10(max(f, minFreq))
-          let x = (logF - logMin) / (logMax - logMin) * width
+          let x = logAxis.x(for: f, width: width)
 
           // Map -70 dB..-10 dB to height..0
           let minSpecDB = -70.0

@@ -1,5 +1,6 @@
 // Non-interleaved float buffers, one vector per channel.
 
+import Accelerate
 import Foundation
 
 /// A chunk of non-interleaved audio data flowing through the pipeline.
@@ -61,5 +62,38 @@ struct RoundRobinChunkPool {
     let chunk = pool[currentIndex]
     currentIndex = (currentIndex + 1) % pool.count
     return chunk
+  }
+}
+
+extension AudioChunk {
+  /// Sums multiple channels of a chunk into a single destination buffer.
+  @inlinable
+  public func sumChannels(
+    _ channels: [Int],
+    into dest: UnsafeMutablePointer<Double>,
+    count: Int
+  ) {
+    guard !channels.isEmpty else { return }
+    let ch0 = channels[0]
+    guard let src0Base = self[ch0].baseAddress else { return }
+    dest.initialize(from: src0Base, count: count)
+    for chIdx in 1..<channels.count {
+      let ch = channels[chIdx]
+      guard let srcBase = self[ch].baseAddress else { continue }
+      vDSP_vaddD(dest, 1, srcBase, 1, dest, 1, vDSP_Length(count))
+    }
+  }
+
+  /// Applies sample-by-sample linear gains to multiple channels.
+  @inlinable
+  public func applyGain(
+    to channels: [Int],
+    from gainMultipliers: UnsafePointer<Double>,
+    count: Int
+  ) {
+    for ch in channels {
+      guard let waveBase = self[ch].baseAddress else { continue }
+      vDSP_vmulD(waveBase, 1, gainMultipliers, 1, waveBase, 1, vDSP_Length(count))
+    }
   }
 }

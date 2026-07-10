@@ -82,24 +82,3 @@ private struct SpectrumGridView: View, Equatable {
     }
   }
 }
-
-private func formatFrequency(_ f: Float) -> String {
-  if f >= 1000 {
-    let k = f / 1000
-    // Use at most 2 digits for fraction
-    let s = String(format: "%.2f", k)
-    let parts = s.split(separator: ".")
-    let intPart = parts[0]
-    let fracPart =
-      parts.count > 1 ? parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "0")) : ""
-
-    if fracPart.isEmpty {
-      return "\(intPart)k"
-    } else {
-      return "\(intPart)k\(fracPart)"
-    }
-  } else {
-    // For < 1000, drop anything after the dot (round to nearest integer)
-    return "\(Int(f.rounded()))"
-  }
-}

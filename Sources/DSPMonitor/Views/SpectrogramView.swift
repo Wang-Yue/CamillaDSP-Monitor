@@ -261,23 +261,4 @@ struct SpectrogramGridView: View, Equatable {
       }
     }
   }
-
-  private func formatFrequency(_ f: Float) -> String {
-    if f >= 1000 {
-      let k = f / 1000
-      let s = String(format: "%.2f", k)
-      let parts = s.split(separator: ".")
-      let intPart = parts[0]
-      let fracPart =
-        parts.count > 1 ? parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "0")) : ""
-
-      if fracPart.isEmpty {
-        return "\(intPart)k"
-      } else {
-        return "\(intPart)k\(fracPart)"
-      }
-    } else {
-      return "\(Int(f.rounded()))"
-    }
-  }
 }

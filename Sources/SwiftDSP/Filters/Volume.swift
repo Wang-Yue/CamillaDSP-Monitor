@@ -19,7 +19,7 @@ final class VolumeFilter: Filter {
   private var rampStep: Int
 
   // Pre-allocated ramp gains for the current chunk to avoid heap allocation on the hot path
-  private var currentRampGains: UnsafeMutablePointer<Double>
+  private var currentRampGains: AudioThreadScratchBuffer
 
   var processingParameters: ProcessingParameters?
 
@@ -42,8 +42,7 @@ final class VolumeFilter: Filter {
     self.staleRampThresholdNs = UInt64(1_500_000_000) * UInt64(chunkSize) / UInt64(sampleRate)
 
     // Pre-allocate array
-    self.currentRampGains = .allocate(capacity: chunkSize)
-    self.currentRampGains.initialize(repeating: 0.0, count: chunkSize)
+    self.currentRampGains = AudioThreadScratchBuffer(capacity: chunkSize, repeating: 0.0)
 
     // Initialize state from shared parameters to prevent volume burst on startup
     let initialVol = processingParameters.targetVolume(for: fader)
@@ -56,11 +55,6 @@ final class VolumeFilter: Filter {
     self.targetLinearGain = initialMute ? 0.0 : Double.fromDB(initialVolClamped)
     self.rampStart = self.currentVolume
     self.rampStep = 0
-  }
-
-  deinit {
-    currentRampGains.deinitialize(count: chunkSize)
-    currentRampGains.deallocate()
   }
 
   /// Pre-calculates target volume levels and generates ramping array once per chunk.
@@ -110,7 +104,7 @@ final class VolumeFilter: Filter {
       }
     } else {
       let limit = min(count, chunkSize)
-      DSPOps.multiply(UnsafePointer(currentRampGains), waveform, count: limit)
+      DSPOps.multiply(currentRampGains, waveform, count: limit)
       if limit < count {
         let finalGain = mute ? 0.0 : Double.fromDB(targetVolume)
         let remainingWaveform = MutableWaveform(
@@ -161,7 +155,7 @@ final class VolumeFilter: Filter {
     self.rampStart = srcVol.rampStart
     self.rampStep = srcVol.rampStep
     if self.chunkSize == srcVol.chunkSize {
-      self.currentRampGains.initialize(from: srcVol.currentRampGains, count: chunkSize)
+      self.currentRampGains.update(from: srcVol.currentRampGains)
     }
   }
 }

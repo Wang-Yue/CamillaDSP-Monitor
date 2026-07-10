@@ -849,13 +849,10 @@ struct MeasurementView: View {
 // MARK: - Shared axis math
 
 private struct LogFreqAxis {
-  let minFreq: Double = 20
-  let maxFreq: Double = 20_000
+  private let logAxis = LogScaleAxis(minFreq: 20, maxFreq: 20_000)
 
   func freqToX(_ f: Double, width: Double) -> Double {
-    let logMin = log10(minFreq)
-    let logMax = log10(maxFreq)
-    return (log10(max(f, minFreq)) - logMin) / (logMax - logMin) * width
+    logAxis.x(for: f, width: width)
   }
 }
 

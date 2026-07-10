@@ -30,7 +30,7 @@ private func buildSubsampleBiquad(delay: Double) -> (Int, BiquadCoefficients?) {
 
 final class DelayFilter: Filter {
   let name: String
-  private var queue: UnsafeMutablePointer<Double>?
+  private var queue: AudioThreadScratchBuffer?
   private var queueCount: Int = 0
   private var readIndex: Int = 0
   private var biquad: BiquadFilter?
@@ -47,9 +47,7 @@ final class DelayFilter: Filter {
       delaySamples: delaySamples, subsample: subsample
     )
     if integerDelay > 0 {
-      let ptr = UnsafeMutablePointer<Double>.allocate(capacity: integerDelay)
-      ptr.initialize(repeating: 0.0, count: integerDelay)
-      self.queue = ptr
+      self.queue = AudioThreadScratchBuffer(capacity: integerDelay, repeating: 0.0)
       self.queueCount = integerDelay
     } else {
       self.queue = nil
@@ -58,13 +56,6 @@ final class DelayFilter: Filter {
     self.readIndex = 0
     if let c = coeffs {
       self.biquad = BiquadFilter(coefficients: c)
-    }
-  }
-
-  deinit {
-    if let q = queue {
-      q.deinitialize(count: queueCount)
-      q.deallocate()
     }
   }
 

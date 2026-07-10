@@ -8,7 +8,7 @@ final class LookaheadLimiterFilter: Filter {
   private var releaseCoeff: Double
 
   // Inlined LookaheadBuffer
-  private var lookaheadData: UnsafeMutablePointer<Double>
+  private var lookaheadData: AudioThreadScratchBuffer
   private var lookaheadCapacity: Int
   private var lookaheadReadIndex: Int = 0
   private var lookaheadWriteIndex: Int = 0
@@ -16,7 +16,7 @@ final class LookaheadLimiterFilter: Filter {
   private var releaseGain: Double = 1.0
 
   // Pre-allocated output buffer to avoid heap allocation on the hot path
-  private var outputBuffer: UnsafeMutablePointer<Double>
+  private var outputBuffer: AudioThreadScratchBuffer
   private var outputBufferCapacity: Int
 
   init(
@@ -32,19 +32,10 @@ final class LookaheadLimiterFilter: Filter {
 
     let lookaheadBufferLen = max(sampleRate, chunkSize)
     self.lookaheadCapacity = lookaheadBufferLen
-    self.lookaheadData = .allocate(capacity: lookaheadBufferLen)
-    self.lookaheadData.initialize(repeating: 0.0, count: lookaheadBufferLen)
+    self.lookaheadData = AudioThreadScratchBuffer(capacity: lookaheadBufferLen, repeating: 0.0)
 
     self.outputBufferCapacity = chunkSize
-    self.outputBuffer = .allocate(capacity: chunkSize)
-    self.outputBuffer.initialize(repeating: 0.0, count: chunkSize)
-  }
-
-  deinit {
-    lookaheadData.deinitialize(count: lookaheadCapacity)
-    lookaheadData.deallocate()
-    outputBuffer.deinitialize(count: outputBufferCapacity)
-    outputBuffer.deallocate()
+    self.outputBuffer = AudioThreadScratchBuffer(capacity: chunkSize, repeating: 0.0)
   }
 
   private static func configure(params: LookaheadLimiterParameters, sampleRate: Int) -> (
@@ -92,13 +83,9 @@ final class LookaheadLimiterFilter: Filter {
     if len == 0 { return }
     guard let waveBase = waveform.baseAddress else { return }
 
-    if outputBufferCapacity < len {
-      outputBuffer.deinitialize(count: outputBufferCapacity)
-      outputBuffer.deallocate()
-      outputBuffer = .allocate(capacity: len)
-      outputBuffer.initialize(repeating: 0.0, count: len)
-      outputBufferCapacity = len
-    }
+    precondition(
+      len <= outputBufferCapacity,
+      "Chunk size \(len) exceeds allocated capacity \(outputBufferCapacity)")
 
     let lookaheadStart = lookaheadCapacity - attackSamples
 
