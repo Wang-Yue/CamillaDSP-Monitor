@@ -169,38 +169,60 @@ bool generator_capture_read(generator_capture_t* capture, size_t frames,
     return false;
   }
 
-  // freq_delta is the phase increment per sample.
   double freq_delta = capture->frequency / (double)capture->sample_rate;
 
-  for (size_t f = 0; f < frames; f++) {
-    double val = 0.0;
-    // Generate sample value based on configured signal type.
-    switch (capture->signal_type) {
-      case SIGNAL_TYPE_SINE:
-        val = sin(capture->phase * 2.0 * M_PI) * capture->amplitude;
-        break;
-      case SIGNAL_TYPE_SQUARE:
-        val = (sin(capture->phase * 2.0 * M_PI) >= 0.0 ? 1.0 : -1.0) *
-              capture->amplitude;
-        break;
-      case SIGNAL_TYPE_WHITE_NOISE:
-        val = (((double)rand_r(&capture->rand_seed) / (double)RAND_MAX) * 2.0 -
-               1.0) *
-              capture->amplitude;
-        break;
-      default:
-        val = 0.0;
-        break;
+  switch (capture->signal_type) {
+    case SIGNAL_TYPE_SINE: {
+      double phase = capture->phase;
+      for (size_t f = 0; f < frames; f++) {
+        double val = sin(phase * 2.0 * M_PI) * capture->amplitude;
+        for (int c = 0; c < capture->channels; c++) {
+          audio_chunk_get_channel(chunk, c)[f] = val;
+        }
+        phase += freq_delta;
+        if (phase >= 1.0) {
+          phase -= 1.0;
+        }
+      }
+      capture->phase = phase;
+      break;
     }
 
-    for (int c = 0; c < capture->channels; c++) {
-      audio_chunk_get_channel(chunk, c)[f] = val;
+    case SIGNAL_TYPE_SQUARE: {
+      double phase = capture->phase;
+      for (size_t f = 0; f < frames; f++) {
+        double val = (sin(phase * 2.0 * M_PI) >= 0.0 ? 1.0 : -1.0) * capture->amplitude;
+        for (int c = 0; c < capture->channels; c++) {
+          audio_chunk_get_channel(chunk, c)[f] = val;
+        }
+        phase += freq_delta;
+        if (phase >= 1.0) {
+          phase -= 1.0;
+        }
+      }
+      capture->phase = phase;
+      break;
     }
 
-    // Increment phase and wrap around [0.0, 1.0) range.
-    capture->phase += freq_delta;
-    if (capture->phase >= 1.0) {
-      capture->phase -= 1.0;
+    case SIGNAL_TYPE_WHITE_NOISE: {
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < capture->channels; c++) {
+          double noise_val = (((double)rand_r(&capture->rand_seed) / (double)RAND_MAX) * 2.0 -
+                              1.0) *
+                             capture->amplitude;
+          audio_chunk_get_channel(chunk, c)[f] = noise_val;
+        }
+      }
+      break;
+    }
+
+    default: {
+      for (size_t f = 0; f < frames; f++) {
+        for (int c = 0; c < capture->channels; c++) {
+          audio_chunk_get_channel(chunk, c)[f] = 0.0;
+        }
+      }
+      break;
     }
   }
 
