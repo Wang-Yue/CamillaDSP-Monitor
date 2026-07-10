@@ -11,6 +11,8 @@ import Observation
 @Observable
 final class LevelState {
   var visibilityCount: Int = 0
+  var captureChannelCount: Int = 0
+  var playbackChannelCount: Int = 0
   var capturePeak: [Float] = []
   var captureRms: [Float] = []
   var playbackPeak: [Float] = []
@@ -24,9 +26,17 @@ final class LevelState {
     self.captureRms = captureRms
     self.playbackPeak = playbackPeak
     self.playbackRms = playbackRms
+    if captureChannelCount != capturePeak.count {
+      captureChannelCount = capturePeak.count
+    }
+    if playbackChannelCount != playbackPeak.count {
+      playbackChannelCount = playbackPeak.count
+    }
   }
 
   func reset(captureChannels: Int, playbackChannels: Int) {
+    captureChannelCount = captureChannels
+    playbackChannelCount = playbackChannels
     let capSilent = Array(repeating: Float(-100.0), count: captureChannels)
     let playSilent = Array(repeating: Float(-100.0), count: playbackChannels)
 

@@ -203,6 +203,9 @@ struct StageChipButton: View {
 struct LevelMetersCard: View {
   @Environment(LevelState.self) var levels
   var body: some View {
+    let captureCount = levels.captureChannelCount
+    let playbackCount = levels.playbackChannelCount
+
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .firstTextBaseline) {
         Text("Levels").font(.headline)
@@ -212,21 +215,21 @@ struct LevelMetersCard: View {
       HStack(spacing: 24) {
         VStack(alignment: .leading, spacing: 8) {
           Text("Capture").font(.subheadline).foregroundStyle(.secondary)
-          ForEach(0..<levels.capturePeak.count, id: \.self) { ch in
+          ForEach(0..<captureCount, id: \.self) { ch in
             DualLevelMeterView(
-              label: channelLabel(for: ch, totalCount: levels.capturePeak.count),
-              peak: levels.capturePeak[ch],
-              rms: levels.captureRms[ch]
+              isPlayback: false,
+              channelIndex: ch,
+              label: channelLabel(for: ch, totalCount: captureCount)
             )
           }
         }
         VStack(alignment: .leading, spacing: 8) {
           Text("Playback").font(.subheadline).foregroundStyle(.secondary)
-          ForEach(0..<levels.playbackPeak.count, id: \.self) { ch in
+          ForEach(0..<playbackCount, id: \.self) { ch in
             DualLevelMeterView(
-              label: channelLabel(for: ch, totalCount: levels.playbackPeak.count),
-              peak: levels.playbackPeak[ch],
-              rms: levels.playbackRms[ch]
+              isPlayback: true,
+              channelIndex: ch,
+              label: channelLabel(for: ch, totalCount: playbackCount)
             )
           }
         }

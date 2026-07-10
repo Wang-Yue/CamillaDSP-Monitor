@@ -90,10 +90,12 @@ struct VUParams {
 // MARK: - Hyper-Realistic VU Meter
 
 struct AnalogVUMeter: View {
-  let level: Float  // dBFS (-60...0)
+  var isPlayback: Bool = true
+  let channelIndex: Int
   let label: String
   var params: VUParams
 
+  @Environment(LevelState.self) var levels
   private let refLevel = -18.0
 
   private var bulbAmberColor: Color {
@@ -145,6 +147,13 @@ struct AnalogVUMeter: View {
   }
 
   var body: some View {
+    let level =
+      isPlayback
+      ? (levels.playbackRms.indices.contains(channelIndex)
+        ? levels.playbackRms[channelIndex] : -100.0)
+      : (levels.captureRms.indices.contains(channelIndex)
+        ? levels.captureRms[channelIndex] : -100.0)
+
     GeometryReader { geometry in
       let h = geometry.size.height
       let scale = h / 160.0
@@ -165,7 +174,7 @@ struct AnalogVUMeter: View {
           .equatable()
 
           Canvas { context, size in
-            drawNeedle(context: &context, size: size, scale: scale)
+            drawNeedle(context: &context, size: size, level: Float(level), scale: scale)
           }
         }
         .frame(maxHeight: .infinity)
@@ -186,7 +195,7 @@ struct AnalogVUMeter: View {
   }
 
   private func drawNeedle(
-    context: inout GraphicsContext, size: CGSize, scale: CGFloat
+    context: inout GraphicsContext, size: CGSize, level: Float, scale: CGFloat
   ) {
     let level = Double(level)
     let w = size.width
@@ -449,13 +458,14 @@ struct AnalogVUCard: View {
         .fixedSize()
       }
 
-      let chCount = levels.playbackRms.count
+      let chCount = levels.playbackChannelCount
       if chCount <= 4 {
         // Equal horizontal division for 1-4 channels
         HStack(spacing: 16) {
           ForEach(0..<chCount, id: \.self) { ch in
             AnalogVUMeter(
-              level: levels.playbackRms[ch],
+              isPlayback: true,
+              channelIndex: ch,
               label: channelLabel(for: ch, totalCount: chCount),
               params: vuSettings.params
             )
@@ -468,7 +478,8 @@ struct AnalogVUCard: View {
           HStack(spacing: 16) {
             ForEach(0..<chCount, id: \.self) { ch in
               AnalogVUMeter(
-                level: levels.playbackRms[ch],
+                isPlayback: true,
+                channelIndex: ch,
                 label: channelLabel(for: ch, totalCount: chCount),
                 params: vuSettings.params
               )

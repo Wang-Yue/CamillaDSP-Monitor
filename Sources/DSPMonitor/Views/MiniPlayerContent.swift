@@ -58,12 +58,12 @@ struct MiniMetersView: View {
   @Environment(LevelState.self) var levels
 
   var body: some View {
+    let playCount = levels.playbackChannelCount
     VStack(spacing: 6) {
-      ForEach(0..<levels.playbackPeak.count, id: \.self) { ch in
+      ForEach(0..<playCount, id: \.self) { ch in
         MiniMeterRow(
-          label: channelLabel(for: ch, totalCount: levels.playbackPeak.count),
-          peak: levels.playbackPeak[ch],
-          rms: levels.playbackRms[ch]
+          channelIndex: ch,
+          label: channelLabel(for: ch, totalCount: playCount)
         )
       }
     }
@@ -83,11 +83,17 @@ struct MiniMetersView: View {
 }
 
 struct MiniMeterRow: View {
+  let channelIndex: Int
   let label: String
-  let peak: Float
-  let rms: Float
+  @Environment(LevelState.self) var levels
 
   var body: some View {
+    let peak =
+      levels.playbackPeak.indices.contains(channelIndex)
+      ? levels.playbackPeak[channelIndex] : -100.0
+    let rms =
+      levels.playbackRms.indices.contains(channelIndex) ? levels.playbackRms[channelIndex] : -100.0
+
     HStack(spacing: 6) {
       Text(label)
         .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -119,13 +125,15 @@ struct MiniAnalogVUView: View {
   @Environment(VUSettings.self) var vuSettings
 
   var body: some View {
+    let playCount = levels.playbackChannelCount
     GeometryReader { geometry in
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 8) {
-          ForEach(0..<levels.playbackRms.count, id: \.self) { ch in
+          ForEach(0..<playCount, id: \.self) { ch in
             AnalogVUMeter(
-              level: levels.playbackRms[ch],
-              label: channelLabel(for: ch, totalCount: levels.playbackRms.count),
+              isPlayback: true,
+              channelIndex: ch,
+              label: channelLabel(for: ch, totalCount: playCount),
               params: vuSettings.params
             )
           }

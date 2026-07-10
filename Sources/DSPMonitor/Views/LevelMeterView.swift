@@ -169,11 +169,25 @@ private struct LevelMeterBackground: View, Equatable {
 // MARK: - Dual Peak/RMS Level Meter
 
 struct DualLevelMeterView: View {
+  let isPlayback: Bool
+  let channelIndex: Int
   let label: String
-  let peak: Float  // dB
-  let rms: Float  // dB
+  @Environment(LevelState.self) var levels
 
   var body: some View {
+    let peak =
+      isPlayback
+      ? (levels.playbackPeak.indices.contains(channelIndex)
+        ? levels.playbackPeak[channelIndex] : -100.0)
+      : (levels.capturePeak.indices.contains(channelIndex)
+        ? levels.capturePeak[channelIndex] : -100.0)
+    let rms =
+      isPlayback
+      ? (levels.playbackRms.indices.contains(channelIndex)
+        ? levels.playbackRms[channelIndex] : -100.0)
+      : (levels.captureRms.indices.contains(channelIndex)
+        ? levels.captureRms[channelIndex] : -100.0)
+
     HStack(spacing: 8) {
       Text(label)
         .font(.system(.caption, design: .monospaced))
@@ -206,6 +220,9 @@ struct CompactLevelMeterBar: View {
   @Environment(LevelState.self) var levels
 
   var body: some View {
+    let captureCount = levels.captureChannelCount
+    let playbackCount = levels.playbackChannelCount
+
     HStack(spacing: 16) {
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 16) {
@@ -213,14 +230,14 @@ struct CompactLevelMeterBar: View {
             Image(systemName: "mic")
               .font(.caption2)
               .foregroundStyle(.secondary)
-            CompactMultiChannelMeter(levels: levels.capturePeak)
+            CompactMultiChannelMeter(isPlayback: false, count: captureCount)
           }
 
           HStack(spacing: 6) {
             Image(systemName: "hifispeaker")
               .font(.caption2)
               .foregroundStyle(.secondary)
-            CompactMultiChannelMeter(levels: levels.playbackPeak)
+            CompactMultiChannelMeter(isPlayback: true, count: playbackCount)
           }
         }
       }
@@ -235,35 +252,62 @@ struct CompactLevelMeterBar: View {
 
 /// A batched renderer for multiple horizontal level bars, maintaining the original look.
 struct CompactMultiChannelMeter: View {
-  let levels: [Float]
+  let isPlayback: Bool
+  let count: Int
+  @Environment(LevelState.self) var levels
 
   var body: some View {
-    let count = levels.count
     let barW: CGFloat = count > 4 ? 40 : 80
     let spacing: CGFloat = 4
     let totalWidth = count > 0 ? (barW + spacing) * CGFloat(count) - spacing : 0
 
-    Canvas { context, size in
-      guard count > 0 else { return }
+    ZStack {
+      CompactMultiChannelMeterBackground(count: count, barW: barW, spacing: spacing)
+        .equatable()
 
-      for i in 0..<count {
-        let x = CGFloat(i) * (barW + spacing)
-        let rect = CGRect(x: x, y: 0, width: barW, height: size.height)
+      Canvas { context, size in
+        guard count > 0 else { return }
+        let peakLevels = isPlayback ? levels.playbackPeak : levels.capturePeak
 
-        context.fill(
-          Path(roundedRect: rect, cornerRadius: 1.5),
-          with: .color(Color.primary.opacity(0.06)))
-
-        let fillW = barW * normalizedDB(levels[i])
-        if fillW > 0 {
-          let fillRect = CGRect(x: rect.minX, y: rect.minY, width: fillW, height: rect.height)
-          context.fill(
-            Path(roundedRect: fillRect, cornerRadius: 1.5),
-            with: .color(appThemeColor(Float(normalizedDB(levels[i])))))
+        for i in 0..<count {
+          guard peakLevels.indices.contains(i) else { continue }
+          let fillW = barW * normalizedDB(peakLevels[i])
+          if fillW > 0 {
+            let x = CGFloat(i) * (barW + spacing)
+            let fillRect = CGRect(x: x, y: 0, width: fillW, height: size.height)
+            context.fill(
+              Path(roundedRect: fillRect, cornerRadius: 1.5),
+              with: .color(appThemeColor(Float(normalizedDB(peakLevels[i])))))
+          }
         }
       }
     }
     .frame(width: totalWidth, height: 6)
+  }
+}
+
+private struct CompactMultiChannelMeterBackground: View, Equatable {
+  let count: Int
+  let barW: CGFloat
+  let spacing: CGFloat
+
+  nonisolated static func == (
+    lhs: CompactMultiChannelMeterBackground, rhs: CompactMultiChannelMeterBackground
+  ) -> Bool {
+    lhs.count == rhs.count && lhs.barW == rhs.barW && lhs.spacing == rhs.spacing
+  }
+
+  var body: some View {
+    Canvas { context, size in
+      guard count > 0 else { return }
+      var path = Path()
+      for i in 0..<count {
+        let x = CGFloat(i) * (barW + spacing)
+        let rect = CGRect(x: x, y: 0, width: barW, height: size.height)
+        path.addRoundedRect(in: rect, cornerSize: CGSize(width: 1.5, height: 1.5))
+      }
+      context.fill(path, with: .color(Color.primary.opacity(0.06)))
+    }
   }
 }
 
