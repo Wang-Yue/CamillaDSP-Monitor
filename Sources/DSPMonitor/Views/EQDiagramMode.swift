@@ -583,15 +583,21 @@ struct EQSpectrumBackgroundView: View {
       {
         let logAxis = LogScaleAxis(minFreq: minFreq, maxFreq: maxFreq)
 
+        // Find the peak to detect silence
+        let peakDB = bands.reduce(-120.0) { max($0, Double($1)) }
+        let offset =
+          peakDB < -95.0 ? 0.0 : (bands.reduce(0.0) { $0 + Double($1) } / Double(bands.count))
+
+        let minSpecDB = -24.0
+        let maxSpecDB = 24.0
+
         let points: [CGPoint] = (0..<bands.count).map { i in
           let f = Double(frequencies[i])
-          let db = Double(bands[i])
+          let rawDb = Double(bands[i])
+          let db = peakDB < -95.0 ? rawDb : (rawDb - offset)
 
           let x = logAxis.x(for: f, width: width)
 
-          // Map -70 dB..-10 dB to height..0
-          let minSpecDB = -70.0
-          let maxSpecDB = -10.0
           let ratio = (db - minSpecDB) / (maxSpecDB - minSpecDB)
           let clampedRatio = max(0.0, min(1.0, ratio))
           let y = height * (1.0 - clampedRatio)
