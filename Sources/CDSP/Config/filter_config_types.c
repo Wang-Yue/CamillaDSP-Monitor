@@ -86,9 +86,9 @@ int gain_parameters_validate(const gain_parameters_t* params,
                              config_error_t* err) {
   if (!params) return 0;
   if (params->has_gain) {
-    if (params->gain <= -150.0 || params->gain >= 150.0) {
+    if (params->gain < -150.0 || params->gain > 150.0) {
       config_error_set(err, CONFIG_ERR_INVALID_FILTER,
-                       "gain must be in (-150, 150) dB, got %g", params->gain);
+                       "gain must be in [-150, 150] dB, got %g", params->gain);
       return -1;
     }
   }
@@ -99,9 +99,9 @@ int loudness_parameters_validate(const loudness_parameters_t* params,
                                  config_error_t* err) {
   if (!params) return 0;
   if (params->has_reference_level) {
-    if (params->reference_level <= -100.0 || params->reference_level >= 20.0) {
+    if (params->reference_level < -100.0 || params->reference_level > 20.0) {
       config_error_set(err, CONFIG_ERR_INVALID_FILTER,
-                       "reference_level must be in (-100, 20), got %g",
+                       "reference_level must be in [-100, 20], got %g",
                        params->reference_level);
       return -1;
     }

@@ -647,7 +647,7 @@ struct LoudnessOptions: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .fixedSize()
-          Slider(value: $stage.loudnessReference, in: -50...20, step: 1)
+          Slider(value: $stage.loudnessReference, in: -100...20, step: 1)
             .frame(maxWidth: .infinity)
             .frame(minWidth: 200)
             .onChange(of: stage.loudnessReference) { _, _ in dsp.applyConfig() }
@@ -661,7 +661,7 @@ struct LoudnessOptions: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .fixedSize()
-          Slider(value: $stage.loudnessLowBoost, in: 0...15, step: 0.5)
+          Slider(value: $stage.loudnessLowBoost, in: 0...20, step: 0.5)
             .frame(maxWidth: .infinity)
             .frame(minWidth: 200)
             .onChange(of: stage.loudnessLowBoost) { _, _ in dsp.applyConfig() }
@@ -675,7 +675,7 @@ struct LoudnessOptions: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .fixedSize()
-          Slider(value: $stage.loudnessHighBoost, in: 0...15, step: 0.5)
+          Slider(value: $stage.loudnessHighBoost, in: 0...20, step: 0.5)
             .frame(maxWidth: .infinity)
             .frame(minWidth: 200)
             .onChange(of: stage.loudnessHighBoost) { _, _ in dsp.applyConfig() }
@@ -780,7 +780,7 @@ struct GainOptions: View {
             .foregroundStyle(.secondary)
             .fixedSize()
 
-          Slider(value: $stage.gainValue, in: -30...30, step: 0.1)
+          Slider(value: $stage.gainValue, in: -150...150, step: 0.1)
             .onChange(of: stage.gainValue) { _, _ in dsp.applyConfig() }
 
           Text(String(format: "%+.1f dB", stage.gainValue))
@@ -965,7 +965,7 @@ struct LookaheadLimiterOptions: View {
             .foregroundStyle(.secondary)
             .fixedSize()
 
-          Slider(value: $stage.lookaheadAttack, in: 0.1...100.0, step: 0.1)
+          Slider(value: $stage.lookaheadAttack, in: 0.1...1000.0, step: 0.1)
             .onChange(of: stage.lookaheadAttack) { _, _ in dsp.applyConfig() }
 
           Text(String(format: "%.1f ms", stage.lookaheadAttack))
@@ -1603,7 +1603,7 @@ struct DitherOptions: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .frame(width: 90, alignment: .leading)
-          Slider(value: $stage.ditherAmplitude, in: 0.0...10.0, step: 0.1)
+          Slider(value: $stage.ditherAmplitude, in: 0.0...100.0, step: 0.1)
             .onChange(of: stage.ditherAmplitude) { _, _ in dsp.applyConfig() }
           Text(String(format: "%.1f", stage.ditherAmplitude))
             .font(.system(.body, design: .monospaced))
@@ -1719,7 +1719,7 @@ struct BiquadComboOptions: View {
               .font(.subheadline)
               .foregroundStyle(.secondary)
               .frame(width: 90, alignment: .leading)
-            Slider(value: $stage.comboGain, in: -15...15, step: 0.1)
+            Slider(value: $stage.comboGain, in: -99.9...99.9, step: 0.1)
               .onChange(of: stage.comboGain) { _, _ in dsp.applyConfig() }
             Text(String(format: "%+.1f dB", stage.comboGain))
               .font(.system(.body, design: .monospaced))
@@ -1930,7 +1930,7 @@ struct GraphicEQOptions: View {
                       stage.graphicEQGains[index] = newVal
                       dsp.applyConfig()
                     }
-                  ), in: -12...12
+                  ), in: -40...40
                 )
                 .frame(height: 160)
 

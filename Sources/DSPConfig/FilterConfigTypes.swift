@@ -109,8 +109,8 @@ public struct GainParameters: Codable, Sendable, Equatable {
 
   public func validate() throws {
     if let gain = gain {
-      guard gain > -150 && gain < 150 else {
-        throw ConfigError.invalidFilter("gain must be in (-150, 150) dB, got \(gain)")
+      guard gain >= -150 && gain <= 150 else {
+        throw ConfigError.invalidFilter("gain must be in [-150, 150] dB, got \(gain)")
       }
     }
   }
@@ -146,8 +146,8 @@ public struct LoudnessParameters: Codable, Sendable, Equatable {
 
   public func validate() throws {
     if let ref = referenceLevel {
-      guard ref > -100 && ref < 20 else {
-        throw ConfigError.invalidFilter("reference_level must be in (-100, 20), got \(ref)")
+      guard ref >= -100 && ref <= 20 else {
+        throw ConfigError.invalidFilter("reference_level must be in [-100, 20], got \(ref)")
       }
     }
     if let boost = highBoost {

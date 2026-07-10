@@ -570,7 +570,7 @@ TEST(ValidateInvalidFilterConfig) {
   int res = dsp_config_validate(&config, &err);
   ASSERT_NE(0, res);
   ASSERT_EQ(CONFIG_ERR_INVALID_FILTER, err.type);
-  ASSERT_TRUE(strstr(err.message, "gain must be in (-150, 150)") != NULL);
+  ASSERT_TRUE(strstr(err.message, "gain must be in [-150, 150]") != NULL);
 }
 
 TEST(ValidateInvalidMixerConfig) {
