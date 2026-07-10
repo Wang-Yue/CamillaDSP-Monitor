@@ -21,6 +21,13 @@
 
 #include "Logging/app_logger.h"
 
+#ifndef AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+#define AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM 0x80000000
+#endif
+#ifndef AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
+#define AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY 0x08000000
+#endif
+
 // COM Release helper
 #define SAFE_RELEASE(punk)         \
   if ((punk) != NULL) {            \
@@ -551,6 +558,9 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
   if (!capture->polling) {
     flags |= AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
   }
+  if (mode == AUDCLNT_SHAREMODE_SHARED) {
+    flags |= AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
+  }
 
   hr = IAudioClient_Initialize(
       capture->client, mode, flags, duration,
@@ -1032,6 +1042,9 @@ bool wasapi_playback_open(wasapi_playback_t* playback, backend_error_t* err) {
   DWORD flags = 0;
   if (!playback->polling) {
     flags |= AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
+  }
+  if (mode == AUDCLNT_SHAREMODE_SHARED) {
+    flags |= AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
   }
 
   hr = IAudioClient_Initialize(playback->client, mode, flags, duration,
