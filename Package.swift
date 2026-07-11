@@ -19,7 +19,10 @@ switch engine {
 case "c":
   dspLibTarget = .target(
     name: "DSPLib",
-    dependencies: ["DSPConfig", "CDSP"],
+    dependencies: [
+      "DSPConfig",
+      .product(name: "CDSP", package: "CDSP")
+    ],
     path: "Sources/DSPLib",
     exclude: ["RustDSPEngine.swift", "camilladsp_ffi.swift"],
     swiftSettings: [
@@ -27,26 +30,12 @@ case "c":
       .unsafeFlags(["-Xcc", "-DENABLE_ACCELERATE"]),
     ]
   )
-  dspMonitorDependencies = ["DSPLib", "DSPConfig", "CDSP"]
-  engineTargets = [
-    .target(
-      name: "CDSP",
-      path: "Sources/CDSP",
-      exclude: ["main.c"],
-      publicHeadersPath: ".",
-      cSettings: [
-        .headerSearchPath("."),
-        .define("ENABLE_COREAUDIO"),
-        .define("ENABLE_ACCELERATE"),
-      ],
-      linkerSettings: [
-        .linkedFramework("Accelerate"),
-        .linkedFramework("AudioToolbox"),
-        .linkedFramework("CoreAudio"),
-        .linkedFramework("CoreFoundation"),
-      ]
-    )
+  dspMonitorDependencies = [
+    "DSPLib",
+    "DSPConfig",
+    .product(name: "CDSP", package: "CDSP")
   ]
+  engineTargets = []
 
 default:  // rust
   dspLibTarget = .target(
@@ -96,6 +85,8 @@ let package = Package(
   name: "DSPMonitor",
   platforms: [.macOS(.v15)],
   products: products,
-  dependencies: [],
+  dependencies: [
+    .package(url: "https://github.com/Wang-Yue/cdsp.git", branch: "main")
+  ],
   targets: targets
 )
