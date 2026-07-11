@@ -342,7 +342,14 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
 
   // Grow the temporary raw read buffer if the current capacity is insufficient.
   if (capture->raw_buf_capacity < required_bytes) {
-    capture->raw_buf = (uint8_t*)realloc(capture->raw_buf, required_bytes);
+    uint8_t* new_buf = (uint8_t*)realloc(capture->raw_buf, required_bytes);
+    if (!new_buf) {
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_READ_ERROR,
+                           "Failed to reallocate BlueZ capture buffer");
+      return false;
+    }
+    capture->raw_buf = new_buf;
     capture->raw_buf_capacity = required_bytes;
   }
 
@@ -401,6 +408,7 @@ bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
 }
 
 void bluez_capture_close(bluez_capture_t* capture) {
+  if (!capture) return;
   capture->active = false;
   if (capture->pipe_fd != -1) {
     close(capture->pipe_fd);

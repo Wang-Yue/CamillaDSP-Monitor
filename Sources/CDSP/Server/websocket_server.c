@@ -2851,14 +2851,16 @@ static void* server_thread_func(void* arg) {
                                cap_channels, now);
 
           if (server->capture_global_peaks_count != cap_channels) {
-            server->capture_global_peaks = (double*)realloc(
+            double* new_peaks = (double*)realloc(
                 server->capture_global_peaks, cap_channels * sizeof(double));
-            for (size_t k = server->capture_global_peaks_count;
-                 k < cap_channels; k++) {
-              if (server->capture_global_peaks)
+            if (new_peaks) {
+              server->capture_global_peaks = new_peaks;
+              for (size_t k = server->capture_global_peaks_count;
+                   k < cap_channels; k++) {
                 server->capture_global_peaks[k] = -1000.0;
+              }
+              server->capture_global_peaks_count = cap_channels;
             }
-            server->capture_global_peaks_count = cap_channels;
           }
           for (size_t k = 0; k < cap_channels; k++) {
             if (server->capture_global_peaks &&
@@ -2882,14 +2884,16 @@ static void* server_thread_func(void* arg) {
                                pb_channels, now);
 
           if (server->playback_global_peaks_count != pb_channels) {
-            server->playback_global_peaks = (double*)realloc(
+            double* new_peaks = (double*)realloc(
                 server->playback_global_peaks, pb_channels * sizeof(double));
-            for (size_t k = server->playback_global_peaks_count;
-                 k < pb_channels; k++) {
-              if (server->playback_global_peaks)
+            if (new_peaks) {
+              server->playback_global_peaks = new_peaks;
+              for (size_t k = server->playback_global_peaks_count;
+                   k < pb_channels; k++) {
                 server->playback_global_peaks[k] = -1000.0;
+              }
+              server->playback_global_peaks_count = pb_channels;
             }
-            server->playback_global_peaks_count = pb_channels;
           }
           for (size_t k = 0; k < pb_channels; k++) {
             if (server->playback_global_peaks &&
@@ -2927,17 +2931,33 @@ static void* server_thread_func(void* arg) {
             double release = smoothing_alpha(dt, session->vu_release);
 
             if (session->vu_pb_channels != pb_channels) {
-              session->vu_pb_rms = (double*)realloc(
-                  session->vu_pb_rms, pb_channels * sizeof(double));
-              session->vu_pb_peak = (double*)realloc(
-                  session->vu_pb_peak, pb_channels * sizeof(double));
-              for (size_t k = 0; k < pb_channels; k++) {
-                if (session->vu_pb_rms)
-                  session->vu_pb_rms[k] = current_pb_rms[k];
-                if (session->vu_pb_peak)
-                  session->vu_pb_peak[k] = current_pb_peak[k];
+              double* new_rms = (double*)malloc(pb_channels * sizeof(double));
+              double* new_peak = (double*)malloc(pb_channels * sizeof(double));
+              if (new_rms && new_peak) {
+                size_t copy_count = session->vu_pb_channels < pb_channels
+                                        ? session->vu_pb_channels
+                                        : pb_channels;
+                if (session->vu_pb_rms) {
+                  memcpy(new_rms, session->vu_pb_rms,
+                         copy_count * sizeof(double));
+                  free(session->vu_pb_rms);
+                }
+                if (session->vu_pb_peak) {
+                  memcpy(new_peak, session->vu_pb_peak,
+                         copy_count * sizeof(double));
+                  free(session->vu_pb_peak);
+                }
+                for (size_t k = copy_count; k < pb_channels; k++) {
+                  new_rms[k] = current_pb_rms[k];
+                  new_peak[k] = current_pb_peak[k];
+                }
+                session->vu_pb_rms = new_rms;
+                session->vu_pb_peak = new_peak;
+                session->vu_pb_channels = pb_channels;
+              } else {
+                if (new_rms) free(new_rms);
+                if (new_peak) free(new_peak);
               }
-              session->vu_pb_channels = pb_channels;
             } else {
               for (size_t k = 0; k < pb_channels; k++) {
                 double prev_amp = db_to_amplitude(session->vu_pb_rms[k]);
@@ -2963,17 +2983,35 @@ static void* server_thread_func(void* arg) {
 
             if (cap_channels > 0) {
               if (session->vu_cap_channels != cap_channels) {
-                session->vu_cap_rms = (double*)realloc(
-                    session->vu_cap_rms, cap_channels * sizeof(double));
-                session->vu_cap_peak = (double*)realloc(
-                    session->vu_cap_peak, cap_channels * sizeof(double));
-                for (size_t k = 0; k < cap_channels; k++) {
-                  if (session->vu_cap_rms)
-                    session->vu_cap_rms[k] = current_cap_rms[k];
-                  if (session->vu_cap_peak)
-                    session->vu_cap_peak[k] = current_cap_peak[k];
+                double* new_rms =
+                    (double*)malloc(cap_channels * sizeof(double));
+                double* new_peak =
+                    (double*)malloc(cap_channels * sizeof(double));
+                if (new_rms && new_peak) {
+                  size_t copy_count = session->vu_cap_channels < cap_channels
+                                          ? session->vu_cap_channels
+                                          : cap_channels;
+                  if (session->vu_cap_rms) {
+                    memcpy(new_rms, session->vu_cap_rms,
+                           copy_count * sizeof(double));
+                    free(session->vu_cap_rms);
+                  }
+                  if (session->vu_cap_peak) {
+                    memcpy(new_peak, session->vu_cap_peak,
+                           copy_count * sizeof(double));
+                    free(session->vu_cap_peak);
+                  }
+                  for (size_t k = copy_count; k < cap_channels; k++) {
+                    new_rms[k] = current_cap_rms[k];
+                    new_peak[k] = current_cap_peak[k];
+                  }
+                  session->vu_cap_rms = new_rms;
+                  session->vu_cap_peak = new_peak;
+                  session->vu_cap_channels = cap_channels;
+                } else {
+                  if (new_rms) free(new_rms);
+                  if (new_peak) free(new_peak);
                 }
-                session->vu_cap_channels = cap_channels;
               } else {
                 for (size_t k = 0; k < cap_channels; k++) {
                   double prev_amp = db_to_amplitude(session->vu_cap_rms[k]);

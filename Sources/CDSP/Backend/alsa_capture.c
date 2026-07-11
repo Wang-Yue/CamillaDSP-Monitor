@@ -545,6 +545,12 @@ bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
   capture->interleaved_buf_size =
       capture->chunk_size * capture->channels * sample_size;
   capture->interleaved_buf = malloc(capture->interleaved_buf_size);
+  if (!capture->interleaved_buf) {
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to allocate ALSA capture interleaved buffer");
+    goto error_cleanup;
+  }
 
   alsa_capture_init_controls(capture);
 
@@ -659,6 +665,7 @@ bool alsa_capture_read(alsa_capture_t* capture, size_t frames,
 }
 
 void alsa_capture_close(alsa_capture_t* capture) {
+  if (!capture) return;
   if (capture->pcm) {
     snd_pcm_close(capture->pcm);
     capture->pcm = NULL;

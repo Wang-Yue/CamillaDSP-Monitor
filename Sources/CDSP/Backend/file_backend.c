@@ -738,6 +738,7 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
 }
 
 void file_capture_close(file_capture_t* capture) {
+  if (!capture) return;
   if (capture->f && !capture->is_stdin) {
     fclose(capture->f);
     capture->f = NULL;
@@ -924,7 +925,14 @@ bool file_playback_write(file_playback_t* playback, const audio_chunk_t* chunk,
   // than our pre-allocated capacity (which was based on chunk_size).
   size_t required_bytes = frames * playback->channels * sample_size;
   if (required_bytes > playback->raw_buf_capacity) {
-    playback->raw_buf = (uint8_t*)realloc(playback->raw_buf, required_bytes);
+    uint8_t* new_buf = (uint8_t*)realloc(playback->raw_buf, required_bytes);
+    if (!new_buf) {
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_WRITE_ERROR,
+                           "Failed to reallocate file playback buffer");
+      return false;
+    }
+    playback->raw_buf = new_buf;
     playback->raw_buf_capacity = required_bytes;
   }
 
@@ -947,6 +955,7 @@ bool file_playback_write(file_playback_t* playback, const audio_chunk_t* chunk,
 }
 
 void file_playback_close(file_playback_t* playback) {
+  if (!playback) return;
   if (playback->f) {
     if (playback->is_wav && !playback->is_stdout) {
       // Write completed WAV header

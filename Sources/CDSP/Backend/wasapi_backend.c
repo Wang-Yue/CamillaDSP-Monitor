@@ -700,6 +700,7 @@ bool wasapi_capture_read(wasapi_capture_t* capture, size_t frames,
 }
 
 void wasapi_capture_close(wasapi_capture_t* capture) {
+  if (!capture) return;
   if (capture->client) {
     IAudioClient_Stop(capture->client);
     SAFE_RELEASE(capture->capture_client);
@@ -1194,6 +1195,7 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
 }
 
 void wasapi_playback_close(wasapi_playback_t* playback) {
+  if (!playback) return;
   if (playback->client) {
     IAudioClient_Stop(playback->client);
     SAFE_RELEASE(playback->render_client);

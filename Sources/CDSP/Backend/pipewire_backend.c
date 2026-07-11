@@ -359,6 +359,14 @@ bool pipewire_capture_open(pipewire_capture_t* capture, backend_error_t* err) {
   capture->decode_buf =
       (float*)malloc(capture->decode_buf_size * sizeof(float));
 
+  if (!capture->ring || !capture->decode_buf) {
+    pipewire_capture_close(capture);
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to allocate capture buffers");
+    return false;
+  }
+
   logger_t logger = logger_create("dsp.backend.pipewire");
   logger_info(
       &logger, "Opened PipeWire capture: device=%s, rate=%d, channels=%d",
@@ -405,6 +413,7 @@ bool pipewire_capture_read(pipewire_capture_t* capture, size_t frames,
 }
 
 void pipewire_capture_close(pipewire_capture_t* capture) {
+  if (!capture) return;
   if (capture->loop) {
     pw_thread_loop_lock(capture->loop);
     if (capture->stream) {
@@ -691,6 +700,14 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
   playback->encode_buf_size = playback->chunk_size * playback->channels;
   playback->encode_buf =
       (float*)malloc(playback->encode_buf_size * sizeof(float));
+
+  if (!playback->ring || !playback->encode_buf) {
+    pipewire_playback_close(playback);
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to allocate playback buffers");
+    return false;
+  }
   playback->paused = false;
 
   logger_t logger = logger_create("dsp.backend.pipewire");
@@ -745,11 +762,13 @@ bool pipewire_playback_write(pipewire_playback_t* playback,
 }
 
 void pipewire_playback_close(pipewire_playback_t* playback) {
+  if (!playback) return;
   if (playback->loop) {
     // Wait for the ring buffer to drain before closing the stream,
     // ensuring all remaining audio is played back.
     int retries = 200;  // wait up to 200ms
-    while (spsc_audio_ring_buffer_get_available_to_read(playback->ring) > 0 &&
+    while (playback->ring &&
+           spsc_audio_ring_buffer_get_available_to_read(playback->ring) > 0 &&
            retries-- > 0) {
       struct timespec req = {.tv_sec = 0, .tv_nsec = 1000000L};
       nanosleep(&req, NULL);

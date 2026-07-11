@@ -218,7 +218,14 @@ bool pulse_capture_read(pulse_capture_t* capture, size_t frames,
   // Dynamically resize internal buffer if requested frame count exceeds current
   // size.
   if (bytes_to_read > capture->raw_buf_size) {
-    capture->raw_buf = (uint8_t*)realloc(capture->raw_buf, bytes_to_read);
+    uint8_t* new_buf = (uint8_t*)realloc(capture->raw_buf, bytes_to_read);
+    if (!new_buf) {
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_READ_ERROR,
+                           "Failed to reallocate PulseAudio capture buffer");
+      return false;
+    }
+    capture->raw_buf = new_buf;
     capture->raw_buf_size = bytes_to_read;
   }
 
@@ -244,6 +251,7 @@ bool pulse_capture_read(pulse_capture_t* capture, size_t frames,
 }
 
 void pulse_capture_close(pulse_capture_t* capture) {
+  if (!capture) return;
   if (capture->s) {
     pa_simple_free(capture->s);
     capture->s = NULL;
@@ -490,7 +498,14 @@ bool pulse_playback_write(pulse_playback_t* playback,
   size_t required_bytes = frames * playback->channels * sizeof(float);
   // Dynamically resize internal buffer if write size exceeds current size.
   if (required_bytes > playback->raw_buf_size) {
-    playback->raw_buf = (uint8_t*)realloc(playback->raw_buf, required_bytes);
+    uint8_t* new_buf = (uint8_t*)realloc(playback->raw_buf, required_bytes);
+    if (!new_buf) {
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_WRITE_ERROR,
+                           "Failed to reallocate PulseAudio playback buffer");
+      return false;
+    }
+    playback->raw_buf = new_buf;
     playback->raw_buf_size = required_bytes;
   }
 
@@ -517,6 +532,7 @@ bool pulse_playback_write(pulse_playback_t* playback,
 }
 
 void pulse_playback_close(pulse_playback_t* playback) {
+  if (!playback) return;
   if (playback->s) {
     int error;
     pa_simple_drain(playback->s, &error);

@@ -241,7 +241,13 @@ static double* load_raw_file(const char* path, const char* format_str,
       if (read_bytes > 0 && (int)count >= read_bytes) break;
       if (count >= cap) {
         cap *= 2;
-        result = (double*)realloc(result, cap * sizeof(double));
+        double* new_res = (double*)realloc(result, cap * sizeof(double));
+        if (!new_res) {
+          free(result);
+          fclose(f);
+          return NULL;
+        }
+        result = new_res;
       }
       char* endptr;
       double val = strtod(line, &endptr);

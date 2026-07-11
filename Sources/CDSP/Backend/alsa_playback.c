@@ -381,6 +381,12 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
   playback->interleaved_buf_size =
       playback->chunk_size * playback->channels * sample_size;
   playback->interleaved_buf = malloc(playback->interleaved_buf_size);
+  if (!playback->interleaved_buf) {
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to allocate ALSA playback interleaved buffer");
+    goto error_cleanup;
+  }
 
   playback->paused = false;
 
@@ -550,6 +556,7 @@ bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
 }
 
 void alsa_playback_close(alsa_playback_t* playback) {
+  if (!playback) return;
   if (playback->pcm) {
     snd_pcm_drain(playback->pcm);
     snd_pcm_close(playback->pcm);

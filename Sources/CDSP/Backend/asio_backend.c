@@ -1046,8 +1046,15 @@ static bool asio_capture_read_internal(void* ctx, size_t frames,
 
   size_t requested = frames * capture->channels;
   if (requested > capture->decode_buf_size) {
-    capture->decode_buf =
+    float* new_buf =
         (float*)realloc(capture->decode_buf, requested * sizeof(float));
+    if (!new_buf) {
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_READ_ERROR,
+                           "Failed to reallocate ASIO capture decode buffer");
+      return false;
+    }
+    capture->decode_buf = new_buf;
     capture->decode_buf_size = requested;
   }
 
@@ -1086,6 +1093,7 @@ static bool asio_capture_read_internal(void* ctx, size_t frames,
  */
 static void asio_capture_close_internal(void* ctx) {
   asio_capture_t* capture = (asio_capture_t*)ctx;
+  if (!capture) return;
   if (capture->iasio) {
     capture->is_running = false;
     if (capture->full_duplex) {
@@ -1381,8 +1389,15 @@ static bool asio_playback_write_internal(void* ctx, const audio_chunk_t* chunk,
 
   size_t requested = audio_chunk_get_valid_frames(chunk) * playback->channels;
   if (requested > playback->encode_buf_size) {
-    playback->encode_buf =
+    float* new_buf =
         (float*)realloc(playback->encode_buf, requested * sizeof(float));
+    if (!new_buf) {
+      if (err)
+        backend_error_init(err, BACKEND_ERROR_WRITE_ERROR,
+                           "Failed to reallocate ASIO playback encode buffer");
+      return false;
+    }
+    playback->encode_buf = new_buf;
     playback->encode_buf_size = requested;
   }
 
@@ -1421,6 +1436,7 @@ static bool asio_playback_write_internal(void* ctx, const audio_chunk_t* chunk,
  */
 static void asio_playback_close_internal(void* ctx) {
   asio_playback_t* playback = (asio_playback_t*)ctx;
+  if (!playback) return;
   if (playback->iasio) {
     playback->is_running = false;
     if (playback->full_duplex) {

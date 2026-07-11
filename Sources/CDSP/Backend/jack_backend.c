@@ -291,6 +291,7 @@ bool jack_capture_read(jack_capture_t* capture, size_t frames,
 }
 
 void jack_capture_close(jack_capture_t* capture) {
+  if (!capture) return;
   capture->active = false;
   if (capture->client) {
     jack_deactivate(capture->client);
@@ -645,6 +646,7 @@ bool jack_playback_write(jack_playback_t* playback, const audio_chunk_t* chunk,
 }
 
 void jack_playback_close(jack_playback_t* playback) {
+  if (!playback) return;
   playback->active = false;
   if (playback->client) {
     jack_deactivate(playback->client);
