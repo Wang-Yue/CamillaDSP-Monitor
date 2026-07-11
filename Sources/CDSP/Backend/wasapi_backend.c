@@ -56,6 +56,9 @@ struct wasapi_capture {
   IAudioCaptureClient* capture_client;
   UINT32 buffer_frame_count;
   HANDLE event;
+  audio_chunk_t* residual_chunk;
+  size_t residual_frames;
+  size_t residual_offset;
 };
 
 struct wasapi_playback {
@@ -606,6 +609,16 @@ bool wasapi_capture_open(wasapi_capture_t* capture, backend_error_t* err) {
     goto error_cleanup;
   }
 
+  capture->residual_chunk = audio_chunk_create(capture->channels, capture->chunk_size * 4);
+  if (!capture->residual_chunk) {
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to allocate WASAPI capture residual buffer");
+    goto error_cleanup;
+  }
+  capture->residual_frames = 0;
+  capture->residual_offset = 0;
+
   IAudioClient_Start(capture->client);
 
   logger_t logger = logger_create("dsp.backend.wasapi");
@@ -642,18 +655,57 @@ error_cleanup:
     CoUninitialize();
     capture->com_initialized = false;
   }
+  if (capture->residual_chunk) {
+    audio_chunk_free(capture->residual_chunk);
+    capture->residual_chunk = NULL;
+  }
   return false;
 }
 
 bool wasapi_capture_read(wasapi_capture_t* capture, size_t frames,
                          audio_chunk_t* chunk, backend_error_t* err) {
+  if (audio_chunk_get_channels(chunk) < (size_t)capture->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INVALID_CHANNELS,
+                         "Chunk channels count does not match capture channels");
+    }
+    return false;
+  }
   size_t frames_read = 0;
+  DWORD start_time = GetTickCount();
 
-  // Keep fetching audio packets until we have filled the requested number of
-  // frames.
+  // 1. Consume any remaining samples from the residual buffer
+  if (capture->residual_frames > 0) {
+    size_t to_copy = frames - frames_read;
+    if (to_copy > capture->residual_frames) {
+      to_copy = capture->residual_frames;
+    }
+    for (size_t ch = 0; ch < (size_t)capture->channels; ch++) {
+      double* dst = audio_chunk_get_channel(chunk, ch);
+      const double* src = audio_chunk_get_channel(capture->residual_chunk, ch);
+      if (dst && src) {
+        memcpy(dst + frames_read, src + capture->residual_offset, to_copy * sizeof(double));
+      }
+    }
+    frames_read += to_copy;
+    capture->residual_frames -= to_copy;
+    capture->residual_offset += to_copy;
+    if (capture->residual_frames == 0) {
+      capture->residual_offset = 0;
+    }
+  }
+
+  // 2. Loop to read packets from WASAPI device
   while (frames_read < frames) {
-    UINT32 packet_size = 0;
+    if (GetTickCount() - start_time > 1000) {
+      if (err) {
+        backend_error_init(err, BACKEND_ERROR_READ_ERROR, "WASAPI capture timeout (device stalled)");
+      }
+      return false;
+    }
+
     // Check the size of the next available packet in the capture buffer.
+    UINT32 packet_size = 0;
     HRESULT hr = IAudioCaptureClient_GetNextPacketSize(capture->capture_client,
                                                        &packet_size);
     if (FAILED(hr)) {
@@ -671,16 +723,39 @@ bool wasapi_capture_read(wasapi_capture_t* capture, size_t frames,
       hr = IAudioCaptureClient_GetBuffer(capture->capture_client, &data,
                                          &num_frames, &flags, NULL, NULL);
       if (SUCCEEDED(hr) && data) {
+        start_time = GetTickCount(); // progress made, reset timeout
         UINT32 to_copy = frames - frames_read;
-        if (to_copy > num_frames) to_copy = num_frames;
+        if (to_copy >= num_frames) {
+          // Consume the entire packet
+          // Decode the raw WASAPI format into the audio chunk.
+          decode_samples_from_wasapi(
+              chunk, frames_read, data, num_frames, capture->channels, flags,
+              capture->bits_per_sample, capture->valid_bits, capture->is_float);
+          frames_read += num_frames;
+        } else {
+          // Consume a portion, buffer the rest
+          decode_samples_from_wasapi(
+              chunk, frames_read, data, to_copy, capture->channels, flags,
+              capture->bits_per_sample, capture->valid_bits, capture->is_float);
 
-        // Decode the raw WASAPI format into the audio chunk.
-        decode_samples_from_wasapi(
-            chunk, frames_read, data, to_copy, capture->channels, flags,
-            capture->bits_per_sample, capture->valid_bits, capture->is_float);
+          size_t sample_size = (capture->bits_per_sample > 0) ? ((size_t)capture->bits_per_sample / 8) : 4;
+          const BYTE* extra_data = data + (size_t)to_copy * capture->channels * sample_size;
+          UINT32 extra_frames = num_frames - to_copy;
+
+          if (extra_frames > capture->chunk_size * 4) {
+            extra_frames = capture->chunk_size * 4;
+          }
+
+          decode_samples_from_wasapi(
+              capture->residual_chunk, 0, extra_data, extra_frames, capture->channels, flags,
+              capture->bits_per_sample, capture->valid_bits, capture->is_float);
+
+          capture->residual_frames = extra_frames;
+          capture->residual_offset = 0;
+          frames_read += to_copy;
+        }
         // Release the buffer back to WASAPI.
         IAudioCaptureClient_ReleaseBuffer(capture->capture_client, num_frames);
-        frames_read += to_copy;
       }
     } else {
       // If no data is available, wait before checking again.
@@ -716,6 +791,10 @@ void wasapi_capture_close(wasapi_capture_t* capture) {
   if (capture->com_initialized) {
     CoUninitialize();
     capture->com_initialized = false;
+  }
+  if (capture->residual_chunk) {
+    audio_chunk_free(capture->residual_chunk);
+    capture->residual_chunk = NULL;
   }
 }
 
@@ -1140,12 +1219,28 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
   if (atomic_load_explicit(&playback->paused, memory_order_acquire))
     return true;
 
+  if (audio_chunk_get_channels(chunk) < (size_t)playback->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INVALID_CHANNELS,
+                         "Chunk channels count does not match playback channels");
+    }
+    return false;
+  }
+
   size_t frames_written = 0;
   size_t total_frames = audio_chunk_get_valid_frames(chunk);
+  DWORD start_time = GetTickCount();
 
   // Keep writing audio packets until all frames from the input chunk are
   // written.
   while (frames_written < total_frames) {
+    if (GetTickCount() - start_time > 1000) {
+      if (err) {
+        backend_error_init(err, BACKEND_ERROR_WRITE_ERROR, "WASAPI playback timeout (device stalled)");
+      }
+      return false;
+    }
+
     UINT32 padding = 0;
     // Get the amount of data already buffered in the endpoint.
     HRESULT hr = IAudioClient_GetCurrentPadding(playback->client, &padding);
@@ -1169,6 +1264,7 @@ bool wasapi_playback_write(wasapi_playback_t* playback,
       hr = IAudioRenderClient_GetBuffer(playback->render_client, to_write,
                                         &data);
       if (SUCCEEDED(hr) && data) {
+        start_time = GetTickCount(); // progress made, reset timeout
         // Encode and copy the samples from the audio chunk to the WASAPI
         // buffer.
         encode_samples_to_wasapi(data, chunk, frames_written, to_write,

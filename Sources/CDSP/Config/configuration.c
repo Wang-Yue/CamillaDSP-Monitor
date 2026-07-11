@@ -92,18 +92,29 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
     /* Target level is verified against a maximum theoretical limit.
      * The limit is buffer-dependent and differs for ALSA due to the larger
      * buffer requirements of the backend. */
-    int qlimit =
+    int64_t qlimit_val =
         config->devices.has_queuelimit ? config->devices.queuelimit : 4;
-    int target_limit = (2 + qlimit) * config->devices.chunksize;
+    if (qlimit_val < 0 || qlimit_val > 1000) {
+      config_error_set(err, CONFIG_ERR_VALIDATION,
+                       "queuelimit must be between 0 and 1000");
+      return -1;
+    }
+    if (config->devices.chunksize <= 0 || config->devices.chunksize > 1000000) {
+      config_error_set(err, CONFIG_ERR_VALIDATION,
+                       "chunksize must be between 1 and 1000000");
+      return -1;
+    }
+    int64_t target_limit = (2 + qlimit_val) * (int64_t)config->devices.chunksize;
 #if defined(ENABLE_ALSA)
     if (config->devices.playback.type == AUDIO_BACKEND_TYPE_ALSA) {
-      target_limit = (4 + qlimit) * config->devices.chunksize;
+      target_limit = (4 + qlimit_val) * (int64_t)config->devices.chunksize;
     }
 #endif
-    if (config->devices.target_level > target_limit) {
+    if ((int64_t)config->devices.target_level > target_limit ||
+        config->devices.target_level <= 0) {
       char msg[128];
-      snprintf(msg, sizeof(msg), "target_level cannot be larger than %d",
-               target_limit);
+      snprintf(msg, sizeof(msg), "target_level must be between 1 and %lld",
+               (long long)target_limit);
       config_error_set(err, CONFIG_ERR_VALIDATION, msg);
       return -1;
     }
@@ -113,6 +124,12 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
       config->devices.worker_threads <= 0) {
     config_error_set(err, CONFIG_ERR_VALIDATION,
                      "worker_threads must be positive");
+    return -1;
+  }
+
+  if (config->devices.has_adjust_period && config->devices.adjust_period < 0.1) {
+    config_error_set(err, CONFIG_ERR_VALIDATION,
+                     "adjust_period must be at least 0.1 seconds");
     return -1;
   }
 
@@ -176,6 +193,12 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
           return -1;
         }
         for (size_t j = 0; j < step->names_count; j++) {
+          if (!step->names[j] || step->names[j][0] == '\0') {
+            config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                             "Filter step %zu has invalid/empty filter name at index %zu",
+                             i, j);
+            return -1;
+          }
           if (!dsp_config_get_filter(config, step->names[j])) {
             config_error_set(
                 err, CONFIG_ERR_INVALID_PIPELINE,
@@ -217,7 +240,7 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
         /* Mixers change the channel layout. Verify that the mixer's input
          * channels match the current pipeline state, and then update the
          * tracked channel count. */
-        if (!step->has_name || step->name[0] == '\0') {
+        if (!step->has_name || !step->name || step->name[0] == '\0') {
           config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
                            "Mixer step %zu must have 'name'", i);
           return -1;
@@ -242,7 +265,7 @@ int dsp_config_validate(const dsp_config_t* config, config_error_t* err) {
       case PIPELINE_STEP_TYPE_PROCESSOR: {
         /* Processors must match the channel count of the pipeline at the
          * insertion point. */
-        if (!step->has_name || step->name[0] == '\0') {
+        if (!step->has_name || !step->name || step->name[0] == '\0') {
           config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
                            "Processor step %zu must have 'name'", i);
           return -1;

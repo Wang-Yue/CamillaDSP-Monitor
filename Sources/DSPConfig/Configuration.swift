@@ -91,8 +91,8 @@ extension DSPConfiguration {
     guard devices.samplerate > 0 else {
       throw ConfigError.validationError("Sample rate must be positive")
     }
-    guard devices.chunksize > 0 else {
-      throw ConfigError.validationError("Chunk size must be positive")
+    guard devices.chunksize >= 1 && devices.chunksize <= 1000000 else {
+      throw ConfigError.validationError("Chunk size must be between 1 and 1000000")
     }
     if let captureChannels = devices.capture.channels {
       guard captureChannels > 0 else {
@@ -123,10 +123,23 @@ extension DSPConfiguration {
       }
     }
     if let targetLevel = devices.targetLevel {
+      guard targetLevel > 0 else {
+        throw ConfigError.validationError("Target level must be positive")
+      }
       let qlimit = devices.queuelimit ?? 4
       let targetLimit = (2 + qlimit) * devices.chunksize
       guard targetLevel <= targetLimit else {
         throw ConfigError.validationError("target_level cannot be larger than \(targetLimit)")
+      }
+    }
+    if let queuelimit = devices.queuelimit {
+      guard queuelimit >= 0 && queuelimit <= 1000 else {
+        throw ConfigError.validationError("Queue limit must be between 0 and 1000")
+      }
+    }
+    if let adjustPeriod = devices.adjustPeriod {
+      guard adjustPeriod >= 0.1 else {
+        throw ConfigError.validationError("Adjust period must be at least 0.1")
       }
     }
     if let threads = devices.workerThreads {

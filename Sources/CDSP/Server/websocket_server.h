@@ -122,19 +122,27 @@ void websocket_server_free(websocket_server_t* server);
 
 // MARK: - Command Handler
 
+typedef struct dyn_string_s {
+  char* data;
+  size_t capacity;
+  size_t length;
+} dyn_string_t;
+
+void dyn_string_init(dyn_string_t* ds, size_t initial_cap);
+void dyn_string_free(dyn_string_t* ds);
+
 /**
  * @brief Handle a control command text (either simple quoted string or JSON
- * object) and populate out_response.
+ * object) and populate ds.
  *
  * @param server Pointer to the WebSocket server.
  * @param client_idx The index of the client session that sent the command.
  * @param command_text The raw command text received.
- * @param out_response Buffer to write the response to.
- * @param max_len Maximum length of the response buffer.
+ * @param ds Dynamic string to write the response to.
  */
 void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                                      const char* command_text,
-                                     char* out_response, size_t max_len);
+                                     dyn_string_t* ds);
 
 // MARK: - Testing Helpers
 

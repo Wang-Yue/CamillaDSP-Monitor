@@ -36,7 +36,7 @@ struct LogRecord: Sendable {
 public final class AppLogger: Sendable {
   public static let shared = AppLogger()
 
-  private let queue = SPSCQueue<LogRecord>(minimumCapacity: 512)
+  private let queue = MPMCQueue<LogRecord>(minimumCapacity: 512)
   private let semaphore = DispatchSemaphore(value: 0)
   private let shouldExit = Atomic<Bool>(false)
   private let isStarted = Atomic<Bool>(false)

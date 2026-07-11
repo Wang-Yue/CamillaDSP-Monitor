@@ -16,6 +16,7 @@
  */
 
 #include "noise_gate_processor.h"
+#include "Logging/app_logger.h"
 
 struct noise_gate_processor {
   char name[64];          ///< Unique name of the noise gate instance.
@@ -32,6 +33,7 @@ struct noise_gate_processor {
   size_t scratch_capacity;  ///< Capacity of scratch buffer in frames.
   double prev_loudness;  ///< State variable tracking previous sample envelope
                          ///< loudness.
+  bool channel_warning_logged; ///< Track if we already logged a channel mismatch warning.
 };
 
 const char* noise_gate_processor_get_name(
@@ -66,7 +68,7 @@ noise_gate_processor_t* noise_gate_processor_create(
   processor->scratch_capacity = chunk_size;
   processor->scratch = (double*)calloc(chunk_size, sizeof(double));
   if (!processor->scratch) {
-    free(processor);
+    noise_gate_processor_free(processor);
     return NULL;
   }
 
@@ -129,6 +131,33 @@ void noise_gate_processor_process(noise_gate_processor_t* processor,
   size_t count = audio_chunk_get_valid_frames(chunk);
   if (count > processor->scratch_capacity) count = processor->scratch_capacity;
   if (count == 0 || processor->monitor_channels_count == 0) return;
+
+  size_t ch_count = audio_chunk_get_channels(chunk);
+  bool mismatch = false;
+  for (size_t i = 0; i < processor->monitor_channels_count; i++) {
+    if (processor->monitor_channels[i] < 0 || (size_t)processor->monitor_channels[i] >= ch_count) {
+      mismatch = true;
+      break;
+    }
+  }
+  if (!mismatch) {
+    for (size_t i = 0; i < processor->process_channels_count; i++) {
+      if (processor->process_channels[i] < 0 || (size_t)processor->process_channels[i] >= ch_count) {
+        mismatch = true;
+        break;
+      }
+    }
+  }
+  if (mismatch) {
+    if (!processor->channel_warning_logged) {
+      logger_t logger = logger_create("noise_gate_processor");
+      logger_error(&logger, "Noise Gate channel indices out of bounds for chunk channels (%d)",
+                   log_arg_int((int64_t)ch_count),
+                   log_arg_none(), log_arg_none(), log_arg_none());
+      processor->channel_warning_logged = true;
+    }
+    return;
+  }
 
   // Step 1: Sum monitored channels into scratch buffer to evaluate overall
   // signal level (creating a mono sum for sidechain level detection).

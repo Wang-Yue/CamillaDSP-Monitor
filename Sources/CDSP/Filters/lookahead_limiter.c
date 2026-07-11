@@ -80,7 +80,7 @@ lookahead_limiter_filter_t* lookahead_limiter_filter_create(
     const char* name, const lookahead_limiter_parameters_t* params,
     int sample_rate, size_t chunk_size) {
   lookahead_limiter_filter_t* filter =
-      (lookahead_limiter_filter_t*)malloc(sizeof(lookahead_limiter_filter_t));
+      (lookahead_limiter_filter_t*)calloc(1, sizeof(lookahead_limiter_filter_t));
   if (!filter) return NULL;
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
@@ -94,6 +94,10 @@ lookahead_limiter_filter_t* lookahead_limiter_filter_create(
   double release_coeff;
   configure(params, sample_rate, &limit, &attack_samples, &release_coeff);
 
+  if (limit <= 0.0 || !isfinite(limit)) {
+    lookahead_limiter_filter_free(filter);
+    return NULL;
+  }
   filter->limit = limit;
   filter->attack_samples = attack_samples;
   filter->release_coeff = release_coeff;
@@ -105,6 +109,10 @@ lookahead_limiter_filter_t* lookahead_limiter_filter_create(
   if (lookahead_len < 1024) lookahead_len = 1024;
   filter->lookahead_capacity = lookahead_len;
   filter->lookahead_data = (double*)calloc(lookahead_len, sizeof(double));
+  if (!filter->lookahead_data) {
+    lookahead_limiter_filter_free(filter);
+    return NULL;
+  }
   filter->lookahead_read_index = 0;
   filter->lookahead_write_index = 0;
 
@@ -112,6 +120,10 @@ lookahead_limiter_filter_t* lookahead_limiter_filter_create(
   size_t out_cap = chunk_size > 8192 ? chunk_size : 8192;
   filter->output_buffer_capacity = out_cap;
   filter->output_buffer = (double*)calloc(out_cap, sizeof(double));
+  if (!filter->output_buffer) {
+    lookahead_limiter_filter_free(filter);
+    return NULL;
+  }
 
   return filter;
 }

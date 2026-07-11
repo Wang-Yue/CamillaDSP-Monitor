@@ -66,7 +66,8 @@ volume_filter_t* volume_filter_create(const char* name,
                                       const volume_parameters_t* params,
                                       int sample_rate, size_t chunk_size,
                                       processing_parameters_t* proc_params) {
-  volume_filter_t* filter = (volume_filter_t*)malloc(sizeof(volume_filter_t));
+  if (sample_rate <= 0 || chunk_size == 0) return NULL;
+  volume_filter_t* filter = (volume_filter_t*)calloc(1, sizeof(volume_filter_t));
   if (!filter) return NULL;
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
@@ -89,7 +90,7 @@ volume_filter_t* volume_filter_create(const char* name,
   filter->current_ramp_gains =
       (double*)calloc(chunk_size > 0 ? chunk_size : 1, sizeof(double));
   if (!filter->current_ramp_gains) {
-    free(filter);
+    volume_filter_free(filter);
     return NULL;
   }
 

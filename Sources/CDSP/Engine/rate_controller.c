@@ -74,7 +74,7 @@ struct pi_rate_controller {
 pi_rate_controller_t* pi_rate_controller_create(int samplerate, double interval,
                                                 int target_level, double kp,
                                                 double ki) {
-  if (samplerate <= 0 || interval <= 0.0) return NULL;
+  if (samplerate <= 0 || interval < 0.1) return NULL;
   pi_rate_controller_t* pi =
       (pi_rate_controller_t*)calloc(1, sizeof(pi_rate_controller_t));
   if (!pi) return NULL;

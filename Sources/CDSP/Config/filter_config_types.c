@@ -191,9 +191,9 @@ int biquad_combo_parameters_validate(const biquad_combo_parameters_t* params,
             params->freq);
         return -1;
       }
-      if (!params->has_order || params->order <= 0) {
+      if (!params->has_order || params->order <= 0 || params->order > 64) {
         config_error_set(err, CONFIG_ERR_INVALID_FILTER,
-                         "BiquadCombo: order must be > 0, got %d",
+                         "BiquadCombo: order must be between 1 and 64, got %d",
                          params->order);
         return -1;
       }
@@ -212,11 +212,11 @@ int biquad_combo_parameters_validate(const biquad_combo_parameters_t* params,
             params->freq);
         return -1;
       }
-      if (!params->has_order || params->order <= 0 ||
+      if (!params->has_order || params->order <= 0 || params->order > 64 ||
           (params->order % 2) != 0) {
         config_error_set(
             err, CONFIG_ERR_INVALID_FILTER,
-            "Linkwitz-Riley order must be an even non-zero number, got %d",
+            "Linkwitz-Riley order must be an even number between 2 and 64, got %d",
             params->order);
         return -1;
       }
@@ -262,9 +262,10 @@ int biquad_combo_parameters_validate(const biquad_combo_parameters_t* params,
       }
       break;
     case BIQUAD_COMBO_TYPE_GRAPHIC_EQUALIZER:
-      if (!params->gains || params->gains_count == 0) {
+      if (!params->gains || params->gains_count <= 0 || params->gains_count > 32) {
         config_error_set(err, CONFIG_ERR_INVALID_FILTER,
-                         "GraphicEqualizer: gains must be non-empty");
+                         "GraphicEqualizer: gains must be non-empty and have at most 32 bands, got %d",
+                         params->gains_count);
         return -1;
       }
       if (!params->has_freq_min || params->freq_min <= 0.0 ||
@@ -330,15 +331,32 @@ int dither_parameters_validate(const dither_parameters_t* params,
 
 int limiter_parameters_validate(const limiter_parameters_t* params,
                                 config_error_t* err) {
-  (void)params;
-  (void)err;
+  if (!params) return 0;
+  if (!isfinite(params->clip_limit) || params->clip_limit < -120.0 || params->clip_limit > 20.0) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER,
+                     "Limiter clip_limit must be between -120.0 dB and 20.0 dB, got %g",
+                     params->clip_limit);
+    return -1;
+  }
   return 0;
 }
 
 int lookahead_limiter_parameters_validate(
     const lookahead_limiter_parameters_t* params, int sample_rate,
     config_error_t* err) {
+  if (sample_rate <= 0) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER,
+                     "Lookahead Limiter: sample_rate must be greater than 0, got %d",
+                     sample_rate);
+    return -1;
+  }
   if (!params) return 0;
+  if (!isfinite(params->limit) || params->limit < -120.0 || params->limit > 20.0) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER,
+                     "Lookahead Limiter limit must be between -120.0 dB and 20.0 dB, got %g",
+                     params->limit);
+    return -1;
+  }
   if (params->attack < 0.0) {
     config_error_set(err, CONFIG_ERR_INVALID_FILTER,
                      "Lookahead Limiter: attack cannot be negative, got %g",

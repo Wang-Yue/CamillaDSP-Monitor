@@ -98,15 +98,14 @@ engine_capture_loop_t* engine_capture_loop_create(
   loop->silence_counter = silence_counter_create(
       silence_threshold_db, silence_timeout_seconds, samplerate, chunk_size);
   if (!loop->silence_counter) {
-    free(loop);
+    engine_capture_loop_free(loop);
     return NULL;
   }
 
   loop->rate_watcher = sample_rate_watcher_create(
       (double)samplerate, rate_measure_interval, stop_on_rate_change);
   if (!loop->rate_watcher) {
-    silence_counter_free(loop->silence_counter);
-    free(loop);
+    engine_capture_loop_free(loop);
     return NULL;
   }
 
@@ -205,12 +204,9 @@ void engine_capture_loop_run(engine_capture_loop_t* loop) {
       }
       // If reading fails with an error, trigger an engine stop.
       if (err.type != BACKEND_ERROR_NONE) {
-        static char s_capture_err_log[256];
-        snprintf(s_capture_err_log, sizeof(s_capture_err_log), "%s",
-                 err.message);
         logger_error(&logger, "Capture error: %s",
-                     log_arg_string(s_capture_err_log), log_arg_none(),
-                     log_arg_none(), log_arg_none());
+                      log_arg_string(err.message), log_arg_none(),
+                      log_arg_none(), log_arg_none());
         processing_stop_reason_t reason = {.type = STOP_REASON_CAPTURE_ERROR};
         snprintf(reason.message, sizeof(reason.message), "%s", err.message);
         engine_shared_state_request_stop(loop->shared, reason);

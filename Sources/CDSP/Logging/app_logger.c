@@ -82,6 +82,7 @@ static inline void __attribute__((unused)) app_logger_sem_wait(
 
 struct app_logger_s {
   log_record_t* storage;
+  _Atomic uint64_t* sequences;
   size_t capacity;
   size_t mask;
   _Atomic uint64_t write_index;
@@ -229,7 +230,7 @@ static void format_log_message(char* out, size_t out_cap, const char* msg,
       } else if (arg.type == LOG_ARG_DOUBLE) {
         snprintf(tmp, sizeof(tmp), "%.6f", arg.val.d);
       } else if (arg.type == LOG_ARG_STRING) {
-        snprintf(tmp, sizeof(tmp), "%s", arg.val.s ? arg.val.s : "(null)");
+        snprintf(tmp, sizeof(tmp), "%s", arg.val.s);
       }
     } else if (strchr("fFeEgGaA", conv)) {
       if (arg.type == LOG_ARG_DOUBLE) {
@@ -246,7 +247,7 @@ static void format_log_message(char* out, size_t out_cap, const char* msg,
       } else if (arg.type == LOG_ARG_INT) {
         snprintf(tmp, sizeof(tmp), "%lld", (long long)arg.val.i);
       } else if (arg.type == LOG_ARG_STRING) {
-        snprintf(tmp, sizeof(tmp), "%s", arg.val.s ? arg.val.s : "(null)");
+        snprintf(tmp, sizeof(tmp), "%s", arg.val.s);
       }
     } else if (conv == 's') {
       if (arg.type == LOG_ARG_STRING) {
@@ -259,7 +260,7 @@ static void format_log_message(char* out, size_t out_cap, const char* msg,
         }
         fmt[flen++] = conv;
         fmt[flen] = '\0';
-        snprintf(tmp, sizeof(tmp), fmt, arg.val.s ? arg.val.s : "(null)");
+        snprintf(tmp, sizeof(tmp), fmt, arg.val.s);
       } else if (arg.type == LOG_ARG_INT) {
         snprintf(tmp, sizeof(tmp), "%lld", (long long)arg.val.i);
       } else if (arg.type == LOG_ARG_DOUBLE) {
@@ -293,8 +294,7 @@ static void format_log_message(char* out, size_t out_cap, const char* msg,
         snprintf(tmp, sizeof(tmp), " %.6f", args[arg_idx].val.d);
         break;
       case LOG_ARG_STRING:
-        snprintf(tmp, sizeof(tmp), " %s",
-                 args[arg_idx].val.s ? args[arg_idx].val.s : "(null)");
+        snprintf(tmp, sizeof(tmp), " %s", args[arg_idx].val.s);
         break;
     }
     for (const char* s = tmp; *s != '\0'; s++) {
@@ -324,20 +324,25 @@ static void* worker_thread_func(void* arg) {
     }
 
     while (true) {
-      // Load indices. write_index is loaded with acquire semantics to ensure
-      // that elements in logger->storage written by app_logger_log are visible.
+      // Load current read index. Relaxed is sufficient because the sequence
+      // checks below will establish the necessary happens-before relationships.
       uint64_t r =
           atomic_load_explicit(&logger->read_index, memory_order_relaxed);
-      uint64_t w =
-          atomic_load_explicit(&logger->write_index, memory_order_acquire);
-      if (r == w) break;
-
-      // Extract the record from the slot matching the current read index.
       size_t slot = (size_t)(r & logger->mask);
-      log_record_t rec = logger->storage[slot];
-      // Increment the read index with release semantics to signal to the
-      // producer that this slot has been processed.
-      atomic_store_explicit(&logger->read_index, r + 1, memory_order_release);
+      // Load the sequence number for the target slot with acquire semantics to
+      // ensure we see the record written by app_logger_log.
+      uint64_t seq =
+          atomic_load_explicit(&logger->sequences[slot], memory_order_acquire);
+      int64_t diff = (int64_t)seq - (int64_t)(r + 1);
+
+      if (diff == 0) {
+        // Safe to read: slot has been written and not yet processed.
+        log_record_t rec = logger->storage[slot];
+        // Release the slot back to the producer threads by updating its sequence.
+        atomic_store_explicit(&logger->sequences[slot], r + logger->capacity,
+                              memory_order_release);
+        // Advance read index.
+        atomic_store_explicit(&logger->read_index, r + 1, memory_order_relaxed);
 
       const char* lvl_str = "INFO";
       switch (rec.level) {
@@ -367,9 +372,19 @@ static void* worker_thread_func(void* arg) {
       printf("[%s] %s: %s\n", lvl_str, rec.label ? rec.label : "",
              formatted_msg);
       fflush(stdout);
+    } else {
+      break;
     }
   }
+  }
   return NULL;
+}
+
+static void free_logger_internal(app_logger_t* logger) {
+  if (!logger) return;
+  free(logger->storage);
+  free(logger->sequences);
+  free(logger);
 }
 
 /**
@@ -386,6 +401,16 @@ static void init_shared_logger(void) {
   g_shared_logger->mask = 511;
   g_shared_logger->storage =
       (log_record_t*)calloc(g_shared_logger->capacity, sizeof(log_record_t));
+  g_shared_logger->sequences =
+      (_Atomic uint64_t*)calloc(g_shared_logger->capacity, sizeof(_Atomic uint64_t));
+  if (!g_shared_logger->storage || !g_shared_logger->sequences) {
+    free_logger_internal(g_shared_logger);
+    g_shared_logger = NULL;
+    return;
+  }
+  for (size_t i = 0; i < g_shared_logger->capacity; i++) {
+    atomic_init(&g_shared_logger->sequences[i], (uint64_t)i);
+  }
   atomic_init(&g_shared_logger->write_index, 0);
   atomic_init(&g_shared_logger->read_index, 0);
   atomic_init(&g_shared_logger->should_exit, false);
@@ -414,18 +439,36 @@ void app_logger_log(app_logger_t* logger, log_level_t level, const char* label,
     pthread_create(&logger->worker_thread, NULL, worker_thread_func, logger);
     pthread_mutex_unlock(&logger->worker_mutex);
   }
-  // Check if ring buffer is full.
-  // read_index is loaded with acquire semantics to ensure the writer sees the
-  // latest reads completed by the background worker.
+
+  // Claim a slot in the ring buffer.
   uint64_t w = atomic_load_explicit(&logger->write_index, memory_order_relaxed);
-  uint64_t r = atomic_load_explicit(&logger->read_index, memory_order_acquire);
-  if (w - r >= logger->capacity) return;  // Drop log if full (non-blocking)
+  size_t slot;
+  while (true) {
+    slot = (size_t)(w & logger->mask);
+    // Load sequence number with acquire to sync with slot release in consumer thread.
+    uint64_t seq =
+        atomic_load_explicit(&logger->sequences[slot], memory_order_acquire);
+    int64_t diff = (int64_t)seq - (int64_t)w;
+    if (diff == 0) {
+      // Slot is available. Claim the write slot atomically.
+      if (atomic_compare_exchange_weak_explicit(&logger->write_index, &w, w + 1,
+                                                memory_order_relaxed,
+                                                memory_order_relaxed)) {
+        break;
+      }
+    } else if (diff < 0) {
+      // Slot is not yet processed by consumer (queue is full). Drop log (non-blocking).
+      return;
+    } else {
+      // Slot is in progress or write_index was advanced. Reload and try again.
+      w = atomic_load_explicit(&logger->write_index, memory_order_relaxed);
+    }
+  }
 
   // Populate slot. Note: if string args are pointers to temporary stack,
   // this can cause issues. User of the logger should pass static or
   // heap-allocated strings, or strings that survive the background log
   // processing.
-  size_t slot = (size_t)(w & logger->mask);
   logger->storage[slot].level = level;
   logger->storage[slot].label = label;
   logger->storage[slot].message = message;
@@ -435,7 +478,7 @@ void app_logger_log(app_logger_t* logger, log_level_t level, const char* label,
   logger->storage[slot].arg4 = arg4;
 
   // Publish the written slot to the worker thread.
-  atomic_store_explicit(&logger->write_index, w + 1, memory_order_release);
+  atomic_store_explicit(&logger->sequences[slot], w + 1, memory_order_release);
   app_logger_sem_signal(&logger->semaphore);
 }
 

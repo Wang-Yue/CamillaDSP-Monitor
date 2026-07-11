@@ -120,8 +120,7 @@ audio_mixer_t* audio_mixer_create(const char* name,
   mixer->mapping = (prepared_source_list_t*)calloc(
       mixer->channels_out, sizeof(prepared_source_list_t));
   if (!mixer->mapping) {
-    free(mixer->name);
-    free(mixer);
+    audio_mixer_free(mixer);
     return NULL;
   }
 

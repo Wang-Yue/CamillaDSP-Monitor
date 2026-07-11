@@ -175,7 +175,10 @@ final class DoPDecoder {
     var pos = state.fifoPos
 
     for t in 0..<frames {
-      let raw = base[t]
+      var raw = base[t]
+      if !raw.isFinite {
+        raw = 0.0
+      }
 
       var marker: UInt8 = 0
       var dsdWord: UInt16 = 0

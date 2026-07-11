@@ -379,7 +379,13 @@ bool pipewire_capture_open(pipewire_capture_t* capture, backend_error_t* err) {
 
 bool pipewire_capture_read(pipewire_capture_t* capture, size_t frames,
                            audio_chunk_t* chunk, backend_error_t* err) {
-  (void)err;
+  if (audio_chunk_get_channels(chunk) < (size_t)capture->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INVALID_CHANNELS,
+                         "Chunk channels count does not match capture channels");
+    }
+    return false;
+  }
   size_t requested = frames * capture->channels;
   if (requested > capture->decode_buf_size) {
     capture->decode_buf =
@@ -475,7 +481,12 @@ bool pipewire_capture_wait(pipewire_capture_t* capture, uint32_t timeout_ms) {
   return true;
 }
 
-void pipewire_capture_destroy(pipewire_capture_t* capture) { free(capture); }
+void pipewire_capture_destroy(pipewire_capture_t* capture) {
+  if (capture) {
+    pipewire_capture_close(capture);
+    free(capture);
+  }
+}
 
 // MARK: - Playback Backend implementation
 
@@ -723,6 +734,13 @@ bool pipewire_playback_open(pipewire_playback_t* playback,
 
 bool pipewire_playback_write(pipewire_playback_t* playback,
                              const audio_chunk_t* chunk, backend_error_t* err) {
+  if (audio_chunk_get_channels(chunk) < (size_t)playback->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INVALID_CHANNELS,
+                         "Chunk channels count does not match playback channels");
+    }
+    return false;
+  }
   if (atomic_load_explicit(&playback->paused, memory_order_acquire))
     return true;
   (void)err;
@@ -835,7 +853,10 @@ void pipewire_playback_set_is_paused(pipewire_playback_t* playback,
 }
 
 void pipewire_playback_destroy(pipewire_playback_t* playback) {
-  free(playback);
+  if (playback) {
+    pipewire_playback_close(playback);
+    free(playback);
+  }
 }
 
 #endif  // ENABLE_PIPEWIRE

@@ -85,15 +85,21 @@ bool dsp_state_load(const char* filename, dsp_state_t* out_state) {
           if (val[0] == '"' || val[0] == '\'') {
             size_t vlen = strlen(val);
             if (vlen > 2 && val[vlen - 1] == val[0]) {
-              strncpy(out_state->config_path, val + 1, vlen - 2);
-              out_state->config_path[vlen - 2] = '\0';
+              size_t copylen = vlen - 2;
+              if (copylen >= sizeof(out_state->config_path)) {
+                copylen = sizeof(out_state->config_path) - 1;
+              }
+              strncpy(out_state->config_path, val + 1, copylen);
+              out_state->config_path[copylen] = '\0';
             } else {
               strncpy(out_state->config_path, val + 1,
                       sizeof(out_state->config_path) - 1);
+              out_state->config_path[sizeof(out_state->config_path) - 1] = '\0';
             }
           } else {
             strncpy(out_state->config_path, val,
                     sizeof(out_state->config_path) - 1);
+            out_state->config_path[sizeof(out_state->config_path) - 1] = '\0';
           }
           out_state->has_config_path = true;
         }
@@ -135,7 +141,10 @@ bool dsp_state_save(const char* filename, const dsp_state_t* state) {
   // This ensures an atomic write, preventing corruption of the state file
   // if the process is interrupted or crashes during write.
   char tmp_name[1024];
-  snprintf(tmp_name, sizeof(tmp_name), "%s.tmp", filename);
+  int written = snprintf(tmp_name, sizeof(tmp_name), "%s.tmp", filename);
+  if (written < 0 || (size_t)written >= sizeof(tmp_name)) {
+    return false;
+  }
 
   FILE* fp = fopen(tmp_name, "w");
   if (!fp) return false;

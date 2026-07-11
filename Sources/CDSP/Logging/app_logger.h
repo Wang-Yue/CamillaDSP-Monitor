@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "Config/log_level.h"
 
@@ -36,7 +37,7 @@ typedef struct {
   union {
     int64_t i;     /**< Integer value. */
     double d;      /**< Double value. */
-    const char* s; /**< String value. */
+    char s[8192];  /**< String value copy. */
   } val;           /**< The union containing the argument value. */
 } log_argument_t;
 
@@ -81,7 +82,17 @@ static inline log_argument_t log_arg_double(double d) {
 static inline log_argument_t log_arg_string(const char* s) {
   log_argument_t a;
   a.type = LOG_ARG_STRING;
-  a.val.s = s;
+  if (s) {
+    size_t len = strlen(s);
+    size_t max_len = sizeof(a.val.s) - 1;
+    if (len > max_len) {
+      len = max_len;
+    }
+    memcpy(a.val.s, s, len);
+    a.val.s[len] = '\0';
+  } else {
+    a.val.s[0] = '\0';
+  }
   return a;
 }
 

@@ -16,6 +16,8 @@
 
 // COM Release helper
 static bool find_asio_driver_clsid(const char* driver_name, CLSID* out_clsid);
+static void asio_capture_close_internal(void* ctx);
+static void asio_playback_close_internal(void* ctx);
 
 #define SAFE_RELEASE(punk)         \
   if ((punk) != NULL) {            \
@@ -469,9 +471,13 @@ static bool register_and_wait_asio(bool is_input, const char* driver_name,
  * @param iasio The IASIO driver interface.
  */
 static void release_shared_asio(bool is_input, IASIO* iasio) {
-  (void)is_input;
   AcquireSRWLockExclusive(&g_asio_shared.lock);
   if (g_asio_shared.initialized) {
+    if (is_input) {
+      g_asio_shared.capture_ready = false;
+    } else {
+      g_asio_shared.playback_ready = false;
+    }
     g_asio_shared.active_count--;
     if (g_asio_shared.active_count == 1) {
       iasio->lpVtbl->stop(iasio);
@@ -971,10 +977,6 @@ static bool asio_capture_open_internal(void* ctx, backend_error_t* err) {
   capture->callback_buf =
       (float*)malloc(capture->callback_buf_size * sizeof(float));
   if (!capture->callback_buf) {
-    if (!capture->full_duplex) {
-      capture->iasio->lpVtbl->disposeBuffers(capture->iasio);
-      SAFE_RELEASE(capture->iasio);
-    }
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to allocate ASIO callback buffer");
@@ -989,8 +991,6 @@ static bool asio_capture_open_internal(void* ctx, backend_error_t* err) {
   if (!capture->full_duplex) {
     ASIOError start_res = capture->iasio->lpVtbl->start(capture->iasio);
     if (start_res != 0) {
-      capture->iasio->lpVtbl->disposeBuffers(capture->iasio);
-      SAFE_RELEASE(capture->iasio);
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                            "Failed to start ASIO driver");
@@ -1002,26 +1002,7 @@ static bool asio_capture_open_internal(void* ctx, backend_error_t* err) {
   return true;
 
 error_cleanup:
-  if (capture->ring_buffer) {
-    spsc_audio_ring_buffer_free(capture->ring_buffer);
-    capture->ring_buffer = NULL;
-  }
-  if (capture->callback_buf) {
-    free(capture->callback_buf);
-    capture->callback_buf = NULL;
-  }
-  if (capture->buffer_infos) {
-    free(capture->buffer_infos);
-    capture->buffer_infos = NULL;
-  }
-  if (capture->channel_infos) {
-    free(capture->channel_infos);
-    capture->channel_infos = NULL;
-  }
-  if (capture->com_initialized) {
-    CoUninitialize();
-    capture->com_initialized = false;
-  }
+  asio_capture_close_internal(capture);
   return false;
 }
 
@@ -1317,10 +1298,6 @@ static bool asio_playback_open_internal(void* ctx, backend_error_t* err) {
   playback->callback_buf =
       (float*)malloc(playback->callback_buf_size * sizeof(float));
   if (!playback->callback_buf) {
-    if (!playback->full_duplex) {
-      playback->iasio->lpVtbl->disposeBuffers(playback->iasio);
-      SAFE_RELEASE(playback->iasio);
-    }
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to allocate ASIO callback buffer");
@@ -1334,8 +1311,6 @@ static bool asio_playback_open_internal(void* ctx, backend_error_t* err) {
   if (!playback->full_duplex) {
     ASIOError start_res = playback->iasio->lpVtbl->start(playback->iasio);
     if (start_res != 0) {
-      playback->iasio->lpVtbl->disposeBuffers(playback->iasio);
-      SAFE_RELEASE(playback->iasio);
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                            "Failed to start ASIO driver");
@@ -1347,26 +1322,7 @@ static bool asio_playback_open_internal(void* ctx, backend_error_t* err) {
   return true;
 
 error_cleanup:
-  if (playback->ring_buffer) {
-    spsc_audio_ring_buffer_free(playback->ring_buffer);
-    playback->ring_buffer = NULL;
-  }
-  if (playback->callback_buf) {
-    free(playback->callback_buf);
-    playback->callback_buf = NULL;
-  }
-  if (playback->buffer_infos) {
-    free(playback->buffer_infos);
-    playback->buffer_infos = NULL;
-  }
-  if (playback->channel_infos) {
-    free(playback->channel_infos);
-    playback->channel_infos = NULL;
-  }
-  if (playback->com_initialized) {
-    CoUninitialize();
-    playback->com_initialized = false;
-  }
+  asio_playback_close_internal(playback);
   return false;
 }
 

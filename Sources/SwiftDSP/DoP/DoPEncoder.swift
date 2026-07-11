@@ -120,15 +120,8 @@ final class DoPEncoder {
     var states: [ChannelState] = []
     states.reserveCapacity(channels)
     for _ in 0..<channels {
-      guard
-        let modulator = SigmaDeltaModulator(
-          filterName: selectedFilter, freq: UInt32(dsdRate.rounded()))
-      else {
-        // The supported-rate gate above guarantees a matching SDM filter
-        // exists in the table; reaching this would mean the table itself
-        // is missing an entry for a rate we claim to support.
-        fatalError("DoPEncoder: SigmaDeltaModulator missing filter at \(dsdRate) Hz")
-      }
+      let modulator = SigmaDeltaModulator(
+        filterName: selectedFilter, freq: UInt32(dsdRate.rounded()))
       states.append(
         ChannelState(fifoSize: DoPEncoder.subFilterTaps, modulator: modulator))
     }
@@ -294,7 +287,7 @@ final class DoPEncoder {
       // playback backend, which will re-quantize to the device format
       // (must be S24 or S32 to preserve the bit pattern).
       let val24: UInt32 = (UInt32(marker) << 16) | UInt32(word)
-      let intVal: Int32 = Int32(bitPattern: val24 << 8) >> 8
+      let intVal: Int32 = (val24 & 0x800000) != 0 ? Int32(bitPattern: val24 | 0xFF000000) : Int32(val24)
       base[t] = Double(Double(intVal) / 8388608.0)
 
       marker = (marker == 0x05) ? 0xFA : 0x05

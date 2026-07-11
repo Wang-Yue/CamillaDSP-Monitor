@@ -48,6 +48,10 @@ processing_parameters_t* processing_parameters_create(
         (atomic_double_t*)malloc(capture_channels * sizeof(atomic_double_t));
     params->capture_signal_rms =
         (atomic_double_t*)malloc(capture_channels * sizeof(atomic_double_t));
+    if (!params->capture_signal_peak || !params->capture_signal_rms) {
+      processing_parameters_free(params);
+      return NULL;
+    }
     for (size_t i = 0; i < capture_channels; i++) {
       atomic_double_init(&params->capture_signal_peak[i], -1000.0);
       atomic_double_init(&params->capture_signal_rms[i], -1000.0);
@@ -59,6 +63,10 @@ processing_parameters_t* processing_parameters_create(
         (atomic_double_t*)malloc(playback_channels * sizeof(atomic_double_t));
     params->playback_signal_rms =
         (atomic_double_t*)malloc(playback_channels * sizeof(atomic_double_t));
+    if (!params->playback_signal_peak || !params->playback_signal_rms) {
+      processing_parameters_free(params);
+      return NULL;
+    }
     for (size_t i = 0; i < playback_channels; i++) {
       atomic_double_init(&params->playback_signal_peak[i], -1000.0);
       atomic_double_init(&params->playback_signal_rms[i], -1000.0);

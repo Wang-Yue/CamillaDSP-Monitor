@@ -59,6 +59,14 @@ config_change_type_t config_diff(const dsp_config_t* current,
                                  config_change_t* change);
 
 /**
+ * @brief Compares two devices configurations for equality.
+ * @param a Pointer to first devices configuration.
+ * @param b Pointer to second devices configuration.
+ * @return true if configurations are equal, false otherwise.
+ */
+bool devices_config_equal(const devices_config_t* a, const devices_config_t* b);
+
+/**
  * @brief Takes ownership of the list of changed filter names.
  *
  * The caller is responsible for freeing the returned array of strings.

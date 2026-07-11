@@ -37,7 +37,7 @@
 engine_shared_state_t* engine_shared_state_create(
     size_t captured_queue_depth, size_t processed_queue_depth) {
   engine_shared_state_t* state =
-      (engine_shared_state_t*)malloc(sizeof(engine_shared_state_t));
+      (engine_shared_state_t*)calloc(1, sizeof(engine_shared_state_t));
   if (!state) return NULL;
 
   state->captured_queue =

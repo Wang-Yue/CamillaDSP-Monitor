@@ -358,7 +358,7 @@ capture_backend_t* core_audio_capture_create(
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Failed to create semaphore");
-    free(capture);
+    core_audio_capture_destroy(capture);
     return NULL;
   }
   const char* config_device = capture_device_config_get_device(config);
@@ -385,8 +385,7 @@ capture_backend_t* core_audio_capture_create(
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Out of memory");
-    if (capture->semaphore) dispatch_release(capture->semaphore);
-    free(capture);
+    core_audio_capture_destroy(capture);
     return NULL;
   }
   for (int i = 0; i < config_channels; i++) {
@@ -395,12 +394,7 @@ capture_backend_t* core_audio_capture_create(
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                            "Out of memory");
-      for (int j = 0; j < i; j++) {
-        spsc_audio_ring_buffer_free(capture->capture_rings[j]);
-      }
-      free(capture->capture_rings);
-      if (capture->semaphore) dispatch_release(capture->semaphore);
-      free(capture);
+      core_audio_capture_destroy(capture);
       return NULL;
     }
   }

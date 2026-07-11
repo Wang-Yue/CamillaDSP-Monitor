@@ -276,19 +276,19 @@ final class SigmaDeltaModulator {
       name: .sdm8),
   ]
 
-  static func sdmFindFilter(name: SDMFilter?, freq: UInt32) -> SDMPreset? {
-    return SigmaDeltaModulator.sdmFilters.first { f in
+  static func sdmFindFilter(name: SDMFilter?, freq: UInt32) -> SDMPreset {
+    if let preset = SigmaDeltaModulator.sdmFilters.first(where: { f in
       (name == nil || f.name == name) && f.freq <= freq
+    }), preset.order <= 8 {
+      return preset
     }
+    return SigmaDeltaModulator.sdmFilters[5]
   }
 
-  init?(
+  init(
     filterName: SDMFilter?, freq: UInt32
   ) {
-    guard let selectedFilter = SigmaDeltaModulator.sdmFindFilter(name: filterName, freq: freq)
-    else {
-      return nil
-    }
+    let selectedFilter = SigmaDeltaModulator.sdmFindFilter(name: filterName, freq: freq)
 
     // Commit: from this point we don't fail, so it's safe to allocate
     // and own the heap buffers via the `let` properties + deinit.

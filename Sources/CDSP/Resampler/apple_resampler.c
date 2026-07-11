@@ -88,7 +88,7 @@ apple_resampler_t* apple_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,
     apple_resampler_quality_t quality, apple_resampler_complexity_t complexity,
     size_t chunk_size) {
-  if (channels == 0 || chunk_size == 0 || input_rate == 0 || output_rate == 0)
+  if (channels == 0 || channels > 256 || chunk_size == 0 || input_rate == 0 || output_rate == 0)
     return NULL;
 
   apple_resampler_t* resampler =
@@ -108,14 +108,13 @@ apple_resampler_t* apple_resampler_create(
   resampler->fill_context = (apple_resampler_fill_context_t*)calloc(
       1, sizeof(apple_resampler_fill_context_t));
   if (!resampler->fill_context) {
-    free(resampler);
+    apple_resampler_free(resampler);
     return NULL;
   }
   resampler->fill_context->buffers =
       audio_buffers_create(channels, chunk_size * 8);
   if (!resampler->fill_context->buffers) {
-    free(resampler->fill_context);
-    free(resampler);
+    apple_resampler_free(resampler);
     return NULL;
   }
 
@@ -128,9 +127,7 @@ apple_resampler_t* apple_resampler_create(
       (channels > 0 ? (channels - 1) * sizeof(AudioBuffer) : 0);
   resampler->abl_storage = calloc(1, storage_size);
   if (!resampler->abl_storage) {
-    audio_buffers_free(resampler->fill_context->buffers);
-    free(resampler->fill_context);
-    free(resampler);
+    apple_resampler_free(resampler);
     return NULL;
   }
 
@@ -163,10 +160,7 @@ apple_resampler_t* apple_resampler_create(
   AudioConverterRef conv = NULL;
   OSStatus status = AudioConverterNew(&in_desc, &out_desc, &conv);
   if (status != noErr || !conv) {
-    free(resampler->abl_storage);
-    audio_buffers_free(resampler->fill_context->buffers);
-    free(resampler->fill_context);
-    free(resampler);
+    apple_resampler_free(resampler);
     return NULL;
   }
   resampler->converter = conv;
@@ -252,6 +246,9 @@ resampler_error_t apple_resampler_process(apple_resampler_t* resampler,
   if (!resampler || !input || !output) return RESAMPLER_ERR_INVALID_PARAMETER;
   if (audio_chunk_get_valid_frames(input) != resampler->chunk_size) {
     return RESAMPLER_ERR_INPUT_SIZE_MISMATCH;
+  }
+  if (audio_chunk_get_channels(input) != resampler->channels) {
+    return RESAMPLER_ERR_CHANNEL_COUNT_MISMATCH;
   }
   if (audio_chunk_get_channels(output) != resampler->channels) {
     return RESAMPLER_ERR_CHANNEL_COUNT_MISMATCH;

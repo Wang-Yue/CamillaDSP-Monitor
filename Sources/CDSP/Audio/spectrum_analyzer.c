@@ -106,7 +106,7 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
                                             spectrum_result_t* out_result) {
   if (!analyzer || !buffer || !out_result) return SPECTRUM_ERROR_INVALID_PARAM;
   if (n_bins == 0 || min_freq <= 0.0 || max_freq <= min_freq ||
-      samplerate == 0) {
+      max_freq > (double)samplerate / 2.0 || samplerate == 0) {
     return SPECTRUM_ERROR_INVALID_PARAM;
   }
 

@@ -304,9 +304,8 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
     }
   }
 
-  dbus_message_unref(reply);
-
   if (pipe_fd == -1) {
+    dbus_message_unref(reply);
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Open reply did not contain valid UNIX FDs");
@@ -315,7 +314,20 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
 
   // Duplicate FDs so we own them independently of the DBus message lifecycle.
   capture->pipe_fd = dup(pipe_fd);
-  capture->ctrl_fd = dup(ctrl_fd);
+  capture->ctrl_fd = (ctrl_fd != -1) ? dup(ctrl_fd) : -1;
+
+  dbus_message_unref(reply);
+
+  if (capture->pipe_fd < 0) {
+    if (capture->ctrl_fd >= 0) {
+      close(capture->ctrl_fd);
+      capture->ctrl_fd = -1;
+    }
+    if (err)
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Failed to duplicate pipe FD");
+    return false;
+  }
 
   // Set O_NONBLOCK to prevent read operations from hanging the thread if there
   // is a delay.
@@ -328,6 +340,13 @@ bool bluez_capture_open(bluez_capture_t* capture, backend_error_t* err) {
 
 bool bluez_capture_read(bluez_capture_t* capture, size_t frames,
                         audio_chunk_t* chunk, backend_error_t* err) {
+  if (audio_chunk_get_channels(chunk) < (size_t)capture->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INVALID_CHANNELS,
+                         "Chunk channels count does not match capture channels");
+    }
+    return false;
+  }
   if (!capture->active || capture->pipe_fd == -1) {
     if (err)
       backend_error_init(err, BACKEND_ERROR_READ_ERROR,

@@ -181,43 +181,57 @@ biquad_combo_filter_t* biquad_combo_filter_create(
     case BIQUAD_COMBO_TYPE_FIVE_POINT_PEQ: {
       // Low shelf
       if (params->qls > 0.001 && fabs(params->gls) > 0.001) {
-        biquad_filter_t* sec = create_section(
+        secs[num++] = create_section(
             BIQUAD_TYPE_LOWSHELF, params->fls > 0 ? params->fls : 80.0,
             params->qls, params->gls, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
-        if (sec) secs[num++] = sec;
       }
       // Mid bands
       if (params->qp1 > 0.001 && fabs(params->gp1) > 0.001) {
-        biquad_filter_t* sec = create_section(
+        secs[num++] = create_section(
             BIQUAD_TYPE_PEAKING, params->fp1 > 0 ? params->fp1 : 250.0,
             params->qp1, params->gp1, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
-        if (sec) secs[num++] = sec;
       }
       if (params->qp2 > 0.001 && fabs(params->gp2) > 0.001) {
-        biquad_filter_t* sec = create_section(
+        secs[num++] = create_section(
             BIQUAD_TYPE_PEAKING, params->fp2 > 0 ? params->fp2 : 1000.0,
             params->qp2, params->gp2, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
-        if (sec) secs[num++] = sec;
       }
       if (params->qp3 > 0.001 && fabs(params->gp3) > 0.001) {
-        biquad_filter_t* sec = create_section(
+        secs[num++] = create_section(
             BIQUAD_TYPE_PEAKING, params->fp3 > 0 ? params->fp3 : 4000.0,
             params->qp3, params->gp3, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
-        if (sec) secs[num++] = sec;
       }
       // High shelf
       if (params->qhs > 0.001 && fabs(params->ghs) > 0.001) {
-        biquad_filter_t* sec = create_section(
+        secs[num++] = create_section(
             BIQUAD_TYPE_HIGHSHELF, params->fhs > 0 ? params->fhs : 12000.0,
             params->qhs, params->ghs, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
-        if (sec) secs[num++] = sec;
       }
       break;
     }
   }
 
+  // Validate that all sections were successfully created
+  for (size_t i = 0; i < num; i++) {
+    if (!secs[i]) {
+      for (size_t j = 0; j < num; j++) {
+        if (secs[j]) biquad_filter_free(secs[j]);
+      }
+      free(filter);
+      return NULL;
+    }
+  }
+
   filter->num_sections = num;
   filter->sections = (biquad_filter_t**)malloc(num * sizeof(biquad_filter_t*));
+  if (!filter->sections) {
+    for (size_t j = 0; j < num; j++) {
+      biquad_filter_free(secs[j]);
+    }
+    free(filter);
+    return NULL;
+  }
+
   for (size_t i = 0; i < num; i++) {
     filter->sections[i] = secs[i];
   }

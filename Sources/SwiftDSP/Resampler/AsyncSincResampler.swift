@@ -25,6 +25,7 @@ final class AsyncSincResampler: AudioResampler {
   private var resampleRatio: Double
   private var targetRatio: Double
   private var lastIndex: Double  // tracking index
+  private let maxRelativeRatio: Double
 
   // in the interpolator.
   private let sincTable: [Double]
@@ -75,6 +76,7 @@ final class AsyncSincResampler: AudioResampler {
     self.sincLen = sincLen
     self.oversamplingFactor = oversamplingFactor
     self.interpolation = interpolation
+    self.maxRelativeRatio = maxRelativeRatio
 
     precondition(
       chunkSize >= 2 * sincLen,
@@ -106,10 +108,11 @@ final class AsyncSincResampler: AudioResampler {
     // ceil() boundary plus future safety.
     let mostNegativeLastIndex = -(Double(sincLen) - 1.0)
     let maxRatioAbs = baseRatio * maxRelativeRatio
-    self.maxOutputFrames =
-      Int(
-        ((Double(chunkSize) - Double(sincLen + 1) - mostNegativeLastIndex) * maxRatioAbs)
-          .rounded(.up)) + 16
+    let rawMax = ((Double(chunkSize) - Double(sincLen + 1) - mostNegativeLastIndex) * maxRatioAbs)
+    guard rawMax.isFinite && rawMax >= 0.0 else {
+      fatalError("Invalid rawMax: \(rawMax)")
+    }
+    self.maxOutputFrames = Int(rawMax.rounded(.up)) + 16
 
     // Pre-allocate scratch for per-frame state.
     self.idxScratch = [Double](repeating: 0, count: maxOutputFrames)
@@ -158,7 +161,8 @@ final class AsyncSincResampler: AudioResampler {
   }
 
   func setRelativeRatio(_ multiplier: Double) {
-    targetRatio = baseRatio * multiplier
+    let clampedMultiplier = max(0.000001, min(multiplier, maxRelativeRatio))
+    targetRatio = baseRatio * clampedMultiplier
   }
 
   // MARK: - Zero-allocation API
@@ -171,6 +175,12 @@ final class AsyncSincResampler: AudioResampler {
       throw ResamplerError.channelCountMismatch(needed: channels, got: output.channels)
     }
     let outputFrames = nextOutputFrames
+    if outputFrames == 0 {
+      lastIndex = max(-2.0 * Double(sincLen), lastIndex - Double(chunkSize))
+      resampleRatio = targetRatio
+      output.validFrames = 0
+      return
+    }
     if output.frames < outputFrames {
       throw ResamplerError.outputBufferTooSmall(needed: outputFrames, got: output.frames)
     }
@@ -237,7 +247,7 @@ final class AsyncSincResampler: AudioResampler {
     }
 
     // Update state for next chunk.
-    lastIndex = finalIdx - Double(chunkSize)
+    lastIndex = max(-2.0 * Double(sincLen), finalIdx - Double(chunkSize))
     resampleRatio = targetRatio
     output.validFrames = outputFrames
   }

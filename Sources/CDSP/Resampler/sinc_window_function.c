@@ -3,6 +3,7 @@
 
 #include "sinc_window_function.h"
 
+#include <stdint.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -183,6 +184,9 @@ double calculate_cutoff(size_t sinc_len, window_function_t window) {
 /// Stored layout: `table[s * sincLen + p] == sincs[s][p]`.
 double* make_sinc_table(size_t sinc_len, size_t oversampling_factor,
                         window_function_t window, double fc) {
+  if (sinc_len > 0 && oversampling_factor > SIZE_MAX / sinc_len) {
+    return NULL;
+  }
   size_t totpoints = sinc_len * oversampling_factor;
   double* y = (double*)calloc(totpoints, sizeof(double));
   if (!y) return NULL;

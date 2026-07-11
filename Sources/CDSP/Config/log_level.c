@@ -62,17 +62,17 @@ const char* log_level_to_string(log_level_t level) {
 
 log_level_t log_level_from_string(const char* str) {
   if (!str) return LOG_LEVEL_INFO;
-  if (strcmp(str, "Off") == 0 || strcasecmp(str, "off") == 0)
+  if (strcasecmp(str, "off") == 0)
     return LOG_LEVEL_OFF;
-  if (strcmp(str, "Error") == 0 || strcasecmp(str, "error") == 0)
+  if (strcasecmp(str, "error") == 0)
     return LOG_LEVEL_ERROR;
-  if (strcmp(str, "Warn") == 0 || strcasecmp(str, "warn") == 0)
+  if (strcasecmp(str, "warn") == 0)
     return LOG_LEVEL_WARN;
-  if (strcmp(str, "Info") == 0 || strcasecmp(str, "info") == 0)
+  if (strcasecmp(str, "info") == 0)
     return LOG_LEVEL_INFO;
-  if (strcmp(str, "Debug") == 0 || strcasecmp(str, "debug") == 0)
+  if (strcasecmp(str, "debug") == 0)
     return LOG_LEVEL_DEBUG;
-  if (strcmp(str, "Trace") == 0 || strcasecmp(str, "trace") == 0)
+  if (strcasecmp(str, "trace") == 0)
     return LOG_LEVEL_TRACE;
   return LOG_LEVEL_INFO;
 }

@@ -620,6 +620,17 @@ bool file_capture_open(file_capture_t* capture, backend_error_t* err) {
   }
 
   size_t sample_size = get_sample_size(capture->format);
+  if (sample_size == 0 || capture->channels <= 0 || capture->chunk_size <= 0) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Invalid format, channels, or chunk size for file capture");
+    }
+    if (!capture->is_stdin && capture->f) {
+      fclose(capture->f);
+      capture->f = NULL;
+    }
+    return false;
+  }
   capture->raw_buf_capacity =
       capture->chunk_size * capture->channels * sample_size;
   capture->raw_buf = (uint8_t*)malloc(capture->raw_buf_capacity);
@@ -642,7 +653,13 @@ bool file_capture_open(file_capture_t* capture, backend_error_t* err) {
 
 bool file_capture_read(file_capture_t* capture, size_t frames,
                        audio_chunk_t* chunk, backend_error_t* err) {
-  (void)err;
+  if (audio_chunk_get_channels(chunk) < (size_t)capture->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INVALID_CHANNELS,
+                         "Chunk channels count does not match capture channels");
+    }
+    return false;
+  }
   if (capture->is_paused) {
     audio_chunk_set_valid_frames(chunk, 0);
     return false;
@@ -888,6 +905,17 @@ bool file_playback_open(file_playback_t* playback, backend_error_t* err) {
   }
 
   size_t sample_size = get_sample_size(playback->format);
+  if (sample_size == 0 || playback->channels <= 0 || playback->chunk_size <= 0) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
+                         "Invalid format, channels, or chunk size for file playback");
+    }
+    if (!playback->is_stdout && playback->f) {
+      fclose(playback->f);
+      playback->f = NULL;
+    }
+    return false;
+  }
   playback->raw_buf_capacity =
       playback->chunk_size * playback->channels * sample_size;
   playback->raw_buf = (uint8_t*)malloc(playback->raw_buf_capacity);
@@ -916,7 +944,13 @@ bool file_playback_open(file_playback_t* playback, backend_error_t* err) {
 
 bool file_playback_write(file_playback_t* playback, const audio_chunk_t* chunk,
                          backend_error_t* err) {
-  (void)err;
+  if (audio_chunk_get_channels(chunk) < (size_t)playback->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INVALID_CHANNELS,
+                         "Chunk channels count does not match playback channels");
+    }
+    return false;
+  }
   size_t frames = audio_chunk_get_valid_frames(chunk);
   size_t sample_size = get_sample_size(playback->format);
 

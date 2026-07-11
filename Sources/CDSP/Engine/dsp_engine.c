@@ -4,6 +4,7 @@
 
 #include "Audio/audio_history_buffer.h"
 #include "dsp_engine_core.h"
+#include "Config/config_diff.h"
 
 struct dsp_engine {
   /** Pointer to the underlying DSP core. */
@@ -38,6 +39,8 @@ struct dsp_engine {
   char* active_config_json;
   /** JSON representation of the previous configuration. */
   char* previous_config_json;
+  /** Interface function pointer table. */
+  dsp_engine_interface_t iface;
 };
 
 #include <stdio.h>
@@ -89,6 +92,11 @@ dsp_engine_t* dsp_engine_create(void) {
   engine->spectrum = spectrum_analyzer_create();
   engine->capture_buffer = audio_history_buffer_create();
   engine->playback_buffer = audio_history_buffer_create();
+
+  if (!engine->spectrum || !engine->capture_buffer || !engine->playback_buffer) {
+    dsp_engine_free(engine);
+    return NULL;
+  }
 
   for (int i = 0; i < FADER_COUNT; i++) {
     engine->desired_fader_volumes[i] = 0.0;
@@ -153,8 +161,7 @@ static bool dsp_engine_set_config_struct_locked(dsp_engine_t* engine,
   // dynamically without tearing down audio threads.
   if (engine->core &&
       dsp_engine_core_get_state(engine->core) != PROCESSING_STATE_INACTIVE) {
-    if (memcmp(&engine->core->current_config->devices, &config->devices,
-               sizeof(devices_config_t)) == 0) {
+    if (devices_config_equal(&engine->core->current_config->devices, &config->devices)) {
       audio_backend_error_t berr;
       if (dsp_engine_core_reload_config(engine->core, config, &berr)) {
         return true;
@@ -251,7 +258,7 @@ static bool dsp_engine_set_config_locked(dsp_engine_t* engine, const char* json,
                                          audio_backend_error_t* err) {
   if (!engine || !json) return false;
   logger_t logger = logger_create("dsp.engine");
-  static char s_json_log_buf[32768];
+  static _Thread_local char s_json_log_buf[32768];
   snprintf(s_json_log_buf, sizeof(s_json_log_buf), "%s", json);
   logger_info(&logger, "Set config: %s", log_arg_string(s_json_log_buf),
               log_arg_none(), log_arg_none(), log_arg_none());
@@ -764,7 +771,7 @@ static bool iface_get_available_devices(void* ctx, const char* backend,
                                         audio_device_t** out_devices,
                                         size_t* out_count) {
   if (!ctx || !out_devices || !out_count) return false;
-  static audio_device_t devs[32];
+  static _Thread_local audio_device_t devs[32];
   int n = dsp_engine_get_available_devices(backend, is_input, devs, 32);
   *out_devices = devs;
   *out_count = (size_t)n;
@@ -790,11 +797,17 @@ static bool iface_get_spectrum(void* ctx, bool is_capture, uint32_t channel,
   out_spec->count = res.count;
   out_spec->frequencies = (double*)calloc(res.count, sizeof(double));
   out_spec->magnitudes = (double*)calloc(res.count, sizeof(double));
+  if (!out_spec->frequencies || !out_spec->magnitudes) {
+    if (out_spec->frequencies) free(out_spec->frequencies);
+    if (out_spec->magnitudes) free(out_spec->magnitudes);
+    out_spec->frequencies = NULL;
+    out_spec->magnitudes = NULL;
+    out_spec->count = 0;
+    return false;
+  }
   for (size_t i = 0; i < res.count; i++) {
-    if (out_spec->frequencies)
-      out_spec->frequencies[i] = (double)res.frequencies[i];
-    if (out_spec->magnitudes)
-      out_spec->magnitudes[i] = (double)res.magnitudes[i];
+    out_spec->frequencies[i] = (double)res.frequencies[i];
+    out_spec->magnitudes[i] = (double)res.magnitudes[i];
   }
   return true;
 }
@@ -1001,24 +1014,23 @@ void dsp_engine_poll(dsp_engine_t* engine) {
 
 dsp_engine_interface_t* dsp_engine_get_interface(dsp_engine_t* engine) {
   if (!engine) return NULL;
-  static dsp_engine_interface_t iface;
-  iface.ctx = engine;
-  iface.get_status = iface_get_status;
-  iface.get_processing_parameters = iface_get_processing_parameters;
-  iface.get_active_config_json = iface_get_active_config_json;
-  iface.get_previous_config_json = iface_get_previous_config_json;
-  iface.get_active_config = iface_get_active_config;
-  iface.get_vu_levels = iface_get_vu_levels;
-  iface.get_available_devices = iface_get_available_devices;
-  iface.get_device_capabilities = iface_get_device_capabilities;
-  iface.get_spectrum = iface_get_spectrum;
-  iface.set_config_json = iface_set_config_json;
-  iface.stop = iface_stop;
-  iface.set_fader_volume = iface_set_fader_volume;
-  iface.set_fader_mute = iface_set_fader_mute;
-  iface.get_state_file = iface_get_state_file;
-  iface.is_state_dirty = iface_is_state_dirty;
-  iface.get_config_path = iface_get_config_path;
-  iface.set_config_path = iface_set_config_path;
-  return &iface;
+  engine->iface.ctx = engine;
+  engine->iface.get_status = iface_get_status;
+  engine->iface.get_processing_parameters = iface_get_processing_parameters;
+  engine->iface.get_active_config_json = iface_get_active_config_json;
+  engine->iface.get_previous_config_json = iface_get_previous_config_json;
+  engine->iface.get_active_config = iface_get_active_config;
+  engine->iface.get_vu_levels = iface_get_vu_levels;
+  engine->iface.get_available_devices = iface_get_available_devices;
+  engine->iface.get_device_capabilities = iface_get_device_capabilities;
+  engine->iface.get_spectrum = iface_get_spectrum;
+  engine->iface.set_config_json = iface_set_config_json;
+  engine->iface.stop = iface_stop;
+  engine->iface.set_fader_volume = iface_set_fader_volume;
+  engine->iface.set_fader_mute = iface_set_fader_mute;
+  engine->iface.get_state_file = iface_get_state_file;
+  engine->iface.is_state_dirty = iface_is_state_dirty;
+  engine->iface.get_config_path = iface_get_config_path;
+  engine->iface.set_config_path = iface_set_config_path;
+  return &engine->iface;
 }

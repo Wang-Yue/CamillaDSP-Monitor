@@ -22,6 +22,24 @@ typedef int socket_t;
 #include "../../Sources/CDSP/Backend/audio_backend.h"
 #include "../../Sources/CDSP/Backend/backend_error.h"
 #include "../../Sources/CDSP/Server/websocket_server.h"
+
+static void test_handle_command(websocket_server_t* server, int client_idx,
+                                const char* command_text,
+                                char* out_response, size_t max_len) {
+  dyn_string_t ds;
+  dyn_string_init(&ds, max_len);
+  websocket_server_handle_command(server, client_idx, command_text, &ds);
+  if (ds.data) {
+    strncpy(out_response, ds.data, max_len - 1);
+    out_response[max_len - 1] = '\0';
+  } else {
+    out_response[0] = '\0';
+  }
+  dyn_string_free(&ds);
+}
+
+#define websocket_server_handle_command test_handle_command
+
 #include "test_support.h"
 
 static bool mock_get_status(void* ctx, state_update_t* out_status) {

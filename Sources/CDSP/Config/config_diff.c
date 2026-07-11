@@ -477,8 +477,8 @@ static bool resampler_config_equal(const resampler_config_t* a,
  * @param b Pointer to second devices configuration.
  * @return true if configurations are equal, false otherwise.
  */
-static bool devices_config_equal(const devices_config_t* a,
-                                 const devices_config_t* b) {
+bool devices_config_equal(const devices_config_t* a,
+                           const devices_config_t* b) {
   if (a->samplerate != b->samplerate) return false;
   if (a->chunksize != b->chunksize) return false;
   if (a->enable_rate_adjust != b->enable_rate_adjust) return false;
@@ -508,57 +508,192 @@ static bool devices_config_equal(const devices_config_t* a,
   if (a->capture.type != b->capture.type) return false;
   if (a->capture.is_wav != b->capture.is_wav) return false;
   if (a->capture.has_is_wav != b->capture.has_is_wav) return false;
+  if (a->capture.bypass_dop != b->capture.bypass_dop) return false;
+  if (a->capture.has_bypass_dop != b->capture.has_bypass_dop) return false;
+  if (a->capture.dop_cutoff_hz != b->capture.dop_cutoff_hz) return false;
+  if (a->capture.has_dop_cutoff_hz != b->capture.has_dop_cutoff_hz) return false;
+
+  if (a->capture.has_labels != b->capture.has_labels) return false;
+  if (a->capture.has_labels) {
+    if (a->capture.labels_count != b->capture.labels_count) return false;
+    for (size_t i = 0; i < a->capture.labels_count; i++) {
+      if (strcmp(a->capture.labels[i], b->capture.labels[i]) != 0) return false;
+    }
+  }
+
   switch (a->capture.type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
-      if (a->capture.cfg.coreaudio.channels !=
-          b->capture.cfg.coreaudio.channels)
-        return false;
-      if (strcmp(a->capture.cfg.coreaudio.device,
-                 b->capture.cfg.coreaudio.device) != 0)
-        return false;
-      if (a->capture.cfg.coreaudio.format != b->capture.cfg.coreaudio.format)
-        return false;
+      if (a->capture.cfg.coreaudio.channels != b->capture.cfg.coreaudio.channels) return false;
+      if (strcmp(a->capture.cfg.coreaudio.device, b->capture.cfg.coreaudio.device) != 0) return false;
+      if (a->capture.cfg.coreaudio.format != b->capture.cfg.coreaudio.format) return false;
+      break;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      if (a->capture.cfg.alsa.channels != b->capture.cfg.alsa.channels) return false;
+      if (strcmp(a->capture.cfg.alsa.device, b->capture.cfg.alsa.device) != 0) return false;
+      if (a->capture.cfg.alsa.format != b->capture.cfg.alsa.format) return false;
+      if (a->capture.cfg.alsa.stop_on_inactive != b->capture.cfg.alsa.stop_on_inactive) return false;
+      if (strcmp(a->capture.cfg.alsa.link_volume_control, b->capture.cfg.alsa.link_volume_control) != 0) return false;
+      if (strcmp(a->capture.cfg.alsa.link_mute_control, b->capture.cfg.alsa.link_mute_control) != 0) return false;
+      break;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      if (a->capture.cfg.pulse.channels != b->capture.cfg.pulse.channels) return false;
+      if (strcmp(a->capture.cfg.pulse.device, b->capture.cfg.pulse.device) != 0) return false;
+      break;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    case AUDIO_BACKEND_TYPE_PIPEWIRE:
+      if (a->capture.cfg.pipewire.channels != b->capture.cfg.pipewire.channels) return false;
+      if (strcmp(a->capture.cfg.pipewire.device, b->capture.cfg.pipewire.device) != 0) return false;
+      if (strcmp(a->capture.cfg.pipewire.node_name, b->capture.cfg.pipewire.node_name) != 0) return false;
+      if (strcmp(a->capture.cfg.pipewire.node_description, b->capture.cfg.pipewire.node_description) != 0) return false;
+      if (strcmp(a->capture.cfg.pipewire.node_group_name, b->capture.cfg.pipewire.node_group_name) != 0) return false;
+      if (strcmp(a->capture.cfg.pipewire.autoconnect_to, b->capture.cfg.pipewire.autoconnect_to) != 0) return false;
+      break;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      if (a->capture.cfg.jack.channels != b->capture.cfg.jack.channels) return false;
+      if (strcmp(a->capture.cfg.jack.device, b->capture.cfg.jack.device) != 0) return false;
       break;
 #endif
     case AUDIO_BACKEND_TYPE_FILE:
-      if (a->capture.cfg.raw_file.channels != b->capture.cfg.raw_file.channels)
-        return false;
-      if (strcmp(a->capture.cfg.raw_file.filename,
-                 b->capture.cfg.raw_file.filename) != 0)
-        return false;
-      if (a->capture.cfg.raw_file.format != b->capture.cfg.raw_file.format)
-        return false;
+      if (a->capture.is_wav) {
+        if (strcmp(a->capture.cfg.wav_file.filename, b->capture.cfg.wav_file.filename) != 0) return false;
+        if (a->capture.cfg.wav_file.extra_samples != b->capture.cfg.wav_file.extra_samples) return false;
+      } else {
+        if (a->capture.cfg.raw_file.channels != b->capture.cfg.raw_file.channels) return false;
+        if (strcmp(a->capture.cfg.raw_file.filename, b->capture.cfg.raw_file.filename) != 0) return false;
+        if (a->capture.cfg.raw_file.format != b->capture.cfg.raw_file.format) return false;
+        if (a->capture.cfg.raw_file.skip_bytes != b->capture.cfg.raw_file.skip_bytes) return false;
+        if (a->capture.cfg.raw_file.read_bytes != b->capture.cfg.raw_file.read_bytes) return false;
+        if (a->capture.cfg.raw_file.extra_samples != b->capture.cfg.raw_file.extra_samples) return false;
+      }
       break;
+    case AUDIO_BACKEND_TYPE_STDIN_OUT:
+      if (a->capture.cfg.stdin_in.channels != b->capture.cfg.stdin_in.channels) return false;
+      if (a->capture.cfg.stdin_in.format != b->capture.cfg.stdin_in.format) return false;
+      if (a->capture.cfg.stdin_in.extra_samples != b->capture.cfg.stdin_in.extra_samples) return false;
+      if (a->capture.cfg.stdin_in.skip_bytes != b->capture.cfg.stdin_in.skip_bytes) return false;
+      if (a->capture.cfg.stdin_in.read_bytes != b->capture.cfg.stdin_in.read_bytes) return false;
+      break;
+    case AUDIO_BACKEND_TYPE_GENERATOR:
+      if (a->capture.cfg.generator.channels != b->capture.cfg.generator.channels) return false;
+      if (a->capture.cfg.generator.signal.type != b->capture.cfg.generator.signal.type) return false;
+      if (a->capture.cfg.generator.signal.frequency != b->capture.cfg.generator.signal.frequency) return false;
+      if (a->capture.cfg.generator.signal.level != b->capture.cfg.generator.signal.level) return false;
+      break;
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      if (a->capture.cfg.wasapi.channels != b->capture.cfg.wasapi.channels) return false;
+      if (strcmp(a->capture.cfg.wasapi.device, b->capture.cfg.wasapi.device) != 0) return false;
+      if (a->capture.cfg.wasapi.format != b->capture.cfg.wasapi.format) return false;
+      if (a->capture.cfg.wasapi.exclusive != b->capture.cfg.wasapi.exclusive) return false;
+      if (a->capture.cfg.wasapi.loopback != b->capture.cfg.wasapi.loopback) return false;
+      if (a->capture.cfg.wasapi.polling != b->capture.cfg.wasapi.polling) return false;
+      break;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      if (a->capture.cfg.asio.channels != b->capture.cfg.asio.channels) return false;
+      if (strcmp(a->capture.cfg.asio.device, b->capture.cfg.asio.device) != 0) return false;
+      if (a->capture.cfg.asio.format != b->capture.cfg.asio.format) return false;
+      break;
+#endif
+#if defined(ENABLE_BLUEZ)
+    case AUDIO_BACKEND_TYPE_BLUEZ:
+      if (a->capture.cfg.bluez.channels != b->capture.cfg.bluez.channels) return false;
+      if (strcmp(a->capture.cfg.bluez.service, b->capture.cfg.bluez.service) != 0) return false;
+      break;
+#endif
     default:
       break;
   }
 
   if (a->playback.type != b->playback.type) return false;
   if (a->playback.is_wav != b->playback.is_wav) return false;
+  if (a->playback.has_is_wav != b->playback.has_is_wav) return false;
+  if (a->playback.output_dop != b->playback.output_dop) return false;
+  if (a->playback.has_output_dop != b->playback.has_output_dop) return false;
+  if (a->playback.dop_encoder_filter != b->playback.dop_encoder_filter) return false;
+  if (a->playback.has_dop_encoder_filter != b->playback.has_dop_encoder_filter) return false;
+
+  if (a->playback.has_labels != b->playback.has_labels) return false;
+  if (a->playback.has_labels) {
+    if (a->playback.labels_count != b->playback.labels_count) return false;
+    for (size_t i = 0; i < a->playback.labels_count; i++) {
+      if (strcmp(a->playback.labels[i], b->playback.labels[i]) != 0) return false;
+    }
+  }
+
   switch (a->playback.type) {
 #if defined(ENABLE_COREAUDIO)
     case AUDIO_BACKEND_TYPE_CORE_AUDIO:
-      if (a->playback.cfg.coreaudio.channels !=
-          b->playback.cfg.coreaudio.channels)
-        return false;
-      if (strcmp(a->playback.cfg.coreaudio.device,
-                 b->playback.cfg.coreaudio.device) != 0)
-        return false;
-      if (a->playback.cfg.coreaudio.format != b->playback.cfg.coreaudio.format)
-        return false;
+      if (a->playback.cfg.coreaudio.channels != b->playback.cfg.coreaudio.channels) return false;
+      if (strcmp(a->playback.cfg.coreaudio.device, b->playback.cfg.coreaudio.device) != 0) return false;
+      if (a->playback.cfg.coreaudio.format != b->playback.cfg.coreaudio.format) return false;
+      break;
+#endif
+#if defined(ENABLE_ALSA)
+    case AUDIO_BACKEND_TYPE_ALSA:
+      if (a->playback.cfg.alsa.channels != b->playback.cfg.alsa.channels) return false;
+      if (strcmp(a->playback.cfg.alsa.device, b->playback.cfg.alsa.device) != 0) return false;
+      if (a->playback.cfg.alsa.format != b->playback.cfg.alsa.format) return false;
+      break;
+#endif
+#if defined(ENABLE_PULSE)
+    case AUDIO_BACKEND_TYPE_PULSE_AUDIO:
+      if (a->playback.cfg.pulse.channels != b->playback.cfg.pulse.channels) return false;
+      if (strcmp(a->playback.cfg.pulse.device, b->playback.cfg.pulse.device) != 0) return false;
+      break;
+#endif
+#if defined(ENABLE_PIPEWIRE)
+    case AUDIO_BACKEND_TYPE_PIPEWIRE:
+      if (a->playback.cfg.pipewire.channels != b->playback.cfg.pipewire.channels) return false;
+      if (strcmp(a->playback.cfg.pipewire.device, b->playback.cfg.pipewire.device) != 0) return false;
+      if (strcmp(a->playback.cfg.pipewire.node_name, b->playback.cfg.pipewire.node_name) != 0) return false;
+      if (strcmp(a->playback.cfg.pipewire.node_description, b->playback.cfg.pipewire.node_description) != 0) return false;
+      if (strcmp(a->playback.cfg.pipewire.node_group_name, b->playback.cfg.pipewire.node_group_name) != 0) return false;
+      if (strcmp(a->playback.cfg.pipewire.autoconnect_to, b->playback.cfg.pipewire.autoconnect_to) != 0) return false;
+      break;
+#endif
+#if defined(ENABLE_JACK)
+    case AUDIO_BACKEND_TYPE_JACK:
+      if (a->playback.cfg.jack.channels != b->playback.cfg.jack.channels) return false;
+      if (strcmp(a->playback.cfg.jack.device, b->playback.cfg.jack.device) != 0) return false;
       break;
 #endif
     case AUDIO_BACKEND_TYPE_FILE:
-      if (a->playback.cfg.raw_file.channels !=
-          b->playback.cfg.raw_file.channels)
-        return false;
-      if (strcmp(a->playback.cfg.raw_file.filename,
-                 b->playback.cfg.raw_file.filename) != 0)
-        return false;
-      if (a->playback.cfg.raw_file.format != b->playback.cfg.raw_file.format)
-        return false;
+      if (a->playback.cfg.raw_file.channels != b->playback.cfg.raw_file.channels) return false;
+      if (strcmp(a->playback.cfg.raw_file.filename, b->playback.cfg.raw_file.filename) != 0) return false;
+      if (a->playback.cfg.raw_file.format != b->playback.cfg.raw_file.format) return false;
+      if (a->playback.cfg.raw_file.wav_header != b->playback.cfg.raw_file.wav_header) return false;
       break;
+    case AUDIO_BACKEND_TYPE_STDIN_OUT:
+      if (a->playback.cfg.stdout_out.channels != b->playback.cfg.stdout_out.channels) return false;
+      if (a->playback.cfg.stdout_out.format != b->playback.cfg.stdout_out.format) return false;
+      if (a->playback.cfg.stdout_out.wav_header != b->playback.cfg.stdout_out.wav_header) return false;
+      break;
+#if defined(ENABLE_WASAPI)
+    case AUDIO_BACKEND_TYPE_WASAPI:
+      if (a->playback.cfg.wasapi.channels != b->playback.cfg.wasapi.channels) return false;
+      if (strcmp(a->playback.cfg.wasapi.device, b->playback.cfg.wasapi.device) != 0) return false;
+      if (a->playback.cfg.wasapi.format != b->playback.cfg.wasapi.format) return false;
+      if (a->playback.cfg.wasapi.exclusive != b->playback.cfg.wasapi.exclusive) return false;
+      if (a->playback.cfg.wasapi.polling != b->playback.cfg.wasapi.polling) return false;
+      break;
+#endif
+#if defined(ENABLE_ASIO)
+    case AUDIO_BACKEND_TYPE_ASIO:
+      if (a->playback.cfg.asio.channels != b->playback.cfg.asio.channels) return false;
+      if (strcmp(a->playback.cfg.asio.device, b->playback.cfg.asio.device) != 0) return false;
+      if (a->playback.cfg.asio.format != b->playback.cfg.asio.format) return false;
+      break;
+#endif
     default:
       break;
   }
@@ -650,38 +785,57 @@ config_change_type_t config_diff(const dsp_config_t* current,
 
   // If we reach here, the structure of the pipeline is identical.
   // We check which individual components had their parameters modified.
-  char** changed_filters = malloc(sizeof(char*) * current->filters_count);
+  char** changed_filters = NULL;
+  char** changed_mixers = NULL;
+  char** changed_processors = NULL;
   size_t cf_count = 0;
+  size_t cm_count = 0;
+  size_t cp_count = 0;
+
+  if (current->filters_count > 0) {
+    changed_filters = malloc(sizeof(char*) * current->filters_count);
+    if (!changed_filters) goto error_cleanup;
+  }
   for (size_t i = 0; i < current->filters_count; i++) {
     if (!filter_config_equal(&current->filters[i].filter,
                              &new_conf->filters[i].filter)) {
-      changed_filters[cf_count++] = strdup(current->filters[i].name);
+      char* name_copy = strdup(current->filters[i].name);
+      if (!name_copy) goto error_cleanup;
+      changed_filters[cf_count++] = name_copy;
     }
   }
 
-  char** changed_mixers = malloc(sizeof(char*) * current->mixers_count);
-  size_t cm_count = 0;
+  if (current->mixers_count > 0) {
+    changed_mixers = malloc(sizeof(char*) * current->mixers_count);
+    if (!changed_mixers) goto error_cleanup;
+  }
   for (size_t i = 0; i < current->mixers_count; i++) {
     if (!mixer_config_equal(&current->mixers[i].mixer,
                             &new_conf->mixers[i].mixer)) {
-      changed_mixers[cm_count++] = strdup(current->mixers[i].name);
+      char* name_copy = strdup(current->mixers[i].name);
+      if (!name_copy) goto error_cleanup;
+      changed_mixers[cm_count++] = name_copy;
     }
   }
 
-  char** changed_processors = malloc(sizeof(char*) * current->processors_count);
-  size_t cp_count = 0;
+  if (current->processors_count > 0) {
+    changed_processors = malloc(sizeof(char*) * current->processors_count);
+    if (!changed_processors) goto error_cleanup;
+  }
   for (size_t i = 0; i < current->processors_count; i++) {
     if (!processor_config_equal(&current->processors[i].processor,
                                 &new_conf->processors[i].processor)) {
-      changed_processors[cp_count++] = strdup(current->processors[i].name);
+      char* name_copy = strdup(current->processors[i].name);
+      if (!name_copy) goto error_cleanup;
+      changed_processors[cp_count++] = name_copy;
     }
   }
 
   // If no parameters changed, we have no changes at all.
   if (cf_count == 0 && cm_count == 0 && cp_count == 0) {
-    free(changed_filters);
-    free(changed_mixers);
-    free(changed_processors);
+    if (changed_filters) free(changed_filters);
+    if (changed_mixers) free(changed_mixers);
+    if (changed_processors) free(changed_processors);
     out_change->type = CONFIG_CHANGE_NONE;
     return CONFIG_CHANGE_NONE;
   }
@@ -702,6 +856,22 @@ config_change_type_t config_diff(const dsp_config_t* current,
   }
 
   return out_change->type;
+
+error_cleanup:
+  if (changed_filters) {
+    for (size_t i = 0; i < cf_count; i++) free(changed_filters[i]);
+    free(changed_filters);
+  }
+  if (changed_mixers) {
+    for (size_t i = 0; i < cm_count; i++) free(changed_mixers[i]);
+    free(changed_mixers);
+  }
+  if (changed_processors) {
+    for (size_t i = 0; i < cp_count; i++) free(changed_processors[i]);
+    free(changed_processors);
+  }
+  out_change->type = CONFIG_CHANGE_PIPELINE;
+  return CONFIG_CHANGE_PIPELINE;
 }
 
 config_change_t* config_change_create(void) {

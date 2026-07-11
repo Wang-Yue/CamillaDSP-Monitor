@@ -187,7 +187,7 @@ dop_encoder_t* dop_encoder_create(int channels, double sample_rate,
   enc->channels = channels;
   enc->coeffs = build_coeffs(sample_rate, cutoff_hz);
   if (!enc->coeffs) {
-    free(enc);
+    dop_encoder_free(enc);
     return NULL;
   }
 
@@ -202,8 +202,7 @@ dop_encoder_t* dop_encoder_create(int channels, double sample_rate,
   enc->channel_states = (dop_encoder_channel_state_t*)calloc(
       channels, sizeof(dop_encoder_channel_state_t));
   if (!enc->channel_states) {
-    free(enc->coeffs);
-    free(enc);
+    dop_encoder_free(enc);
     return NULL;
   }
 
@@ -214,12 +213,7 @@ dop_encoder_t* dop_encoder_create(int channels, double sample_rate,
         sigma_delta_modulator_create(filter_name, freq);
     enc->channel_states[ch].marker = 0x05;
     if (!enc->channel_states[ch].modulator) {
-      for (int i = 0; i < ch; i++) {
-        sigma_delta_modulator_free(enc->channel_states[i].modulator);
-      }
-      free(enc->channel_states);
-      free(enc->coeffs);
-      free(enc);
+      dop_encoder_free(enc);
       return NULL;
     }
   }
@@ -313,7 +307,7 @@ static void encode_channel_batched(dop_encoder_channel_state_t* state,
     }
 
     uint32_t val24 = ((uint32_t)marker << 16) | (uint32_t)word;
-    int32_t int_val = (int32_t)(val24 << 8) >> 8;
+    int32_t int_val = (val24 & 0x800000) ? (int32_t)(val24 | 0xFF000000) : (int32_t)val24;
     buf[t] = (double)int_val / 8388608.0;
 
     marker = (marker == 0x05) ? 0xFA : 0x05;
@@ -482,7 +476,7 @@ static void encode_channel(dop_encoder_channel_state_t* state,
     uint32_t val24 = ((uint32_t)marker << 16) | (uint32_t)word;
     // Sign-extend 24-bit to 32-bit: shift left by 8, then arithmetic shift
     // right by 8.
-    int32_t int_val = (int32_t)(val24 << 8) >> 8;
+    int32_t int_val = (val24 & 0x800000) ? (int32_t)(val24 | 0xFF000000) : (int32_t)val24;
     buf[t] = (double)int_val / 8388608.0;
 
     marker = (marker == 0x05) ? 0xFA : 0x05;

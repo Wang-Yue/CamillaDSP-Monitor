@@ -63,7 +63,8 @@ int wasapi_capabilities_available_device_names(bool is_capture,
         hr_prop = IPropertyStore_GetValue(properties, &PKEY_Device_FriendlyName,
                                           &var);
         if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
-          wcstombs(name_buf, var.pwszVal, sizeof(name_buf));
+          wcstombs(name_buf, var.pwszVal, sizeof(name_buf) - 1);
+          name_buf[sizeof(name_buf) - 1] = '\0';
           has_name = true;
           PropVariantClear(&var);
         }
@@ -73,7 +74,8 @@ int wasapi_capabilities_available_device_names(bool is_capture,
         LPWSTR id = NULL;
         IMMDevice_GetId(dev, &id);
         if (id) {
-          wcstombs(name_buf, id, sizeof(name_buf));
+          wcstombs(name_buf, id, sizeof(name_buf) - 1);
+          name_buf[sizeof(name_buf) - 1] = '\0';
           CoTaskMemFree(id);
         }
       }
@@ -193,10 +195,18 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
   desc->capability_sets_count = 1;
   desc->capability_sets =
       (device_capability_set_t*)calloc(1, sizeof(device_capability_set_t));
+  if (!desc->capability_sets) {
+    free_audio_device_descriptor(desc);
+    goto error_cleanup;
+  }
 
   device_capability_set_t* set = &desc->capability_sets[0];
   set->capabilities = (channel_capability_t*)calloc(
       PROBE_CHANNELS_COUNT, sizeof(channel_capability_t));
+  if (!set->capabilities) {
+    free_audio_device_descriptor(desc);
+    goto error_cleanup;
+  }
 
   size_t valid_channels_count = 0;
 
@@ -207,6 +217,10 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
     chan_cap->channels = channels;
     chan_cap->samplerates = (samplerate_capability_t*)calloc(
         PROBE_RATES_COUNT, sizeof(samplerate_capability_t));
+    if (!chan_cap->samplerates) {
+      free_audio_device_descriptor(desc);
+      goto error_cleanup;
+    }
 
     size_t valid_rates_count = 0;
 
@@ -217,6 +231,10 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
           &chan_cap->samplerates[valid_rates_count];
       rate_cap->samplerate = rate;
       rate_cap->formats = (char**)calloc(PROBE_FORMATS_COUNT, sizeof(char*));
+      if (!rate_cap->formats) {
+        free_audio_device_descriptor(desc);
+        goto error_cleanup;
+      }
 
       size_t valid_formats_count = 0;
 
@@ -261,6 +279,7 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
         valid_rates_count++;
       } else {
         free(rate_cap->formats);
+        rate_cap->formats = NULL;
       }
     }
 
@@ -270,15 +289,14 @@ audio_device_descriptor_t* wasapi_capabilities_describe(const char* device_name,
       valid_channels_count++;
     } else {
       free(chan_cap->samplerates);
+      chan_cap->samplerates = NULL;
     }
   }
 
   if (valid_channels_count > 0) {
     set->capabilities_count = valid_channels_count;
   } else {
-    free(set->capabilities);
-    free(desc->capability_sets);
-    free(desc);
+    free_audio_device_descriptor(desc);
     desc = NULL;
   }
 
@@ -343,7 +361,8 @@ IMMDevice* wasapi_find_device_by_name(IMMDeviceEnumerator* enumerator,
           IPropertyStore_GetValue(properties, &PKEY_Device_FriendlyName, &var);
       if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR) {
         char friendly_name[256] = {0};
-        wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name));
+        wcstombs(friendly_name, var.pwszVal, sizeof(friendly_name) - 1);
+        friendly_name[sizeof(friendly_name) - 1] = '\0';
         if (strstr(friendly_name, device_name) != NULL) {
           matched = true;
         }
@@ -357,7 +376,8 @@ IMMDevice* wasapi_find_device_by_name(IMMDeviceEnumerator* enumerator,
       IMMDevice_GetId(dev, &id);
       if (id) {
         char dev_id_char[256];
-        wcstombs(dev_id_char, id, sizeof(dev_id_char));
+        wcstombs(dev_id_char, id, sizeof(dev_id_char) - 1);
+        dev_id_char[sizeof(dev_id_char) - 1] = '\0';
         if (strstr(dev_id_char, device_name) != NULL) {
           matched = true;
         }

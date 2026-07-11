@@ -280,8 +280,8 @@ void sigma_delta_modulator_init(sigma_delta_modulator_t* mod,
   if (!mod) return;
   memset(mod, 0, sizeof(sigma_delta_modulator_t));
   const sdm_preset_t* preset = sdm_find_preset(filter_name, freq);
-  if (!preset) {
-    // Fallback to SDM6 at 256x if not found
+  if (!preset || preset->order > 8) {
+    // Fallback to SDM6 at 256x if not found or order exceeds buffer capacity
     preset = &sdm_presets[5];
   }
   // Commit: from this point we don't fail, so it's safe to initialize

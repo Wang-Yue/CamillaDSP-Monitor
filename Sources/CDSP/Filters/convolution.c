@@ -123,7 +123,7 @@ static double* load_wav_file(const char* path, int channel, size_t* out_count) {
     return NULL;
   }
 
-  if (channel >= (int)channels) {
+  if (channel < 0 || channel >= (int)channels) {
     fclose(f);
     return NULL;
   }
@@ -153,6 +153,10 @@ static double* load_wav_file(const char* path, int channel, size_t* out_count) {
   }
 
   size_t bytes_per_sample = bits_per_sample / 8;
+  if (channels == 0 || bytes_per_sample == 0) {
+    fclose(f);
+    return NULL;
+  }
   size_t num_frames = data_bytes / (channels * bytes_per_sample);
   if (num_frames == 0) {
     fclose(f);
@@ -236,6 +240,10 @@ static double* load_raw_file(const char* path, const char* format_str,
     }
     size_t cap = 1024;
     double* result = (double*)malloc(cap * sizeof(double));
+    if (!result) {
+      fclose(f);
+      return NULL;
+    }
     size_t count = 0;
     while (fgets(line, sizeof(line), f)) {
       if (read_bytes > 0 && (int)count >= read_bytes) break;
@@ -363,7 +371,7 @@ convolution_filter_t* convolution_filter_create(const char* name,
                                                 size_t chunk_size) {
   if (!params || chunk_size == 0) return NULL;
   convolution_filter_t* filter =
-      (convolution_filter_t*)malloc(sizeof(convolution_filter_t));
+      (convolution_filter_t*)calloc(1, sizeof(convolution_filter_t));
   if (!filter) return NULL;
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
@@ -383,6 +391,7 @@ convolution_filter_t* convolution_filter_create(const char* name,
   const double* coeffs = NULL;
   size_t coeffs_count = 0;
   double* dummy_coeffs = NULL;
+  double* scratch = NULL;
 
   if (params->type == CONV_TYPE_VALUES) {
     coeffs = params->values;
@@ -390,6 +399,9 @@ convolution_filter_t* convolution_filter_create(const char* name,
   } else if (params->type == CONV_TYPE_DUMMY) {
     size_t len = params->length > 0 ? params->length : 1;
     dummy_coeffs = (double*)calloc(len, sizeof(double));
+    if (!dummy_coeffs) {
+      goto fail;
+    }
     dummy_coeffs[0] = 1.0;
     coeffs = dummy_coeffs;
     coeffs_count = len;
@@ -408,30 +420,36 @@ convolution_filter_t* convolution_filter_create(const char* name,
   }
 
   if (!coeffs || coeffs_count == 0) {
-    if (dummy_coeffs) free(dummy_coeffs);
-    real_fft_free(filter->fft);
-    free(filter);
-    return NULL;
+    goto fail;
   }
 
   size_t num_seg = (coeffs_count + chunk_size - 1) / chunk_size;
   filter->num_segments = num_seg;
-  filter->spec_re = (double**)malloc(num_seg * sizeof(double*));
-  filter->spec_im = (double**)malloc(num_seg * sizeof(double*));
-  filter->hist_re = (double**)malloc(num_seg * sizeof(double*));
-  filter->hist_im = (double**)malloc(num_seg * sizeof(double*));
+  filter->spec_re = (double**)calloc(num_seg, sizeof(double*));
+  filter->spec_im = (double**)calloc(num_seg, sizeof(double*));
+  filter->hist_re = (double**)calloc(num_seg, sizeof(double*));
+  filter->hist_im = (double**)calloc(num_seg, sizeof(double*));
 
-  double* scratch = (double*)calloc(fft_len, sizeof(double));
+  if (!filter->spec_re || !filter->spec_im || !filter->hist_re || !filter->hist_im) {
+    goto fail;
+  }
+
+  scratch = (double*)calloc(fft_len, sizeof(double));
+  if (!scratch) {
+    goto fail;
+  }
   double inv_scale = 1.0 / (double)fft_len;
 
-  /// Pre-scale and FFT each IR segment into split-complex spectrum
-  /// storage. Static so it's reusable from both `init` and
-  /// `updateCoefficients`.
+  // Pre-scale and FFT each IR segment into split-complex spectrum storage.
   for (size_t s = 0; s < num_seg; s++) {
     filter->spec_re[s] = (double*)calloc(spec_len, sizeof(double));
     filter->spec_im[s] = (double*)calloc(spec_len, sizeof(double));
     filter->hist_re[s] = (double*)calloc(spec_len, sizeof(double));
     filter->hist_im[s] = (double*)calloc(spec_len, sizeof(double));
+
+    if (!filter->spec_re[s] || !filter->spec_im[s] || !filter->hist_re[s] || !filter->hist_im[s]) {
+      goto fail;
+    }
 
     memset(scratch, 0, fft_len * sizeof(double));
     size_t offset = s * chunk_size;
@@ -447,7 +465,11 @@ convolution_filter_t* convolution_filter_create(const char* name,
                      filter->spec_im[s]);
   }
   free(scratch);
-  if (dummy_coeffs) free(dummy_coeffs);
+  scratch = NULL;
+  if (dummy_coeffs) {
+    free(dummy_coeffs);
+    dummy_coeffs = NULL;
+  }
 
   filter->write_idx = 0;
   filter->overlap_buffer = (double*)calloc(chunk_size, sizeof(double));
@@ -455,7 +477,17 @@ convolution_filter_t* convolution_filter_create(const char* name,
   filter->spec_accum_re = (double*)calloc(spec_len, sizeof(double));
   filter->spec_accum_im = (double*)calloc(spec_len, sizeof(double));
 
+  if (!filter->overlap_buffer || !filter->time_buf || !filter->spec_accum_re || !filter->spec_accum_im) {
+    goto fail;
+  }
+
   return filter;
+
+fail:
+  if (dummy_coeffs) free(dummy_coeffs);
+  if (scratch) free(scratch);
+  convolution_filter_free(filter);
+  return NULL;
 }
 
 /**

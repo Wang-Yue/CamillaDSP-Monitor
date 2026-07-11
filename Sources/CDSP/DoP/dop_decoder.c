@@ -23,6 +23,7 @@
 // across DSD64 / 128 / 256 at 44.1 / 48 kHz families are preserved.
 #include "dop_decoder.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -194,7 +195,7 @@ dop_decoder_t* dop_decoder_create(int channels, double sample_rate,
   dec->channel_states = (dop_decoder_channel_state_t*)calloc(
       channels, sizeof(dop_decoder_channel_state_t));
   if (!dec->channel_states) {
-    free(dec);
+    dop_decoder_free(dec);
     return NULL;
   }
   for (int ch = 0; ch < channels; ch++) {
@@ -202,8 +203,7 @@ dop_decoder_t* dop_decoder_create(int channels, double sample_rate,
   }
   dec->ctables = build_ctables(sample_rate, cutoff_hz);
   if (!dec->ctables) {
-    free(dec->channel_states);
-    free(dec);
+    dop_decoder_free(dec);
     return NULL;
   }
   return dec;
@@ -240,6 +240,9 @@ static void process_channel(dop_decoder_channel_state_t* state,
 
   for (size_t t = 0; t < frames; t++) {
     double raw = buf[t];
+    if (!isfinite(raw)) {
+      raw = 0.0;
+    }
 
     // Recover both 24- and 32-bit container interpretations. DoP is most
     // commonly carried as right-aligned 24-bit-in-32-bit (marker at bits
@@ -254,7 +257,9 @@ static void process_channel(dop_decoder_channel_state_t* state,
       if (state->is_32bit_container) {
         double scaled = raw * 2147483648.0;
         int32_t val32;
-        if (scaled >= 2147483647.0)
+        if (!isfinite(scaled))
+          val32 = 0;
+        else if (scaled >= 2147483647.0)
           val32 = 2147483647;
         else if (scaled <= -2147483648.0)
           val32 = -2147483647 - 1;
@@ -265,7 +270,9 @@ static void process_channel(dop_decoder_channel_state_t* state,
       } else {
         double scaled = raw * 8388608.0;
         int32_t val24;
-        if (scaled >= 8388607.0)
+        if (!isfinite(scaled))
+          val24 = 0;
+        else if (scaled >= 8388607.0)
           val24 = 8388607;
         else if (scaled <= -8388608.0)
           val24 = -8388608;
@@ -277,7 +284,9 @@ static void process_channel(dop_decoder_channel_state_t* state,
     } else {
       double scaled32 = raw * 2147483648.0;
       int32_t val32;
-      if (scaled32 >= 2147483647.0)
+      if (!isfinite(scaled32))
+        val32 = 0;
+      else if (scaled32 >= 2147483647.0)
         val32 = 2147483647;
       else if (scaled32 <= -2147483648.0)
         val32 = -2147483647 - 1;
@@ -287,7 +296,9 @@ static void process_channel(dop_decoder_channel_state_t* state,
 
       double scaled24 = raw * 8388608.0;
       int32_t val24;
-      if (scaled24 >= 8388607.0)
+      if (!isfinite(scaled24))
+        val24 = 0;
+      else if (scaled24 >= 8388607.0)
         val24 = 8388607;
       else if (scaled24 <= -8388608.0)
         val24 = -8388608;

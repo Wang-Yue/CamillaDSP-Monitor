@@ -1202,6 +1202,10 @@ static int parse_mixers(const cJSON* mixers_obj, dsp_config_t* config,
       int map_size = cJSON_GetArraySize(mapping_arr);
       m_conf->mapping =
           (mixer_mapping_t*)calloc(map_size, sizeof(mixer_mapping_t));
+      if (!m_conf->mapping) {
+        config_error_set(err, CONFIG_ERR_PARSE, "Memory allocation failure");
+        return -1;
+      }
       m_conf->mapping_count = map_size;
 
       for (int mp = 0; mp < map_size; mp++) {
@@ -1225,6 +1229,10 @@ static int parse_mixers(const cJSON* mixers_obj, dsp_config_t* config,
             int src_size = cJSON_GetArraySize(sources_arr);
             mapping->sources =
                 (mixer_source_t*)calloc(src_size, sizeof(mixer_source_t));
+            if (!mapping->sources) {
+              config_error_set(err, CONFIG_ERR_PARSE, "Memory allocation failure");
+              return -1;
+            }
             mapping->sources_count = src_size;
 
             for (int s = 0; s < src_size; s++) {

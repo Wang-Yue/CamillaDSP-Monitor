@@ -310,7 +310,7 @@ double biquad_coefficients_phase_rad(const biquad_coefficients_t* coeffs,
 
 biquad_filter_t* biquad_filter_create(const char* name,
                                       const biquad_coefficients_t* coeffs) {
-  biquad_filter_t* filter = (biquad_filter_t*)malloc(sizeof(biquad_filter_t));
+  biquad_filter_t* filter = (biquad_filter_t*)calloc(1, sizeof(biquad_filter_t));
   if (!filter) return NULL;
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
@@ -319,6 +319,7 @@ biquad_filter_t* biquad_filter_create(const char* name,
     strcpy(filter->name, "biquad");
   }
   filter->coeffs = coeffs ? *coeffs : biquad_coefficients_passthrough();
+
 #ifdef ENABLE_ACCELERATE
   filter->coeffs_array[0] = filter->coeffs.b0;
   filter->coeffs_array[1] = filter->coeffs.b1;
@@ -326,6 +327,10 @@ biquad_filter_t* biquad_filter_create(const char* name,
   filter->coeffs_array[3] = filter->coeffs.a1;
   filter->coeffs_array[4] = filter->coeffs.a2;
   filter->setup = vDSP_biquadm_CreateSetupD(filter->coeffs_array, 1, 1);
+  if (!filter->setup) {
+    biquad_filter_free(filter);
+    return NULL;
+  }
 #else
   filter->z1 = 0.0;
   filter->z2 = 0.0;
@@ -396,6 +401,7 @@ void biquad_filter_update_parameters(biquad_filter_t* filter,
   if (biquad_coefficients_compute(&config->parameters.biquad, sample_rate,
                                   &new_coeffs)) {
     filter->coeffs = new_coeffs;
+
 #ifdef ENABLE_ACCELERATE
     if (filter->setup) {
       filter->coeffs_array[0] = new_coeffs.b0;

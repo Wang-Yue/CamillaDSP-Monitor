@@ -17,7 +17,7 @@ struct limiter_filter {
 limiter_filter_t* limiter_filter_create(const char* name,
                                         const limiter_parameters_t* params) {
   limiter_filter_t* filter =
-      (limiter_filter_t*)malloc(sizeof(limiter_filter_t));
+      (limiter_filter_t*)calloc(1, sizeof(limiter_filter_t));
   if (!filter) return NULL;
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
@@ -26,7 +26,12 @@ limiter_filter_t* limiter_filter_create(const char* name,
     strcpy(filter->name, "limiter");
   }
   double limit_db = params ? params->clip_limit : 0.0;
-  filter->clip_limit = double_from_db(limit_db);
+  double limit = double_from_db(limit_db);
+  if (limit <= 0.0 || !isfinite(limit)) {
+    limiter_filter_free(filter);
+    return NULL;
+  }
+  filter->clip_limit = limit;
   filter->soft_clip = params ? params->soft_clip : false;
   return filter;
 }

@@ -330,6 +330,12 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
             channels_to_apply = &single_ch;
             channels_count = 1;
           } else {
+            if (current_channels > SIZE_MAX / sizeof(int)) {
+              config_error_set(err, CONFIG_ERR_PARSE,
+                               "Integer overflow in channels count");
+              pipeline_free(pipeline);
+              return NULL;
+            }
             all_chs = (int*)malloc(current_channels * sizeof(int));
             if (!all_chs) {
               config_error_set(err, CONFIG_ERR_PARSE,
@@ -459,6 +465,18 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
             }
             free(new_chains);
           } else {
+            for (size_t c = 0; c < new_chains_count; c++) {
+              for (size_t k = 0; k < c; k++) {
+                if (new_chains[c].channel == new_chains[k].channel) {
+                  free_filter_chains(new_chains, new_chains_count);
+                  config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
+                                   "Duplicate channel %d in parallel filter step",
+                                   new_chains[c].channel);
+                  pipeline_free(pipeline);
+                  return NULL;
+                }
+              }
+            }
             pipeline_exec_step_t* exec = &pipeline->steps[exec_idx++];
             exec->type = EXEC_STEP_PARALLEL_FILTERS;
             exec->chains = new_chains;

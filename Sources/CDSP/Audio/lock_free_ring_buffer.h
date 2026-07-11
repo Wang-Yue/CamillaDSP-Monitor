@@ -240,11 +240,20 @@ bool spsc_audio_ring_buffer_read_latest_at(const spsc_audio_ring_buffer_t* ring,
  * @return Rounded size.
  */
 static inline size_t spsc_audio_ring_buffer_round_up_to_power_of_two(size_t n) {
-  size_t v = 1;
-  while (v < n) {
-    v <<= 1;
+  if (n == 0) return 1;
+  if (n > ((size_t)1 << (sizeof(size_t) * 8 - 1))) {
+    return (size_t)1 << (sizeof(size_t) * 8 - 1); // Cap at max power of two
   }
-  return v;
+  n--;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+#if UINTPTR_MAX == 0xffffffffffffffff
+  n |= n >> 32;
+#endif
+  return n + 1;
 }
 
 // MARK: - SPSCQueue

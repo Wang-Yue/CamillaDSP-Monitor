@@ -20,6 +20,7 @@ int alsa_capabilities_available_device_names(bool is_capture,
                                              char out_names[][256],
                                              int max_names) {
   (void)is_capture;
+  pthread_mutex_lock(&g_alsa_mutex);
   int count = 0;
   if (count < max_names) {
     snprintf(out_names[count++], 256, "default");
@@ -36,6 +37,7 @@ int alsa_capabilities_available_device_names(bool is_capture,
       snprintf(out_names[count++], 256, "%s", name);
     }
   }
+  pthread_mutex_unlock(&g_alsa_mutex);
   return count;
 }
 
@@ -132,11 +134,16 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
   unsigned int min_ch = 1, max_ch = 2;
   snd_pcm_hw_params_get_channels_min(params, &min_ch);
   snd_pcm_hw_params_get_channels_max(params, &max_ch);
+  if (min_ch > max_ch || min_ch == 0 || max_ch == 0) {
+    min_ch = 1;
+    max_ch = 2;
+  }
 
   // Allocate capability set. We represent ALSA capabilities in one set.
   desc->capability_sets_count = 1;
   desc->capability_sets =
       (device_capability_set_t*)calloc(1, sizeof(device_capability_set_t));
+  if (!desc->capability_sets) goto error_cleanup;
 
   device_capability_set_t* set = &desc->capability_sets[0];
   // Probe channel sizes by testing constraints.
@@ -145,6 +152,8 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
   size_t cap_alloc = (max_ch - min_ch + 1);
   set->capabilities =
       (channel_capability_t*)calloc(cap_alloc, sizeof(channel_capability_t));
+  if (!set->capabilities) goto error_cleanup;
+  set->capabilities_count = cap_alloc;
 
   for (unsigned int ch = min_ch; ch <= max_ch; ch++) {
     channel_capability_t* cap = &set->capabilities[cap_idx];
@@ -154,6 +163,8 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
     // ALSA_PROBE_RATES.
     cap->samplerates = (samplerate_capability_t*)calloc(
         ALSA_PROBE_RATES_COUNT, sizeof(samplerate_capability_t));
+    if (!cap->samplerates) goto error_cleanup;
+    cap->samplerates_count = ALSA_PROBE_RATES_COUNT;
     size_t rate_idx = 0;
 
     for (size_t r = 0; r < ALSA_PROBE_RATES_COUNT; r++) {
@@ -178,6 +189,8 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
             sizeof(test_formats) / sizeof(test_formats[0]);
 
         rate_cap->formats = (char**)calloc(test_formats_count, sizeof(char*));
+        if (!rate_cap->formats) goto error_cleanup;
+        rate_cap->formats_count = test_formats_count;
         size_t fmt_idx = 0;
 
         for (size_t f = 0; f < test_formats_count; f++) {
@@ -195,7 +208,9 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
               }
             }
             if (!duplicate) {
-              rate_cap->formats[fmt_idx++] = strdup(format_names[f]);
+              char* fmt_str = strdup(format_names[f]);
+              if (!fmt_str) goto error_cleanup;
+              rate_cap->formats[fmt_idx++] = fmt_str;
             }
           }
         }
@@ -206,6 +221,7 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
         } else {
           free(rate_cap->formats);
           rate_cap->formats = NULL;
+          rate_cap->formats_count = 0;
         }
       }
     }
@@ -216,6 +232,7 @@ audio_device_descriptor_t* alsa_capabilities_describe(const char* device_name,
     } else {
       free(cap->samplerates);
       cap->samplerates = NULL;
+      cap->samplerates_count = 0;
     }
   }
 

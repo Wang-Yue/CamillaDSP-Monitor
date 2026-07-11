@@ -23,26 +23,38 @@ size_t audio_buffers_get_capacity(const audio_buffers_t* buffers) {
 
 mutable_waveform_t audio_buffers_get_channel(const audio_buffers_t* buffers,
                                              size_t ch) {
+  if (!buffers || ch >= buffers->channels) return NULL;
   return buffers->channel_buffers[ch];
 }
 
 /// Allocate a fresh buffer pool, zero-initialised.
 audio_buffers_t* audio_buffers_create(size_t channels, size_t capacity) {
   if (channels == 0 || capacity == 0) return NULL;
+
+  // Check for overflow before multiplication
+  if (capacity > SIZE_MAX / channels) return NULL;
+
   audio_buffers_t* buf = (audio_buffers_t*)malloc(sizeof(audio_buffers_t));
   if (!buf) return NULL;
+
   buf->channels = channels;
   buf->capacity = capacity;
+  buf->storage = NULL;
+  buf->channel_buffers = NULL;
 
   // Allocate a single contiguous block of memory for all channels to improve
   // cache locality and reduce memory fragmentation.
   size_t total = channels * capacity;
   buf->storage = (double*)calloc(total, sizeof(double));
-
   // Allocate the array of pointers that will point to the start of each
   // channel's buffer.
   buf->channel_buffers =
       (mutable_waveform_t*)malloc(channels * sizeof(mutable_waveform_t));
+
+  if (!buf->storage || !buf->channel_buffers) {
+    audio_buffers_free(buf);
+    return NULL;
+  }
 
   // Set up pointers to point into the contiguous block.
   for (size_t ch = 0; ch < channels; ch++) {

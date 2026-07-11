@@ -247,7 +247,7 @@ playback_backend_t* core_audio_playback_create(
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Out of memory");
-    free(playback);
+    core_audio_playback_destroy(playback);
     return NULL;
   }
   for (int i = 0; i < config_channels; i++) {
@@ -257,11 +257,7 @@ playback_backend_t* core_audio_playback_create(
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                            "Out of memory");
-      for (int j = 0; j < i; j++) {
-        spsc_audio_ring_buffer_free(playback->playback_rings[j]);
-      }
-      free(playback->playback_rings);
-      free(playback);
+      core_audio_playback_destroy(playback);
       return NULL;
     }
   }

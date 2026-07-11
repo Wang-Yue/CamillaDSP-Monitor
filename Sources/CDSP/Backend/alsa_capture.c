@@ -383,6 +383,10 @@ static void alsa_capture_sync_controls(alsa_capture_t* capture) {
 
 bool alsa_capture_open(alsa_capture_t* capture, backend_error_t* err) {
   pthread_mutex_lock(&g_alsa_mutex);
+  if (capture->pcm != NULL) {
+    pthread_mutex_unlock(&g_alsa_mutex);
+    return true;
+  }
   int rc;
   // Open the ALSA PCM capture device
   rc = snd_pcm_open(&capture->pcm, capture->device_name, SND_PCM_STREAM_CAPTURE,
@@ -569,6 +573,14 @@ error_cleanup:
 bool alsa_capture_read(alsa_capture_t* capture, size_t frames,
                        audio_chunk_t* chunk, backend_error_t* err) {
   if (!capture->pcm) return false;
+
+  if (audio_chunk_get_channels(chunk) < (size_t)capture->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_READ_ERROR,
+                         "Chunk channels count is smaller than capture device channels");
+    }
+    return false;
+  }
 
   // Sync volume/mute between hardware and engine before reading
   alsa_capture_sync_controls(capture);

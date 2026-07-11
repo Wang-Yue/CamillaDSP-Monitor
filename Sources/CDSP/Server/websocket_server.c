@@ -3,6 +3,61 @@
 
 #include "websocket_server.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+
+void dyn_string_init(dyn_string_t* ds, size_t initial_cap) {
+  ds->data = (char*)malloc(initial_cap);
+  if (ds->data) {
+    ds->data[0] = '\0';
+    ds->capacity = initial_cap;
+  } else {
+    ds->capacity = 0;
+  }
+  ds->length = 0;
+}
+
+void dyn_string_free(dyn_string_t* ds) {
+  if (ds->data) free(ds->data);
+  ds->data = NULL;
+  ds->capacity = 0;
+  ds->length = 0;
+}
+
+static void dyn_string_printf(dyn_string_t* ds, const char* fmt, ...) {
+  if (!ds->data || ds->capacity == 0) return;
+  va_list args;
+  va_start(args, fmt);
+  
+  va_list args_copy;
+  va_copy(args_copy, args);
+  int needed = vsnprintf(ds->data, ds->capacity, fmt, args_copy);
+  va_end(args_copy);
+  
+  if (needed < 0) {
+    va_end(args);
+    return;
+  }
+  
+  if ((size_t)needed >= ds->capacity) {
+    size_t new_cap = ds->capacity * 2;
+    if (new_cap <= (size_t)needed) new_cap = (size_t)needed + 1;
+    char* new_data = (char*)realloc(ds->data, new_cap);
+    if (!new_data) {
+      va_end(args);
+      return;
+    }
+    ds->data = new_data;
+    ds->capacity = new_cap;
+    
+    vsnprintf(ds->data, ds->capacity, fmt, args);
+  }
+  ds->length = (size_t)needed;
+  va_end(args);
+}
+
+
 #include <pthread.h>
 #include <stdatomic.h>
 
@@ -139,6 +194,7 @@ struct websocket_server {
   /** Number of playback channels for global peaks. */
   size_t playback_global_peaks_count;
 
+  pthread_mutex_t sessions_mutex;
   /** Array of active client sessions. */
   client_session_t client_sessions[32];
 };
@@ -319,18 +375,56 @@ static double amplitude_to_db(double amp) {
  * @param channels Number of channels.
  * @param now_ms Current timestamp in milliseconds.
  */
+static void level_history_clear(level_history_t* history) {
+  if (!history) return;
+  for (size_t i = 0; i < 300; i++) {
+    if (history->samples[i].levels) {
+      free(history->samples[i].levels);
+      history->samples[i].levels = NULL;
+    }
+  }
+  history->head = 0;
+  history->size = 0;
+  history->channels = 0;
+}
+
+static void client_session_clear(client_session_t* session) {
+  if (!session) return;
+  if (session->vu_pb_rms) {
+    free(session->vu_pb_rms);
+    session->vu_pb_rms = NULL;
+  }
+  if (session->vu_pb_peak) {
+    free(session->vu_pb_peak);
+    session->vu_pb_peak = NULL;
+  }
+  if (session->vu_cap_rms) {
+    free(session->vu_cap_rms);
+    session->vu_cap_rms = NULL;
+  }
+  if (session->vu_cap_peak) {
+    free(session->vu_cap_peak);
+    session->vu_cap_peak = NULL;
+  }
+  session->vu_pb_channels = 0;
+  session->vu_cap_channels = 0;
+}
+
+/**
+ * @brief Appends a new level sample to the history ring buffer.
+ *
+ * If the channel count changes, the history is cleared and re-initialized.
+ *
+ * @param history Pointer to the level history structure.
+ * @param levels Array of levels per channel.
+ * @param channels Number of channels.
+ * @param now_ms Current timestamp in milliseconds.
+ */
 static void level_history_append(level_history_t* history, const double* levels,
                                  size_t channels, uint64_t now_ms) {
   if (history->channels != channels) {
-    for (size_t i = 0; i < 300; i++) {
-      if (history->samples[i].levels) {
-        free(history->samples[i].levels);
-        history->samples[i].levels = NULL;
-      }
-    }
+    level_history_clear(history);
     history->channels = channels;
-    history->head = 0;
-    history->size = 0;
   }
   if (channels == 0) return;
   level_sample_t* sample = &history->samples[history->head];
@@ -447,6 +541,13 @@ websocket_server_t* websocket_server_create(uint16_t port, const char* host) {
   server->server_fd = INVALID_SOCKET_VAL;
   server->update_interval = 100;
   atomic_init(&server->running, false);
+
+  pthread_mutexattr_t attr;
+  pthread_mutexattr_init(&attr);
+  pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+  pthread_mutex_init(&server->sessions_mutex, &attr);
+  pthread_mutexattr_destroy(&attr);
+
   return server;
 }
 
@@ -563,12 +664,12 @@ static const char* get_websocket_error_key(audio_backend_error_type_t type) {
  * @param max_len Maximum length of the output buffer.
  */
 static void json_reply(const char* cmd, const char* res_str,
-                       const char* val_str, char* out, size_t max_len) {
+                       const char* val_str, dyn_string_t* ds) {
   if (val_str && val_str[0]) {
-    snprintf(out, max_len, "{\"%s\":{\"result\":%s,\"value\":%s}}", cmd,
-             res_str, val_str);
+    dyn_string_printf(ds, "{\"%s\":{\"result\":%s,\"value\":%s}}", cmd,
+                      res_str, val_str);
   } else {
-    snprintf(out, max_len, "{\"%s\":{\"result\":%s}}", cmd, res_str);
+    dyn_string_printf(ds, "{\"%s\":{\"result\":%s}}", cmd, res_str);
   }
 }
 
@@ -941,15 +1042,14 @@ static void format_spectrum(const spectrum_t* spec, char* out, size_t max_len) {
  */
 static bool server_handle_adjust_volume_fader(
     websocket_server_t* server, fader_t fader, double delta, double min_vol,
-    double max_vol, char* out_response, size_t max_len, const char* cmd_name) {
+    double max_vol, dyn_string_t* ds, const char* cmd_name) {
   processing_parameters_t* params = NULL;
   if (!server || !server->engine ||
       !server->engine->get_processing_parameters ||
       !server->engine->get_processing_parameters(server->engine->ctx,
                                                  (void**)&params) ||
       !params) {
-    json_reply(cmd_name, "\"ProcessingNotRunningError\"", NULL, out_response,
-               max_len);
+    json_reply(cmd_name, "\"ProcessingNotRunningError\"", NULL, ds);
     return true;
   }
 
@@ -970,7 +1070,7 @@ static bool server_handle_adjust_volume_fader(
   } else {
     snprintf(val, sizeof(val), "[%d,%.17g]", (int)fader, new_vol);
   }
-  json_reply(cmd_name, "\"Ok\"", val, out_response, max_len);
+  json_reply(cmd_name, "\"Ok\"", val, ds);
   return true;
 }
 
@@ -980,16 +1080,18 @@ static bool server_handle_adjust_volume_fader(
 /// and populate out_response.
 void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                                      const char* command_text,
-                                     char* out_response, size_t max_len) {
-  if (!out_response || max_len == 0) return;
-  out_response[0] = '\0';
+                                     dyn_string_t* ds) {
+  if (!ds) return;
   if (!command_text) return;
 
   cJSON* root = cJSON_Parse(command_text);
   if (!root) {
-    json_reply("Invalid", "{\"error\":\"Invalid JSON\"}", NULL, out_response,
-               max_len);
+    json_reply("Invalid", "{\"error\":\"Invalid JSON\"}", NULL, ds);
     return;
+  }
+
+  if (server) {
+    pthread_mutex_lock(&server->sessions_mutex);
   }
 
   char cmd_name[128] = "";
@@ -1008,8 +1110,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
   const char* simple = cmd_name;
 
   if (strcmp(simple, "GetVersion") == 0) {
-    json_reply("GetVersion", "\"Ok\"", "\"CamillaDSP-C-Embedded 2.0.0\"",
-               out_response, max_len);
+    json_reply("GetVersion", "\"Ok\"", "\"CamillaDSP-C-Embedded 2.0.0\"", ds);
   } else if (strcmp(simple, "GetState") == 0) {
     processing_state_t state = PROCESSING_STATE_INACTIVE;
     if (server && server->engine && server->engine->get_status) {
@@ -1020,7 +1121,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     }
     char val[64];
     snprintf(val, sizeof(val), "\"%s\"", processing_state_to_string(state));
-    json_reply("GetState", "\"Ok\"", val, out_response, max_len);
+    json_reply("GetState", "\"Ok\"", val, ds);
   } else if (strcmp(simple, "GetStopReason") == 0) {
     char reason_str[512] = "\"None\"";
     if (server && server->engine && server->engine->get_status) {
@@ -1030,7 +1131,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                               sizeof(reason_str));
       }
     }
-    json_reply("GetStopReason", "\"Ok\"", reason_str, out_response, max_len);
+    json_reply("GetStopReason", "\"Ok\"", reason_str, ds);
   } else if (strcmp(simple, "GetVolume") == 0) {
     processing_parameters_t* params = NULL;
     if (server && server->engine && server->engine->get_processing_parameters &&
@@ -1041,10 +1142,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           processing_parameters_get_target_volume_for_fader(params, FADER_MAIN);
       char val[64];
       snprintf(val, sizeof(val), "%.17g", vol);
-      json_reply("GetVolume", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetVolume", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetVolume", "\"ProcessingNotRunningError\"", NULL,
-                 out_response, max_len);
+      json_reply("GetVolume", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetMute") == 0) {
     processing_parameters_t* params = NULL;
@@ -1053,11 +1153,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                                                   (void**)&params) &&
         params) {
       bool muted = processing_parameters_is_muted_for_fader(params, FADER_MAIN);
-      json_reply("GetMute", "\"Ok\"", muted ? "true" : "false", out_response,
-                 max_len);
+      json_reply("GetMute", "\"Ok\"", muted ? "true" : "false", ds);
     } else {
-      json_reply("GetMute", "\"ProcessingNotRunningError\"", NULL, out_response,
-                 max_len);
+      json_reply("GetMute", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "ToggleMute") == 0) {
     processing_parameters_t* params = NULL;
@@ -1071,11 +1169,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         server->engine->set_fader_mute(server->engine->ctx, FADER_MAIN,
                                        !was_muted);
       }
-      json_reply("ToggleMute", "\"Ok\"", !was_muted ? "true" : "false",
-                 out_response, max_len);
+      json_reply("ToggleMute", "\"Ok\"", !was_muted ? "true" : "false", ds);
     } else {
-      json_reply("ToggleMute", "\"ProcessingNotRunningError\"", NULL,
-                 out_response, max_len);
+      json_reply("ToggleMute", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetFaders") == 0) {
     processing_parameters_t* params = NULL;
@@ -1097,10 +1193,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                            (i < FADER_COUNT - 1) ? "," : "");
       }
       snprintf(faders_val + offset, sizeof(faders_val) - offset, "]");
-      json_reply("GetFaders", "\"Ok\"", faders_val, out_response, max_len);
+      json_reply("GetFaders", "\"Ok\"", faders_val, ds);
     } else {
-      json_reply("GetFaders", "\"ProcessingNotRunningError\"", NULL,
-                 out_response, max_len);
+      json_reply("GetFaders", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetCaptureSignalRms") == 0) {
     processing_parameters_t* params = NULL;
@@ -1115,14 +1210,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         char val[1024];
         format_double_array(levels, count, val, sizeof(val));
         free(levels);
-        json_reply("GetCaptureSignalRms", "\"Ok\"", val, out_response, max_len);
+        json_reply("GetCaptureSignalRms", "\"Ok\"", val, ds);
       } else {
-        json_reply("GetCaptureSignalRms", "\"Ok\"", "[]", out_response,
-                   max_len);
+        json_reply("GetCaptureSignalRms", "\"Ok\"", "[]", ds);
       }
     } else {
-      json_reply("GetCaptureSignalRms", "\"ProcessingNotRunningError\"", NULL,
-                 out_response, max_len);
+      json_reply("GetCaptureSignalRms", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetCaptureSignalPeak") == 0) {
     processing_parameters_t* params = NULL;
@@ -1137,15 +1230,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         char val[1024];
         format_double_array(levels, count, val, sizeof(val));
         free(levels);
-        json_reply("GetCaptureSignalPeak", "\"Ok\"", val, out_response,
-                   max_len);
+        json_reply("GetCaptureSignalPeak", "\"Ok\"", val, ds);
       } else {
-        json_reply("GetCaptureSignalPeak", "\"Ok\"", "[]", out_response,
-                   max_len);
+        json_reply("GetCaptureSignalPeak", "\"Ok\"", "[]", ds);
       }
     } else {
-      json_reply("GetCaptureSignalPeak", "\"ProcessingNotRunningError\"", NULL,
-                 out_response, max_len);
+      json_reply("GetCaptureSignalPeak", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetPlaybackSignalRms") == 0) {
     processing_parameters_t* params = NULL;
@@ -1160,15 +1250,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         char val[1024];
         format_double_array(levels, count, val, sizeof(val));
         free(levels);
-        json_reply("GetPlaybackSignalRms", "\"Ok\"", val, out_response,
-                   max_len);
+        json_reply("GetPlaybackSignalRms", "\"Ok\"", val, ds);
       } else {
-        json_reply("GetPlaybackSignalRms", "\"Ok\"", "[]", out_response,
-                   max_len);
+        json_reply("GetPlaybackSignalRms", "\"Ok\"", "[]", ds);
       }
     } else {
-      json_reply("GetPlaybackSignalRms", "\"ProcessingNotRunningError\"", NULL,
-                 out_response, max_len);
+      json_reply("GetPlaybackSignalRms", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetPlaybackSignalPeak") == 0) {
     processing_parameters_t* params = NULL;
@@ -1183,15 +1270,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         char val[1024];
         format_double_array(levels, count, val, sizeof(val));
         free(levels);
-        json_reply("GetPlaybackSignalPeak", "\"Ok\"", val, out_response,
-                   max_len);
+        json_reply("GetPlaybackSignalPeak", "\"Ok\"", val, ds);
       } else {
-        json_reply("GetPlaybackSignalPeak", "\"Ok\"", "[]", out_response,
-                   max_len);
+        json_reply("GetPlaybackSignalPeak", "\"Ok\"", "[]", ds);
       }
     } else {
-      json_reply("GetPlaybackSignalPeak", "\"ProcessingNotRunningError\"", NULL,
-                 out_response, max_len);
+      json_reply("GetPlaybackSignalPeak", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetCaptureRate") == 0) {
     state_update_t status;
@@ -1206,9 +1290,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       int sr = config ? config->devices.samplerate : 0;
       char val[32];
       snprintf(val, sizeof(val), "%d", sr);
-      json_reply("GetCaptureRate", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetCaptureRate", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetCaptureRate", "\"Ok\"", "0", out_response, max_len);
+      json_reply("GetCaptureRate", "\"Ok\"", "0", ds);
     }
   } else if (strcmp(simple, "GetRateAdjust") == 0) {
     processing_parameters_t* params = NULL;
@@ -1219,9 +1303,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       double rate = atomic_double_get(&params->rate_adjust);
       char val[32];
       snprintf(val, sizeof(val), "%.17g", rate);
-      json_reply("GetRateAdjust", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetRateAdjust", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetRateAdjust", "\"Ok\"", "1.0", out_response, max_len);
+      json_reply("GetRateAdjust", "\"Ok\"", "1.0", ds);
     }
   } else if (strcmp(simple, "GetBufferLevel") == 0) {
     processing_parameters_t* params = NULL;
@@ -1232,9 +1316,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       double lvl = atomic_double_get(&params->buffer_level);
       char val[32];
       snprintf(val, sizeof(val), "%d", (int)lvl);
-      json_reply("GetBufferLevel", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetBufferLevel", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetBufferLevel", "\"Ok\"", "0", out_response, max_len);
+      json_reply("GetBufferLevel", "\"Ok\"", "0", ds);
     }
   } else if (strcmp(simple, "GetClippedSamples") == 0) {
     processing_parameters_t* params = NULL;
@@ -1246,9 +1330,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           atomic_load_explicit(&params->clipped_samples, memory_order_relaxed);
       char val[32];
       snprintf(val, sizeof(val), "%llu", (unsigned long long)clips);
-      json_reply("GetClippedSamples", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetClippedSamples", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetClippedSamples", "\"Ok\"", "0", out_response, max_len);
+      json_reply("GetClippedSamples", "\"Ok\"", "0", ds);
     }
   } else if (strcmp(simple, "ResetClippedSamples") == 0) {
     processing_parameters_t* params = NULL;
@@ -1259,7 +1343,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       atomic_store_explicit(&params->clipped_samples, 0ULL,
                             memory_order_relaxed);
     }
-    json_reply("ResetClippedSamples", "\"Ok\"", NULL, out_response, max_len);
+    json_reply("ResetClippedSamples", "\"Ok\"", NULL, ds);
   } else if (strcmp(simple, "GetProcessingLoad") == 0) {
     processing_parameters_t* params = NULL;
     if (server && server->engine && server->engine->get_processing_parameters &&
@@ -1269,9 +1353,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       double load = atomic_double_get(&params->processing_load);
       char val[32];
       snprintf(val, sizeof(val), "%.17g", load);
-      json_reply("GetProcessingLoad", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetProcessingLoad", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetProcessingLoad", "\"Ok\"", "0.0", out_response, max_len);
+      json_reply("GetProcessingLoad", "\"Ok\"", "0.0", ds);
     }
   } else if (strcmp(simple, "GetResamplerLoad") == 0) {
     processing_parameters_t* params = NULL;
@@ -1282,39 +1366,38 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       double load = atomic_double_get(&params->resampler_load);
       char val[32];
       snprintf(val, sizeof(val), "%.17g", load);
-      json_reply("GetResamplerLoad", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetResamplerLoad", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetResamplerLoad", "\"Ok\"", "0.0", out_response, max_len);
+      json_reply("GetResamplerLoad", "\"Ok\"", "0.0", ds);
     }
   } else if (strcmp(simple, "GetSupportedDeviceTypes") == 0) {
     json_reply("GetSupportedDeviceTypes", "\"Ok\"",
-               "[[\"CoreAudio\"],[\"CoreAudio\"]]", out_response, max_len);
+               "[[\"CoreAudio\"],[\"CoreAudio\"]]", ds);
   } else if (strcmp(simple, "GetUpdateInterval") == 0) {
     char val[32];
     snprintf(val, sizeof(val), "%d", server ? server->update_interval : 100);
-    json_reply("GetUpdateInterval", "\"Ok\"", val, out_response, max_len);
+    json_reply("GetUpdateInterval", "\"Ok\"", val, ds);
   } else if (strcmp(simple, "SetUpdateInterval") == 0) {
     if (arg && cJSON_IsNumber(arg)) {
       double val = arg->valuedouble;
       if (val >= 0.0) {
         if (server) server->update_interval = (uint32_t)val;
-        json_reply("SetUpdateInterval", "\"Ok\"", NULL, out_response, max_len);
+        json_reply("SetUpdateInterval", "\"Ok\"", NULL, ds);
       } else {
         json_reply("SetUpdateInterval",
-                   "{\"InvalidValueError\":\"Value must be >= 0\"}", NULL,
-                   out_response, max_len);
+                   "{\"InvalidValueError\":\"Value must be >= 0\"}", NULL, ds);
       }
     } else {
       json_reply("SetUpdateInterval",
                  "{\"InvalidRequestError\":\"Could not parse SetUpdateInterval "
                  "argument\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "SubscribeState") == 0) {
     if (server) {
       server->client_sessions[client_idx].state_subscribed = true;
     }
-    json_reply("SubscribeState", "\"Ok\"", NULL, out_response, max_len);
+    json_reply("SubscribeState", "\"Ok\"", NULL, ds);
   } else if (strcmp(simple, "SubscribeVuLevels") == 0) {
     double max_rate = 0.0;
     double attack = 0.0;
@@ -1333,7 +1416,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       json_reply("SubscribeVuLevels",
                  "{\"InvalidValueError\":\"attack and release must be between "
                  "0 and 60000 ms\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     } else {
       if (server) {
         server->client_sessions[client_idx].vu_subscribed = true;
@@ -1342,7 +1425,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         server->client_sessions[client_idx].vu_release = release;
         server->client_sessions[client_idx].last_vu_push_time = 0;
       }
-      json_reply("SubscribeVuLevels", "\"Ok\"", NULL, out_response, max_len);
+      json_reply("SubscribeVuLevels", "\"Ok\"", NULL, ds);
     }
   } else if (strcmp(simple, "SubscribeSignalLevels") == 0) {
     char side[16] = "";
@@ -1357,13 +1440,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                  sizeof(server->client_sessions[client_idx].signal_levels_side),
                  "%s", side);
       }
-      json_reply("SubscribeSignalLevels", "\"Ok\"", NULL, out_response,
-                 max_len);
+      json_reply("SubscribeSignalLevels", "\"Ok\"", NULL, ds);
     } else {
       json_reply("SubscribeSignalLevels",
                  "{\"InvalidValueError\":\"side must be playback, capture, "
                  "or both\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "SubscribeSpectrum") == 0) {
     bool is_capture = true;
@@ -1402,12 +1484,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         server->client_sessions[client_idx].spectrum_max_rate = max_rate;
         server->client_sessions[client_idx].last_spectrum_push_time = 0;
       }
-      json_reply("SubscribeSpectrum", "\"Ok\"", NULL, out_response, max_len);
+      json_reply("SubscribeSpectrum", "\"Ok\"", NULL, ds);
     } else {
       json_reply("SubscribeSpectrum",
                  "{\"InvalidRequestError\":\"Could not parse SubscribeSpectrum "
                  "arguments\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "StopSubscription") == 0) {
     if (server) {
@@ -1421,16 +1503,14 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         server->client_sessions[client_idx].vu_subscribed = false;
         server->client_sessions[client_idx].signal_levels_subscribed = false;
         server->client_sessions[client_idx].spectrum_subscribed = false;
-        json_reply("StopSubscription", "\"Ok\"", NULL, out_response, max_len);
+        json_reply("StopSubscription", "\"Ok\"", NULL, ds);
       } else {
         json_reply("StopSubscription",
-                   "{\"InvalidRequestError\":\"No active subscription\"}", NULL,
-                   out_response, max_len);
+                   "{\"InvalidRequestError\":\"No active subscription\"}", NULL, ds);
       }
     } else {
       json_reply("StopSubscription",
-                 "{\"InvalidRequestError\":\"No active subscription\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"No active subscription\"}", NULL, ds);
     }
   } else if (strcmp(simple, "GetCaptureSignalRmsSinceLast") == 0) {
     processing_parameters_t* params = NULL;
@@ -1445,13 +1525,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       level_history_get_rms_since(&server->capture_rms_history, since, rms);
       char* rms_str = (char*)malloc(ch * 30 + 10);
       format_double_array(rms, ch, rms_str, ch * 30 + 10);
-      json_reply("GetCaptureSignalRmsSinceLast", "\"Ok\"", rms_str,
-                 out_response, max_len);
+      json_reply("GetCaptureSignalRmsSinceLast", "\"Ok\"", rms_str, ds);
       free(rms_str);
       free(rms);
     } else {
       json_reply("GetCaptureSignalRmsSinceLast",
-                 "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+                 "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetCaptureSignalPeakSinceLast") == 0) {
     processing_parameters_t* params = NULL;
@@ -1466,13 +1545,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       level_history_get_max_since(&server->capture_peak_history, since, pk);
       char* pk_str = (char*)malloc(ch * 30 + 10);
       format_double_array(pk, ch, pk_str, ch * 30 + 10);
-      json_reply("GetCaptureSignalPeakSinceLast", "\"Ok\"", pk_str,
-                 out_response, max_len);
+      json_reply("GetCaptureSignalPeakSinceLast", "\"Ok\"", pk_str, ds);
       free(pk_str);
       free(pk);
     } else {
       json_reply("GetCaptureSignalPeakSinceLast",
-                 "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+                 "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetPlaybackSignalRmsSinceLast") == 0) {
     processing_parameters_t* params = NULL;
@@ -1487,13 +1565,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       level_history_get_rms_since(&server->playback_rms_history, since, rms);
       char* rms_str = (char*)malloc(ch * 30 + 10);
       format_double_array(rms, ch, rms_str, ch * 30 + 10);
-      json_reply("GetPlaybackSignalRmsSinceLast", "\"Ok\"", rms_str,
-                 out_response, max_len);
+      json_reply("GetPlaybackSignalRmsSinceLast", "\"Ok\"", rms_str, ds);
       free(rms_str);
       free(rms);
     } else {
       json_reply("GetPlaybackSignalRmsSinceLast",
-                 "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+                 "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetPlaybackSignalPeakSinceLast") == 0) {
     processing_parameters_t* params = NULL;
@@ -1508,13 +1585,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       level_history_get_max_since(&server->playback_peak_history, since, pk);
       char* pk_str = (char*)malloc(ch * 30 + 10);
       format_double_array(pk, ch, pk_str, ch * 30 + 10);
-      json_reply("GetPlaybackSignalPeakSinceLast", "\"Ok\"", pk_str,
-                 out_response, max_len);
+      json_reply("GetPlaybackSignalPeakSinceLast", "\"Ok\"", pk_str, ds);
       free(pk_str);
       free(pk);
     } else {
       json_reply("GetPlaybackSignalPeakSinceLast",
-                 "\"ProcessingNotRunningError\"", NULL, out_response, max_len);
+                 "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetCaptureSignalRmsSince") == 0) {
     double secs = 0;
@@ -1533,18 +1609,16 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         level_history_get_rms_since(&server->capture_rms_history, since, rms);
         char* rms_str = (char*)malloc(ch * 30 + 10);
         format_double_array(rms, ch, rms_str, ch * 30 + 10);
-        json_reply("GetCaptureSignalRmsSince", "\"Ok\"", rms_str, out_response,
-                   max_len);
+        json_reply("GetCaptureSignalRmsSince", "\"Ok\"", rms_str, ds);
         free(rms_str);
         free(rms);
       } else {
         json_reply("GetCaptureSignalRmsSince", "\"ProcessingNotRunningError\"",
-                   NULL, out_response, max_len);
+                   NULL, ds);
       }
     } else {
       json_reply("GetCaptureSignalRmsSince",
-                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, ds);
     }
   } else if (strcmp(simple, "GetCaptureSignalPeakSince") == 0) {
     double secs = 0;
@@ -1563,18 +1637,16 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         level_history_get_max_since(&server->capture_peak_history, since, pk);
         char* pk_str = (char*)malloc(ch * 30 + 10);
         format_double_array(pk, ch, pk_str, ch * 30 + 10);
-        json_reply("GetCaptureSignalPeakSince", "\"Ok\"", pk_str, out_response,
-                   max_len);
+        json_reply("GetCaptureSignalPeakSince", "\"Ok\"", pk_str, ds);
         free(pk_str);
         free(pk);
       } else {
         json_reply("GetCaptureSignalPeakSince", "\"ProcessingNotRunningError\"",
-                   NULL, out_response, max_len);
+                   NULL, ds);
       }
     } else {
       json_reply("GetCaptureSignalPeakSince",
-                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, ds);
     }
   } else if (strcmp(simple, "GetPlaybackSignalRmsSince") == 0) {
     double secs = 0;
@@ -1593,18 +1665,16 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         level_history_get_rms_since(&server->playback_rms_history, since, rms);
         char* rms_str = (char*)malloc(ch * 30 + 10);
         format_double_array(rms, ch, rms_str, ch * 30 + 10);
-        json_reply("GetPlaybackSignalRmsSince", "\"Ok\"", rms_str, out_response,
-                   max_len);
+        json_reply("GetPlaybackSignalRmsSince", "\"Ok\"", rms_str, ds);
         free(rms_str);
         free(rms);
       } else {
         json_reply("GetPlaybackSignalRmsSince", "\"ProcessingNotRunningError\"",
-                   NULL, out_response, max_len);
+                   NULL, ds);
       }
     } else {
       json_reply("GetPlaybackSignalRmsSince",
-                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, ds);
     }
   } else if (strcmp(simple, "GetPlaybackSignalPeakSince") == 0) {
     double secs = 0;
@@ -1623,19 +1693,16 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         level_history_get_max_since(&server->playback_peak_history, since, pk);
         char* pk_str = (char*)malloc(ch * 30 + 10);
         format_double_array(pk, ch, pk_str, ch * 30 + 10);
-        json_reply("GetPlaybackSignalPeakSince", "\"Ok\"", pk_str, out_response,
-                   max_len);
+        json_reply("GetPlaybackSignalPeakSince", "\"Ok\"", pk_str, ds);
         free(pk_str);
         free(pk);
       } else {
         json_reply("GetPlaybackSignalPeakSince",
-                   "\"ProcessingNotRunningError\"", NULL, out_response,
-                   max_len);
+                   "\"ProcessingNotRunningError\"", NULL, ds);
       }
     } else {
       json_reply("GetPlaybackSignalPeakSince",
-                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, ds);
     }
   } else if (strcmp(simple, "GetSignalLevels") == 0) {
     processing_parameters_t* params = NULL;
@@ -1669,7 +1736,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                     "{\"playback_rms\":%s,\"playback_peak\":%s,\"capture_rms\":"
                     "%s,\"capture_peak\":%s}",
                     p_rms_str, p_pk_str, c_rms_str, c_pk_str);
-            json_reply("GetSignalLevels", "\"Ok\"", val, out_response, max_len);
+            json_reply("GetSignalLevels", "\"Ok\"", val, ds);
             free(val);
           }
         }
@@ -1683,8 +1750,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       if (c_rms) free(c_rms);
       if (c_pk) free(c_pk);
     } else {
-      json_reply("GetSignalLevels", "\"ProcessingNotRunningError\"", NULL,
-                 out_response, max_len);
+      json_reply("GetSignalLevels", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetSignalLevelsSinceLast") == 0) {
     processing_parameters_t* params = NULL;
@@ -1732,8 +1798,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
               "{\"playback_rms\":%s,\"playback_peak\":%s,\"capture_rms\":%s,"
               "\"capture_peak\":%s}",
               p_rms_str, p_pk_str, c_rms_str, c_pk_str);
-      json_reply("GetSignalLevelsSinceLast", "\"Ok\"", val, out_response,
-                 max_len);
+      json_reply("GetSignalLevelsSinceLast", "\"Ok\"", val, ds);
       free(val);
       free(c_rms_str);
       free(c_pk_str);
@@ -1745,7 +1810,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       free(p_pk);
     } else {
       json_reply("GetSignalLevelsSinceLast", "\"ProcessingNotRunningError\"",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "GetSignalLevelsSince") == 0) {
     double secs = 0;
@@ -1784,8 +1849,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                 "{\"playback_rms\":%s,\"playback_peak\":%s,\"capture_rms\":%s,"
                 "\"capture_peak\":%s}",
                 p_rms_str, p_pk_str, c_rms_str, c_pk_str);
-        json_reply("GetSignalLevelsSince", "\"Ok\"", val, out_response,
-                   max_len);
+        json_reply("GetSignalLevelsSince", "\"Ok\"", val, ds);
         free(val);
         free(c_rms_str);
         free(c_pk_str);
@@ -1797,12 +1861,11 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         free(p_pk);
       } else {
         json_reply("GetSignalLevelsSince", "\"ProcessingNotRunningError\"",
-                   NULL, out_response, max_len);
+                   NULL, ds);
       }
     } else {
       json_reply("GetSignalLevelsSince",
-                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"Could not parse seconds\"}", NULL, ds);
     }
   } else if (strcmp(simple, "GetSignalPeaksSinceStart") == 0) {
     char val[2048];
@@ -1822,8 +1885,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                    (i + 1 < server->playback_global_peaks_count) ? "," : "");
     }
     snprintf(val + offset, sizeof(val) - offset, "]}");
-    json_reply("GetSignalPeaksSinceStart", "\"Ok\"", val, out_response,
-               max_len);
+    json_reply("GetSignalPeaksSinceStart", "\"Ok\"", val, ds);
   } else if (strcmp(simple, "ResetSignalPeaksSinceStart") == 0) {
     for (size_t i = 0; i < server->capture_global_peaks_count; i++) {
       server->capture_global_peaks[i] = -1000.0;
@@ -1831,8 +1893,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     for (size_t i = 0; i < server->playback_global_peaks_count; i++) {
       server->playback_global_peaks[i] = -1000.0;
     }
-    json_reply("ResetSignalPeaksSinceStart", "\"Ok\"", NULL, out_response,
-               max_len);
+    json_reply("ResetSignalPeaksSinceStart", "\"Ok\"", NULL, ds);
   } else if (strcmp(simple, "GetChannelLabels") == 0) {
     char* json = NULL;
     if (server && server->engine && server->engine->get_active_config_json) {
@@ -1859,7 +1920,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     char val[4096];
     snprintf(val, sizeof(val), "{\"playback\":%s,\"capture\":%s}", play_labels,
              cap_labels);
-    json_reply("GetChannelLabels", "\"Ok\"", val, out_response, max_len);
+    json_reply("GetChannelLabels", "\"Ok\"", val, ds);
     if (json) free(json);
   } else if (strcmp(simple, "GetSignalRange") == 0) {
     processing_parameters_t* params = NULL;
@@ -1876,10 +1937,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       double range = 2.0 * db_to_amplitude(max_peak);
       char val[64];
       snprintf(val, sizeof(val), "%.17g", range);
-      json_reply("GetSignalRange", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetSignalRange", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetSignalRange", "\"ProcessingNotRunningError\"", NULL,
-                 out_response, max_len);
+      json_reply("GetSignalRange", "\"ProcessingNotRunningError\"", NULL, ds);
     }
   } else if (strcmp(simple, "GetConfigFilePath") == 0) {
     char* path = NULL;
@@ -1893,17 +1953,17 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     } else {
       snprintf(val, sizeof(val), "null");
     }
-    json_reply("GetConfigFilePath", "\"Ok\"", val, out_response, max_len);
+    json_reply("GetConfigFilePath", "\"Ok\"", val, ds);
   } else if (strcmp(simple, "GetPreviousConfig") == 0) {
     char* prev = NULL;
     if (server && server->engine && server->engine->get_previous_config_json) {
       server->engine->get_previous_config_json(server->engine->ctx, &prev);
     }
     if (prev) {
-      json_reply("GetPreviousConfig", "\"Ok\"", prev, out_response, max_len);
+      json_reply("GetPreviousConfig", "\"Ok\"", prev, ds);
       free(prev);
     } else {
-      json_reply("GetPreviousConfig", "\"Ok\"", "null", out_response, max_len);
+      json_reply("GetPreviousConfig", "\"Ok\"", "null", ds);
     }
   } else if (strcmp(simple, "GetStateFilePath") == 0) {
     const char* path = NULL;
@@ -1915,13 +1975,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       snprintf(val, sizeof(val), "\"%s\"", path);
     else
       snprintf(val, sizeof(val), "null");
-    json_reply("GetStateFilePath", "\"Ok\"", val, out_response, max_len);
+    json_reply("GetStateFilePath", "\"Ok\"", val, ds);
   } else if (strcmp(simple, "GetStateFileUpdated") == 0) {
     bool updated = server && server->engine && server->engine->is_state_dirty
                        ? !server->engine->is_state_dirty(server->engine->ctx)
                        : true;
-    json_reply("GetStateFileUpdated", "\"Ok\"", updated ? "true" : "false",
-               out_response, max_len);
+    json_reply("GetStateFileUpdated", "\"Ok\"", updated ? "true" : "false", ds);
   } else if (strcmp(simple, "GetConfig") == 0 ||
              strcmp(simple, "GetConfigJson") == 0) {
     char* json = NULL;
@@ -1939,11 +1998,10 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       }
     }
     if (json) {
-      json_reply(simple, "\"Ok\"", json, out_response, max_len);
+      json_reply(simple, "\"Ok\"", json, ds);
       free(json);
     } else {
-      json_reply(simple, "{\"InvalidRequestError\":\"No active config\"}", NULL,
-                 out_response, max_len);
+      json_reply(simple, "{\"InvalidRequestError\":\"No active config\"}", NULL, ds);
     }
   } else if (strcmp(simple, "GetConfigTitle") == 0) {
     char* json = NULL;
@@ -1965,9 +2023,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         extract_json_string_value(json, "title", title, sizeof(title))) {
       char val[300];
       snprintf(val, sizeof(val), "\"%s\"", title);
-      json_reply("GetConfigTitle", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetConfigTitle", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetConfigTitle", "\"Ok\"", "null", out_response, max_len);
+      json_reply("GetConfigTitle", "\"Ok\"", "null", ds);
     }
     if (json) free(json);
   } else if (strcmp(simple, "GetConfigDescription") == 0) {
@@ -1990,10 +2048,9 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         extract_json_string_value(json, "description", desc, sizeof(desc))) {
       char val[600];
       snprintf(val, sizeof(val), "\"%s\"", desc);
-      json_reply("GetConfigDescription", "\"Ok\"", val, out_response, max_len);
+      json_reply("GetConfigDescription", "\"Ok\"", val, ds);
     } else {
-      json_reply("GetConfigDescription", "\"Ok\"", "null", out_response,
-                 max_len);
+      json_reply("GetConfigDescription", "\"Ok\"", "null", ds);
     }
     if (json) free(json);
   } else if (strcmp(simple, "Reload") == 0) {
@@ -2011,34 +2068,32 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
             server && server->engine && server->engine->set_config_json &&
             server->engine->set_config_json(server->engine->ctx, json, &err);
         if (ok) {
-          json_reply("Reload", "\"Ok\"", NULL, out_response, max_len);
+          json_reply("Reload", "\"Ok\"", NULL, ds);
         } else {
           char val[600];
           snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
                    get_websocket_error_key(err.type), err.message);
-          json_reply("Reload", val, NULL, out_response, max_len);
+          json_reply("Reload", val, NULL, ds);
         }
         free(json);
       } else {
         json_reply("Reload",
-                   "{\"ConfigReadError\":\"Could not read config file\"}", NULL,
-                   out_response, max_len);
+                   "{\"ConfigReadError\":\"Could not read config file\"}", NULL, ds);
       }
     } else {
       json_reply("Reload",
-                 "{\"InvalidRequestError\":\"No config file path set\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"No config file path set\"}", NULL, ds);
     }
   } else if (strcmp(simple, "Stop") == 0) {
     if (server && server->engine && server->engine->stop) {
       server->engine->stop(server->engine->ctx);
     }
-    json_reply("Stop", "\"Ok\"", NULL, out_response, max_len);
+    json_reply("Stop", "\"Ok\"", NULL, ds);
   } else if (strcmp(simple, "Exit") == 0) {
     if (server && server->engine && server->engine->stop) {
       server->engine->stop(server->engine->ctx);
     }
-    json_reply("Exit", "\"Ok\"", NULL, out_response, max_len);
+    json_reply("Exit", "\"Ok\"", NULL, ds);
   } else if (strcmp(simple, "SetVolume") == 0) {
     if (arg && cJSON_IsNumber(arg)) {
       double vol = arg->valuedouble;
@@ -2046,30 +2101,28 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         double clamped = vol < -150.0 ? -150.0 : (vol > 50.0 ? 50.0 : vol);
         server->engine->set_fader_volume(server->engine->ctx, FADER_MAIN,
                                          clamped, false);
-        json_reply("SetVolume", "\"Ok\"", NULL, out_response, max_len);
+        json_reply("SetVolume", "\"Ok\"", NULL, ds);
       } else {
-        json_reply("SetVolume", "\"ProcessingNotRunningError\"", NULL,
-                   out_response, max_len);
+        json_reply("SetVolume", "\"ProcessingNotRunningError\"", NULL, ds);
       }
     } else {
       json_reply("SetVolume",
                  "{\"InvalidRequestError\":\"Could not parse volume value\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "SetMute") == 0) {
     if (arg && cJSON_IsBool(arg)) {
       bool mute = cJSON_IsTrue(arg);
       if (server && server->engine && server->engine->set_fader_mute) {
         server->engine->set_fader_mute(server->engine->ctx, FADER_MAIN, mute);
-        json_reply("SetMute", "\"Ok\"", NULL, out_response, max_len);
+        json_reply("SetMute", "\"Ok\"", NULL, ds);
       } else {
-        json_reply("SetMute", "\"ProcessingNotRunningError\"", NULL,
-                   out_response, max_len);
+        json_reply("SetMute", "\"ProcessingNotRunningError\"", NULL, ds);
       }
     } else {
       json_reply("SetMute",
                  "{\"InvalidRequestError\":\"Could not parse mute value\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "SetConfigFilePath") == 0) {
     if (arg && cJSON_IsString(arg) && arg->valuestring) {
@@ -2077,12 +2130,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       if (server && server->engine && server->engine->set_config_path) {
         server->engine->set_config_path(server->engine->ctx, path);
       }
-      json_reply("SetConfigFilePath", "\"Ok\"", NULL, out_response, max_len);
+      json_reply("SetConfigFilePath", "\"Ok\"", NULL, ds);
     } else {
       json_reply(
           "SetConfigFilePath",
           "{\"InvalidRequestError\":\"Could not parse Config File Path\"}",
-          NULL, out_response, max_len);
+          NULL, ds);
     }
   } else if (strcmp(simple, "SetConfigJson") == 0) {
     if (arg && cJSON_IsString(arg) && arg->valuestring) {
@@ -2093,17 +2146,17 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           server && server->engine && server->engine->set_config_json &&
           server->engine->set_config_json(server->engine->ctx, new_json, &err);
       if (ok) {
-        json_reply("SetConfigJson", "\"Ok\"", NULL, out_response, max_len);
+        json_reply("SetConfigJson", "\"Ok\"", NULL, ds);
       } else {
         char val[600];
         snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
                  get_websocket_error_key(err.type), err.message);
-        json_reply("SetConfigJson", val, NULL, out_response, max_len);
+        json_reply("SetConfigJson", val, NULL, ds);
       }
     } else {
       json_reply("SetConfigJson",
                  "{\"InvalidRequestError\":\"Could not parse Config JSON\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "GetConfigValue") == 0) {
     if (arg && cJSON_IsString(arg) && arg->valuestring) {
@@ -2126,18 +2179,17 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       char val[2048];
       if (json &&
           server_get_value_at_pointer(json, pointer, val, sizeof(val))) {
-        json_reply("GetConfigValue", "\"Ok\"", val, out_response, max_len);
+        json_reply("GetConfigValue", "\"Ok\"", val, ds);
       } else {
         char err[256];
         snprintf(err, sizeof(err),
                  "{\"InvalidRequestError\":\"Path not found: %s\"}", pointer);
-        json_reply("GetConfigValue", err, NULL, out_response, max_len);
+        json_reply("GetConfigValue", err, NULL, ds);
       }
       if (json) free(json);
     } else {
       json_reply("GetConfigValue",
-                 "{\"InvalidRequestError\":\"Could not parse pointer\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"Could not parse pointer\"}", NULL, ds);
     }
   } else if (strcmp(simple, "SetConfigValue") == 0) {
     char pointer[256] = "";
@@ -2181,32 +2233,32 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                     server->engine->set_config_json(server->engine->ctx,
                                                     updated_json, &err);
           if (ok) {
-            json_reply("SetConfigValue", "\"Ok\"", NULL, out_response, max_len);
+            json_reply("SetConfigValue", "\"Ok\"", NULL, ds);
           } else {
             char val[600];
             snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
                      get_websocket_error_key(err.type), err.message);
-            json_reply("SetConfigValue", val, NULL, out_response, max_len);
+            json_reply("SetConfigValue", val, NULL, ds);
           }
           free(updated_json);
         } else {
           char err[256];
           snprintf(err, sizeof(err),
                    "{\"InvalidRequestError\":\"Path not found: %s\"}", pointer);
-          json_reply("SetConfigValue", err, NULL, out_response, max_len);
+          json_reply("SetConfigValue", err, NULL, ds);
         }
         free(active_json);
       } else {
         json_reply("SetConfigValue",
                    "{\"InvalidRequestError\":\"No active config to modify\"}",
-                   NULL, out_response, max_len);
+                   NULL, ds);
       }
       free(trimmed_val);
     } else {
       json_reply("SetConfigValue",
                  "{\"InvalidRequestError\":\"Could not parse SetConfigValue "
                  "command\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "PatchConfig") == 0) {
     if (arg && cJSON_IsObject(arg)) {
@@ -2239,39 +2291,38 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                       server->engine->set_config_json(server->engine->ctx,
                                                       target_json, &err);
             if (ok) {
-              json_reply("PatchConfig", "\"Ok\"", NULL, out_response, max_len);
+              json_reply("PatchConfig", "\"Ok\"", NULL, ds);
             } else {
               char val[600];
               snprintf(val, sizeof(val), "{\"%s\":\"%s\"}",
                        get_websocket_error_key(err.type), err.message);
-              json_reply("PatchConfig", val, NULL, out_response, max_len);
+              json_reply("PatchConfig", val, NULL, ds);
             }
             free(target_json);
           } else {
             json_reply(
                 "PatchConfig",
                 "{\"InvalidRequestError\":\"Failed to format target JSON\"}",
-                NULL, out_response, max_len);
+                NULL, ds);
           }
           cJSON_Delete(target_root);
         } else {
           cJSON_Delete(target_root);
           json_reply(
               "PatchConfig",
-              "{\"InvalidRequestError\":\"Failed to parse target JSON\"}", NULL,
-              out_response, max_len);
+              "{\"InvalidRequestError\":\"Failed to parse target JSON\"}", NULL, ds);
         }
         free(active_json);
       } else {
         json_reply("PatchConfig",
                    "{\"InvalidRequestError\":\"No active config to patch\"}",
-                   NULL, out_response, max_len);
+                   NULL, ds);
       }
     } else {
       json_reply(
           "PatchConfig",
           "{\"InvalidRequestError\":\"Could not parse PatchConfig command\"}",
-          NULL, out_response, max_len);
+          NULL, ds);
     }
   } else if (strcmp(simple, "GetFaderVolume") == 0) {
     if (arg && cJSON_IsNumber(arg)) {
@@ -2287,19 +2338,17 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
               params, (fader_t)idx);
           char val[64];
           snprintf(val, sizeof(val), "[%d,%.17g]", idx, vol);
-          json_reply("GetFaderVolume", "\"Ok\"", val, out_response, max_len);
+          json_reply("GetFaderVolume", "\"Ok\"", val, ds);
         } else {
-          json_reply("GetFaderVolume", "\"InvalidFaderError\"", NULL,
-                     out_response, max_len);
+          json_reply("GetFaderVolume", "\"InvalidFaderError\"", NULL, ds);
         }
       } else {
-        json_reply("GetFaderVolume", "\"ProcessingNotRunningError\"", NULL,
-                   out_response, max_len);
+        json_reply("GetFaderVolume", "\"ProcessingNotRunningError\"", NULL, ds);
       }
     } else {
       json_reply("GetFaderVolume",
                  "{\"InvalidRequestError\":\"Could not parse fader index\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "SetFaderVolume") == 0 ||
              strcmp(simple, "SetFaderExternalVolume") == 0) {
@@ -2323,20 +2372,18 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           bool instant = (strcmp(simple, "SetFaderExternalVolume") == 0);
           server->engine->set_fader_volume(server->engine->ctx, (fader_t)idx,
                                            clamped, instant);
-          json_reply(simple, "\"Ok\"", NULL, out_response, max_len);
+          json_reply(simple, "\"Ok\"", NULL, ds);
         } else {
-          json_reply(simple, "\"InvalidFaderError\"", NULL, out_response,
-                     max_len);
+          json_reply(simple, "\"InvalidFaderError\"", NULL, ds);
         }
       } else {
-        json_reply(simple, "\"ProcessingNotRunningError\"", NULL, out_response,
-                   max_len);
+        json_reply(simple, "\"ProcessingNotRunningError\"", NULL, ds);
       }
     } else {
       json_reply(simple,
                  "{\"InvalidRequestError\":\"Could not parse "
                  "SetFaderVolume/SetFaderExternalVolume array\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "GetFaderMute") == 0) {
     if (arg && cJSON_IsNumber(arg)) {
@@ -2352,19 +2399,17 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
               processing_parameters_is_muted_for_fader(params, (fader_t)idx);
           char val[64];
           snprintf(val, sizeof(val), "[%d,%s]", idx, muted ? "true" : "false");
-          json_reply("GetFaderMute", "\"Ok\"", val, out_response, max_len);
+          json_reply("GetFaderMute", "\"Ok\"", val, ds);
         } else {
-          json_reply("GetFaderMute", "\"InvalidFaderError\"", NULL,
-                     out_response, max_len);
+          json_reply("GetFaderMute", "\"InvalidFaderError\"", NULL, ds);
         }
       } else {
-        json_reply("GetFaderMute", "\"ProcessingNotRunningError\"", NULL,
-                   out_response, max_len);
+        json_reply("GetFaderMute", "\"ProcessingNotRunningError\"", NULL, ds);
       }
     } else {
       json_reply("GetFaderMute",
                  "{\"InvalidRequestError\":\"Could not parse fader index\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "SetFaderMute") == 0) {
     int idx = -1;
@@ -2385,20 +2430,18 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         if (idx >= 0 && idx < FADER_COUNT) {
           server->engine->set_fader_mute(server->engine->ctx, (fader_t)idx,
                                          mute);
-          json_reply("SetFaderMute", "\"Ok\"", NULL, out_response, max_len);
+          json_reply("SetFaderMute", "\"Ok\"", NULL, ds);
         } else {
-          json_reply("SetFaderMute", "\"InvalidFaderError\"", NULL,
-                     out_response, max_len);
+          json_reply("SetFaderMute", "\"InvalidFaderError\"", NULL, ds);
         }
       } else {
-        json_reply("SetFaderMute", "\"ProcessingNotRunningError\"", NULL,
-                   out_response, max_len);
+        json_reply("SetFaderMute", "\"ProcessingNotRunningError\"", NULL, ds);
       }
     } else {
       json_reply(
           "SetFaderMute",
           "{\"InvalidRequestError\":\"Could not parse SetFaderMute array\"}",
-          NULL, out_response, max_len);
+          NULL, ds);
     }
   } else if (strcmp(simple, "ToggleFaderMute") == 0) {
     if (arg && cJSON_IsNumber(arg)) {
@@ -2419,19 +2462,17 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           char val[64];
           snprintf(val, sizeof(val), "[%d,%s]", idx,
                    !was_muted ? "true" : "false");
-          json_reply("ToggleFaderMute", "\"Ok\"", val, out_response, max_len);
+          json_reply("ToggleFaderMute", "\"Ok\"", val, ds);
         } else {
-          json_reply("ToggleFaderMute", "\"InvalidFaderError\"", NULL,
-                     out_response, max_len);
+          json_reply("ToggleFaderMute", "\"InvalidFaderError\"", NULL, ds);
         }
       } else {
-        json_reply("ToggleFaderMute", "\"ProcessingNotRunningError\"", NULL,
-                   out_response, max_len);
+        json_reply("ToggleFaderMute", "\"ProcessingNotRunningError\"", NULL, ds);
       }
     } else {
       json_reply("ToggleFaderMute",
                  "{\"InvalidRequestError\":\"Could not parse fader index\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "GetAvailableCaptureDevices") == 0) {
     if (arg && cJSON_IsString(arg) && arg->valuestring) {
@@ -2451,16 +2492,13 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                              devs[i].name, (i + 1 < count) ? "," : "");
         }
         snprintf(val + offset, sizeof(val) - offset, "]");
-        json_reply("GetAvailableCaptureDevices", "\"Ok\"", val, out_response,
-                   max_len);
+        json_reply("GetAvailableCaptureDevices", "\"Ok\"", val, ds);
       } else {
-        json_reply("GetAvailableCaptureDevices", "\"Ok\"", "[]", out_response,
-                   max_len);
+        json_reply("GetAvailableCaptureDevices", "\"Ok\"", "[]", ds);
       }
     } else {
       json_reply("GetAvailableCaptureDevices",
-                 "{\"InvalidRequestError\":\"Could not parse backend\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"Could not parse backend\"}", NULL, ds);
     }
   } else if (strcmp(simple, "GetAvailablePlaybackDevices") == 0) {
     if (arg && cJSON_IsString(arg) && arg->valuestring) {
@@ -2480,16 +2518,13 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                              devs[i].name, (i + 1 < count) ? "," : "");
         }
         snprintf(val + offset, sizeof(val) - offset, "]");
-        json_reply("GetAvailablePlaybackDevices", "\"Ok\"", val, out_response,
-                   max_len);
+        json_reply("GetAvailablePlaybackDevices", "\"Ok\"", val, ds);
       } else {
-        json_reply("GetAvailablePlaybackDevices", "\"Ok\"", "[]", out_response,
-                   max_len);
+        json_reply("GetAvailablePlaybackDevices", "\"Ok\"", "[]", ds);
       }
     } else {
       json_reply("GetAvailablePlaybackDevices",
-                 "{\"InvalidRequestError\":\"Could not parse backend\"}", NULL,
-                 out_response, max_len);
+                 "{\"InvalidRequestError\":\"Could not parse backend\"}", NULL, ds);
     }
   } else if (strcmp(simple, "AdjustVolume") == 0) {
     double delta = 0.0;
@@ -2522,13 +2557,12 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
 
     if (ok) {
       server_handle_adjust_volume_fader(server, FADER_MAIN, delta, min_vol,
-                                        max_vol, out_response, max_len,
-                                        "AdjustVolume");
+                                        max_vol, ds, "AdjustVolume");
     } else {
       json_reply(
           "AdjustVolume",
           "{\"InvalidRequestError\":\"Could not parse AdjustVolume argument\"}",
-          NULL, out_response, max_len);
+          NULL, ds);
     }
   } else if (strcmp(simple, "AdjustFaderVolume") == 0) {
     int idx = -1;
@@ -2563,17 +2597,15 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     if (ok) {
       if (idx >= 0 && idx < FADER_COUNT) {
         server_handle_adjust_volume_fader(server, (fader_t)idx, delta, min_vol,
-                                          max_vol, out_response, max_len,
-                                          "AdjustFaderVolume");
+                                          max_vol, ds, "AdjustFaderVolume");
       } else {
-        json_reply("AdjustFaderVolume", "\"InvalidFaderError\"", NULL,
-                   out_response, max_len);
+        json_reply("AdjustFaderVolume", "\"InvalidFaderError\"", NULL, ds);
       }
     } else {
       json_reply("AdjustFaderVolume",
                  "{\"InvalidRequestError\":\"Could not parse AdjustFaderVolume "
                  "array\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "GetCaptureDeviceCapabilities") == 0 ||
              strcmp(simple, "GetPlaybackDeviceCapabilities") == 0) {
@@ -2602,7 +2634,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       if (cap_ok && desc) {
         char val[8192];
         format_device_descriptor(desc, val, sizeof(val));
-        json_reply(simple, "\"Ok\"", val, out_response, max_len);
+        json_reply(simple, "\"Ok\"", val, ds);
         extern void dsp_engine_free_device_capabilities(
             audio_device_descriptor_t * desc);
         dsp_engine_free_device_capabilities(desc);
@@ -2621,13 +2653,13 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
           err_msg = device;
         }
         snprintf(err, sizeof(err), "{\"%s\":\"%s\"}", err_key, err_msg);
-        json_reply(simple, err, NULL, out_response, max_len);
+        json_reply(simple, err, NULL, ds);
       }
     } else {
       json_reply(simple,
                  "{\"InvalidRequestError\":\"Could not parse backend and "
                  "device arguments\"}",
-                 NULL, out_response, max_len);
+                 NULL, ds);
     }
   } else if (strcmp(simple, "GetSpectrum") == 0) {
     bool is_capture = true;
@@ -2664,24 +2696,22 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
         char* spec_buf = (char*)malloc(spec_buf_size);
         if (spec_buf) {
           format_spectrum(&spec, spec_buf, spec_buf_size);
-          json_reply("GetSpectrum", "\"Ok\"", spec_buf, out_response, max_len);
+          json_reply("GetSpectrum", "\"Ok\"", spec_buf, ds);
           free(spec_buf);
         } else {
-          json_reply("GetSpectrum", "{\"DeviceError\":\"Out of memory\"}", NULL,
-                     out_response, max_len);
+          json_reply("GetSpectrum", "{\"DeviceError\":\"Out of memory\"}", NULL, ds);
         }
         if (spec.frequencies) free(spec.frequencies);
         if (spec.magnitudes) free(spec.magnitudes);
       } else {
         json_reply("GetSpectrum",
-                   "{\"DeviceError\":\"Failed to compute spectrum\"}", NULL,
-                   out_response, max_len);
+                   "{\"DeviceError\":\"Failed to compute spectrum\"}", NULL, ds);
       }
     } else {
       json_reply(
           "GetSpectrum",
           "{\"InvalidRequestError\":\"Could not parse GetSpectrum arguments\"}",
-          NULL, out_response, max_len);
+          NULL, ds);
     }
   } else if (strcmp(simple, "ReadConfigJson") == 0) {
     if (arg && cJSON_IsString(arg) && arg->valuestring) {
@@ -2690,20 +2720,19 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       config_error_t cerr;
       memset(&cerr, 0, sizeof(cerr));
       if (config_loader_parse(config_json, &parsed, &cerr) == 0 && parsed) {
-        json_reply("ReadConfigJson", "\"Ok\"", config_json, out_response,
-                   max_len);
+        json_reply("ReadConfigJson", "\"Ok\"", config_json, ds);
         dsp_config_free(parsed);
       } else {
         char val[600];
         snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}",
                  cerr.message);
-        json_reply("ReadConfigJson", val, NULL, out_response, max_len);
+        json_reply("ReadConfigJson", val, NULL, ds);
       }
     } else {
       json_reply(
           "ReadConfigJson",
           "{\"InvalidRequestError\":\"Could not parse input config JSON\"}",
-          NULL, out_response, max_len);
+          NULL, ds);
     }
   } else if (strcmp(simple, "ValidateConfigJson") == 0) {
     if (arg && cJSON_IsString(arg) && arg->valuestring) {
@@ -2712,23 +2741,25 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
       config_error_t cerr;
       memset(&cerr, 0, sizeof(cerr));
       if (config_loader_parse(config_json, &parsed, &cerr) == 0 && parsed) {
-        json_reply("ValidateConfigJson", "\"Ok\"", NULL, out_response, max_len);
+        json_reply("ValidateConfigJson", "\"Ok\"", NULL, ds);
         dsp_config_free(parsed);
       } else {
         char val[600];
         snprintf(val, sizeof(val), "{\"ConfigValidationError\":\"%s\"}",
                  cerr.message);
-        json_reply("ValidateConfigJson", val, NULL, out_response, max_len);
+        json_reply("ValidateConfigJson", val, NULL, ds);
       }
     } else {
       json_reply(
           "ValidateConfigJson",
           "{\"InvalidRequestError\":\"Could not parse input config JSON\"}",
-          NULL, out_response, max_len);
+          NULL, ds);
     }
   } else {
-    snprintf(out_response, max_len,
-             "{\"Invalid\":{\"error\":\"Unsupported command\"}}");
+    dyn_string_printf(ds, "{\"Invalid\":{\"error\":\"Unsupported command\"}}");
+  }
+  if (server) {
+    pthread_mutex_unlock(&server->sessions_mutex);
   }
   cJSON_Delete(root);
 }
@@ -2806,6 +2837,8 @@ static void* server_thread_func(void* arg) {
     }
     int ret = poll_sockets(fds, num_clients + 1, 50);
 
+    pthread_mutex_lock(&server->sessions_mutex);
+
     // Periodic broadcast tick
     uint64_t now = get_time_ms();
     if (now - last_broadcast_time_ms >= server->update_interval) {
@@ -2840,32 +2873,37 @@ static void* server_thread_func(void* arg) {
         if (cap_channels > 0) {
           current_cap_peak = (double*)malloc(cap_channels * sizeof(double));
           current_cap_rms = (double*)malloc(cap_channels * sizeof(double));
-          processing_parameters_get_capture_signal_peak(
-              params, current_cap_peak, cap_channels);
-          processing_parameters_get_capture_signal_rms(params, current_cap_rms,
-                                                       cap_channels);
+          if (current_cap_peak && current_cap_rms) {
+            processing_parameters_get_capture_signal_peak(
+                params, current_cap_peak, cap_channels);
+            processing_parameters_get_capture_signal_rms(params, current_cap_rms,
+                                                         cap_channels);
 
-          level_history_append(&server->capture_peak_history, current_cap_peak,
-                               cap_channels, now);
-          level_history_append(&server->capture_rms_history, current_cap_rms,
-                               cap_channels, now);
+            level_history_append(&server->capture_peak_history, current_cap_peak,
+                                 cap_channels, now);
+            level_history_append(&server->capture_rms_history, current_cap_rms,
+                                 cap_channels, now);
 
-          if (server->capture_global_peaks_count != cap_channels) {
-            double* new_peaks = (double*)realloc(
-                server->capture_global_peaks, cap_channels * sizeof(double));
-            if (new_peaks) {
-              server->capture_global_peaks = new_peaks;
-              for (size_t k = server->capture_global_peaks_count;
-                   k < cap_channels; k++) {
-                server->capture_global_peaks[k] = -1000.0;
+            if (server->capture_global_peaks_count != cap_channels) {
+              double* new_peaks = (double*)realloc(
+                  server->capture_global_peaks, cap_channels * sizeof(double));
+              if (new_peaks) {
+                server->capture_global_peaks = new_peaks;
+                for (size_t k = server->capture_global_peaks_count;
+                     k < cap_channels; k++) {
+                  server->capture_global_peaks[k] = -1000.0;
+                }
+                server->capture_global_peaks_count = cap_channels;
               }
-              server->capture_global_peaks_count = cap_channels;
             }
-          }
-          for (size_t k = 0; k < cap_channels; k++) {
-            if (server->capture_global_peaks &&
-                current_cap_peak[k] > server->capture_global_peaks[k]) {
-              server->capture_global_peaks[k] = current_cap_peak[k];
+            size_t limit = cap_channels < server->capture_global_peaks_count
+                               ? cap_channels
+                               : server->capture_global_peaks_count;
+            for (size_t k = 0; k < limit; k++) {
+              if (server->capture_global_peaks &&
+                  current_cap_peak[k] > server->capture_global_peaks[k]) {
+                server->capture_global_peaks[k] = current_cap_peak[k];
+              }
             }
           }
         }
@@ -2873,32 +2911,37 @@ static void* server_thread_func(void* arg) {
         if (pb_channels > 0) {
           current_pb_peak = (double*)malloc(pb_channels * sizeof(double));
           current_pb_rms = (double*)malloc(pb_channels * sizeof(double));
-          processing_parameters_get_playback_signal_peak(
-              params, current_pb_peak, pb_channels);
-          processing_parameters_get_playback_signal_rms(params, current_pb_rms,
-                                                        pb_channels);
+          if (current_pb_peak && current_pb_rms) {
+            processing_parameters_get_playback_signal_peak(
+                params, current_pb_peak, pb_channels);
+            processing_parameters_get_playback_signal_rms(params, current_pb_rms,
+                                                         pb_channels);
 
-          level_history_append(&server->playback_peak_history, current_pb_peak,
-                               pb_channels, now);
-          level_history_append(&server->playback_rms_history, current_pb_rms,
-                               pb_channels, now);
+            level_history_append(&server->playback_peak_history, current_pb_peak,
+                                 pb_channels, now);
+            level_history_append(&server->playback_rms_history, current_pb_rms,
+                                 pb_channels, now);
 
-          if (server->playback_global_peaks_count != pb_channels) {
-            double* new_peaks = (double*)realloc(
-                server->playback_global_peaks, pb_channels * sizeof(double));
-            if (new_peaks) {
-              server->playback_global_peaks = new_peaks;
-              for (size_t k = server->playback_global_peaks_count;
-                   k < pb_channels; k++) {
-                server->playback_global_peaks[k] = -1000.0;
+            if (server->playback_global_peaks_count != pb_channels) {
+              double* new_peaks = (double*)realloc(
+                  server->playback_global_peaks, pb_channels * sizeof(double));
+              if (new_peaks) {
+                server->playback_global_peaks = new_peaks;
+                for (size_t k = server->playback_global_peaks_count;
+                     k < pb_channels; k++) {
+                  server->playback_global_peaks[k] = -1000.0;
+                }
+                server->playback_global_peaks_count = pb_channels;
               }
-              server->playback_global_peaks_count = pb_channels;
             }
-          }
-          for (size_t k = 0; k < pb_channels; k++) {
-            if (server->playback_global_peaks &&
-                current_pb_peak[k] > server->playback_global_peaks[k]) {
-              server->playback_global_peaks[k] = current_pb_peak[k];
+            size_t limit = pb_channels < server->playback_global_peaks_count
+                               ? pb_channels
+                               : server->playback_global_peaks_count;
+            for (size_t k = 0; k < limit; k++) {
+              if (server->playback_global_peaks &&
+                  current_pb_peak[k] > server->playback_global_peaks[k]) {
+                server->playback_global_peaks[k] = current_pb_peak[k];
+              }
             }
           }
         }
@@ -3041,28 +3084,32 @@ static void* server_thread_func(void* arg) {
             char* c_rms_str = (char*)malloc(cap_channels * 30 + 10);
             char* c_pk_str = (char*)malloc(cap_channels * 30 + 10);
 
-            format_double_array(session->vu_pb_rms, pb_channels, p_rms_str,
-                                pb_channels * 30 + 10);
-            format_double_array(session->vu_pb_peak, pb_channels, p_pk_str,
-                                pb_channels * 30 + 10);
-            format_double_array(session->vu_cap_rms, cap_channels, c_rms_str,
-                                cap_channels * 30 + 10);
-            format_double_array(session->vu_cap_peak, cap_channels, c_pk_str,
-                                cap_channels * 30 + 10);
+            if (p_rms_str && p_pk_str && c_rms_str && c_pk_str) {
+              format_double_array(session->vu_pb_rms, pb_channels, p_rms_str,
+                                  pb_channels * 30 + 10);
+              format_double_array(session->vu_pb_peak, pb_channels, p_pk_str,
+                                  pb_channels * 30 + 10);
+              format_double_array(session->vu_cap_rms, cap_channels, c_rms_str,
+                                  cap_channels * 30 + 10);
+              format_double_array(session->vu_cap_peak, cap_channels, c_pk_str,
+                                  cap_channels * 30 + 10);
 
-            char* msg = (char*)malloc((pb_channels + cap_channels) * 120 + 200);
-            sprintf(msg,
-                    "{\"VuLevelsEvent\":{\"result\":\"Ok\",\"value\":{"
-                    "\"playback_rms\":%s,\"playback_peak\":%s,\"capture_rms\":%"
-                    "s,\"capture_peak\":%s}}}",
-                    p_rms_str, p_pk_str, c_rms_str, c_pk_str);
-            send_websocket_frame(client_fds[i], msg);
+              char* msg = (char*)malloc((pb_channels + cap_channels) * 120 + 200);
+              if (msg) {
+                sprintf(msg,
+                        "{\"VuLevelsEvent\":{\"result\":\"Ok\",\"value\":{"
+                        "\"playback_rms\":%s,\"playback_peak\":%s,\"capture_rms\":%"
+                        "s,\"capture_peak\":%s}}}",
+                        p_rms_str, p_pk_str, c_rms_str, c_pk_str);
+                send_websocket_frame(client_fds[i], msg);
+                free(msg);
+              }
+            }
 
-            free(msg);
-            free(p_rms_str);
-            free(p_pk_str);
-            free(c_rms_str);
-            free(c_pk_str);
+            if (p_rms_str) free(p_rms_str);
+            if (p_pk_str) free(p_pk_str);
+            if (c_rms_str) free(c_rms_str);
+            if (c_pk_str) free(c_pk_str);
             session->last_vu_push_time = now;
           }
         }
@@ -3076,40 +3123,46 @@ static void* server_thread_func(void* arg) {
           if (send_pb && pb_channels > 0) {
             char* rms_str = (char*)malloc(pb_channels * 30 + 10);
             char* pk_str = (char*)malloc(pb_channels * 30 + 10);
-            format_double_array(current_pb_rms, pb_channels, rms_str,
-                                pb_channels * 30 + 10);
-            format_double_array(current_pb_peak, pb_channels, pk_str,
-                                pb_channels * 30 + 10);
+            if (rms_str && pk_str) {
+              format_double_array(current_pb_rms, pb_channels, rms_str,
+                                  pb_channels * 30 + 10);
+              format_double_array(current_pb_peak, pb_channels, pk_str,
+                                  pb_channels * 30 + 10);
 
-            char* msg = (char*)malloc(pb_channels * 100 + 200);
-            sprintf(msg,
-                    "{\"SignalLevelsEvent\":{\"result\":\"Ok\",\"value\":{"
-                    "\"side\":\"playback\",\"rms\":%s,\"peak\":%s}}}",
-                    rms_str, pk_str);
-            send_websocket_frame(client_fds[i], msg);
-
-            free(msg);
-            free(rms_str);
-            free(pk_str);
+              char* msg = (char*)malloc(pb_channels * 100 + 200);
+              if (msg) {
+                sprintf(msg,
+                        "{\"SignalLevelsEvent\":{\"result\":\"Ok\",\"value\":{"
+                        "\"side\":\"playback\",\"rms\":%s,\"peak\":%s}}}",
+                        rms_str, pk_str);
+                send_websocket_frame(client_fds[i], msg);
+                free(msg);
+              }
+            }
+            if (rms_str) free(rms_str);
+            if (pk_str) free(pk_str);
           }
           if (send_cap && cap_channels > 0) {
             char* rms_str = (char*)malloc(cap_channels * 30 + 10);
             char* pk_str = (char*)malloc(cap_channels * 30 + 10);
-            format_double_array(current_cap_rms, cap_channels, rms_str,
-                                cap_channels * 30 + 10);
-            format_double_array(current_cap_peak, cap_channels, pk_str,
-                                cap_channels * 30 + 10);
+            if (rms_str && pk_str) {
+              format_double_array(current_cap_rms, cap_channels, rms_str,
+                                  cap_channels * 30 + 10);
+              format_double_array(current_cap_peak, cap_channels, pk_str,
+                                  cap_channels * 30 + 10);
 
-            char* msg = (char*)malloc(cap_channels * 100 + 200);
-            sprintf(msg,
-                    "{\"SignalLevelsEvent\":{\"result\":\"Ok\",\"value\":{"
-                    "\"side\":\"capture\",\"rms\":%s,\"peak\":%s}}}",
-                    rms_str, pk_str);
-            send_websocket_frame(client_fds[i], msg);
-
-            free(msg);
-            free(rms_str);
-            free(pk_str);
+              char* msg = (char*)malloc(cap_channels * 100 + 200);
+              if (msg) {
+                sprintf(msg,
+                        "{\"SignalLevelsEvent\":{\"result\":\"Ok\",\"value\":{"
+                        "\"side\":\"capture\",\"rms\":%s,\"peak\":%s}}}",
+                        rms_str, pk_str);
+                send_websocket_frame(client_fds[i], msg);
+                free(msg);
+              }
+            }
+            if (rms_str) free(rms_str);
+            if (pk_str) free(pk_str);
           }
         }
 
@@ -3133,11 +3186,13 @@ static void* server_thread_func(void* arg) {
               if (spec_buf) {
                 format_spectrum(&spec, spec_buf, spec_buf_size);
                 char* msg = (char*)malloc(spec_buf_size + 120);
-                sprintf(msg,
-                        "{\"SpectrumEvent\":{\"result\":\"Ok\",\"value\":%s}}",
-                        spec_buf);
-                send_websocket_frame(client_fds[i], msg);
-                free(msg);
+                if (msg) {
+                  sprintf(msg,
+                          "{\"SpectrumEvent\":{\"result\":\"Ok\",\"value\":%s}}",
+                          spec_buf);
+                  send_websocket_frame(client_fds[i], msg);
+                  free(msg);
+                }
                 free(spec_buf);
               }
               if (spec.frequencies) free(spec.frequencies);
@@ -3180,14 +3235,7 @@ static void* server_thread_func(void* arg) {
           int n = recv(client_fds[i], buf, sizeof(buf) - 1, 0);
           if (n <= 0) {
             CLOSE_SOCKET(client_fds[i]);
-            if (server->client_sessions[i].vu_pb_rms)
-              free(server->client_sessions[i].vu_pb_rms);
-            if (server->client_sessions[i].vu_pb_peak)
-              free(server->client_sessions[i].vu_pb_peak);
-            if (server->client_sessions[i].vu_cap_rms)
-              free(server->client_sessions[i].vu_cap_rms);
-            if (server->client_sessions[i].vu_cap_peak)
-              free(server->client_sessions[i].vu_cap_peak);
+            client_session_clear(&server->client_sessions[i]);
 
             for (int j = i; j < num_clients - 1; j++) {
               client_fds[j] = client_fds[j + 1];
@@ -3251,14 +3299,7 @@ static void* server_thread_func(void* arg) {
               if (first_byte == 0x81 || (first_byte & 0x0F) == 0x08) {
                 if ((first_byte & 0x0F) == 0x08) {
                   CLOSE_SOCKET(client_fds[i]);
-                  if (server->client_sessions[i].vu_pb_rms)
-                    free(server->client_sessions[i].vu_pb_rms);
-                  if (server->client_sessions[i].vu_pb_peak)
-                    free(server->client_sessions[i].vu_pb_peak);
-                  if (server->client_sessions[i].vu_cap_rms)
-                    free(server->client_sessions[i].vu_cap_rms);
-                  if (server->client_sessions[i].vu_cap_peak)
-                    free(server->client_sessions[i].vu_cap_peak);
+                  client_session_clear(&server->client_sessions[i]);
                   for (int j = i; j < num_clients - 1; j++) {
                     client_fds[j] = client_fds[j + 1];
                     strcpy(last_state[j], last_state[j + 1]);
@@ -3272,7 +3313,7 @@ static void* server_thread_func(void* arg) {
                 }
                 if (offset + 2 > n) break;
                 unsigned char len_byte = (unsigned char)buf[offset + 1];
-                int payload_len = len_byte & 0x7F;
+                size_t payload_len = len_byte & 0x7F;
                 int mask_offset = 2;
                 if (payload_len == 126) {
                   if (offset + 4 > n) break;
@@ -3288,12 +3329,27 @@ static void* server_thread_func(void* arg) {
                   }
                   mask_offset = 10;
                 }
-                if (offset + mask_offset + 4 + payload_len > n) break;
+                if (payload_len > 4096 || offset + mask_offset + 4 + payload_len > (size_t)n) {
+                  // Payload size exceeds buffer limits or packet bounds. Close socket.
+                  CLOSE_SOCKET(client_fds[i]);
+                  client_session_clear(&server->client_sessions[i]);
+
+                  for (int j = i; j < num_clients - 1; j++) {
+                    client_fds[j] = client_fds[j + 1];
+                    strcpy(last_state[j], last_state[j + 1]);
+                    server->client_sessions[j] = server->client_sessions[j + 1];
+                  }
+                  memset(&server->client_sessions[num_clients - 1], 0,
+                         sizeof(client_session_t));
+                  num_clients--;
+                  i--;
+                  break;
+                }
 
                 unsigned char* mask =
                     (unsigned char*)&buf[offset + mask_offset];
                 char* payload = &buf[offset + mask_offset + 4];
-                for (int p = 0; p < payload_len; p++) {
+                for (size_t p = 0; p < payload_len; p++) {
                   payload[p] ^= mask[p % 4];
                 }
                 char saved_char = payload[payload_len];
@@ -3303,35 +3359,35 @@ static void* server_thread_func(void* arg) {
                              log_arg_string(payload), log_arg_none(),
                              log_arg_none(), log_arg_none());
 
-                char response[16384];
-                response[0] = '\0';
-                websocket_server_handle_command(server, i, payload, response,
-                                                sizeof(response));
+                dyn_string_t ds;
+                dyn_string_init(&ds, 4096);
+                websocket_server_handle_command(server, i, payload, &ds);
 
                 payload[payload_len] = saved_char;
 
-                if (response[0] != '\0') {
+                if (ds.data && ds.data[0] != '\0') {
                   logger_debug(&server_logger, "Sending WS response: %s",
-                               log_arg_string(response), log_arg_none(),
+                               log_arg_string(ds.data), log_arg_none(),
                                log_arg_none(), log_arg_none());
-                  send_websocket_frame(client_fds[i], response);
+                  send_websocket_frame(client_fds[i], ds.data);
                 }
+                dyn_string_free(&ds);
                 offset += mask_offset + 4 + payload_len;
               } else {
                 logger_debug(&server_logger, "Received raw TCP: %s",
                              log_arg_string(&buf[offset]), log_arg_none(),
                              log_arg_none(), log_arg_none());
 
-                char response[16384];
-                response[0] = '\0';
-                websocket_server_handle_command(server, i, &buf[offset],
-                                                response, sizeof(response));
-                if (response[0] != '\0') {
+                dyn_string_t ds;
+                dyn_string_init(&ds, 4096);
+                websocket_server_handle_command(server, i, &buf[offset], &ds);
+                if (ds.data && ds.data[0] != '\0') {
                   logger_debug(&server_logger, "Sending raw TCP response: %s",
-                               log_arg_string(response), log_arg_none(),
+                               log_arg_string(ds.data), log_arg_none(),
                                log_arg_none(), log_arg_none());
-                  send(client_fds[i], response, (int)strlen(response), 0);
+                  send(client_fds[i], ds.data, (int)strlen(ds.data), 0);
                 }
+                dyn_string_free(&ds);
                 break;
               }
             }
@@ -3339,6 +3395,7 @@ static void* server_thread_func(void* arg) {
         }
       }
     }
+    pthread_mutex_unlock(&server->sessions_mutex);
   }
   for (int i = 0; i < num_clients; i++) {
     CLOSE_SOCKET(client_fds[i]);
@@ -3434,16 +3491,10 @@ void websocket_server_free(websocket_server_t* server) {
   websocket_server_stop(server);
 
   // Free level history arrays
-  for (size_t i = 0; i < 300; i++) {
-    if (server->capture_peak_history.samples[i].levels)
-      free(server->capture_peak_history.samples[i].levels);
-    if (server->capture_rms_history.samples[i].levels)
-      free(server->capture_rms_history.samples[i].levels);
-    if (server->playback_peak_history.samples[i].levels)
-      free(server->playback_peak_history.samples[i].levels);
-    if (server->playback_rms_history.samples[i].levels)
-      free(server->playback_rms_history.samples[i].levels);
-  }
+  level_history_clear(&server->capture_peak_history);
+  level_history_clear(&server->capture_rms_history);
+  level_history_clear(&server->playback_peak_history);
+  level_history_clear(&server->playback_rms_history);
 
   // Free global peak arrays
   if (server->capture_global_peaks) free(server->capture_global_peaks);
@@ -3451,46 +3502,54 @@ void websocket_server_free(websocket_server_t* server) {
 
   // Free client sessions
   for (size_t i = 0; i < 32; i++) {
-    if (server->client_sessions[i].vu_pb_rms)
-      free(server->client_sessions[i].vu_pb_rms);
-    if (server->client_sessions[i].vu_pb_peak)
-      free(server->client_sessions[i].vu_pb_peak);
-    if (server->client_sessions[i].vu_cap_rms)
-      free(server->client_sessions[i].vu_cap_rms);
-    if (server->client_sessions[i].vu_cap_peak)
-      free(server->client_sessions[i].vu_cap_peak);
+    client_session_clear(&server->client_sessions[i]);
   }
 
+  pthread_mutex_destroy(&server->sessions_mutex);
   free(server);
 }
 
 bool websocket_server_get_client_vu_subscribed(const websocket_server_t* server,
                                                int client_idx) {
   if (!server || client_idx < 0 || client_idx >= 32) return false;
-  return server->client_sessions[client_idx].vu_subscribed;
+  pthread_mutex_lock((pthread_mutex_t*)&server->sessions_mutex);
+  bool res = server->client_sessions[client_idx].vu_subscribed;
+  pthread_mutex_unlock((pthread_mutex_t*)&server->sessions_mutex);
+  return res;
 }
 
 double websocket_server_get_client_vu_max_rate(const websocket_server_t* server,
                                                int client_idx) {
   if (!server || client_idx < 0 || client_idx >= 32) return 0.0;
-  return server->client_sessions[client_idx].vu_max_rate;
+  pthread_mutex_lock((pthread_mutex_t*)&server->sessions_mutex);
+  double res = server->client_sessions[client_idx].vu_max_rate;
+  pthread_mutex_unlock((pthread_mutex_t*)&server->sessions_mutex);
+  return res;
 }
 
 double websocket_server_get_client_vu_attack(const websocket_server_t* server,
                                              int client_idx) {
   if (!server || client_idx < 0 || client_idx >= 32) return 0.0;
-  return server->client_sessions[client_idx].vu_attack;
+  pthread_mutex_lock((pthread_mutex_t*)&server->sessions_mutex);
+  double res = server->client_sessions[client_idx].vu_attack;
+  pthread_mutex_unlock((pthread_mutex_t*)&server->sessions_mutex);
+  return res;
 }
 
 double websocket_server_get_client_vu_release(const websocket_server_t* server,
                                               int client_idx) {
   if (!server || client_idx < 0 || client_idx >= 32) return 0.0;
-  return server->client_sessions[client_idx].vu_release;
+  pthread_mutex_lock((pthread_mutex_t*)&server->sessions_mutex);
+  double res = server->client_sessions[client_idx].vu_release;
+  pthread_mutex_unlock((pthread_mutex_t*)&server->sessions_mutex);
+  return res;
 }
 
 void websocket_server_set_client_vu_subscribed(websocket_server_t* server,
                                                int client_idx,
                                                bool subscribed) {
   if (!server || client_idx < 0 || client_idx >= 32) return;
+  pthread_mutex_lock(&server->sessions_mutex);
   server->client_sessions[client_idx].vu_subscribed = subscribed;
+  pthread_mutex_unlock(&server->sessions_mutex);
 }

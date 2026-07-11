@@ -21,6 +21,7 @@ struct async_poly_resampler {
   double base_ratio;
   double resample_ratio;
   double target_ratio;
+  double max_relative_ratio;
   double last_index;  // tracking index
   // Per-channel input buffer. Layout:
   //   [0 .. 2*nbr_points)            — history padding zone
@@ -42,7 +43,7 @@ async_poly_resampler_t* async_poly_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,
     poly_interpolation_t interpolation, size_t chunk_size,
     double max_relative_ratio) {
-  if (channels == 0 || chunk_size == 0 || input_rate == 0 || output_rate == 0)
+  if (channels == 0 || channels > 256 || chunk_size == 0 || input_rate == 0 || output_rate == 0)
     return NULL;
   if (max_relative_ratio < 1.0) max_relative_ratio = 1.1;
 
@@ -57,20 +58,22 @@ async_poly_resampler_t* async_poly_resampler_create(
       (size_t)poly_interpolation_nbr_points(interpolation);
   resampler->base_ratio = (double)output_rate / (double)input_rate;
 
-  if (chunk_size < 2 * resampler->interpolator_len) {
-    free(resampler);
+  if (chunk_size < 2 * resampler->interpolator_len ||
+      chunk_size > SIZE_MAX - 2 * resampler->interpolator_len) {
+    async_poly_resampler_free(resampler);
     return NULL;
   }
 
   size_t buf_len = chunk_size + 2 * resampler->interpolator_len;
   resampler->input_buffer = audio_buffers_create(channels, buf_len);
   if (!resampler->input_buffer) {
-    free(resampler);
+    async_poly_resampler_free(resampler);
     return NULL;
   }
 
   resampler->resample_ratio = resampler->base_ratio;
   resampler->target_ratio = resampler->base_ratio;
+  resampler->max_relative_ratio = max_relative_ratio;
   // Set initial index based on number of points.
   resampler->last_index = -((double)resampler->interpolator_len / 2.0);
 
@@ -84,6 +87,11 @@ async_poly_resampler_t* async_poly_resampler_create(
       ((double)chunk_size - (double)(resampler->interpolator_len + 1) -
        most_neg_last_index) *
       max_ratio_abs;
+
+  if (isnan(raw_max) || isinf(raw_max) || raw_max < 0.0 || raw_max > (double)(SIZE_MAX - 32)) {
+    async_poly_resampler_free(resampler);
+    return NULL;
+  }
   resampler->max_output_frames = (size_t)(ceil(raw_max)) + 16;
 
   resampler->start_idx_scratch =
@@ -91,10 +99,7 @@ async_poly_resampler_t* async_poly_resampler_create(
   resampler->frac_scratch =
       (double*)calloc(resampler->max_output_frames, sizeof(double));
   if (!resampler->start_idx_scratch || !resampler->frac_scratch) {
-    audio_buffers_free(resampler->input_buffer);
-    free(resampler->start_idx_scratch);
-    free(resampler->frac_scratch);
-    free(resampler);
+    async_poly_resampler_free(resampler);
     return NULL;
   }
 
@@ -112,6 +117,8 @@ void async_poly_resampler_free(async_poly_resampler_t* resampler) {
 void async_poly_resampler_set_relative_ratio(async_poly_resampler_t* resampler,
                                              double multiplier) {
   if (!resampler) return;
+  if (multiplier < 0.000001) multiplier = 0.000001;
+  if (multiplier > resampler->max_relative_ratio) multiplier = resampler->max_relative_ratio;
   resampler->target_ratio = resampler->base_ratio * multiplier;
 }
 
@@ -340,10 +347,23 @@ resampler_error_t async_poly_resampler_process(
   if (audio_chunk_get_valid_frames(input) != resampler->chunk_size) {
     return RESAMPLER_ERR_INPUT_SIZE_MISMATCH;
   }
+  if (audio_chunk_get_channels(input) != resampler->channels) {
+    return RESAMPLER_ERR_CHANNEL_COUNT_MISMATCH;
+  }
   if (audio_chunk_get_channels(output) != resampler->channels) {
     return RESAMPLER_ERR_CHANNEL_COUNT_MISMATCH;
   }
   size_t output_frames = get_next_output_frames(resampler);
+  if (output_frames == 0) {
+    resampler->last_index -= (double)resampler->chunk_size;
+    double min_safe_idx = -2.0 * (double)resampler->interpolator_len;
+    if (resampler->last_index < min_safe_idx) {
+      resampler->last_index = min_safe_idx;
+    }
+    resampler->resample_ratio = resampler->target_ratio;
+    audio_chunk_set_valid_frames(output, 0);
+    return RESAMPLER_OK;
+  }
   if (audio_chunk_get_frames(output) < output_frames) {
     return RESAMPLER_ERR_OUTPUT_BUFFER_TOO_SMALL;
   }
@@ -411,6 +431,10 @@ resampler_error_t async_poly_resampler_process(
   }
 
   resampler->last_index = final_idx - (double)resampler->chunk_size;
+  double min_safe_idx = -2.0 * (double)resampler->interpolator_len;
+  if (resampler->last_index < min_safe_idx) {
+    resampler->last_index = min_safe_idx;
+  }
   resampler->resample_ratio = resampler->target_ratio;
   audio_chunk_set_valid_frames(output, output_frames);
   return RESAMPLER_OK;

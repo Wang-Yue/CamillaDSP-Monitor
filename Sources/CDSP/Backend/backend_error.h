@@ -24,7 +24,8 @@ typedef enum {
   BACKEND_ERROR_INITIALIZATION_FAILED, /**< Backend initialization failed. */
   BACKEND_ERROR_READ_ERROR,            /**< Error reading from device. */
   BACKEND_ERROR_WRITE_ERROR,           /**< Error writing to device. */
-  BACKEND_ERROR_READ_EOF               /**< End of file/stream reached. */
+  BACKEND_ERROR_READ_EOF,              /**< End of file/stream reached. */
+  BACKEND_ERROR_INVALID_CHANNELS       /**< Invalid channel count. */
 } backend_error_type_t;
 
 /**

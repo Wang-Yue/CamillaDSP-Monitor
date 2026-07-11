@@ -592,9 +592,9 @@ public struct BiquadComboParameters: Codable, Sendable, Equatable {
         throw ConfigError.invalidFilter(
           "BiquadCombo: freq must be less than Nyquist (\(nyquist)), got \(freq)")
       }
-      guard let order = order, order > 0 else {
+      guard let order = order, order >= 1, order <= 64 else {
         throw ConfigError.invalidFilter(
-          "BiquadCombo: order must be > 0, got \(String(describing: order))")
+          "BiquadCombo: order must be between 1 and 64, got \(String(describing: order))")
       }
     case .linkwitzRileyLowpass, .linkwitzRileyHighpass:
       guard let freq = freq, freq > 0 else {
@@ -605,9 +605,9 @@ public struct BiquadComboParameters: Codable, Sendable, Equatable {
         throw ConfigError.invalidFilter(
           "BiquadCombo: freq must be less than Nyquist (\(nyquist)), got \(freq)")
       }
-      guard let order = order, order > 0, order % 2 == 0 else {
+      guard let order = order, order >= 2, order <= 64, order % 2 == 0 else {
         throw ConfigError.invalidFilter(
-          "Linkwitz-Riley order must be an even non-zero number, got \(String(describing: order))")
+          "Linkwitz-Riley order must be an even number between 2 and 64 (inclusive), got \(String(describing: order))")
       }
     case .tilt:
       guard let gain = gain else {
@@ -640,6 +640,9 @@ public struct BiquadComboParameters: Codable, Sendable, Equatable {
     case .graphicEqualizer:
       guard let gains = gains, !gains.isEmpty else {
         throw ConfigError.invalidFilter("GraphicEqualizer: gains must be non-empty")
+      }
+      guard gains.count <= 32 else {
+        throw ConfigError.invalidFilter("GraphicEqualizer: number of gains must be <= 32, got \(gains.count)")
       }
       guard let freqMin = freqMin, freqMin > 0,
         let freqMax = freqMax, freqMax > 0
@@ -748,6 +751,9 @@ public struct LimiterParameters: Codable, Sendable, Equatable {
   }
 
   public func validate() throws {
+    guard clipLimit.isFinite, clipLimit >= -120.0, clipLimit <= 20.0 else {
+      throw ConfigError.invalidFilter("Limiter: clip_limit must be finite and between -120.0 and 20.0, got \(clipLimit)")
+    }
   }
 }
 
@@ -769,6 +775,12 @@ public struct LookaheadLimiterParameters: Codable, Sendable, Equatable {
   }
 
   public func validate(sampleRate: Int) throws {
+    guard sampleRate > 0 else {
+      throw ConfigError.invalidFilter("Lookahead Limiter: sample rate must be > 0, got \(sampleRate)")
+    }
+    guard limit.isFinite, limit >= -120.0, limit <= 20.0 else {
+      throw ConfigError.invalidFilter("Lookahead Limiter: limit must be finite and between -120.0 and 20.0, got \(limit)")
+    }
     guard attack >= 0 else {
       throw ConfigError.invalidFilter("Lookahead Limiter: attack cannot be negative, got \(attack)")
     }

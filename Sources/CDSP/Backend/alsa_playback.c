@@ -31,6 +31,7 @@ struct alsa_playback {
 
   snd_mixer_t* mixer;
   snd_mixer_elem_t* pitch_elem;
+  pthread_mutex_t mixer_mutex;
 };
 
 /**
@@ -212,6 +213,7 @@ playback_backend_t* alsa_playback_create(const playback_device_config_t* config,
   playback->params = params;
   atomic_init(&playback->paused, false);
   playback->currently_paused = false;
+  pthread_mutex_init(&playback->mixer_mutex, NULL);
 
   playback_backend_t* backend =
       (playback_backend_t*)calloc(1, sizeof(playback_backend_t));
@@ -226,6 +228,10 @@ playback_backend_t* alsa_playback_create(const playback_device_config_t* config,
 
 bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
   pthread_mutex_lock(&g_alsa_mutex);
+  if (playback->pcm != NULL) {
+    pthread_mutex_unlock(&g_alsa_mutex);
+    return true;
+  }
   int rc;
   rc = snd_pcm_open(&playback->pcm, playback->device_name,
                     SND_PCM_STREAM_PLAYBACK, 0);
@@ -407,12 +413,14 @@ bool alsa_playback_open(alsa_playback_t* playback, backend_error_t* err) {
         if (snd_mixer_attach(mixer, ctl_name) >= 0 &&
             snd_mixer_selem_register(mixer, NULL, NULL) >= 0 &&
             snd_mixer_load(mixer) >= 0) {
+          pthread_mutex_lock(&playback->mixer_mutex);
           playback->mixer = mixer;
 
           snd_mixer_selem_id_t* sid;
           snd_mixer_selem_id_alloca(&sid);
           snd_mixer_selem_id_set_name(sid, "Playback Pitch 1000000");
           playback->pitch_elem = snd_mixer_find_selem(mixer, sid);
+          pthread_mutex_unlock(&playback->mixer_mutex);
         } else {
           snd_mixer_close(mixer);
         }
@@ -439,6 +447,14 @@ error_cleanup:
 bool alsa_playback_write(alsa_playback_t* playback, const audio_chunk_t* chunk,
                          backend_error_t* err) {
   if (!playback->pcm) return false;
+
+  if (audio_chunk_get_channels(chunk) < (size_t)playback->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_WRITE_ERROR,
+                         "Chunk channels count is smaller than playback device channels");
+    }
+    return false;
+  }
 
   size_t frames = audio_chunk_get_valid_frames(chunk);
   if (frames == 0) return true;
@@ -566,11 +582,13 @@ void alsa_playback_close(alsa_playback_t* playback) {
     free(playback->interleaved_buf);
     playback->interleaved_buf = NULL;
   }
+  pthread_mutex_lock(&playback->mixer_mutex);
   if (playback->mixer) {
     snd_mixer_close(playback->mixer);
     playback->mixer = NULL;
     playback->pitch_elem = NULL;
   }
+  pthread_mutex_unlock(&playback->mixer_mutex);
 }
 
 size_t alsa_playback_get_buffer_level(alsa_playback_t* playback) {
@@ -597,10 +615,8 @@ bool alsa_playback_prefill_silence(alsa_playback_t* playback, size_t frames,
                                    backend_error_t* err) {
   if (!playback->pcm) return false;
 
-  size_t sample_size = 4;
-  if (playback->format == SND_PCM_FORMAT_S16_LE) {
-    sample_size = 2;
-  }
+  int bits = snd_pcm_format_physical_width(playback->format);
+  size_t sample_size = (bits > 0) ? ((size_t)bits / 8) : 4;
 
   size_t zero_buf_size = frames * playback->channels * sample_size;
   void* zero_buf = calloc(1, zero_buf_size);
@@ -628,11 +644,20 @@ void alsa_playback_set_is_paused(alsa_playback_t* playback, bool paused) {
 }
 
 bool alsa_playback_pitch_control_supported(alsa_playback_t* playback) {
-  return playback && playback->pitch_elem != NULL;
+  if (!playback) return false;
+  pthread_mutex_lock(&playback->mixer_mutex);
+  bool res = playback->pitch_elem != NULL;
+  pthread_mutex_unlock(&playback->mixer_mutex);
+  return res;
 }
 
 void alsa_playback_set_pitch(alsa_playback_t* playback, double multiplier) {
-  if (!playback || !playback->pitch_elem) return;
+  if (!playback) return;
+  pthread_mutex_lock(&playback->mixer_mutex);
+  if (!playback->pitch_elem) {
+    pthread_mutex_unlock(&playback->mixer_mutex);
+    return;
+  }
   // Calculate raw pitch value. The pitch element expects a value mapped to
   // 1000000 / multiplier. A higher multiplier means higher pitch (faster
   // playback), which translates to a smaller interval value on the control.
@@ -642,11 +667,13 @@ void alsa_playback_set_pitch(alsa_playback_t* playback, double multiplier) {
   } else if (snd_mixer_selem_has_capture_volume(playback->pitch_elem)) {
     snd_mixer_selem_set_capture_volume_all(playback->pitch_elem, value);
   }
+  pthread_mutex_unlock(&playback->mixer_mutex);
 }
 
 void alsa_playback_destroy(alsa_playback_t* playback) {
   if (!playback) return;
   alsa_playback_close(playback);
+  pthread_mutex_destroy(&playback->mixer_mutex);
   free(playback);
 }
 

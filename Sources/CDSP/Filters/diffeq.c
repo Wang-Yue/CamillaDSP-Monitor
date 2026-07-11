@@ -17,7 +17,7 @@ struct diffeq_filter {
 
 diffeq_filter_t* diffeq_filter_create(const char* name,
                                       const diff_eq_parameters_t* params) {
-  diffeq_filter_t* filter = (diffeq_filter_t*)malloc(sizeof(diffeq_filter_t));
+  diffeq_filter_t* filter = (diffeq_filter_t*)calloc(1, sizeof(diffeq_filter_t));
   if (!filter) return NULL;
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
@@ -38,6 +38,11 @@ diffeq_filter_t* diffeq_filter_create(const char* name,
   filter->b = (double*)malloc(b_cnt * sizeof(double));
   filter->x = (double*)calloc(b_cnt, sizeof(double));
   filter->y = (double*)calloc(a_cnt, sizeof(double));
+
+  if (!filter->a || !filter->b || !filter->x || !filter->y) {
+    diffeq_filter_free(filter);
+    return NULL;
+  }
 
   if (params && params->a && params->a_count > 0) {
     memcpy(filter->a, params->a, a_cnt * sizeof(double));

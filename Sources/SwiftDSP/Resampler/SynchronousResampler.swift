@@ -151,6 +151,14 @@ final class SynchronousResampler: AudioResampler {
     let inputBlock = K * L
     let outputBlock = K * M
 
+    guard inputBlock > 0 && outputBlock > 0 else {
+      fatalError("Block sizes must be positive: inputBlock=\(inputBlock), outputBlock=\(outputBlock)")
+    }
+    let limit = Int.max / 2
+    guard inputBlock <= limit && outputBlock <= limit else {
+      fatalError("Block sizes too large, overflow risk: inputBlock=\(inputBlock), outputBlock=\(outputBlock)")
+    }
+
     self.inputBlockLen = inputBlock
     self.outputBlockLen = outputBlock
     self.chunkSize = inputBlock
@@ -240,6 +248,9 @@ final class SynchronousResampler: AudioResampler {
   func process(input: AudioChunk, into output: inout AudioChunk) throws {
     guard input.validFrames == chunkSize else {
       throw ResamplerError.inputSizeMismatch(needed: chunkSize, got: input.validFrames)
+    }
+    guard input.channels == channels else {
+      throw ResamplerError.channelCountMismatch(needed: channels, got: input.channels)
     }
     guard output.channels == channels else {
       throw ResamplerError.channelCountMismatch(needed: channels, got: output.channels)

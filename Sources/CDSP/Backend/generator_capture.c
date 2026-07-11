@@ -163,7 +163,13 @@ bool generator_capture_open(generator_capture_t* capture,
 
 bool generator_capture_read(generator_capture_t* capture, size_t frames,
                             audio_chunk_t* chunk, backend_error_t* err) {
-  (void)err;
+  if (audio_chunk_get_channels(chunk) < (size_t)capture->channels) {
+    if (err) {
+      backend_error_init(err, BACKEND_ERROR_INVALID_CHANNELS,
+                         "Chunk channels count does not match generator channels");
+    }
+    return false;
+  }
   if (capture->is_paused) {
     audio_chunk_set_valid_frames(chunk, 0);
     return false;

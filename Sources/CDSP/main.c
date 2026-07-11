@@ -239,59 +239,89 @@ int main(int argc, char** argv) {
       }
     } else if (strcmp(arg, "-g") == 0 || strcmp(arg, "--gain") == 0) {
       if (i + 1 < argc) {
+#if FADER_COUNT > 0
         initial_gains[0] = atof(argv[++i]);
         has_initial_gains[0] = true;
+#else
+        i++;
+#endif
       } else {
         printf("Error: Invalid gain value\n");
         return 1;
       }
     } else if (strcmp(arg, "--gain1") == 0) {
       if (i + 1 < argc) {
+#if FADER_COUNT > 1
         initial_gains[1] = atof(argv[++i]);
         has_initial_gains[1] = true;
+#else
+        i++;
+#endif
       } else {
         printf("Error: Invalid gain1 value\n");
         return 1;
       }
     } else if (strcmp(arg, "--gain2") == 0) {
       if (i + 1 < argc) {
+#if FADER_COUNT > 2
         initial_gains[2] = atof(argv[++i]);
         has_initial_gains[2] = true;
+#else
+        i++;
+#endif
       } else {
         printf("Error: Invalid gain2 value\n");
         return 1;
       }
     } else if (strcmp(arg, "--gain3") == 0) {
       if (i + 1 < argc) {
+#if FADER_COUNT > 3
         initial_gains[3] = atof(argv[++i]);
         has_initial_gains[3] = true;
+#else
+        i++;
+#endif
       } else {
         printf("Error: Invalid gain3 value\n");
         return 1;
       }
     } else if (strcmp(arg, "--gain4") == 0) {
       if (i + 1 < argc) {
+#if FADER_COUNT > 4
         initial_gains[4] = atof(argv[++i]);
         has_initial_gains[4] = true;
+#else
+        i++;
+#endif
       } else {
         printf("Error: Invalid gain4 value\n");
         return 1;
       }
     } else if (strcmp(arg, "-m") == 0 || strcmp(arg, "--mute") == 0) {
+#if FADER_COUNT > 0
       initial_mutes[0] = true;
       has_initial_mutes[0] = true;
+#endif
     } else if (strcmp(arg, "--mute1") == 0) {
+#if FADER_COUNT > 1
       initial_mutes[1] = true;
       has_initial_mutes[1] = true;
+#endif
     } else if (strcmp(arg, "--mute2") == 0) {
+#if FADER_COUNT > 2
       initial_mutes[2] = true;
       has_initial_mutes[2] = true;
+#endif
     } else if (strcmp(arg, "--mute3") == 0) {
+#if FADER_COUNT > 3
       initial_mutes[3] = true;
       has_initial_mutes[3] = true;
+#endif
     } else if (strcmp(arg, "--mute4") == 0) {
+#if FADER_COUNT > 4
       initial_mutes[4] = true;
       has_initial_mutes[4] = true;
+#endif
     } else if (strcmp(arg, "-r") == 0 || strcmp(arg, "--samplerate") == 0) {
       if (i + 1 < argc) {
         samplerate_override = atoi(argv[++i]);

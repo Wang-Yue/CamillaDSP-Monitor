@@ -121,6 +121,7 @@ struct synchronous_resampler {
   double* working_spec_im;
 };
 
+#include <stdint.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -177,6 +178,11 @@ synchronous_resampler_t* synchronous_resampler_create(
   size_t input_block = k * l;
   size_t output_block = k * m;
 
+  if (input_block > SIZE_MAX / 2 || output_block > SIZE_MAX / 2) {
+    synchronous_resampler_free(resampler);
+    return NULL;
+  }
+
   resampler->input_block_len = input_block;
   resampler->output_block_len = output_block;
   resampler->chunk_size = input_block;
@@ -197,7 +203,7 @@ synchronous_resampler_t* synchronous_resampler_create(
   double* kernel =
       make_sinc_table(input_block, 1, WINDOW_FUNCTION_BLACKMAN_HARRIS2, cutoff);
   if (!kernel) {
-    free(resampler);
+    synchronous_resampler_free(resampler);
     return NULL;
   }
 
@@ -210,7 +216,7 @@ synchronous_resampler_t* synchronous_resampler_create(
   double* filter_time = (double*)calloc(two_n, sizeof(double));
   if (!filter_time) {
     free(kernel);
-    free(resampler);
+    synchronous_resampler_free(resampler);
     return NULL;
   }
   double scale = 1.0 / (double)two_n;
@@ -222,10 +228,8 @@ synchronous_resampler_t* synchronous_resampler_create(
   resampler->input_fft = real_fft_create(two_n);
   resampler->output_fft = real_fft_create(2 * output_block);
   if (!resampler->input_fft || !resampler->output_fft) {
-    if (resampler->input_fft) real_fft_free(resampler->input_fft);
-    if (resampler->output_fft) real_fft_free(resampler->output_fft);
     free(filter_time);
-    free(resampler);
+    synchronous_resampler_free(resampler);
     return NULL;
   }
 
@@ -235,12 +239,8 @@ synchronous_resampler_t* synchronous_resampler_create(
   resampler->filter_spec_re = (double*)calloc(input_block + 1, sizeof(double));
   resampler->filter_spec_im = (double*)calloc(input_block + 1, sizeof(double));
   if (!resampler->filter_spec_re || !resampler->filter_spec_im) {
-    real_fft_free(resampler->input_fft);
-    real_fft_free(resampler->output_fft);
     free(filter_time);
-    free(resampler->filter_spec_re);
-    free(resampler->filter_spec_im);
-    free(resampler);
+    synchronous_resampler_free(resampler);
     return NULL;
   }
   real_fft_forward(resampler->input_fft, filter_time, resampler->filter_spec_re,
@@ -249,23 +249,13 @@ synchronous_resampler_t* synchronous_resampler_create(
 
   resampler->carries = (double**)calloc(channels, sizeof(double*));
   if (!resampler->carries) {
-    real_fft_free(resampler->input_fft);
-    real_fft_free(resampler->output_fft);
-    free(resampler->filter_spec_re);
-    free(resampler->filter_spec_im);
-    free(resampler);
+    synchronous_resampler_free(resampler);
     return NULL;
   }
   for (size_t ch = 0; ch < channels; ch++) {
     resampler->carries[ch] = (double*)calloc(output_block, sizeof(double));
     if (!resampler->carries[ch]) {
-      for (size_t c = 0; c < ch; c++) free(resampler->carries[c]);
-      free(resampler->carries);
-      real_fft_free(resampler->input_fft);
-      real_fft_free(resampler->output_fft);
-      free(resampler->filter_spec_re);
-      free(resampler->filter_spec_im);
-      free(resampler);
+      synchronous_resampler_free(resampler);
       return NULL;
     }
   }
@@ -276,16 +266,7 @@ synchronous_resampler_t* synchronous_resampler_create(
   resampler->working_spec_im = (double*)calloc(max_len + 1, sizeof(double));
   if (!resampler->working_time || !resampler->working_spec_re ||
       !resampler->working_spec_im) {
-    for (size_t ch = 0; ch < channels; ch++) free(resampler->carries[ch]);
-    free(resampler->carries);
-    real_fft_free(resampler->input_fft);
-    real_fft_free(resampler->output_fft);
-    free(resampler->filter_spec_re);
-    free(resampler->filter_spec_im);
-    free(resampler->working_time);
-    free(resampler->working_spec_re);
-    free(resampler->working_spec_im);
-    free(resampler);
+    synchronous_resampler_free(resampler);
     return NULL;
   }
 
@@ -349,6 +330,9 @@ resampler_error_t synchronous_resampler_process(
   if (!resampler || !input || !output) return RESAMPLER_ERR_INVALID_PARAMETER;
   if (audio_chunk_get_valid_frames(input) != resampler->chunk_size) {
     return RESAMPLER_ERR_INPUT_SIZE_MISMATCH;
+  }
+  if (audio_chunk_get_channels(input) != resampler->channels) {
+    return RESAMPLER_ERR_CHANNEL_COUNT_MISMATCH;
   }
   if (audio_chunk_get_channels(output) != resampler->channels) {
     return RESAMPLER_ERR_CHANNEL_COUNT_MISMATCH;

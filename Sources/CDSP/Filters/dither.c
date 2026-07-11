@@ -24,10 +24,14 @@ struct dither_filter {
 // MARK: - NoiseShaper
 noise_shaper_t* noise_shaper_create(const double* filter_coeffs, size_t count) {
   if (!filter_coeffs || count == 0) return NULL;
-  noise_shaper_t* shaper = (noise_shaper_t*)malloc(sizeof(noise_shaper_t));
+  noise_shaper_t* shaper = (noise_shaper_t*)calloc(1, sizeof(noise_shaper_t));
   if (!shaper) return NULL;
   shaper->filter = (double*)malloc(count * sizeof(double));
   shaper->buffer = (double*)calloc(count, sizeof(double));
+  if (!shaper->filter || !shaper->buffer) {
+    noise_shaper_free(shaper);
+    return NULL;
+  }
   memcpy(shaper->filter, filter_coeffs, count * sizeof(double));
   shaper->filter_count = count;
   shaper->write_index = 0;
@@ -355,7 +359,16 @@ dither_filter_t* dither_filter_create(const char* name,
     filter->amplitude = 0.0;
   }
 
-  filter->shaper = noise_shaper_create_for_type(dither_type);
+  if (dither_type != DITHER_TYPE_NONE && dither_type != DITHER_TYPE_FLAT &&
+      dither_type != DITHER_TYPE_HIGHPASS) {
+    filter->shaper = noise_shaper_create_for_type(dither_type);
+    if (!filter->shaper) {
+      free(filter);
+      return NULL;
+    }
+  } else {
+    filter->shaper = NULL;
+  }
   return filter;
 }
 

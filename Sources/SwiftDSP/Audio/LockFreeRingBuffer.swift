@@ -419,3 +419,106 @@ public final class AtomicDouble: Sendable {
     set { bits.store(newValue.bitPattern, ordering: .releasing) }
   }
 }
+
+// MARK: - MPMCQueue
+
+/// A lock-free, allocation-free Multi-Producer Multi-Consumer FIFO queue.
+/// Based on Dmitry Vyukov's MPMC queue algorithm.
+final class MPMCQueue<T>: @unchecked Sendable {
+  private struct Cell: ~Copyable {
+    let sequence: Atomic<UInt64>
+    var value: T?
+  }
+
+  let capacity: Int
+  private let mask: UInt64
+  private let buffer: UnsafeMutablePointer<Cell>
+
+  private let enqueuePos = Atomic<UInt64>(0)
+  private let dequeuePos = Atomic<UInt64>(0)
+
+  init(minimumCapacity: Int) {
+    let cap = SPSCAudioRingBuffer.roundUpToPowerOfTwo(Swift.max(2, minimumCapacity))
+    self.capacity = cap
+    self.mask = UInt64(cap - 1)
+
+    self.buffer = UnsafeMutablePointer<Cell>.allocate(capacity: cap)
+    for i in 0..<cap {
+      (self.buffer + i).initialize(to: Cell(sequence: Atomic<UInt64>(UInt64(i)), value: nil))
+    }
+  }
+
+  deinit {
+    for i in 0..<capacity {
+      (buffer + i).deinitialize(count: 1)
+    }
+    buffer.deallocate()
+  }
+
+  /// Approximate count of items in the queue.
+  var count: Int {
+    let w = enqueuePos.load(ordering: .acquiring)
+    let r = dequeuePos.load(ordering: .relaxed)
+    return Int(w &- r)
+  }
+
+  func enqueue(_ value: sending T) -> Bool {
+    var pos = enqueuePos.load(ordering: .relaxed)
+    while true {
+      let cellPtr = buffer + Int(pos & mask)
+      let seq = cellPtr.pointee.sequence.load(ordering: .acquiring)
+      let diff = Int64(seq) - Int64(pos)
+
+      if diff == 0 {
+        let result = enqueuePos.compareExchange(
+          expected: pos,
+          desired: pos + 1,
+          ordering: .relaxed
+        )
+        if result.exchanged {
+          cellPtr.pointee.value = value
+          cellPtr.pointee.sequence.store(pos + 1, ordering: .releasing)
+          return true
+        }
+        pos = result.original
+      } else if diff < 0 {
+        return false
+      } else {
+        pos = enqueuePos.load(ordering: .relaxed)
+      }
+    }
+  }
+
+  func dequeue() -> sending T? {
+    var pos = dequeuePos.load(ordering: .relaxed)
+    while true {
+      let cellPtr = buffer + Int(pos & mask)
+      let seq = cellPtr.pointee.sequence.load(ordering: .acquiring)
+      let diff = Int64(seq) - Int64(pos + 1)
+
+      if diff == 0 {
+        let result = dequeuePos.compareExchange(
+          expected: pos,
+          desired: pos + 1,
+          ordering: .relaxed
+        )
+        if result.exchanged {
+          let value = cellPtr.pointee.value
+          cellPtr.pointee.value = nil
+          cellPtr.pointee.sequence.store(pos + UInt64(capacity), ordering: .releasing)
+          return value
+        }
+        pos = result.original
+      } else if diff < 0 {
+        return nil
+      } else {
+        pos = dequeuePos.load(ordering: .relaxed)
+      }
+    }
+  }
+
+  func drain() {
+    while dequeue() != nil {}
+  }
+}
+

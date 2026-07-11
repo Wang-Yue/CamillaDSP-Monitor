@@ -44,11 +44,11 @@ audio_buffers_t* audio_chunk_get_buffers(audio_chunk_t* chunk) {
 
 /// Create a new silent audio chunk with freshly allocated storage.
 audio_chunk_t* audio_chunk_create(size_t frames, size_t channels) {
-  audio_chunk_t* chunk = (audio_chunk_t*)malloc(sizeof(audio_chunk_t));
+  audio_chunk_t* chunk = (audio_chunk_t*)calloc(1, sizeof(audio_chunk_t));
   if (!chunk) return NULL;
   chunk->buffers = audio_buffers_create(channels, frames);
   if (!chunk->buffers) {
-    free(chunk);
+    audio_chunk_free(chunk);
     return NULL;
   }
   chunk->valid_frames = frames;
@@ -83,6 +83,7 @@ round_robin_chunk_pool_t* round_robin_chunk_pool_create(size_t capacity,
                                                         size_t frames,
                                                         size_t channels) {
   if (capacity == 0) return NULL;
+  if (capacity > SIZE_MAX / sizeof(audio_chunk_t*)) return NULL;
   round_robin_chunk_pool_t* pool =
       (round_robin_chunk_pool_t*)calloc(1, sizeof(round_robin_chunk_pool_t));
   if (!pool) return NULL;
@@ -128,8 +129,13 @@ void audio_chunk_sum_channels(const audio_chunk_t* chunk, const int* channels,
                               size_t frames) {
   if (!chunk || !channels || channels_count == 0 || !out_sum || frames == 0)
     return;
+  size_t total_channels = audio_chunk_get_channels(chunk);
   int ch0 = channels[0];
-  const double* src0 = audio_chunk_get_channel((audio_chunk_t*)chunk, ch0);
+  if (ch0 < 0 || (size_t)ch0 >= total_channels) {
+    memset(out_sum, 0, frames * sizeof(double));
+    return;
+  }
+  const double* src0 = audio_chunk_get_channel((audio_chunk_t*)chunk, (size_t)ch0);
   if (!src0) {
     memset(out_sum, 0, frames * sizeof(double));
     return;
@@ -138,7 +144,8 @@ void audio_chunk_sum_channels(const audio_chunk_t* chunk, const int* channels,
 
   for (size_t ch_idx = 1; ch_idx < channels_count; ch_idx++) {
     int ch = channels[ch_idx];
-    const double* src = audio_chunk_get_channel((audio_chunk_t*)chunk, ch);
+    if (ch < 0 || (size_t)ch >= total_channels) continue;
+    const double* src = audio_chunk_get_channel((audio_chunk_t*)chunk, (size_t)ch);
     if (!src) continue;
 #ifdef ENABLE_ACCELERATE
     vDSP_vaddD(out_sum, 1, src, 1, out_sum, 1, frames);
@@ -156,9 +163,11 @@ void audio_chunk_apply_gain(audio_chunk_t* chunk, const int* channels,
   if (!chunk || !channels || channels_count == 0 || !gain_multipliers ||
       frames == 0)
     return;
+  size_t total_channels = audio_chunk_get_channels(chunk);
   for (size_t ch_idx = 0; ch_idx < channels_count; ch_idx++) {
     int ch = channels[ch_idx];
-    double* wave = audio_chunk_get_channel(chunk, ch);
+    if (ch < 0 || (size_t)ch >= total_channels) continue;
+    double* wave = audio_chunk_get_channel(chunk, (size_t)ch);
     if (!wave) continue;
 #ifdef ENABLE_ACCELERATE
     vDSP_vmulD(wave, 1, gain_multipliers, 1, wave, 1, frames);

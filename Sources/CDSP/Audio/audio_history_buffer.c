@@ -28,42 +28,54 @@ audio_history_buffer_t* audio_history_buffer_create(void) {
   return history;
 }
 
-void audio_history_buffer_reset(audio_history_buffer_t* history,
-                                size_t channels) {
+static void audio_history_buffer_clear_internal(audio_history_buffer_t* history) {
   if (!history) return;
   if (history->buffers) {
     for (size_t ch = 0; ch < history->channels; ch++) {
-      spsc_audio_ring_buffer_free(history->buffers[ch]);
+      if (history->buffers[ch]) spsc_audio_ring_buffer_free(history->buffers[ch]);
     }
     free(history->buffers);
     history->buffers = NULL;
   }
-  history->channels = channels;
+  if (history->averaging_scratch) {
+    free(history->averaging_scratch);
+    history->averaging_scratch = NULL;
+  }
+  history->channels = 0;
+}
+
+void audio_history_buffer_reset(audio_history_buffer_t* history,
+                                size_t channels) {
+  if (!history) return;
+  audio_history_buffer_clear_internal(history);
+
   if (channels > 0) {
     history->buffers = (spsc_audio_ring_buffer_t**)calloc(
         channels, sizeof(spsc_audio_ring_buffer_t*));
+    if (!history->buffers) {
+      return;
+    }
     for (size_t ch = 0; ch < channels; ch++) {
       history->buffers[ch] =
           spsc_audio_ring_buffer_create(AUDIO_HISTORY_BUFFER_CAPACITY);
+      if (!history->buffers[ch]) {
+        audio_history_buffer_clear_internal(history);
+        return;
+      }
     }
+    history->averaging_scratch =
+        (float*)calloc(AUDIO_HISTORY_BUFFER_CAPACITY, sizeof(float));
     if (!history->averaging_scratch) {
-      history->averaging_scratch =
-          (float*)calloc(AUDIO_HISTORY_BUFFER_CAPACITY, sizeof(float));
+      audio_history_buffer_clear_internal(history);
+      return;
     }
+    history->channels = channels;
   }
 }
 
 void audio_history_buffer_free(audio_history_buffer_t* history) {
   if (!history) return;
-  if (history->buffers) {
-    for (size_t ch = 0; ch < history->channels; ch++) {
-      spsc_audio_ring_buffer_free(history->buffers[ch]);
-    }
-    free(history->buffers);
-  }
-  if (history->averaging_scratch) {
-    free(history->averaging_scratch);
-  }
+  audio_history_buffer_clear_internal(history);
   free(history);
 }
 

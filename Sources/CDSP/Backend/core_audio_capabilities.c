@@ -188,7 +188,7 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
   int stream_count = core_audio_device_streams(id, scope, streams, 32);
 
   // Temporary flat array to collect formats across all streams.
-  phys_fmt_t fmts[256];
+  phys_fmt_t fmts[256] = {0};
   int fmt_count = 0;
 
   // Iterate through each stream to probe its physical formats.
@@ -270,6 +270,10 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
   // structure: Channel counts -> Sample rates -> Formats.
   desc->capability_sets =
       (device_capability_set_t*)calloc(1, sizeof(device_capability_set_t));
+  if (!desc->capability_sets) {
+    free_audio_device_descriptor(desc);
+    return NULL;
+  }
   desc->capability_sets_count = 1;
 
   // Find unique channel counts present in the collected formats.
@@ -291,6 +295,10 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
   device_capability_set_t* set = &desc->capability_sets[0];
   set->capabilities = (channel_capability_t*)calloc(
       unique_ch_cnt, sizeof(channel_capability_t));
+  if (!set->capabilities) {
+    free_audio_device_descriptor(desc);
+    return NULL;
+  }
   set->capabilities_count = unique_ch_cnt;
 
   // For each unique channel count, find all the unique sample rates.
@@ -317,6 +325,10 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
 
     ch_cap->samplerates = (samplerate_capability_t*)calloc(
         unique_rate_cnt, sizeof(samplerate_capability_t));
+    if (!ch_cap->samplerates) {
+      free_audio_device_descriptor(desc);
+      return NULL;
+    }
     ch_cap->samplerates_count = unique_rate_cnt;
 
     // For each combination of channel count and sample rate, extract the unique
@@ -325,7 +337,7 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
       samplerate_capability_t* rate_cap = &ch_cap->samplerates[r];
       rate_cap->samplerate = unique_rate[r];
 
-      char unique_fmt[16][16];
+      char unique_fmt[16][16] = {0};
       int unique_fmt_cnt = 0;
       for (int i = 0; i < fmt_count; i++) {
         if (fmts[i].channels == ch_cap->channels &&
@@ -344,9 +356,17 @@ audio_device_descriptor_t* core_audio_capabilities_describe(
       }
 
       rate_cap->formats = (char**)calloc(unique_fmt_cnt, sizeof(char*));
+      if (!rate_cap->formats) {
+        free_audio_device_descriptor(desc);
+        return NULL;
+      }
       rate_cap->formats_count = unique_fmt_cnt;
       for (int f = 0; f < unique_fmt_cnt; f++) {
         rate_cap->formats[f] = strdup(unique_fmt[f]);
+        if (!rate_cap->formats[f]) {
+          free_audio_device_descriptor(desc);
+          return NULL;
+        }
       }
     }
   }

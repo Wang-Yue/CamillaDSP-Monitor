@@ -109,6 +109,13 @@ dsp_engine_core_t* dsp_engine_core_create(dsp_config_t* config) {
       playback_device_config_get_output_dop(&config->devices.playback),
       dop_filter, 20000.0);
 
+  if (!core->shared || !core->state_machine || !core->processing_params ||
+      !core->dop_decoder || !core->dop_encoder) {
+    core->current_config = NULL;
+    dsp_engine_core_free(core);
+    return NULL;
+  }
+
   // Log configuration details and read properties to satisfy Periphery
   logger_t logger = logger_create("dsp.engine.core");
   logger_info(&logger, "Engine initialized with queueLimit: %d",
@@ -437,13 +444,40 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   // MARK: - Private: thread spawn
   /// Wrap `Thread` construction so each spawn shares the same QoS,
   /// name pattern, and exit-group bookkeeping.
-  pthread_create(&core->capture_thread, NULL, capture_thread_func,
-                 core->capture_loop);
-  pthread_create(&core->processing_thread, NULL, processing_thread_func,
-                 core->processing_loop);
-  pthread_create(&core->playback_thread, NULL, playback_thread_func,
-                 core->playback_loop);
+  int ret;
+  ret = pthread_create(&core->capture_thread, NULL, capture_thread_func,
+                       core->capture_loop);
+  if (ret != 0) goto thread_error_0;
+
+  ret = pthread_create(&core->processing_thread, NULL, processing_thread_func,
+                       core->processing_loop);
+  if (ret != 0) goto thread_error_1;
+
+  ret = pthread_create(&core->playback_thread, NULL, playback_thread_func,
+                       core->playback_loop);
+  if (ret != 0) goto thread_error_2;
+
   core->threads_created = true;
+  goto spawn_success;
+
+thread_error_2:
+  atomic_store_explicit(&core->shared->should_stop, true, memory_order_release);
+  engine_sem_signal(core->shared->captured_semaphore);
+  pthread_join(core->processing_thread, NULL);
+thread_error_1:
+  atomic_store_explicit(&core->shared->should_stop, true, memory_order_release);
+  pthread_join(core->capture_thread, NULL);
+thread_error_0:
+  if (err) {
+    err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+    snprintf(err->message, sizeof(err->message),
+             "Failed to create engine threads");
+  }
+  dsp_engine_core_stop(core,
+                       (processing_stop_reason_t){.type = STOP_REASON_NONE});
+  return false;
+
+spawn_success:
 
   engine_state_machine_set_state(core->state_machine, PROCESSING_STATE_RUNNING);
   logger_info(&logger, "DSP engine started: %dHz, chunk=%d",

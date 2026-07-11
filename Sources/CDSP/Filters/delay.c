@@ -89,7 +89,7 @@ static void build_delay(double delay_samples, bool subsample,
 delay_filter_t* delay_filter_create(const char* name,
                                     const delay_parameters_t* params,
                                     int sample_rate) {
-  delay_filter_t* filter = (delay_filter_t*)malloc(sizeof(delay_filter_t));
+  delay_filter_t* filter = (delay_filter_t*)calloc(1, sizeof(delay_filter_t));
   if (!filter) return NULL;
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
@@ -103,6 +103,11 @@ delay_filter_t* delay_filter_create(const char* name,
   bool subsample = params ? params->subsample : false;
 
   double delay_samples = compute_delay_samples(delay, unit, sample_rate);
+  if (isnan(delay_samples) || isinf(delay_samples) || delay_samples < 0.0 || delay_samples > 100000000.0) {
+    delay_filter_free(filter);
+    return NULL;
+  }
+
   int integer_delay = 0;
   biquad_coefficients_t coeffs;
   bool has_coeffs = false;
@@ -110,6 +115,10 @@ delay_filter_t* delay_filter_create(const char* name,
 
   if (integer_delay > 0) {
     filter->queue = (double*)calloc(integer_delay, sizeof(double));
+    if (!filter->queue) {
+      delay_filter_free(filter);
+      return NULL;
+    }
     filter->queue_count = integer_delay;
   } else {
     filter->queue = NULL;
@@ -118,6 +127,10 @@ delay_filter_t* delay_filter_create(const char* name,
   filter->read_index = 0;
   if (has_coeffs) {
     filter->biquad = biquad_filter_create("delay_biquad", &coeffs);
+    if (!filter->biquad) {
+      delay_filter_free(filter);
+      return NULL;
+    }
   } else {
     filter->biquad = NULL;
   }

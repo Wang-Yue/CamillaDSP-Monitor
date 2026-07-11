@@ -228,13 +228,13 @@ static void fftw_real_fft_free(void* ctx) {
 }
 real_fft_t* real_fft_create(size_t length) {
   if (length == 0 || length % 2 != 0) return NULL;
-  real_fft_t* fft = (real_fft_t*)malloc(sizeof(real_fft_t));
+  real_fft_t* fft = (real_fft_t*)calloc(1, sizeof(real_fft_t));
   if (!fft) return NULL;
   fft->length = length;
   fft->spectrum_length = length / 2 + 1;
 
   struct fftw_real_fft_ctx* ctx =
-      (struct fftw_real_fft_ctx*)malloc(sizeof(struct fftw_real_fft_ctx));
+      (struct fftw_real_fft_ctx*)calloc(1, sizeof(struct fftw_real_fft_ctx));
   if (!ctx) {
     free(fft);
     return NULL;
@@ -245,9 +245,7 @@ real_fft_t* real_fft_create(size_t length) {
   ctx->out_complex =
       (fftw_complex*)fftw_malloc(ctx->spectrum_length * sizeof(fftw_complex));
   if (!ctx->in_real || !ctx->out_complex) {
-    if (ctx->in_real) fftw_free(ctx->in_real);
-    if (ctx->out_complex) fftw_free(ctx->out_complex);
-    free(ctx);
+    fftw_real_fft_free(ctx);
     free(fft);
     return NULL;
   }
@@ -256,11 +254,7 @@ real_fft_t* real_fft_create(size_t length) {
   ctx->plan_inverse = fftw_plan_dft_c2r_1d((int)length, ctx->out_complex,
                                            ctx->in_real, FFTW_ESTIMATE);
   if (!ctx->plan_forward || !ctx->plan_inverse) {
-    if (ctx->plan_forward) fftw_destroy_plan(ctx->plan_forward);
-    if (ctx->plan_inverse) fftw_destroy_plan(ctx->plan_inverse);
-    fftw_free(ctx->in_real);
-    fftw_free(ctx->out_complex);
-    free(ctx);
+    fftw_real_fft_free(ctx);
     free(fft);
     return NULL;
   }
@@ -332,13 +326,13 @@ size_t real_fftf_get_spectrum_length(const real_fftf_t* fft) {
 
 real_fftf_t* real_fftf_create(size_t length) {
   if (length == 0 || length % 2 != 0) return NULL;
-  real_fftf_t* fft = (real_fftf_t*)malloc(sizeof(real_fftf_t));
+  real_fftf_t* fft = (real_fftf_t*)calloc(1, sizeof(real_fftf_t));
   if (!fft) return NULL;
   fft->length = length;
   fft->spectrum_length = length / 2 + 1;
 
   struct fftwf_real_fft_ctx* ctx =
-      (struct fftwf_real_fft_ctx*)malloc(sizeof(struct fftwf_real_fft_ctx));
+      (struct fftwf_real_fft_ctx*)calloc(1, sizeof(struct fftwf_real_fft_ctx));
   if (!ctx) {
     free(fft);
     return NULL;
@@ -349,9 +343,7 @@ real_fftf_t* real_fftf_create(size_t length) {
   ctx->out_complex = (fftwf_complex*)fftwf_malloc(ctx->spectrum_length *
                                                   sizeof(fftwf_complex));
   if (!ctx->in_real || !ctx->out_complex) {
-    if (ctx->in_real) fftwf_free(ctx->in_real);
-    if (ctx->out_complex) fftwf_free(ctx->out_complex);
-    free(ctx);
+    fftwf_real_fft_free(ctx);
     free(fft);
     return NULL;
   }
@@ -360,11 +352,7 @@ real_fftf_t* real_fftf_create(size_t length) {
   ctx->plan_inverse = fftwf_plan_dft_c2r_1d((int)length, ctx->out_complex,
                                             ctx->in_real, FFTW_ESTIMATE);
   if (!ctx->plan_forward || !ctx->plan_inverse) {
-    if (ctx->plan_forward) fftwf_destroy_plan(ctx->plan_forward);
-    if (ctx->plan_inverse) fftwf_destroy_plan(ctx->plan_inverse);
-    fftwf_free(ctx->in_real);
-    fftwf_free(ctx->out_complex);
-    free(ctx);
+    fftwf_real_fft_free(ctx);
     free(fft);
     return NULL;
   }

@@ -19,6 +19,7 @@
  */
 
 #include "race_processor.h"
+#include "Logging/app_logger.h"
 
 struct race_processor {
   char name[64];  ///< Unique name of the RACE processor instance.
@@ -33,6 +34,7 @@ struct race_processor {
                         ///< path.
   double feedback_b;    ///< Recursive feedback sample from channel B delay/gain
                         ///< path.
+  bool channel_warning_logged; ///< Track if we already logged a channel mismatch warning.
 };
 
 const char* race_processor_get_name(const race_processor_t* processor) {
@@ -146,7 +148,18 @@ void race_processor_process(race_processor_t* processor, audio_chunk_t* chunk) {
 
   double* base_a = audio_chunk_get_channel(chunk, processor->channel_a);
   double* base_b = audio_chunk_get_channel(chunk, processor->channel_b);
-  if (!base_a || !base_b) return;
+  if (!base_a || !base_b) {
+    if (!processor->channel_warning_logged) {
+      logger_t logger = logger_create("race_processor");
+      logger_error(&logger, "RACE channel indices (%d, %d) out of bounds for chunk channels (%d)",
+                   log_arg_int((int64_t)processor->channel_a),
+                   log_arg_int((int64_t)processor->channel_b),
+                   log_arg_int((int64_t)audio_chunk_get_channels(chunk)),
+                   log_arg_none());
+      processor->channel_warning_logged = true;
+    }
+    return;
+  }
 
   // Evaluate sample-by-sample recursive cross-talk cancellation loop
   for (size_t i = 0; i < count; i++) {

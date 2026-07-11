@@ -73,7 +73,7 @@ import Testing
   }
 
   @Test func ValidateChunkSize() {
-    let config = DSPConfiguration(
+    var config = DSPConfiguration(
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 0,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
@@ -86,8 +86,96 @@ import Testing
         Issue.record("Expected validationError, got \(error)")
         return
       }
-      #expect(msg.contains("Chunk size must be positive"))
+      #expect(msg.contains("Chunk size must be between 1 and 1000000"))
+    }
 
+    config = DSPConfiguration(
+      devices: DevicesConfig(
+        samplerate: 44100, chunksize: 1000001,
+        capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+    do {
+      try config.validate()
+      Issue.record("Expected error to be thrown")
+    } catch {
+      guard case ConfigError.validationError(let msg) = error else {
+        Issue.record("Expected validationError, got \(error)")
+        return
+      }
+      #expect(msg.contains("Chunk size must be between 1 and 1000000"))
+    }
+  }
+
+  @Test func ValidateQueueLimit() {
+    var devices = DevicesConfig(
+      samplerate: 44100, chunksize: 1024,
+      capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2))
+    
+    devices.queuelimit = -1
+    var config = DSPConfiguration(devices: devices)
+    do {
+      try config.validate()
+      Issue.record("Expected error to be thrown")
+    } catch {
+      guard case ConfigError.validationError(let msg) = error else {
+        Issue.record("Expected validationError, got \(error)")
+        return
+      }
+      #expect(msg.contains("Queue limit must be between 0 and 1000"))
+    }
+
+    devices.queuelimit = 1001
+    config = DSPConfiguration(devices: devices)
+    do {
+      try config.validate()
+      Issue.record("Expected error to be thrown")
+    } catch {
+      guard case ConfigError.validationError(let msg) = error else {
+        Issue.record("Expected validationError, got \(error)")
+        return
+      }
+      #expect(msg.contains("Queue limit must be between 0 and 1000"))
+    }
+  }
+
+  @Test func ValidateAdjustPeriod() {
+    var devices = DevicesConfig(
+      samplerate: 44100, chunksize: 1024,
+      capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2))
+    
+    devices.adjustPeriod = 0.09
+    let config = DSPConfiguration(devices: devices)
+    do {
+      try config.validate()
+      Issue.record("Expected error to be thrown")
+    } catch {
+      guard case ConfigError.validationError(let msg) = error else {
+        Issue.record("Expected validationError, got \(error)")
+        return
+      }
+      #expect(msg.contains("Adjust period must be at least 0.1"))
+    }
+  }
+
+  @Test func ValidateTargetLevel() {
+    var devices = DevicesConfig(
+      samplerate: 44100, chunksize: 1024,
+      capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2))
+    
+    devices.targetLevel = 0
+    let config = DSPConfiguration(devices: devices)
+    do {
+      try config.validate()
+      Issue.record("Expected error to be thrown")
+    } catch {
+      guard case ConfigError.validationError(let msg) = error else {
+        Issue.record("Expected validationError, got \(error)")
+        return
+      }
+      #expect(msg.contains("Target level must be positive"))
     }
   }
 
@@ -446,4 +534,201 @@ import Testing
 
     }
   }
+
+  @Test func ValidateCompressorConfig() {
+    let baseConfig = DSPConfiguration(
+      devices: DevicesConfig(
+        samplerate: 44100, chunksize: 1024,
+        capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+
+    // 1. Invalid channels (<= 0)
+    do {
+      var config = baseConfig
+      let p = CompressorParameters(channels: 0, attack: 0.1, release: 0.1, threshold: -10.0, factor: 2.0)
+      config.processors = ["comp": .compressor(p)]
+      try config.validate()
+      Issue.record("Expected error for 0 channels")
+    } catch {
+      // Expected
+    }
+
+    // 2. Invalid monitor channel (< 0)
+    do {
+      var config = baseConfig
+      let p = CompressorParameters(channels: 2, monitorChannels: [-1], attack: 0.1, release: 0.1, threshold: -10.0, factor: 2.0)
+      config.processors = ["comp": .compressor(p)]
+      try config.validate()
+      Issue.record("Expected error for negative monitor channel")
+    } catch {
+      // Expected
+    }
+
+    // 3. Invalid process channel (< 0)
+    do {
+      var config = baseConfig
+      let p = CompressorParameters(channels: 2, processChannels: [-1], attack: 0.1, release: 0.1, threshold: -10.0, factor: 2.0)
+      config.processors = ["comp": .compressor(p)]
+      try config.validate()
+      Issue.record("Expected error for negative process channel")
+    } catch {
+      // Expected
+    }
+  }
+
+  @Test func ValidateNoiseGateConfig() {
+    let baseConfig = DSPConfiguration(
+      devices: DevicesConfig(
+        samplerate: 44100, chunksize: 1024,
+        capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+
+    // 1. Invalid channels (<= 0)
+    do {
+      var config = baseConfig
+      let p = NoiseGateParameters(channels: 0, attack: 0.1, release: 0.1, threshold: -10.0, attenuation: -20.0)
+      config.processors = ["gate": .noiseGate(p)]
+      try config.validate()
+      Issue.record("Expected error for 0 channels")
+    } catch {
+      // Expected
+    }
+
+    // 2. Invalid monitor channel (< 0)
+    do {
+      var config = baseConfig
+      let p = NoiseGateParameters(channels: 2, monitorChannels: [-1], attack: 0.1, release: 0.1, threshold: -10.0, attenuation: -20.0)
+      config.processors = ["gate": .noiseGate(p)]
+      try config.validate()
+      Issue.record("Expected error for negative monitor channel")
+    } catch {
+      // Expected
+    }
+
+    // 3. Invalid process channel (< 0)
+    do {
+      var config = baseConfig
+      let p = NoiseGateParameters(channels: 2, processChannels: [-1], attack: 0.1, release: 0.1, threshold: -10.0, attenuation: -20.0)
+      config.processors = ["gate": .noiseGate(p)]
+      try config.validate()
+      Issue.record("Expected error for negative process channel")
+    } catch {
+      // Expected
+    }
+  }
+
+  @Test func ValidateRACEConfig() {
+    let baseConfig = DSPConfiguration(
+      devices: DevicesConfig(
+        samplerate: 44100, chunksize: 1024,
+        capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+
+    // 1. Invalid channels (<= 0)
+    do {
+      var config = baseConfig
+      let p = RACEParameters(channels: 0, channelA: 0, channelB: 1, delay: 0.02, attenuation: 6.0)
+      config.processors = ["race": .race(p)]
+      try config.validate()
+      Issue.record("Expected error for 0 channels")
+    } catch {
+      // Expected
+    }
+
+    // 2. Invalid channelA (< 0)
+    do {
+      var config = baseConfig
+      let p = RACEParameters(channels: 2, channelA: -1, channelB: 1, delay: 0.02, attenuation: 6.0)
+      config.processors = ["race": .race(p)]
+      try config.validate()
+      Issue.record("Expected error for negative channelA")
+    } catch {
+      // Expected
+    }
+
+    // 3. Invalid channelB (< 0)
+    do {
+      var config = baseConfig
+      let p = RACEParameters(channels: 2, channelA: 0, channelB: -1, delay: 0.02, attenuation: 6.0)
+      config.processors = ["race": .race(p)]
+      try config.validate()
+      Issue.record("Expected error for negative channelB")
+    } catch {
+      // Expected
+    }
+  }
+
+  @Test func ValidateFilterComboAndLimiterConfig() {
+    let baseConfig = DSPConfiguration(
+      devices: DevicesConfig(
+        samplerate: 44100, chunksize: 1024,
+        capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
+        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+
+    // 1. Invalid Butterworth order (>64)
+    do {
+      var config = baseConfig
+      let p = BiquadComboParameters(type: .butterworthLowpass, freq: 1000.0, order: 65)
+      config.filters = ["comb": .biquadCombo(p)]
+      try config.validate()
+      Issue.record("Expected error for Butterworth order > 64")
+    } catch {
+      // Expected
+    }
+
+    // 2. Invalid Linkwitz-Riley order (>64 or odd)
+    do {
+      var config = baseConfig
+      let p = BiquadComboParameters(type: .linkwitzRileyLowpass, freq: 1000.0, order: 66)
+      config.filters = ["comb": .biquadCombo(p)]
+      try config.validate()
+      Issue.record("Expected error for LR order > 64")
+    } catch {
+      // Expected
+    }
+    do {
+      var config = baseConfig
+      let p = BiquadComboParameters(type: .linkwitzRileyLowpass, freq: 1000.0, order: 3)
+      config.filters = ["comb": .biquadCombo(p)]
+      try config.validate()
+      Issue.record("Expected error for odd LR order")
+    } catch {
+      // Expected
+    }
+
+    // 3. GraphicEqualizer too many bands (>32)
+    do {
+      var config = baseConfig
+      let gains = [Double](repeating: 0.0, count: 33)
+      let p = BiquadComboParameters(type: .graphicEqualizer, freqMin: 20.0, freqMax: 20000.0, gains: gains)
+      config.filters = ["comb": .biquadCombo(p)]
+      try config.validate()
+      Issue.record("Expected error for GE gains count > 32")
+    } catch {
+      // Expected
+    }
+
+    // 4. Limiter invalid clip limit (>20)
+    do {
+      var config = baseConfig
+      let p = LimiterParameters(clipLimit: 25.0)
+      config.filters = ["lim": .limiter(p)]
+      try config.validate()
+      Issue.record("Expected error for Limiter clipLimit > 20")
+    } catch {
+      // Expected
+    }
+
+    // 5. Lookahead Limiter invalid limit (< -120)
+    do {
+      var config = baseConfig
+      let p = LookaheadLimiterParameters(limit: -125.0, attack: 0.01, release: 0.1)
+      config.filters = ["lalim": .lookaheadLimiter(p)]
+      try config.validate()
+      Issue.record("Expected error for Lookahead Limiter limit < -120")
+    } catch {
+      // Expected
+    }
+  }
 }
+

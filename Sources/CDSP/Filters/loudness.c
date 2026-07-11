@@ -97,7 +97,7 @@ loudness_filter_t* loudness_filter_create(
     const char* name, const loudness_parameters_t* params, int sample_rate,
     processing_parameters_t* proc_params) {
   loudness_filter_t* filter =
-      (loudness_filter_t*)malloc(sizeof(loudness_filter_t));
+      (loudness_filter_t*)calloc(1, sizeof(loudness_filter_t));
   if (!filter) return NULL;
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
@@ -118,6 +118,10 @@ loudness_filter_t* loudness_filter_create(
 
   filter->low_shelf_filter = biquad_filter_create("loudness_ls", NULL);
   filter->high_shelf_filter = biquad_filter_create("loudness_hs", NULL);
+  if (!filter->low_shelf_filter || !filter->high_shelf_filter) {
+    loudness_filter_free(filter);
+    return NULL;
+  }
 
   return filter;
 }

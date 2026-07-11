@@ -194,6 +194,9 @@ extension ProcessorConfig {
   public func validate() throws {
     switch self {
     case .compressor(let p):
+      guard p.channels > 0 else {
+        throw ConfigError.invalidFilter("Compressor: channels must be > 0, got \(p.channels)")
+      }
       guard p.attack > 0 else {
         throw ConfigError.invalidFilter("Compressor: attack must be > 0, got \(p.attack)")
       }
@@ -201,18 +204,27 @@ extension ProcessorConfig {
         throw ConfigError.invalidFilter("Compressor: release must be > 0, got \(p.release)")
       }
       for ch in p.monitorChannelsArray() {
+        guard ch >= 0 else {
+          throw ConfigError.invalidFilter("Compressor: monitor channel \(ch) must be >= 0")
+        }
         guard ch < p.channels else {
           throw ConfigError.invalidFilter(
             "Compressor: monitor channel \(ch) is invalid (max: \(p.channels - 1))")
         }
       }
       for ch in p.processChannelsArray() {
+        guard ch >= 0 else {
+          throw ConfigError.invalidFilter("Compressor: process channel \(ch) must be >= 0")
+        }
         guard ch < p.channels else {
           throw ConfigError.invalidFilter(
             "Compressor: process channel \(ch) is invalid (max: \(p.channels - 1))")
         }
       }
     case .noiseGate(let p):
+      guard p.channels > 0 else {
+        throw ConfigError.invalidFilter("NoiseGate: channels must be > 0, got \(p.channels)")
+      }
       guard p.attack > 0 else {
         throw ConfigError.invalidFilter("NoiseGate: attack must be > 0, got \(p.attack)")
       }
@@ -220,23 +232,38 @@ extension ProcessorConfig {
         throw ConfigError.invalidFilter("NoiseGate: release must be > 0, got \(p.release)")
       }
       for ch in p.monitorChannelsArray() {
+        guard ch >= 0 else {
+          throw ConfigError.invalidFilter("NoiseGate: monitor channel \(ch) must be >= 0")
+        }
         guard ch < p.channels else {
           throw ConfigError.invalidFilter(
             "NoiseGate: monitor channel \(ch) is invalid (max: \(p.channels - 1))")
         }
       }
       for ch in p.processChannelsArray() {
+        guard ch >= 0 else {
+          throw ConfigError.invalidFilter("NoiseGate: process channel \(ch) must be >= 0")
+        }
         guard ch < p.channels else {
           throw ConfigError.invalidFilter(
             "NoiseGate: process channel \(ch) is invalid (max: \(p.channels - 1))")
         }
       }
     case .race(let p):
+      guard p.channels > 0 else {
+        throw ConfigError.invalidFilter("RACE: channels must be > 0, got \(p.channels)")
+      }
       guard p.attenuation > 0 else {
         throw ConfigError.invalidFilter("RACE: attenuation must be > 0, got \(p.attenuation)")
       }
       guard p.delay > 0 else {
         throw ConfigError.invalidFilter("RACE: delay must be > 0, got \(p.delay)")
+      }
+      guard p.channelA >= 0 else {
+        throw ConfigError.invalidFilter("RACE: channel A \(p.channelA) must be >= 0")
+      }
+      guard p.channelB >= 0 else {
+        throw ConfigError.invalidFilter("RACE: channel B \(p.channelB) must be >= 0")
       }
       guard p.channelA != p.channelB else {
         throw ConfigError.invalidFilter(
