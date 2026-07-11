@@ -14,7 +14,7 @@ final class AppleResampler: AudioResampler {
   private var relativeRatioWarningEmitted = false
   private let logger = Logger(label: "dsp.resampler.apple")
 
-  private var converter: AudioConverterRef? = nil
+  private let converter: AudioConverterRef
   fileprivate let fillContext: FillContext
   private let ablStorage: UnsafeMutableRawPointer
 
@@ -127,9 +127,7 @@ final class AppleResampler: AudioResampler {
   }
 
   deinit {
-    if let conv = converter {
-      AudioConverterDispose(conv)
-    }
+    AudioConverterDispose(converter)
     ablStorage.deallocate()
   }
 
@@ -156,8 +154,6 @@ final class AppleResampler: AudioResampler {
       throw ResamplerError.outputBufferTooSmall(needed: nextOutputFrames, got: output.frames)
     }
 
-    guard let conv = converter else { return }
-
     // Check if we have space in ringBuffers
     let availableSpace = fillContext.buffers.capacity - fillContext.writeOffset
     if availableSpace < chunkSize {
@@ -178,7 +174,10 @@ final class AppleResampler: AudioResampler {
 
       // If still not enough space, we fail.
       guard fillContext.buffers.capacity - fillContext.writeOffset >= chunkSize else {
-        fatalError("Ring buffer overflow")
+        throw ResamplerError.outputBufferTooSmall(
+          needed: chunkSize,
+          got: fillContext.buffers.capacity - fillContext.writeOffset
+        )
       }
     }
 
@@ -218,7 +217,7 @@ final class AppleResampler: AudioResampler {
     let userData = Unmanaged<FillContext>.passUnretained(fillContext).toOpaque()
 
     let status = AudioConverterFillComplexBuffer(
-      conv,
+      self.converter,
       inputDataProc,
       userData,
       &outputPacketCount,

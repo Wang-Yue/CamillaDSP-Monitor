@@ -47,15 +47,37 @@ async_sinc_resampler_t* async_sinc_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate, size_t sinc_len,
     size_t oversampling_factor, sinc_interpolation_type_t interpolation,
     window_function_t window, double f_cutoff, bool has_f_cutoff,
-    size_t chunk_size, double max_relative_ratio) {
-  if (channels == 0 || channels > 256 || chunk_size == 0 || input_rate == 0 || output_rate == 0 || oversampling_factor == 0)
+    size_t chunk_size, double max_relative_ratio, config_error_t* err) {
+  if (channels == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AsyncSincResampler: channels must be positive");
     return NULL;
+  }
+  if (chunk_size == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AsyncSincResampler: chunk_size must be positive");
+    return NULL;
+  }
+  if (input_rate == 0 || output_rate == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AsyncSincResampler: rates must be positive");
+    return NULL;
+  }
+  if (oversampling_factor == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AsyncSincResampler: oversampling_factor must be positive");
+    return NULL;
+  }
   if (max_relative_ratio < 1.0) max_relative_ratio = 1.1;
-  if (chunk_size < 2 * sinc_len || chunk_size > SIZE_MAX - 2 * sinc_len) return NULL;
+  if (chunk_size < 2 * sinc_len || chunk_size > SIZE_MAX - 2 * sinc_len) {
+    config_error_set(err, CONFIG_ERR_VALIDATION,
+                     "AsyncSincResampler: chunk_size %zu is out of bounds for sinc_len %zu",
+                     chunk_size, sinc_len);
+    return NULL;
+  }
 
   async_sinc_resampler_t* resampler =
       (async_sinc_resampler_t*)calloc(1, sizeof(async_sinc_resampler_t));
-  if (!resampler) return NULL;
+  if (!resampler) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AsyncSincResampler");
+    return NULL;
+  }
 
   resampler->channels = channels;
   resampler->chunk_size = chunk_size;
@@ -77,6 +99,7 @@ async_sinc_resampler_t* async_sinc_resampler_create(
   resampler->sinc_table =
       make_sinc_table(sinc_len, oversampling_factor, window, fc);
   if (!resampler->sinc_table) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to build AsyncSincResampler sinc table");
     async_sinc_resampler_free(resampler);
     return NULL;
   }
@@ -86,6 +109,7 @@ async_sinc_resampler_t* async_sinc_resampler_create(
   size_t buf_len = chunk_size + 2 * sinc_len;
   resampler->input_buffer = audio_buffers_create(channels, buf_len);
   if (!resampler->input_buffer) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AsyncSincResampler input buffer");
     async_sinc_resampler_free(resampler);
     return NULL;
   }
@@ -106,6 +130,7 @@ async_sinc_resampler_t* async_sinc_resampler_create(
       max_ratio_abs;
 
   if (isnan(raw_max) || isinf(raw_max) || raw_max < 0.0 || raw_max > (double)(SIZE_MAX - 32)) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AsyncSincResampler: calculated maximum output size is invalid");
     async_sinc_resampler_free(resampler);
     return NULL;
   }
@@ -117,6 +142,7 @@ async_sinc_resampler_t* async_sinc_resampler_create(
   resampler->frac_scratch =
       (double*)calloc(resampler->max_output_frames, sizeof(double));
   if (!resampler->idx_scratch || !resampler->frac_scratch) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AsyncSincResampler scratch buffers");
     async_sinc_resampler_free(resampler);
     return NULL;
   }
@@ -126,7 +152,8 @@ async_sinc_resampler_t* async_sinc_resampler_create(
 
 async_sinc_resampler_t* async_sinc_resampler_create_from_profile(
     size_t channels, size_t input_rate, size_t output_rate,
-    resampler_profile_t profile, size_t chunk_size, double max_relative_ratio) {
+    resampler_profile_t profile, size_t chunk_size, double max_relative_ratio,
+    config_error_t* err) {
   size_t sinc_len = 192;
   size_t oversampling_factor = 512;
   window_function_t window = WINDOW_FUNCTION_BLACKMAN_HARRIS2;
@@ -163,7 +190,7 @@ async_sinc_resampler_t* async_sinc_resampler_create_from_profile(
 
   return async_sinc_resampler_create(
       channels, input_rate, output_rate, sinc_len, oversampling_factor,
-      interpolation, window, 0.0, false, chunk_size, max_relative_ratio);
+      interpolation, window, 0.0, false, chunk_size, max_relative_ratio, err);
 }
 
 void async_sinc_resampler_free(async_sinc_resampler_t* resampler) {

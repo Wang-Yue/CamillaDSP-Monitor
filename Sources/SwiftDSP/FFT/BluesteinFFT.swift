@@ -75,8 +75,10 @@ final class BluesteinFFT: ArbitraryComplexFFT {
   private let cRe: UnsafeMutablePointer<Double>
   private let cIm: UnsafeMutablePointer<Double>
 
-  init(n: Int) {
-    precondition(n > 0, "BluesteinFFT: n must be positive")
+  init(n: Int) throws {
+    guard n > 0 else {
+      throw RealFFTError.invalidLength("BluesteinFFT: n must be positive, got \(n)")
+    }
     self.n = n
 
     let minL = 2 * n - 1
@@ -95,7 +97,7 @@ final class BluesteinFFT: ArbitraryComplexFFT {
       let fwd = vDSP_DFT_zop_CreateSetupD(nil, vDSP_Length(m), .FORWARD),
       let inv = vDSP_DFT_zop_CreateSetupD(nil, vDSP_Length(m), .INVERSE)
     else {
-      fatalError("BluesteinFFT: vDSP DFT setup failed for inner size \(m)")
+      throw RealFFTError.setupFailed("vDSP DFT setup failed for inner size \(m)")
     }
     self.fftFwd = fwd
     self.fftInv = inv

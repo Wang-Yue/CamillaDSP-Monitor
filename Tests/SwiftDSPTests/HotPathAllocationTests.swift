@@ -152,19 +152,19 @@ private enum AllocationCounter {
   }
 
   @Test func Synchronous_Stereo() {
-    let resampler = SynchronousResampler(
+    let resampler = try! SynchronousResampler(
       channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
     runResamplerHotPath(resampler, channels: 2, label: "Synchronous stereo")
   }
 
   @Test func AsyncPoly_Stereo() {
-    let resampler = AsyncPolyResampler(
+    let resampler = try! AsyncPolyResampler(
       channels: 2, inputRate: 44100, outputRate: 48000, interpolation: .cubic, chunkSize: 1024)
     runResamplerHotPath(resampler, channels: 2, label: "AsyncPoly stereo")
   }
 
   @Test func AsyncSinc_Stereo() {
-    let resampler = AsyncSincResampler(
+    let resampler = try! AsyncSincResampler(
       channels: 2, inputRate: 44100, outputRate: 48000, profile: .accurate, chunkSize: 1024)
     runResamplerHotPath(resampler, channels: 2, label: "AsyncSinc stereo")
   }
@@ -176,7 +176,7 @@ private enum AllocationCounter {
     // values; we just need a stable, non-zero filter so the inner loop
     // exercises the FMAs.
     let coeffs = BiquadCoefficients(b0: 0.25, b1: 0.5, b2: 0.25, a1: -0.5, a2: 0.1)
-    let filter = BiquadFilter(coefficients: coeffs)
+    let filter = try! BiquadFilter(coefficients: coeffs)
     let buffer = AudioBuffers(channels: 1, capacity: 1024)
     let wave = buffer[0]
     fillSine(wave, frames: 1024, freqHz: 1000, sampleRate: 44100)
@@ -197,7 +197,7 @@ private enum AllocationCounter {
     for i in 0..<irLen {
       ir[i] = (i == 0 ? 1.0 : 0.0) + 0.001 * cos(Double(i) * 0.01)
     }
-    let filter = ConvolutionFilter(coefficients: ir, chunkSize: chunkSize)
+    let filter = try! ConvolutionFilter(coefficients: ir, chunkSize: chunkSize)
     let buffer = AudioBuffers(channels: 1, capacity: chunkSize)
     let wave = buffer[0]
     fillSine(wave, frames: chunkSize, freqHz: 1000, sampleRate: 44100)
@@ -251,7 +251,7 @@ private enum AllocationCounter {
     fp.highBoost = 10.0
     fp.lowBoost = 10.0
     fp.attenuateMid = false
-    let filter = LoudnessFilter(
+    let filter = try! LoudnessFilter(
       parameters: fp,
       sampleRate: 44100)
     // Loudness needs a `processingParameters` reference, otherwise it
@@ -271,7 +271,7 @@ private enum AllocationCounter {
 
   @Test func Delay_AllocationFree() {
     let params = DelayParameters(delay: 5.5, unit: .samples, subsample: true)
-    let filter = DelayFilter(parameters: params, sampleRate: 44100)
+    let filter = try! DelayFilter(parameters: params, sampleRate: 44100)
     let buffer = AudioBuffers(channels: 1, capacity: 1024)
     let wave = buffer[0]
     assertAllocationFree(label: "Delay") { _ in
@@ -439,7 +439,7 @@ private enum AllocationCounter {
       devices: DevicesConfig(
         samplerate: 48000, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 4),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     var filters: [String: FilterConfig] = [:]
     var filterNames: [String] = []
@@ -612,7 +612,7 @@ private enum AllocationCounter {
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
     let initialPipeline = try Pipeline(config: config, processingParams: params)
 

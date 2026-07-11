@@ -87,13 +87,26 @@ static OSStatus input_data_proc(
 apple_resampler_t* apple_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,
     apple_resampler_quality_t quality, apple_resampler_complexity_t complexity,
-    size_t chunk_size) {
-  if (channels == 0 || channels > 256 || chunk_size == 0 || input_rate == 0 || output_rate == 0)
+    size_t chunk_size, config_error_t* err) {
+  if (channels == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AppleResampler: channels must be positive");
     return NULL;
+  }
+  if (chunk_size == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AppleResampler: chunk_size must be positive");
+    return NULL;
+  }
+  if (input_rate == 0 || output_rate == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AppleResampler: input_rate and output_rate must be positive");
+    return NULL;
+  }
 
   apple_resampler_t* resampler =
       (apple_resampler_t*)calloc(1, sizeof(apple_resampler_t));
-  if (!resampler) return NULL;
+  if (!resampler) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AppleResampler");
+    return NULL;
+  }
 
   resampler->channels = channels;
   resampler->chunk_size = chunk_size;
@@ -108,12 +121,14 @@ apple_resampler_t* apple_resampler_create(
   resampler->fill_context = (apple_resampler_fill_context_t*)calloc(
       1, sizeof(apple_resampler_fill_context_t));
   if (!resampler->fill_context) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AppleResampler fill context");
     apple_resampler_free(resampler);
     return NULL;
   }
   resampler->fill_context->buffers =
       audio_buffers_create(channels, chunk_size * 8);
   if (!resampler->fill_context->buffers) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AppleResampler AudioBuffers");
     apple_resampler_free(resampler);
     return NULL;
   }
@@ -127,6 +142,7 @@ apple_resampler_t* apple_resampler_create(
       (channels > 0 ? (channels - 1) * sizeof(AudioBuffer) : 0);
   resampler->abl_storage = calloc(1, storage_size);
   if (!resampler->abl_storage) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AppleResampler AudioBufferList storage");
     apple_resampler_free(resampler);
     return NULL;
   }
@@ -160,6 +176,7 @@ apple_resampler_t* apple_resampler_create(
   AudioConverterRef conv = NULL;
   OSStatus status = AudioConverterNew(&in_desc, &out_desc, &conv);
   if (status != noErr || !conv) {
+    config_error_set(err, CONFIG_ERR_PARSE, "AudioConverterNew returned OSStatus %d", (int)status);
     apple_resampler_free(resampler);
     return NULL;
   }

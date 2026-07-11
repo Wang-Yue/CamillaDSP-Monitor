@@ -228,10 +228,8 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
 
   pipeline->master_volume =
       volume_filter_create("master_volume", &vol_params, pipeline->rate,
-                           pipeline->frames_per_chunk, proc_params);
+                           pipeline->frames_per_chunk, proc_params, err);
   if (!pipeline->master_volume) {
-    config_error_set(err, CONFIG_ERR_PARSE,
-                     "Failed to create master volume filter");
     pipeline_free(pipeline);
     return NULL;
   }
@@ -390,13 +388,10 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
               }
               filter_t* f =
                   filter_create(step->names[j], f_cfg, pipeline->rate,
-                                pipeline->frames_per_chunk, proc_params);
+                                pipeline->frames_per_chunk, proc_params, err);
               if (!f) {
                 if (all_chs) free(all_chs);
                 free_filter_chains(new_chains, channels_count);
-                config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
-                                 "Failed to create filter '%s'",
-                                 step->names[j]);
                 pipeline_free(pipeline);
                 return NULL;
               }
@@ -540,10 +535,8 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
             return NULL;
           }
           dsp_processor_t* p = dsp_processor_create(
-              step->name, p_cfg, pipeline->rate, pipeline->frames_per_chunk);
+              step->name, p_cfg, pipeline->rate, pipeline->frames_per_chunk, err);
           if (!p) {
-            config_error_set(err, CONFIG_ERR_INVALID_PIPELINE,
-                             "Failed to create processor '%s'", step->name);
             pipeline_free(pipeline);
             return NULL;
           }

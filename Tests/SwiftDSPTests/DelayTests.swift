@@ -24,7 +24,7 @@ import Testing
     var waveform: [Double] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     let waveform_delayed: [Double] = [0.0, 0.0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0]
     let params = DelayParameters(delay: 3.0, unit: .samples, subsample: false)
-    let filter = DelayFilter(parameters: params, sampleRate: 44100)
+    let filter = try! DelayFilter(parameters: params, sampleRate: 44100)
     filter.process(waveform: &waveform)
     #expect(waveform == waveform_delayed)
   }
@@ -33,7 +33,7 @@ import Testing
     var waveform: [Double] = [0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     let waveform_delayed = waveform
     let params = DelayParameters(delay: 0.1, unit: .samples, subsample: false)
-    let filter = DelayFilter(parameters: params, sampleRate: 44100)
+    let filter = try! DelayFilter(parameters: params, sampleRate: 44100)
     filter.process(waveform: &waveform)
     #expect(waveform == waveform_delayed)
   }
@@ -43,7 +43,7 @@ import Testing
     var waveform2 = [Double](repeating: 0.0, count: 8)
     let waveform_delayed: [Double] = [0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0]
     let params = DelayParameters(delay: 9.0, unit: .samples, subsample: false)
-    let filter = DelayFilter(parameters: params, sampleRate: 44100)
+    let filter = try! DelayFilter(parameters: params, sampleRate: 44100)
     filter.process(waveform: &waveform1)
     filter.process(waveform: &waveform2)
     #expect(waveform1 == [Double](repeating: 0.0, count: 8))
@@ -65,7 +65,7 @@ import Testing
       -0.001882310318672015,
     ]
     let params = DelayParameters(delay: 1.7, unit: .samples, subsample: true)
-    let filter = DelayFilter(parameters: params, sampleRate: 44100)
+    let filter = try! DelayFilter(parameters: params, sampleRate: 44100)
     filter.process(waveform: &waveform)
     #expect(Self.compareWaveforms(waveform, expected_waveform, maxdiff: 1.0e-6))
   }

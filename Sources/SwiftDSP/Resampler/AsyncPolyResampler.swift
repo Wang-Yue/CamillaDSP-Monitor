@@ -55,10 +55,16 @@ final class AsyncPolyResampler: AudioResampler {
     channels: Int, inputRate: Int, outputRate: Int,
     interpolation: PolyInterpolation = .cubic, chunkSize: Int,
     maxRelativeRatio: Double = 1.1
-  ) {
-    precondition(channels > 0, "channels must be positive")
-    precondition(chunkSize > 0, "chunkSize must be positive")
-    precondition(maxRelativeRatio >= 1.0, "maxRelativeRatio must be ≥ 1")
+  ) throws {
+    guard channels > 0 else {
+      throw ResamplerError.invalidParameter(message: "channels must be positive, got \(channels)")
+    }
+    guard chunkSize > 0 else {
+      throw ResamplerError.invalidParameter(message: "chunkSize must be positive, got \(chunkSize)")
+    }
+    guard maxRelativeRatio >= 1.0 else {
+      throw ResamplerError.invalidParameter(message: "maxRelativeRatio must be ≥ 1, got \(maxRelativeRatio)")
+    }
 
     self.channels = channels
     self.chunkSize = chunkSize
@@ -66,10 +72,11 @@ final class AsyncPolyResampler: AudioResampler {
     self.interpolation = interpolation
     self.interpolatorLen = interpolation.nbrPoints
 
-    precondition(
-      chunkSize >= 2 * interpolatorLen,
-      "chunkSize (\(chunkSize)) must be ≥ 2*nbrPoints (\(2 * interpolatorLen))"
-    )
+    guard chunkSize >= 2 * interpolatorLen else {
+      throw ResamplerError.invalidParameter(
+        message: "chunkSize (\(chunkSize)) must be ≥ 2*nbrPoints (\(2 * interpolatorLen))"
+      )
+    }
 
     let bufLen = chunkSize + 2 * interpolatorLen
     self.inputBuffer = AudioBuffers(channels: channels, capacity: bufLen)

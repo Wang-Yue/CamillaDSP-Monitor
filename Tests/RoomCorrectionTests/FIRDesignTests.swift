@@ -172,7 +172,7 @@ import Testing
     // Pump a unit impulse through the convolution filter — the
     // multi-block output should equal the IR over its duration.
     let chunk = 1024
-    let filter = ConvolutionFilter(coefficients: ir, chunkSize: chunk)
+    let filter = try! ConvolutionFilter(coefficients: ir, chunkSize: chunk)
 
     var collected: [Double] = []
     collected.reserveCapacity(ir.count + chunk)

@@ -198,6 +198,8 @@ static audio_backend_error_type_t map_backend_error(backend_error_type_t type) {
 bool dsp_engine_core_start(dsp_engine_core_t* core,
                            audio_backend_error_t* err) {
   if (!core) return false;
+  config_error_t cerr;
+  config_error_init(&cerr);
   logger_t logger = logger_create("dsp.engine.core");
   if (dsp_engine_core_get_state(core) != PROCESSING_STATE_INACTIVE) {
     logger_warn(&logger, "Engine already running", log_arg_none(),
@@ -237,7 +239,15 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
         &core->current_config->devices.resampler, capture_rate, pipeline_rate,
         capture_device_config_get_channels(
             &core->current_config->devices.capture),
-        core->current_config->devices.chunksize);
+        core->current_config->devices.chunksize, &cerr);
+    if (!core->resampler) {
+      if (err) {
+        err->type = AUDIO_BACKEND_ERR_COMMAND_SEND;
+        strncpy(err->message, cerr.message, sizeof(err->message) - 1);
+        err->message[sizeof(err->message) - 1] = '\0';
+      }
+      return false;
+    }
   } else {
     core->resampler = NULL;
   }
@@ -342,8 +352,6 @@ bool dsp_engine_core_start(dsp_engine_core_t* core,
   audio_chunk_set_valid_frames(core->pipeline_scratch, 0);
 
   // 8. Create the DSP processing pipeline.
-  config_error_t cerr;
-  memset(&cerr, 0, sizeof(cerr));
   core->pipeline =
       pipeline_create(core->current_config, core->processing_params,
                       playback_chunk_size, &cerr);
@@ -622,7 +630,7 @@ bool dsp_engine_core_reload_config(dsp_engine_core_t* core,
   config_change_free(change);
 
   config_error_t cerr;
-  memset(&cerr, 0, sizeof(cerr));
+  config_error_init(&cerr);
   pipeline_t* new_pipeline =
       pipeline_create(new_config, core->processing_params,
                       core->effective_playback_chunk_size, &cerr);

@@ -20,7 +20,7 @@ TEST(delay_small) {
   double waveform_delayed[] = {0.0, 0.0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0};
   delay_parameters_t params = {
       .delay = 3.0, .unit = DELAY_UNIT_SAMPLES, .subsample = false};
-  delay_filter_t* filter = delay_filter_create("delay", &params, 44100);
+  delay_filter_t* filter = delay_filter_create("delay", &params, 44100, NULL);
   ASSERT_TRUE(filter != NULL);
   delay_filter_process(filter, waveform, 8);
   for (size_t i = 0; i < 8; i++) {
@@ -34,7 +34,7 @@ TEST(delay_supersmall) {
   double waveform_delayed[] = {0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
   delay_parameters_t params = {
       .delay = 0.1, .unit = DELAY_UNIT_SAMPLES, .subsample = false};
-  delay_filter_t* filter = delay_filter_create("delay", &params, 44100);
+  delay_filter_t* filter = delay_filter_create("delay", &params, 44100, NULL);
   ASSERT_TRUE(filter != NULL);
   delay_filter_process(filter, waveform, 8);
   for (size_t i = 0; i < 8; i++) {
@@ -49,7 +49,7 @@ TEST(delay_large) {
   double waveform_delayed[] = {0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0};
   delay_parameters_t params = {
       .delay = 9.0, .unit = DELAY_UNIT_SAMPLES, .subsample = false};
-  delay_filter_t* filter = delay_filter_create("delay", &params, 44100);
+  delay_filter_t* filter = delay_filter_create("delay", &params, 44100, NULL);
   ASSERT_TRUE(filter != NULL);
   delay_filter_process(filter, waveform1, 8);
   delay_filter_process(filter, waveform2, 8);
@@ -76,7 +76,7 @@ TEST(delay_fraction) {
   };
   delay_parameters_t params = {
       .delay = 1.7, .unit = DELAY_UNIT_SAMPLES, .subsample = true};
-  delay_filter_t* filter = delay_filter_create("delay", &params, 44100);
+  delay_filter_t* filter = delay_filter_create("delay", &params, 44100, NULL);
   ASSERT_TRUE(filter != NULL);
   delay_filter_process(filter, waveform, 10);
   ASSERT_TRUE(compare_waveforms(waveform, expected_waveform, 10, 1.0e-6));

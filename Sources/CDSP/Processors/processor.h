@@ -39,12 +39,14 @@ typedef struct dsp_processor dsp_processor_t;
  * @param config Configuration specifying processor type and parameters.
  * @param sample_rate Audio sample rate in Hz.
  * @param chunk_size Maximum number of frames per processing chunk.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return Pointer to newly allocated dsp_processor_t wrapper, or NULL on
  * failure.
  */
 dsp_processor_t* dsp_processor_create(const char* name,
                                       const processor_config_t* config,
-                                      int sample_rate, size_t chunk_size);
+                                      int sample_rate, size_t chunk_size,
+                                      config_error_t* err);
 
 /**
  * @brief Wraps an existing compressor processor into the generic

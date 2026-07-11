@@ -12,7 +12,7 @@ import Testing
   /// vector so the entire output lands in a single block.
   @Test func MovingAverage() {
     let chunkSize = 8
-    let filter = ConvolutionFilter(coefficients: [0.5, 0.5], chunkSize: chunkSize)
+    let filter = try! ConvolutionFilter(coefficients: [0.5, 0.5], chunkSize: chunkSize)
 
     var wave: [Double] = [1.0, 1.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0]
     filter.process(waveform: &wave)
@@ -31,7 +31,7 @@ import Testing
   @Test func SegmentedConvolution() {
     let chunkSize = 8
     let ir = (0..<32).map { Double($0) }
-    let filter = ConvolutionFilter(coefficients: ir, chunkSize: chunkSize)
+    let filter = try! ConvolutionFilter(coefficients: ir, chunkSize: chunkSize)
 
     func runChunk(_ input: [Double], expecting expected: [Double], label: String) {
       var wave = input
@@ -58,7 +58,7 @@ import Testing
   /// unchanged. Single-segment fast path.
   @Test func IdentityConvolution() {
     let chunkSize = 8
-    let filter = ConvolutionFilter(coefficients: [1.0], chunkSize: chunkSize)
+    let filter = try! ConvolutionFilter(coefficients: [1.0], chunkSize: chunkSize)
 
     var wave: [Double] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     let original = wave
@@ -74,7 +74,7 @@ import Testing
   /// correctly.
   @Test func DelayConvolution() {
     let chunkSize = 8
-    let filter = ConvolutionFilter(coefficients: [0.0, 0.0, 0.0, 1.0], chunkSize: chunkSize)
+    let filter = try! ConvolutionFilter(coefficients: [0.0, 0.0, 0.0, 1.0], chunkSize: chunkSize)
 
     var wave: [Double] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     filter.process(waveform: &wave)
@@ -95,7 +95,7 @@ import Testing
     let chunkSize = 64
     let sampleRate: Double = 48000.0
     let frequency: Double = 100.0
-    let filter = ConvolutionFilter(coefficients: [0.5, 0.5], chunkSize: chunkSize)
+    let filter = try! ConvolutionFilter(coefficients: [0.5, 0.5], chunkSize: chunkSize)
 
     // |H(f)| for IR [0.5, 0.5] at frequency f, for a real cosine input.
     let theta = 2.0 * Double.pi * frequency / sampleRate

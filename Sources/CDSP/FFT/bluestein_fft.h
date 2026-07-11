@@ -39,6 +39,7 @@
 #include <stddef.h>
 
 #include "Audio/double_helpers.h"
+#include "Config/config_error.h"
 #include "arbitrary_complex_fft.h"
 
 #if defined(ENABLE_ACCELERATE)
@@ -52,9 +53,10 @@ typedef struct bluestein_fft bluestein_fft_t;
  * @brief Creates a Bluestein FFT context for length N.
  *
  * @param n The logical transform length.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A pointer to the created bluestein_fft_t context, or NULL on failure.
  */
-bluestein_fft_t* bluestein_fft_create(size_t n);
+bluestein_fft_t* bluestein_fft_create(size_t n, config_error_t* err);
 
 /**
  * @brief Computes the N-point DFT (forward or inverse) using Bluestein's

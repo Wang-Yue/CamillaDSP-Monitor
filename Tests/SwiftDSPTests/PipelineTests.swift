@@ -11,7 +11,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
     _ = try Pipeline(config: config, processingParams: params)
   }
@@ -21,7 +21,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     let params = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
     let pipeline = try Pipeline(config: config, processingParams: params)
 
@@ -46,7 +46,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     // Create a gain filter (-6dB)
     var params = GainParameters()
@@ -83,7 +83,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     // Create a mixer that swaps channels 0 and 1
     let map0 = MixerMapping(dest: 0, sources: [MixerSource(channel: 1)])
@@ -117,7 +117,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     var params = GainParameters()
     params.gain = -6.0
@@ -151,7 +151,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     var params = GainParameters()
     params.gain = -6.0
@@ -187,7 +187,7 @@ import Testing
     var devices = DevicesConfig(
       samplerate: 44100, chunksize: 1024,
       capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)
+      playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)
     )
     devices.volumeRampTime = 0.0
     let config = DSPConfiguration(devices: devices)
@@ -216,7 +216,7 @@ import Testing
     var devices = DevicesConfig(
       samplerate: 44100, chunksize: 1024,
       capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)
+      playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)
     )
     devices.volumeRampTime = 0.0
     let config = DSPConfiguration(devices: devices)
@@ -245,7 +245,7 @@ import Testing
     let devices = DevicesConfig(
       samplerate: 44100, chunksize: 1024,
       capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)
+      playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)
     )
     let config = DSPConfiguration(devices: devices)
 
@@ -277,7 +277,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.pipeline = [step]
     let procParams = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
@@ -303,7 +303,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     config.filters = ["mygain": filter]
     config.pipeline = [step]
     let procParams = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
@@ -319,7 +319,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     config.filters = ["mygain": filter]
     config.pipeline = [step]
     let procParams = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
@@ -332,7 +332,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     config.pipeline = [step]
     let procParams = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
     do {
@@ -354,7 +354,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.pipeline = [step]
     let procParams = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
@@ -376,7 +376,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var loudParams = LoudnessParameters()
     loudParams.referenceLevel = -20.0
     let loudConfig = FilterConfig.loudness(loudParams)
@@ -395,7 +395,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     // 1. Create a 2to4 mixer
     let map2to4 = [
@@ -453,7 +453,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     let procParams = ProcessingParameters(captureChannels: 2, playbackChannels: 2)
     let pipeline = try Pipeline(config: config, processingParams: procParams)
 
@@ -534,7 +534,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     var filters = [String: FilterConfig]()
     filters["mybiquad"] = .biquad(filterParams)

@@ -4,24 +4,25 @@ import Foundation
 
 final class BiquadFilter: Filter {
   let name: String
-  private var setup: vDSP_biquadm_SetupD?
+  private let setup: vDSP_biquadm_SetupD
 
-  init(name: String = "biquad", coefficients: BiquadCoefficients) {
+  init(name: String = "biquad", coefficients: BiquadCoefficients) throws {
     self.name = name
     var coefficientsArray: [Double] = [
       coefficients.b0, coefficients.b1, coefficients.b2, coefficients.a1, coefficients.a2,
     ]
-    self.setup = vDSP_biquadm_CreateSetupD(&coefficientsArray, 1, 1)
+    guard let setup = vDSP_biquadm_CreateSetupD(&coefficientsArray, 1, 1) else {
+      throw ConfigError.invalidFilter("Failed to initialize vDSP biquad setup (check coefficients)")
+    }
+    self.setup = setup
   }
 
   deinit {
-    if let setup = setup {
-      vDSP_biquadm_DestroySetupD(setup)
-    }
+    vDSP_biquadm_DestroySetupD(setup)
   }
 
   func process(waveform: MutableWaveform) {
-    guard let setup = setup, let base = waveform.baseAddress else { return }
+    guard let base = waveform.baseAddress else { return }
 
     var signalPtr = UnsafePointer(base)
     var outputPtr = base
@@ -37,7 +38,6 @@ final class BiquadFilter: Filter {
   }
 
   func processSingle(_ sample: Double) -> Double {
-    guard let setup = setup else { return sample }
     var inVal = sample
     var outVal = 0.0
     withUnsafePointer(to: &inVal) { inPtr in
@@ -58,17 +58,13 @@ final class BiquadFilter: Filter {
       var coefficientsArray: [Double] = [
         newCoeffs.b0, newCoeffs.b1, newCoeffs.b2, newCoeffs.a1, newCoeffs.a2,
       ]
-      if let setup = self.setup {
-        vDSP_biquadm_SetCoefficientsDoubleD(setup, &coefficientsArray, 0, 0, 1, 1)
-      }
+      vDSP_biquadm_SetCoefficientsDoubleD(setup, &coefficientsArray, 0, 0, 1, 1)
     }
   }
 
   func transferState(from src: Filter) {
     guard let srcBiquad = src as? BiquadFilter else { return }
-    if let destSetup = self.setup, let srcSetup = srcBiquad.setup {
-      vDSP_biquadm_CopyStateD(destSetup, srcSetup)
-    }
+    vDSP_biquadm_CopyStateD(self.setup, srcBiquad.setup)
   }
 
   static func computeCoefficients(_ params: BiquadParameters, sampleRate: Int) throws

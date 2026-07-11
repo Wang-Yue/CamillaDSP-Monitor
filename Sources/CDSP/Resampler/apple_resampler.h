@@ -16,6 +16,7 @@
 #include <stddef.h>
 
 #include "Audio/audio_chunk.h"
+#include "Config/config_error.h"
 #include "Config/resampler_config_types.h"
 #include "resampler_error.h"
 
@@ -40,12 +41,13 @@ typedef struct apple_resampler apple_resampler_t;
  * @param quality Resampling quality.
  * @param complexity Resampling complexity.
  * @param chunk_size Maximum number of frames per processing chunk.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return Pointer to newly allocated apple_resampler_t, or NULL on failure.
  */
 apple_resampler_t* apple_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,
     apple_resampler_quality_t quality, apple_resampler_complexity_t complexity,
-    size_t chunk_size);
+    size_t chunk_size, config_error_t* err);
 
 /**
  * @brief Frees resources associated with the Apple resampler.

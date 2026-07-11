@@ -30,11 +30,13 @@ typedef struct delay_filter delay_filter_t;
  * @param name The name of the filter.
  * @param params The delay parameters (delay value, unit, etc.).
  * @param sample_rate The audio sample rate in Hz.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A pointer to the created delay filter, or NULL on failure.
  */
 delay_filter_t* delay_filter_create(const char* name,
                                     const delay_parameters_t* params,
-                                    int sample_rate);
+                                    int sample_rate,
+                                    config_error_t* err);
 
 /**
  * @brief Process a block of samples in-place.

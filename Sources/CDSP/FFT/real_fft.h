@@ -45,6 +45,7 @@
 #include <stddef.h>
 
 #include "Audio/double_helpers.h"
+#include "Config/config_error.h"
 
 /**
  * @brief Function pointer type for the backend forward FFT execution.
@@ -124,9 +125,10 @@ size_t real_fft_get_spectrum_length(const real_fft_t* fft);
  * based on the requested length.
  *
  * @param length The time-domain length (must be even).
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A pointer to the created real_fft_t context, or NULL on failure.
  */
-real_fft_t* real_fft_create(size_t length);
+real_fft_t* real_fft_create(size_t length, config_error_t* err);
 
 /**
  * @brief Computes the forward 2N-point real FFT.

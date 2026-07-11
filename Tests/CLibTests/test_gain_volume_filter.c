@@ -70,7 +70,7 @@ TEST(VolumeUnityGain) {
                                 .has_limit = true,
                                 .fader = FADER_MAIN};
   volume_filter_t* filter =
-      volume_filter_create("volume", &params, 44100, 4, proc_params);
+      volume_filter_create("volume", &params, 44100, 4, proc_params, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double waveform[] = {1.0, -0.5, 0.25, 0.0};
@@ -93,7 +93,7 @@ TEST(VolumeAttenuation) {
                                 .has_limit = true,
                                 .fader = FADER_MAIN};
   volume_filter_t* filter =
-      volume_filter_create("volume", &params, 44100, 4, proc_params);
+      volume_filter_create("volume", &params, 44100, 4, proc_params, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double waveform[] = {1.0, -1.0, 0.5, -0.5};
@@ -118,7 +118,7 @@ TEST(VolumeMuteRampsToZero) {
                                 .has_limit = true,
                                 .fader = FADER_MAIN};
   volume_filter_t* filter =
-      volume_filter_create("volume", &params, 44100, 4, proc_params);
+      volume_filter_create("volume", &params, 44100, 4, proc_params, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double waveform[] = {1.0, 0.5, -0.5, -1.0};
@@ -144,7 +144,7 @@ TEST(VolumeRamp) {
                                 .has_limit = true,
                                 .fader = FADER_MAIN};
   volume_filter_t* filter = volume_filter_create("volume", &params, sample_rate,
-                                                 chunk_size, proc_params);
+                                                 chunk_size, proc_params, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double chunk0[] = {1.0, 1.0, 1.0, 1.0};
@@ -191,7 +191,7 @@ TEST(VolumeChangeThreshold) {
                                 .has_limit = true,
                                 .fader = FADER_MAIN};
   volume_filter_t* filter =
-      volume_filter_create("volume", &params, 44100, 4, proc_params);
+      volume_filter_create("volume", &params, 44100, 4, proc_params, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double wave1[] = {1.0, 1.0, 1.0, 1.0};
@@ -227,7 +227,7 @@ TEST(VolumeLimit) {
                                 .has_limit = true,
                                 .fader = FADER_MAIN};
   volume_filter_t* filter =
-      volume_filter_create("volume", &params, 44100, 4, proc_params);
+      volume_filter_create("volume", &params, 44100, 4, proc_params, NULL);
   ASSERT_TRUE(filter != NULL);
 
   processing_parameters_set_target_volume_for_fader(proc_params, 20.0,

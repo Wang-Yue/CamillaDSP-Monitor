@@ -67,7 +67,7 @@ func isCloseRelative(_ left: Double, _ right: Double, _ maxdiff: Double) -> Bool
   // Rust: check_result — impulse response of LP 10kHz Q=0.5
   @Test func ImpulseResponse() throws {
     let coeffs = try makeCoeffs(type: .lowpass, freq: 10000.0, q: 0.5)
-    let filter = BiquadFilter(coefficients: coeffs)
+    let filter = try! BiquadFilter(coefficients: coeffs)
     var wave: [Double] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     let expected: [Double] = [0.215, 0.461, 0.281, 0.039, 0.004, 0.0, 0.0, 0.0]
     filter.process(waveform: &wave)

@@ -60,10 +60,12 @@ size_t biquad_combo_linkwitz_riley_q(int order, double* out_q, size_t max_q);
  * @param name The name of the filter.
  * @param params The parameters defining the filter type and characteristics.
  * @param sample_rate The sample rate in Hz.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A pointer to the created filter instance, or `NULL` on failure.
  */
 biquad_combo_filter_t* biquad_combo_filter_create(
-    const char* name, const biquad_combo_parameters_t* params, int sample_rate);
+    const char* name, const biquad_combo_parameters_t* params, int sample_rate,
+    config_error_t* err);
 
 /**
  * @brief Processes an array of samples through the combined biquad filter.

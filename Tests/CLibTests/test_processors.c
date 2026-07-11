@@ -103,7 +103,7 @@ TEST(race_basic) {
   params.has_delay_unit = true;
   params.attenuation = 6.02;
 
-  race_processor_t* race = race_processor_create("race", &params, 48000);
+  race_processor_t* race = race_processor_create("race", &params, 48000, NULL);
   ASSERT_TRUE(race != NULL);
 
   audio_chunk_t* chunk = audio_chunk_create(10, 2);

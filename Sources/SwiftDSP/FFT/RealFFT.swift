@@ -48,6 +48,20 @@ public protocol RealFFTBackend<Element>: AnyObject {
 
 public typealias RealFFT = GenericRealFFT<Double>
 
+public enum RealFFTError: Error, CustomStringConvertible {
+  case invalidLength(String)
+  case unsupportedPrecision(String)
+  case setupFailed(String)
+
+  public var description: String {
+    switch self {
+    case .invalidLength(let msg): return "RealFFT length error: \(msg)"
+    case .unsupportedPrecision(let msg): return "RealFFT unsupported precision: \(msg)"
+    case .setupFailed(let msg): return "RealFFT setup failed: \(msg)"
+    }
+  }
+}
+
 /// Real-input/output FFT of length `length = 2N` (even). Forward
 /// produces the `N + 1` unique complex bins; inverse consumes them.
 /// Caller is responsible for any `1/length` normalisation.
@@ -60,9 +74,13 @@ public final class GenericRealFFT<T: FFTRealPrecision> {
 
   private let backend: any RealFFTBackend<T>
 
-  public init(length: Int) {
-    precondition(length > 0, "RealFFT: length must be positive")
-    precondition(length % 2 == 0, "RealFFT: length must be even")
+  public init(length: Int) throws {
+    guard length > 0 else {
+      throw RealFFTError.invalidLength("RealFFT: length must be positive, got \(length)")
+    }
+    guard length % 2 == 0 else {
+      throw RealFFTError.invalidLength("RealFFT: length must be even, got \(length)")
+    }
     self.length = length
 
     // Branch 1: power-of-2 → vDSP's tuned real FFT, no complex-inner
@@ -83,12 +101,12 @@ public final class GenericRealFFT<T: FFTRealPrecision> {
       } else if let mr = MixedRadixFFT(n: halfN) {
         inner = mr
       } else {
-        inner = BluesteinFFT(n: halfN)
+        inner = try BluesteinFFT(n: halfN)
       }
       let doubleBackend = ComplexInnerRealFFT(length: length, inner: inner)
       self.backend = doubleBackend as! any RealFFTBackend<T>
     } else {
-      fatalError("RealFFT for Float only supports power-of-two sizes >= 8")
+      throw RealFFTError.unsupportedPrecision("RealFFT for Float only supports power-of-two sizes >= 8")
     }
   }
 

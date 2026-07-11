@@ -95,10 +95,13 @@ static void recompute_shelves(loudness_filter_t* filter, double volume) {
 
 loudness_filter_t* loudness_filter_create(
     const char* name, const loudness_parameters_t* params, int sample_rate,
-    processing_parameters_t* proc_params) {
+    processing_parameters_t* proc_params, config_error_t* err) {
   loudness_filter_t* filter =
       (loudness_filter_t*)calloc(1, sizeof(loudness_filter_t));
-  if (!filter) return NULL;
+  if (!filter) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate loudness filter wrapper");
+    return NULL;
+  }
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
     filter->name[sizeof(filter->name) - 1] = '\0';
@@ -116,8 +119,8 @@ loudness_filter_t* loudness_filter_create(
   filter->is_processing_active = false;
   filter->midband_attenuation_db = 0.0;
 
-  filter->low_shelf_filter = biquad_filter_create("loudness_ls", NULL);
-  filter->high_shelf_filter = biquad_filter_create("loudness_hs", NULL);
+  filter->low_shelf_filter = biquad_filter_create("loudness_ls", NULL, err);
+  filter->high_shelf_filter = biquad_filter_create("loudness_hs", NULL, err);
   if (!filter->low_shelf_filter || !filter->high_shelf_filter) {
     loudness_filter_free(filter);
     return NULL;

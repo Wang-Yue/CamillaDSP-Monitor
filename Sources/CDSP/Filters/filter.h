@@ -52,11 +52,13 @@ typedef struct filter filter_t;
  * @param sample_rate The sample rate in Hz.
  * @param chunk_size The processing chunk size.
  * @param proc_params Pointer to shared processing parameters.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return Pointer to the allocated filter_t structure, or NULL on failure.
  */
 filter_t* filter_create(const char* name, const filter_config_t* config,
                         int sample_rate, size_t chunk_size,
-                        processing_parameters_t* proc_params);
+                        processing_parameters_t* proc_params,
+                        config_error_t* err);
 
 /**
  * @brief Process a waveform buffer in-place.

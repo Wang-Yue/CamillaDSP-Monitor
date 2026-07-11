@@ -90,7 +90,7 @@ enum FIRDesign {
   ) -> [Double] {
     let n = options.fftSize
     let bins = n / 2 + 1
-    let fft = MeasurementFFT(length: n)
+    let fft = try! MeasurementFFT(length: n)
 
     // Step 1-2: build log-magnitude spectrum from the biquad chain.
     let floorLin = pow(10.0, options.floorDB / 20.0)
@@ -158,7 +158,7 @@ enum FIRDesign {
   ) -> [Double] {
     let n = options.fftSize
     let bins = n / 2 + 1
-    let fft = MeasurementFFT(length: n)
+    let fft = try! MeasurementFFT(length: n)
 
     // Build the magnitude spectrum from the chain. For linear phase,
     // we want IR even-symmetric around the centre, which corresponds
@@ -217,7 +217,7 @@ enum FIRDesign {
   ) -> [Double] {
     let n = options.fftSize
     let bins = n / 2 + 1
-    let fft = MeasurementFFT(length: n)
+    let fft = try! MeasurementFFT(length: n)
 
     let measuredBinHz = Double(measured.sampleRate) / Double(measured.fftSize)
     let designBinHz = Double(designSampleRate) / Double(n)

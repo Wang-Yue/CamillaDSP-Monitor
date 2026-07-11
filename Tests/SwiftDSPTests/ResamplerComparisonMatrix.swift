@@ -221,18 +221,18 @@ import Testing
     rubatoFft: Cell?, rubatoPoly: Cell?, rubatoSinc: Cell?
   ) {
     let swiftProcess: ProcessFn = { input, ir, or in
-      let res = SynchronousResampler(
+      let res = try! SynchronousResampler(
         channels: 1, inputRate: ir, outputRate: or, chunkSize: Self.chunkSize)
       return self.runResampler(res, input: input)
     }
     let polyProcess: ProcessFn = { input, ir, or in
-      let res = AsyncPolyResampler(
+      let res = try! AsyncPolyResampler(
         channels: 1, inputRate: ir, outputRate: or,
         interpolation: .septic, chunkSize: Self.chunkSize)
       return self.runResampler(res, input: input)
     }
     let sincProcess: ProcessFn = { input, ir, or in
-      let res = AsyncSincResampler(
+      let res = try! AsyncSincResampler(
         channels: 1, inputRate: ir, outputRate: or,
         profile: .accurate, chunkSize: Self.chunkSize)
       return self.runResampler(res, input: input)
@@ -287,7 +287,7 @@ import Testing
     if let perf = measureSwiftPerf(
       inRate: inRate, outRate: outRate,
       factory: {
-        SynchronousResampler(
+        try! SynchronousResampler(
           channels: 1, inputRate: $0, outputRate: $1, chunkSize: Self.chunkSize)
       })
     {
@@ -297,7 +297,7 @@ import Testing
     if let perf = measureSwiftPerf(
       inRate: inRate, outRate: outRate,
       factory: { i, o in
-        AsyncPolyResampler(
+        try! AsyncPolyResampler(
           channels: 1, inputRate: i, outputRate: o,
           interpolation: .septic, chunkSize: Self.chunkSize)
       })
@@ -308,7 +308,7 @@ import Testing
     if let perf = measureSwiftPerf(
       inRate: inRate, outRate: outRate,
       factory: { i, o in
-        AsyncSincResampler(
+        try! AsyncSincResampler(
           channels: 1, inputRate: i, outputRate: o,
           profile: .accurate, chunkSize: Self.chunkSize)
       })

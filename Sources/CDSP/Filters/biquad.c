@@ -309,9 +309,13 @@ double biquad_coefficients_phase_rad(const biquad_coefficients_t* coeffs,
 }
 
 biquad_filter_t* biquad_filter_create(const char* name,
-                                      const biquad_coefficients_t* coeffs) {
+                                      const biquad_coefficients_t* coeffs,
+                                      config_error_t* err) {
   biquad_filter_t* filter = (biquad_filter_t*)calloc(1, sizeof(biquad_filter_t));
-  if (!filter) return NULL;
+  if (!filter) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate biquad filter '%s'", name ? name : "");
+    return NULL;
+  }
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
     filter->name[sizeof(filter->name) - 1] = '\0';
@@ -328,6 +332,9 @@ biquad_filter_t* biquad_filter_create(const char* name,
   filter->coeffs_array[4] = filter->coeffs.a2;
   filter->setup = vDSP_biquadm_CreateSetupD(filter->coeffs_array, 1, 1);
   if (!filter->setup) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER,
+                     "Failed to initialize vDSP biquad setup for filter '%s' (check coefficients)",
+                     filter->name);
     biquad_filter_free(filter);
     return NULL;
   }

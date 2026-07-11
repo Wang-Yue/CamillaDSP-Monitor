@@ -79,11 +79,13 @@ const char* race_processor_get_name(const race_processor_t* processor);
  * @param params RACE configuration parameters (channel indices, delay,
  * attenuation, delay unit, subsample flag).
  * @param sample_rate Audio sample rate in Hz.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return Pointer to newly allocated race_processor_t, or NULL on failure.
  */
 race_processor_t* race_processor_create(const char* name,
                                         const race_parameters_t* params,
-                                        int sample_rate);
+                                        int sample_rate,
+                                        config_error_t* err);
 
 /**
  * @brief Frees all resources associated with the RACE processor.

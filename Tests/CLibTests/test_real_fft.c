@@ -79,7 +79,7 @@ TEST(ForwardMatchesDirectDFT) {
 
     random_complex(in_re, in_im, n, (uint64_t)n * 0x9E3779B9ULL);
 
-    bluestein_fft_t* fft = bluestein_fft_create(n);
+    bluestein_fft_t* fft = bluestein_fft_create(n, NULL);
     ASSERT_TRUE(fft != NULL);
     bluestein_fft_execute(fft, in_re, in_im, bs_re, bs_im, false);
     direct_dft(in_re, in_im, dir_re, dir_im, n, false);
@@ -111,7 +111,7 @@ TEST(InverseMatchesDirectDFT) {
 
     random_complex(in_re, in_im, n, (uint64_t)n);
 
-    bluestein_fft_t* fft = bluestein_fft_create(n);
+    bluestein_fft_t* fft = bluestein_fft_create(n, NULL);
     ASSERT_TRUE(fft != NULL);
     bluestein_fft_execute(fft, in_re, in_im, bs_re, bs_im, true);
     direct_dft(in_re, in_im, dir_re, dir_im, n, true);
@@ -143,7 +143,7 @@ TEST(RoundTrip) {
 
     random_complex(in_re, in_im, n, (uint64_t)n + 7);
 
-    bluestein_fft_t* fft = bluestein_fft_create(n);
+    bluestein_fft_t* fft = bluestein_fft_create(n, NULL);
     ASSERT_TRUE(fft != NULL);
     bluestein_fft_execute(fft, in_re, in_im, fwd_re, fwd_im, false);
     bluestein_fft_execute(fft, fwd_re, fwd_im, back_re, back_im, true);
@@ -171,7 +171,7 @@ TEST(RoundTrip) {
 
 TEST(RealFFTFallbackForPrimeFactors) {
   size_t length = 22;
-  real_fft_t* real_fft = real_fft_create(length);
+  real_fft_t* real_fft = real_fft_create(length, NULL);
   ASSERT_TRUE(real_fft != NULL);
   ASSERT_EQ(length / 2 + 1, real_fft_get_spectrum_length(real_fft));
 
@@ -206,7 +206,7 @@ TEST(RealFFTVDSPDFTInnerRoundtrip) {
   size_t lengths[] = {48, 80, 240, 2560};
   for (size_t i = 0; i < sizeof(lengths) / sizeof(lengths[0]); i++) {
     size_t length = lengths[i];
-    real_fft_t* real_fft = real_fft_create(length);
+    real_fft_t* real_fft = real_fft_create(length, NULL);
     ASSERT_TRUE(real_fft != NULL);
     ASSERT_EQ(length / 2 + 1, real_fft_get_spectrum_length(real_fft));
 
@@ -242,7 +242,7 @@ TEST(RealFFTPow2VDSPRoundtrip) {
   size_t lengths[] = {8, 16, 32, 64, 1024, 2048, 4096};
   for (size_t i = 0; i < sizeof(lengths) / sizeof(lengths[0]); i++) {
     size_t length = lengths[i];
-    real_fft_t* real_fft = real_fft_create(length);
+    real_fft_t* real_fft = real_fft_create(length, NULL);
     ASSERT_TRUE(real_fft != NULL);
     ASSERT_EQ(length / 2 + 1, real_fft_get_spectrum_length(real_fft));
 

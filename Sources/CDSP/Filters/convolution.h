@@ -50,11 +50,13 @@ typedef struct convolution_filter convolution_filter_t;
  *                         for sanity-checks; the filter becomes a pure delay.
  * @param chunk_size Per-call block length N. Must match the
  *                   validFrames the pipeline will hand to process.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A pointer to the created convolution filter, or NULL on failure.
  */
 convolution_filter_t* convolution_filter_create(const char* name,
                                                 const conv_parameters_t* params,
-                                                size_t chunk_size);
+                                                size_t chunk_size,
+                                                config_error_t* err);
 
 /**
  * @brief Process one block in-place.

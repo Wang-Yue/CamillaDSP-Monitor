@@ -439,7 +439,7 @@ static double* run_process(int impl_id, const double* input, size_t input_count,
 
   size_t cs = 1024;
   audio_resampler_t* res =
-      audio_resampler_create_from_config(&cfg, in_rate, out_rate, 1, cs);
+      audio_resampler_create_from_config(&cfg, in_rate, out_rate, 1, cs, NULL);
   if (!res) return NULL;
   double* out = run_resampler_full(res, input, input_count, out_count);
   audio_resampler_free(res);
@@ -581,7 +581,7 @@ static bool measure_swift_perf(int in_rate, int out_rate, int impl_id,
 
   size_t cs = 1024;
   audio_resampler_t* resampler =
-      audio_resampler_create_from_config(&cfg, in_rate, out_rate, 1, cs);
+      audio_resampler_create_from_config(&cfg, in_rate, out_rate, 1, cs, NULL);
   if (!resampler) return false;
   cs = audio_resampler_get_chunk_size(resampler);
 

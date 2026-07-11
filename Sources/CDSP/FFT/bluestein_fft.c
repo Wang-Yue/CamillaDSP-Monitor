@@ -103,8 +103,11 @@ static void bluestein_fft_free_wrapper(void* ctx) {
   bluestein_fft_free((bluestein_fft_t*)ctx);
 }
 
-bluestein_fft_t* bluestein_fft_create(size_t n) {
-  if (n == 0) return NULL;
+bluestein_fft_t* bluestein_fft_create(size_t n, config_error_t* err) {
+  if (n == 0) {
+    config_error_set(err, CONFIG_ERR_PARSE, "BluesteinFFT: n must be positive");
+    return NULL;
+  }
 
   // Find the smallest optimal size `m` for the inner FFT.
   // vDSP optimized sizes are of the form f * 2^k, where f in {1, 3, 5, 15} and
@@ -126,16 +129,21 @@ bluestein_fft_t* bluestein_fft_create(size_t n) {
 
   vDSP_DFT_SetupD fwd =
       vDSP_DFT_zop_CreateSetupD(NULL, (vDSP_Length)m, vDSP_DFT_FORWARD);
-  if (!fwd) return NULL;
+  if (!fwd) {
+    config_error_set(err, CONFIG_ERR_PARSE, "BluesteinFFT: vDSP forward DFT setup failed for inner size %zu", m);
+    return NULL;
+  }
   vDSP_DFT_SetupD inv =
       vDSP_DFT_zop_CreateSetupD(NULL, (vDSP_Length)m, vDSP_DFT_INVERSE);
   if (!inv) {
+    config_error_set(err, CONFIG_ERR_PARSE, "BluesteinFFT: vDSP inverse DFT setup failed for inner size %zu", m);
     vDSP_DFT_DestroySetupD(fwd);
     return NULL;
   }
 
   bluestein_fft_t* fft = (bluestein_fft_t*)calloc(1, sizeof(bluestein_fft_t));
   if (!fft) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate BluesteinFFT");
     vDSP_DFT_DestroySetupD(fwd);
     vDSP_DFT_DestroySetupD(inv);
     return NULL;

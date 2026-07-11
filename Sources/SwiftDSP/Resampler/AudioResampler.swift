@@ -13,7 +13,7 @@ func createResampler(
 ) throws -> AudioResampler {
   switch config.type {
   case .synchronous:
-    return SynchronousResampler(
+    return try SynchronousResampler(
       channels: channels, inputRate: inputRate, outputRate: outputRate,
       chunkSize: chunkSize)
   case .asyncSinc:
@@ -24,20 +24,20 @@ func createResampler(
       let interpStr = config.interpolation,
       let interpolation = SincInterpolationType(rawValue: interpStr)
     {
-      return AsyncSincResampler(
+      return try AsyncSincResampler(
         channels: channels, inputRate: inputRate, outputRate: outputRate,
         sincLen: sincLen, oversamplingFactor: oversamplingFactor,
         interpolation: interpolation, window: window, fCutoff: config.fCutoff,
         chunkSize: chunkSize)
     } else {
       let profile = config.profile.flatMap { ResamplerProfile(rawValue: $0) } ?? .balanced
-      return AsyncSincResampler(
+      return try AsyncSincResampler(
         channels: channels, inputRate: inputRate, outputRate: outputRate,
         profile: profile, chunkSize: chunkSize)
     }
   case .asyncPoly:
     let interp = config.interpolation.flatMap { PolyInterpolation(rawValue: $0) } ?? .cubic
-    return AsyncPolyResampler(
+    return try AsyncPolyResampler(
       channels: channels, inputRate: inputRate, outputRate: outputRate,
       interpolation: interp, chunkSize: chunkSize)
   case .apple:

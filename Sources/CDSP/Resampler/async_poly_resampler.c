@@ -42,14 +42,27 @@ struct async_poly_resampler {
 async_poly_resampler_t* async_poly_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,
     poly_interpolation_t interpolation, size_t chunk_size,
-    double max_relative_ratio) {
-  if (channels == 0 || channels > 256 || chunk_size == 0 || input_rate == 0 || output_rate == 0)
+    double max_relative_ratio, config_error_t* err) {
+  if (channels == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AsyncPolyResampler: channels must be positive");
     return NULL;
+  }
+  if (chunk_size == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AsyncPolyResampler: chunk_size must be positive");
+    return NULL;
+  }
+  if (input_rate == 0 || output_rate == 0) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AsyncPolyResampler: rates must be positive");
+    return NULL;
+  }
   if (max_relative_ratio < 1.0) max_relative_ratio = 1.1;
 
   async_poly_resampler_t* resampler =
       (async_poly_resampler_t*)calloc(1, sizeof(async_poly_resampler_t));
-  if (!resampler) return NULL;
+  if (!resampler) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AsyncPolyResampler");
+    return NULL;
+  }
 
   resampler->channels = channels;
   resampler->chunk_size = chunk_size;
@@ -60,6 +73,9 @@ async_poly_resampler_t* async_poly_resampler_create(
 
   if (chunk_size < 2 * resampler->interpolator_len ||
       chunk_size > SIZE_MAX - 2 * resampler->interpolator_len) {
+    config_error_set(err, CONFIG_ERR_VALIDATION,
+                     "AsyncPolyResampler: chunk_size %zu is out of bounds for interpolator length %zu",
+                     chunk_size, resampler->interpolator_len);
     async_poly_resampler_free(resampler);
     return NULL;
   }
@@ -67,6 +83,7 @@ async_poly_resampler_t* async_poly_resampler_create(
   size_t buf_len = chunk_size + 2 * resampler->interpolator_len;
   resampler->input_buffer = audio_buffers_create(channels, buf_len);
   if (!resampler->input_buffer) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AsyncPolyResampler input buffer");
     async_poly_resampler_free(resampler);
     return NULL;
   }
@@ -89,6 +106,7 @@ async_poly_resampler_t* async_poly_resampler_create(
       max_ratio_abs;
 
   if (isnan(raw_max) || isinf(raw_max) || raw_max < 0.0 || raw_max > (double)(SIZE_MAX - 32)) {
+    config_error_set(err, CONFIG_ERR_VALIDATION, "AsyncPolyResampler: calculated maximum output size is invalid");
     async_poly_resampler_free(resampler);
     return NULL;
   }
@@ -99,6 +117,7 @@ async_poly_resampler_t* async_poly_resampler_create(
   resampler->frac_scratch =
       (double*)calloc(resampler->max_output_frames, sizeof(double));
   if (!resampler->start_idx_scratch || !resampler->frac_scratch) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate AsyncPolyResampler scratch buffers");
     async_poly_resampler_free(resampler);
     return NULL;
   }

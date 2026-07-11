@@ -43,7 +43,7 @@ import Testing
     realIn: [Double], imagIn: [Double], inverse: Bool
   ) -> (re: [Double], im: [Double]) {
     let n = realIn.count
-    let fft = BluesteinFFT(n: n)
+    let fft = try! BluesteinFFT(n: n)
     var realOut = [Double](repeating: 0, count: n)
     var imagOut = [Double](repeating: 0, count: n)
     realIn.withUnsafeBufferPointer { rIn in
@@ -136,7 +136,7 @@ import Testing
   @Test func RealFFTFallbackForPrimeFactors() throws {
     // length = 22 → halfN = 11, prime → forces Bluestein fallback.
     let length = 22
-    let realFFT = RealFFT(length: length)
+    let realFFT = try! RealFFT(length: length)
     #expect(realFFT.spectrumLength == length / 2 + 1)
 
     // Generate a real impulse and confirm the spectrum is a flat 1.0 across
@@ -192,7 +192,7 @@ import Testing
     2560,  // halfN=1280=5·2⁸ — the 192→44.1k input FFT
   ])
   func RealFFTVDSPDFTInnerRoundtrip(length: Int) throws {
-    let realFFT = RealFFT(length: length)
+    let realFFT = try! RealFFT(length: length)
     #expect(realFFT.spectrumLength == length / 2 + 1)
 
     var input = [Double](repeating: 0, count: length)
@@ -240,7 +240,7 @@ import Testing
   /// impulse height away from `length`.
   @Test(arguments: [8, 16, 32, 64, 1024, 2048, 4096])
   func RealFFTPow2VDSPRoundtrip(length: Int) throws {
-    let realFFT = RealFFT(length: length)
+    let realFFT = try! RealFFT(length: length)
     #expect(realFFT.spectrumLength == length / 2 + 1)
 
     // forward(impulse) should be a flat unit-magnitude spectrum.

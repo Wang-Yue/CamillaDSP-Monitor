@@ -223,7 +223,7 @@ final class MixedRadixFFT: ArbitraryComplexFFT {
       case 5: stageRadix5(m: m, twRe: twRe, twIm: twIm)
       case 7: stageRadix7(m: m, twRe: twRe, twIm: twIm)
       case 8: stageRadix8(m: m, twRe: twRe, twIm: twIm)
-      default: fatalError("MixedRadixFFT: unsupported radix \(r)")
+      default: break
       }
       m *= r
     }

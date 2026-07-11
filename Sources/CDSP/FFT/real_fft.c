@@ -63,10 +63,20 @@ size_t real_fft_get_spectrum_length(const real_fft_t* fft) {
 #include "FFT/vdsp_complex_dft.h"
 #include "FFT/vdsp_real_fft.h"
 
-real_fft_t* real_fft_create(size_t length) {
-  if (length == 0 || length % 2 != 0) return NULL;
+real_fft_t* real_fft_create(size_t length, config_error_t* err) {
+  if (length == 0) {
+    config_error_set(err, CONFIG_ERR_PARSE, "RealFFT: length must be positive");
+    return NULL;
+  }
+  if (length % 2 != 0) {
+    config_error_set(err, CONFIG_ERR_PARSE, "RealFFT: length must be even, got %zu", length);
+    return NULL;
+  }
   real_fft_t* fft = (real_fft_t*)malloc(sizeof(real_fft_t));
-  if (!fft) return NULL;
+  if (!fft) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate RealFFT");
+    return NULL;
+  }
   fft->length = length;
   fft->spectrum_length = length / 2 + 1;
 
@@ -93,7 +103,7 @@ real_fft_t* real_fft_create(size_t length) {
     if (mr) {
       inner = mixed_radix_fft_as_arbitrary(mr);
     } else {
-      bluestein_fft_t* bs = bluestein_fft_create(half_n);
+      bluestein_fft_t* bs = bluestein_fft_create(half_n, err);
       if (bs) {
         inner = bluestein_fft_as_arbitrary(bs);
       }
@@ -108,6 +118,7 @@ real_fft_t* real_fft_create(size_t length) {
   complex_inner_real_fft_t* complex_inner =
       complex_inner_real_fft_create(length, inner);
   if (!complex_inner) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate ComplexInnerRealFFT");
     arbitrary_complex_fft_free(inner);
     free(fft);
     return NULL;
@@ -226,16 +237,27 @@ static void fftw_real_fft_free(void* ctx) {
   if (fft->out_complex) fftw_free(fft->out_complex);
   free(fft);
 }
-real_fft_t* real_fft_create(size_t length) {
-  if (length == 0 || length % 2 != 0) return NULL;
+real_fft_t* real_fft_create(size_t length, config_error_t* err) {
+  if (length == 0) {
+    config_error_set(err, CONFIG_ERR_PARSE, "RealFFT: length must be positive");
+    return NULL;
+  }
+  if (length % 2 != 0) {
+    config_error_set(err, CONFIG_ERR_PARSE, "RealFFT: length must be even, got %zu", length);
+    return NULL;
+  }
   real_fft_t* fft = (real_fft_t*)calloc(1, sizeof(real_fft_t));
-  if (!fft) return NULL;
+  if (!fft) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate RealFFT");
+    return NULL;
+  }
   fft->length = length;
   fft->spectrum_length = length / 2 + 1;
 
   struct fftw_real_fft_ctx* ctx =
       (struct fftw_real_fft_ctx*)calloc(1, sizeof(struct fftw_real_fft_ctx));
   if (!ctx) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate FFTW context");
     free(fft);
     return NULL;
   }
@@ -245,6 +267,7 @@ real_fft_t* real_fft_create(size_t length) {
   ctx->out_complex =
       (fftw_complex*)fftw_malloc(ctx->spectrum_length * sizeof(fftw_complex));
   if (!ctx->in_real || !ctx->out_complex) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate FFTW buffers");
     fftw_real_fft_free(ctx);
     free(fft);
     return NULL;
@@ -254,6 +277,7 @@ real_fft_t* real_fft_create(size_t length) {
   ctx->plan_inverse = fftw_plan_dft_c2r_1d((int)length, ctx->out_complex,
                                            ctx->in_real, FFTW_ESTIMATE);
   if (!ctx->plan_forward || !ctx->plan_inverse) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to create FFTW plan");
     fftw_real_fft_free(ctx);
     free(fft);
     return NULL;

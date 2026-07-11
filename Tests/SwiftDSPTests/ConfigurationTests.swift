@@ -58,7 +58,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 0, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     do {
       try config.validate()
       Issue.record("Expected error to be thrown")
@@ -77,7 +77,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 0,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     do {
       try config.validate()
       Issue.record("Expected error to be thrown")
@@ -93,7 +93,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1000001,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     do {
       try config.validate()
       Issue.record("Expected error to be thrown")
@@ -110,7 +110,7 @@ import Testing
     var devices = DevicesConfig(
       samplerate: 44100, chunksize: 1024,
       capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2))
+      playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2))
     
     devices.queuelimit = -1
     var config = DSPConfiguration(devices: devices)
@@ -143,7 +143,7 @@ import Testing
     var devices = DevicesConfig(
       samplerate: 44100, chunksize: 1024,
       capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2))
+      playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2))
     
     devices.adjustPeriod = 0.09
     let config = DSPConfiguration(devices: devices)
@@ -163,7 +163,7 @@ import Testing
     var devices = DevicesConfig(
       samplerate: 44100, chunksize: 1024,
       capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-      playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2))
+      playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2))
     
     devices.targetLevel = 0
     let config = DSPConfiguration(devices: devices)
@@ -184,7 +184,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 0),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     do {
       try config.validate()
       Issue.record("Expected error to be thrown")
@@ -201,7 +201,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 0)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 0)))
     do {
       try config.validate()
       Issue.record("Expected error to be thrown")
@@ -221,7 +221,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
@@ -243,7 +243,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
@@ -265,7 +265,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
@@ -288,7 +288,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.filters = ["myfilter": filter]
     fullConfig.pipeline = [step]
@@ -311,7 +311,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
@@ -333,7 +333,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.pipeline = [step]
     do {
@@ -356,7 +356,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.mixers = ["mymixer": mixer]
     fullConfig.pipeline = [step]
@@ -380,7 +380,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))  // Playback expects 2
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))  // Playback expects 2
     var fullConfig = config
     fullConfig.mixers = ["mymixer": mixer]
     fullConfig.pipeline = [step]
@@ -404,7 +404,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.filters = ["myfilter": filter]
     fullConfig.pipeline = [step]
@@ -496,7 +496,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.filters = ["mygain": filter]
     do {
@@ -519,7 +519,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
     var fullConfig = config
     fullConfig.mixers = ["mymixer": mixer]
     do {
@@ -540,7 +540,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     // 1. Invalid channels (<= 0)
     do {
@@ -581,7 +581,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     // 1. Invalid channels (<= 0)
     do {
@@ -622,7 +622,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     // 1. Invalid channels (<= 0)
     do {
@@ -663,7 +663,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: 44100, chunksize: 1024,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 2),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     // 1. Invalid Butterworth order (>64)
     do {

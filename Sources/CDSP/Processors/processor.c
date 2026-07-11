@@ -213,25 +213,51 @@ dsp_processor_t* dsp_processor_wrap_race(race_processor_t* p) {
 
 dsp_processor_t* dsp_processor_create(const char* name,
                                       const processor_config_t* config,
-                                      int sample_rate, size_t chunk_size) {
-  if (!config) return NULL;
+                                      int sample_rate, size_t chunk_size,
+                                      config_error_t* err) {
+  if (!config) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Processor config is NULL");
+    return NULL;
+  }
   switch (config->type) {
     case PROCESSOR_TYPE_COMPRESSOR: {
       compressor_processor_t* p = compressor_processor_create(
           name, &config->parameters.compressor, sample_rate, chunk_size);
-      return dsp_processor_wrap_compressor(p);
+      if (!p) {
+        config_error_set(err, CONFIG_ERR_PARSE, "Failed to create compressor processor '%s'", name ? name : "");
+        return NULL;
+      }
+      dsp_processor_t* wrap = dsp_processor_wrap_compressor(p);
+      if (!wrap) {
+        config_error_set(err, CONFIG_ERR_PARSE, "Failed to wrap compressor processor '%s'", name ? name : "");
+      }
+      return wrap;
     }
     case PROCESSOR_TYPE_NOISE_GATE: {
       noise_gate_processor_t* p = noise_gate_processor_create(
           name, &config->parameters.noise_gate, sample_rate, chunk_size);
-      return dsp_processor_wrap_noise_gate(p);
+      if (!p) {
+        config_error_set(err, CONFIG_ERR_PARSE, "Failed to create noise gate processor '%s'", name ? name : "");
+        return NULL;
+      }
+      dsp_processor_t* wrap = dsp_processor_wrap_noise_gate(p);
+      if (!wrap) {
+        config_error_set(err, CONFIG_ERR_PARSE, "Failed to wrap noise gate processor '%s'", name ? name : "");
+      }
+      return wrap;
     }
     case PROCESSOR_TYPE_RACE: {
       race_processor_t* p =
-          race_processor_create(name, &config->parameters.race, sample_rate);
-      return dsp_processor_wrap_race(p);
+          race_processor_create(name, &config->parameters.race, sample_rate, err);
+      if (!p) return NULL;
+      dsp_processor_t* wrap = dsp_processor_wrap_race(p);
+      if (!wrap) {
+        config_error_set(err, CONFIG_ERR_PARSE, "Failed to wrap RACE processor '%s'", name ? name : "");
+      }
+      return wrap;
     }
     default:
+      config_error_set(err, CONFIG_ERR_PARSE, "Unknown processor type %d for '%s'", config->type, name ? name : "");
       return NULL;
   }
 }

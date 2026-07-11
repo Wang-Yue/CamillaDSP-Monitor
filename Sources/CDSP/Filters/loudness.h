@@ -30,13 +30,15 @@ typedef struct loudness_filter loudness_filter_t;
  * @param params Pointer to the loudness filter configuration parameters.
  * @param sample_rate The sample rate of the audio processing path.
  * @param proc_params Pointer to shared processing parameters.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A pointer to the newly created loudness_filter_t instance, or NULL on
  * failure.
  */
 loudness_filter_t* loudness_filter_create(const char* name,
                                           const loudness_parameters_t* params,
                                           int sample_rate,
-                                          processing_parameters_t* proc_params);
+                                          processing_parameters_t* proc_params,
+                                          config_error_t* err);
 
 /**
  * @brief Processes a slice of waveform using the loudness filter.

@@ -102,7 +102,7 @@ final class BiquadComboFilter: Filter {
         p.type = highpass ? .highpassFO : .lowpassFO
       }
       let coeffs = try BiquadFilter.computeCoefficients(p, sampleRate: sampleRate)
-      sections.append(BiquadFilter(coefficients: coeffs))
+      sections.append(try BiquadFilter(coefficients: coeffs))
     }
     return sections
   }
@@ -123,7 +123,7 @@ final class BiquadComboFilter: Filter {
       p.type = highpass ? .highpass : .lowpass
 
       let coeffs = try BiquadFilter.computeCoefficients(p, sampleRate: sampleRate)
-      sections.append(BiquadFilter(coefficients: coeffs))
+      sections.append(try BiquadFilter(coefficients: coeffs))
     }
 
     if n % 2 == 1 {
@@ -132,7 +132,7 @@ final class BiquadComboFilter: Filter {
       p.type = highpass ? .highpassFO : .lowpassFO
 
       let coeffs = try BiquadFilter.computeCoefficients(p, sampleRate: sampleRate)
-      sections.append(BiquadFilter(coefficients: coeffs))
+      sections.append(try BiquadFilter(coefficients: coeffs))
     }
 
     return sections
@@ -162,8 +162,8 @@ final class BiquadComboFilter: Filter {
     let hsCoeffs = try BiquadFilter.computeCoefficients(hsParams, sampleRate: sampleRate)
 
     return [
-      BiquadFilter(coefficients: lsCoeffs),
-      BiquadFilter(coefficients: hsCoeffs),
+      try BiquadFilter(coefficients: lsCoeffs),
+      try BiquadFilter(coefficients: hsCoeffs),
     ]
   }
 
@@ -193,7 +193,7 @@ final class BiquadComboFilter: Filter {
       p.type = .peaking
 
       let coeffs = try BiquadFilter.computeCoefficients(p, sampleRate: sampleRate)
-      sections.append(BiquadFilter(coefficients: coeffs))
+      sections.append(try BiquadFilter(coefficients: coeffs))
     }
     return sections
   }
@@ -213,7 +213,7 @@ final class BiquadComboFilter: Filter {
       p.q = qLow
       p.type = .lowshelf
       sections.append(
-        BiquadFilter(coefficients: try BiquadFilter.computeCoefficients(p, sampleRate: sampleRate)))
+        try BiquadFilter(coefficients: try BiquadFilter.computeCoefficients(p, sampleRate: sampleRate)))
     }
 
     // Mid bands
@@ -230,7 +230,7 @@ final class BiquadComboFilter: Filter {
         p.q = q
         p.type = .peaking
         sections.append(
-          BiquadFilter(
+          try BiquadFilter(
             coefficients: try BiquadFilter.computeCoefficients(p, sampleRate: sampleRate)))
       }
     }
@@ -243,7 +243,7 @@ final class BiquadComboFilter: Filter {
       p.q = qHigh
       p.type = .highshelf
       sections.append(
-        BiquadFilter(coefficients: try BiquadFilter.computeCoefficients(p, sampleRate: sampleRate)))
+        try BiquadFilter(coefficients: try BiquadFilter.computeCoefficients(p, sampleRate: sampleRate)))
     }
 
     return sections

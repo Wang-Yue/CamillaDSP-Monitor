@@ -65,10 +65,16 @@ final class AsyncSincResampler: AudioResampler {
     sincLen: Int, oversamplingFactor: Int, interpolation: SincInterpolationType,
     window: WindowFunction, fCutoff: Double?, chunkSize: Int,
     maxRelativeRatio: Double = 1.1
-  ) {
-    precondition(channels > 0, "channels must be positive")
-    precondition(chunkSize > 0, "chunkSize must be positive")
-    precondition(maxRelativeRatio >= 1.0, "maxRelativeRatio must be ≥ 1")
+  ) throws {
+    guard channels > 0 else {
+      throw ResamplerError.invalidParameter(message: "channels must be positive, got \(channels)")
+    }
+    guard chunkSize > 0 else {
+      throw ResamplerError.invalidParameter(message: "chunkSize must be positive, got \(chunkSize)")
+    }
+    guard maxRelativeRatio >= 1.0 else {
+      throw ResamplerError.invalidParameter(message: "maxRelativeRatio must be ≥ 1, got \(maxRelativeRatio)")
+    }
 
     self.channels = channels
     self.chunkSize = chunkSize
@@ -78,10 +84,11 @@ final class AsyncSincResampler: AudioResampler {
     self.interpolation = interpolation
     self.maxRelativeRatio = maxRelativeRatio
 
-    precondition(
-      chunkSize >= 2 * sincLen,
-      "chunkSize (\(chunkSize)) must be ≥ 2*sincLen (\(2 * sincLen)) — see buffer-shift contract"
-    )
+    guard chunkSize >= 2 * sincLen else {
+      throw ResamplerError.invalidParameter(
+        message: "chunkSize (\(chunkSize)) must be ≥ 2*sincLen (\(2 * sincLen)) — see buffer-shift contract"
+      )
+    }
 
     // Cutoff: computed as f32 then converted to f64 inside
     // `make_sincs` (`asynchro_sinc.rs:96`). Down-sampling scales the cutoff
@@ -110,7 +117,7 @@ final class AsyncSincResampler: AudioResampler {
     let maxRatioAbs = baseRatio * maxRelativeRatio
     let rawMax = ((Double(chunkSize) - Double(sincLen + 1) - mostNegativeLastIndex) * maxRatioAbs)
     guard rawMax.isFinite && rawMax >= 0.0 else {
-      fatalError("Invalid rawMax: \(rawMax)")
+      throw ResamplerError.initializationFailed(message: "Invalid rawMax: \(rawMax)")
     }
     self.maxOutputFrames = Int(rawMax.rounded(.up)) + 16
 
@@ -123,7 +130,7 @@ final class AsyncSincResampler: AudioResampler {
     channels: Int, inputRate: Int, outputRate: Int,
     profile: ResamplerProfile = .balanced, chunkSize: Int,
     maxRelativeRatio: Double = 1.1
-  ) {
+  ) throws {
     let sincLen: Int
     let oversamplingFactor: Int
     let window: WindowFunction
@@ -152,7 +159,7 @@ final class AsyncSincResampler: AudioResampler {
       interpolation = .cubic
     }
 
-    self.init(
+    try self.init(
       channels: channels, inputRate: inputRate, outputRate: outputRate,
       sincLen: sincLen, oversamplingFactor: oversamplingFactor,
       interpolation: interpolation, window: window, fCutoff: nil,

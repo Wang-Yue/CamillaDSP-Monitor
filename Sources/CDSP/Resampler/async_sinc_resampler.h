@@ -15,6 +15,7 @@
 #include <stddef.h>
 
 #include "Audio/audio_chunk.h"
+#include "Config/config_error.h"
 #include "Config/resampler_config_types.h"
 #include "resampler_error.h"
 #include "sinc_dot_product.h"
@@ -60,13 +61,14 @@ typedef struct async_sinc_resampler async_sinc_resampler_t;
  * @param chunk_size Fixed number of input frames per process call.
  * @param max_relative_ratio Maximum relative ratio adjustment. Used for buffer
  * pre-allocation.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A new resampler instance, or NULL on failure.
  */
 async_sinc_resampler_t* async_sinc_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate, size_t sinc_len,
     size_t oversampling_factor, sinc_interpolation_type_t interpolation,
     window_function_t window, double f_cutoff, bool has_f_cutoff,
-    size_t chunk_size, double max_relative_ratio);
+    size_t chunk_size, double max_relative_ratio, config_error_t* err);
 
 /**
  * @brief Creates an asynchronous windowed-sinc resampler using a quality
@@ -79,11 +81,13 @@ async_sinc_resampler_t* async_sinc_resampler_create(
  * @param chunk_size Fixed number of input frames per process call.
  * @param max_relative_ratio Maximum relative ratio adjustment. Used for buffer
  * pre-allocation.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A new resampler instance, or NULL on failure.
  */
 async_sinc_resampler_t* async_sinc_resampler_create_from_profile(
     size_t channels, size_t input_rate, size_t output_rate,
-    resampler_profile_t profile, size_t chunk_size, double max_relative_ratio);
+    resampler_profile_t profile, size_t chunk_size, double max_relative_ratio,
+    config_error_t* err);
 
 /**
  * @brief Frees the sinc resampler resources.

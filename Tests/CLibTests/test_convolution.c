@@ -10,7 +10,7 @@ TEST(MovingAverage) {
   double coeffs[] = {0.5, 0.5};
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 2};
-  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
+  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double wave[] = {1.0, 1.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0};
@@ -28,7 +28,7 @@ TEST(SegmentedConvolution) {
   for (int i = 0; i < 32; i++) ir[i] = (double)i;
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = ir, .values_count = 32};
-  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
+  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double impulse[8] = {1.0, 0, 0, 0, 0, 0, 0, 0};
@@ -58,7 +58,7 @@ TEST(IdentityConvolution) {
   double coeffs[] = {1.0};
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 1};
-  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
+  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -72,7 +72,7 @@ TEST(DelayConvolution) {
   double coeffs[] = {0.0, 0.0, 0.0, 1.0};
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 4};
-  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
+  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -89,7 +89,7 @@ TEST(ConvolutionWithSineWave) {
   double coeffs[] = {0.5, 0.5};
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 2};
-  convolution_filter_t* filter = convolution_filter_create("conv", &params, 64);
+  convolution_filter_t* filter = convolution_filter_create("conv", &params, 64, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double sample_rate = 48000.0;
@@ -117,13 +117,13 @@ TEST(ConvolutionWithSineWave) {
 TEST(EmptyIRThrows) {
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = NULL, .values_count = 0};
-  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
+  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8, NULL);
   ASSERT_TRUE(filter == NULL);
 }
 
 TEST(DummyIsIdentity) {
   conv_parameters_t params = {.type = CONV_TYPE_DUMMY, .length = 4};
-  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8);
+  convolution_filter_t* filter = convolution_filter_create("conv", &params, 8, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double wave[] = {0.3, -0.2, 0.7, -0.1, 0.0, 0.5, -0.4, 0.9};

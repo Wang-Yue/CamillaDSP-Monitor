@@ -223,14 +223,18 @@ final class ConvolutionFilter: Filter {
   ///     Must be non-empty.
   ///   - chunkSize: Per-call block length `N`. Must match the
   ///     `validFrames` the pipeline will hand to `process`.
-  init(name: String = "convolution", coefficients: [Double], chunkSize: Int) {
-    precondition(chunkSize > 0, "ConvolutionFilter: chunkSize must be > 0")
-    precondition(!coefficients.isEmpty, "ConvolutionFilter: coefficients must not be empty")
+  init(name: String = "convolution", coefficients: [Double], chunkSize: Int) throws {
+    guard chunkSize > 0 else {
+      throw ConfigError.invalidFilter("ConvolutionFilter: chunkSize must be > 0, got \(chunkSize)")
+    }
+    guard !coefficients.isEmpty else {
+      throw ConfigError.invalidFilter("ConvolutionFilter: coefficients must not be empty")
+    }
     self.name = name
     self.chunkSize = chunkSize
     self.fftSize = 2 * chunkSize
     self.bins = chunkSize + 1
-    self.fft = RealFFT(length: 2 * chunkSize)
+    self.fft = try RealFFT(length: 2 * chunkSize)
 
     let ns = (coefficients.count + chunkSize - 1) / chunkSize
     self.nsegments = ns
@@ -277,7 +281,7 @@ final class ConvolutionFilter: Filter {
     guard !coeffs.isEmpty else {
       throw ConfigError.invalidFilter("Conv filter resolved to empty IR")
     }
-    self.init(name: name, coefficients: coeffs, chunkSize: chunkSize)
+    try self.init(name: name, coefficients: coeffs, chunkSize: chunkSize)
   }
 
   deinit {

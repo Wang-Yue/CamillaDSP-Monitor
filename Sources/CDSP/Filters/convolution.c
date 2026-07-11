@@ -368,11 +368,22 @@ static double* load_raw_file(const char* path, const char* format_str,
 
 convolution_filter_t* convolution_filter_create(const char* name,
                                                 const conv_parameters_t* params,
-                                                size_t chunk_size) {
-  if (!params || chunk_size == 0) return NULL;
+                                                size_t chunk_size,
+                                                config_error_t* err) {
+  if (!params) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER, "Convolution params is NULL");
+    return NULL;
+  }
+  if (chunk_size == 0) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER, "Convolution chunk_size must be positive");
+    return NULL;
+  }
   convolution_filter_t* filter =
       (convolution_filter_t*)calloc(1, sizeof(convolution_filter_t));
-  if (!filter) return NULL;
+  if (!filter) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate convolution filter wrapper");
+    return NULL;
+  }
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
     filter->name[sizeof(filter->name) - 1] = '\0';
@@ -381,7 +392,7 @@ convolution_filter_t* convolution_filter_create(const char* name,
   }
   filter->chunk_size = chunk_size;
   size_t fft_len = 2 * chunk_size;
-  filter->fft = real_fft_create(fft_len);
+  filter->fft = real_fft_create(fft_len, err);
   if (!filter->fft) {
     free(filter);
     return NULL;
@@ -478,12 +489,18 @@ convolution_filter_t* convolution_filter_create(const char* name,
   filter->spec_accum_im = (double*)calloc(spec_len, sizeof(double));
 
   if (!filter->overlap_buffer || !filter->time_buf || !filter->spec_accum_re || !filter->spec_accum_im) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate convolution scratch buffers");
     goto fail;
   }
 
   return filter;
 
 fail:
+  if (err && err->type == CONFIG_ERR_NONE) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER,
+                     "Failed to initialize convolution filter '%s' (check IR values or file format/existence)",
+                     name ? name : "");
+  }
   if (dummy_coeffs) free(dummy_coeffs);
   if (scratch) free(scratch);
   convolution_filter_free(filter);

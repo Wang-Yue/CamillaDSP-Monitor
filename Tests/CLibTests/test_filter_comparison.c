@@ -232,7 +232,7 @@ static void compare_biquad(double b0, double b1, double b2, double a1,
 
   biquad_coefficients_t coeffs = {
       .b0 = b0, .b1 = b1, .b2 = b2, .a1 = a1, .a2 = a2};
-  biquad_filter_t* filter = biquad_filter_create("test_bq", &coeffs);
+  biquad_filter_t* filter = biquad_filter_create("test_bq", &coeffs, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double* swift_out = (double*)malloc(NBR_FRAMES * sizeof(double));
@@ -390,7 +390,7 @@ static void compare_volume(double current_volume_db, bool mute,
                                     .has_limit = true,
                                     .fader = FADER_MAIN};
   volume_filter_t* filter = volume_filter_create(
-      "test_vol", &vol_params, SAMPLE_RATE, CHUNK_SIZE, params);
+      "test_vol", &vol_params, SAMPLE_RATE, CHUNK_SIZE, params, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double* swift_out = (double*)malloc(NBR_FRAMES * sizeof(double));
@@ -468,7 +468,7 @@ static void compare_loudness(double volume_db, double reference_db,
   processing_parameters_set_current_volume(params, volume_db);
 
   loudness_filter_t* filter =
-      loudness_filter_create("test_loud", &lp, SAMPLE_RATE, params);
+      loudness_filter_create("test_loud", &lp, SAMPLE_RATE, params, NULL);
   ASSERT_TRUE(filter != NULL);
   double primer[8] = {0};
   loudness_filter_process(filter, primer, 8);
@@ -683,7 +683,7 @@ TEST(Convolution_Vs_Rust_RandomIR) {
   params.values_count = 2000;
 
   convolution_filter_t* filter =
-      convolution_filter_create("test_conv", &params, CHUNK_SIZE);
+      convolution_filter_create("test_conv", &params, CHUNK_SIZE, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double* swift_out = (double*)malloc(NBR_FRAMES * sizeof(double));
@@ -758,7 +758,7 @@ static void compare_delay(double delay, delay_unit_t unit, bool subsample,
   delay_parameters_t params = {
       .delay = delay, .unit = unit, .subsample = subsample};
   delay_filter_t* filter =
-      delay_filter_create("test_delay", &params, SAMPLE_RATE);
+      delay_filter_create("test_delay", &params, SAMPLE_RATE, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double* swift_out = (double*)malloc(NBR_FRAMES * sizeof(double));
@@ -834,7 +834,7 @@ static void compare_biquad_combo_filter(biquad_combo_type_t type, double freq,
   params.has_order = true;
 
   biquad_combo_filter_t* filter =
-      biquad_combo_filter_create("test_combo", &params, SAMPLE_RATE);
+      biquad_combo_filter_create("test_combo", &params, SAMPLE_RATE, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double* swift_out = (double*)malloc(NBR_FRAMES * sizeof(double));
@@ -889,7 +889,7 @@ static void compare_biquad_combo_tilt(double gain, const char* label) {
   params.has_gain = true;
 
   biquad_combo_filter_t* filter =
-      biquad_combo_filter_create("test_tilt", &params, SAMPLE_RATE);
+      biquad_combo_filter_create("test_tilt", &params, SAMPLE_RATE, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double* swift_out = (double*)malloc(NBR_FRAMES * sizeof(double));
@@ -960,7 +960,7 @@ static void compare_biquad_combo_geq(double freq_min, double freq_max,
   params.gains_count = gains_count;
 
   biquad_combo_filter_t* filter =
-      biquad_combo_filter_create("test_geq", &params, SAMPLE_RATE);
+      biquad_combo_filter_create("test_geq", &params, SAMPLE_RATE, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double* swift_out = (double*)malloc(NBR_FRAMES * sizeof(double));
@@ -1069,7 +1069,7 @@ static void compare_biquad_combo_peq5(double fls, double qls, double gls,
   params.has_ghs = true;
 
   biquad_combo_filter_t* filter =
-      biquad_combo_filter_create("test_peq5", &params, SAMPLE_RATE);
+      biquad_combo_filter_create("test_peq5", &params, SAMPLE_RATE, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double* swift_out = (double*)malloc(NBR_FRAMES * sizeof(double));
@@ -1539,7 +1539,7 @@ TEST(RACE_Vs_RustReference) {
   params.has_delay_unit = true;
   params.attenuation = attenuation;
 
-  race_processor_t* race = race_processor_create("race", &params, SAMPLE_RATE);
+  race_processor_t* race = race_processor_create("race", &params, SAMPLE_RATE, NULL);
   ASSERT_TRUE(race != NULL);
 
   audio_chunk_t* chunk = audio_chunk_create(NBR_FRAMES, 2);

@@ -19,14 +19,14 @@ final class LoudnessFilter: Filter {
 
   var processingParameters: ProcessingParameters?
 
-  init(name: String = "loudness", parameters: LoudnessParameters, sampleRate: Int) {
+  init(name: String = "loudness", parameters: LoudnessParameters, sampleRate: Int) throws {
     self.name = name
     self.sampleRate = sampleRate
     self.params = parameters
 
     let passCoeffs = BiquadCoefficients.passthrough
-    self.lowShelfFilter = BiquadFilter(coefficients: passCoeffs)
-    self.highShelfFilter = BiquadFilter(coefficients: passCoeffs)
+    self.lowShelfFilter = try BiquadFilter(coefficients: passCoeffs)
+    self.highShelfFilter = try BiquadFilter(coefficients: passCoeffs)
   }
 
   func process(waveform: MutableWaveform) {

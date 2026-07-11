@@ -118,7 +118,7 @@ public struct FrequencyResponse: Sendable {
     }
     let n = nextPowerOfTwo(max(8, fftSize ?? ir.count))
     let bins = n / 2 + 1
-    let fft = MeasurementFFT(length: n)
+    let fft = try! MeasurementFFT(length: n)
 
     var padded = [Double](repeating: 0, count: n)
     padded.replaceSubrange(0..<ir.samples.count, with: ir.samples)
@@ -214,7 +214,7 @@ public struct FrequencyResponse: Sendable {
       hann[i] = 0.5 * (1.0 - cos(2.0 * Double.pi * Double(i) / Double(windowLength - 1)))
     }
 
-    let fft = MeasurementFFT(length: fftSize)
+    guard let fft = try? MeasurementFFT(length: fftSize) else { return [] }
     let bins = fftSize / 2 + 1
 
     var padded = [Double](repeating: 0, count: fftSize)

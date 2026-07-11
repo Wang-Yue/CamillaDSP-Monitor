@@ -153,7 +153,7 @@ import Testing
     // Run the same filter in Swift. Use the scalar DF2T path so the output
     // matches.
     let coeffs = BiquadCoefficients(b0: b0, b1: b1, b2: b2, a1: a1, a2: a2)
-    let filter = BiquadFilter(coefficients: coeffs)
+    let filter = try! BiquadFilter(coefficients: coeffs)
     var swiftOut = input
     var idx = 0
     while idx < swiftOut.count {
@@ -373,7 +373,7 @@ import Testing
     let params = ProcessingParameters(captureChannels: 1, playbackChannels: 1)
     params.currentVolume = volumeDB
 
-    let filter = LoudnessFilter(
+    let filter = try! LoudnessFilter(
       parameters: lp,
       sampleRate: Self.sampleRate)
     filter.processingParameters = params
@@ -518,7 +518,7 @@ import Testing
     }
     let ref = try readRaw(from: refPath)
 
-    let filter = ConvolutionFilter(coefficients: coeffs, chunkSize: Self.chunkSize)
+    let filter = try! ConvolutionFilter(coefficients: coeffs, chunkSize: Self.chunkSize)
     var swiftOut = input
     var idx = 0
     while idx < swiftOut.count {
@@ -587,7 +587,7 @@ import Testing
     let ref = try readRaw(from: refPath)
 
     let params = DelayParameters(delay: delay, unit: unit, subsample: subsample)
-    let filter = DelayFilter(parameters: params, sampleRate: Self.sampleRate)
+    let filter = try! DelayFilter(parameters: params, sampleRate: Self.sampleRate)
 
     var swiftOut = input
     var idx = 0

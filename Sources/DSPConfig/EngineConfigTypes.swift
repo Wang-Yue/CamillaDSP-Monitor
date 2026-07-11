@@ -530,14 +530,14 @@ extension PlaybackDeviceConfig {
     }
   }
 
-  public init(type: AudioBackendType, channels: Int) {
+  public init(type: AudioBackendType, channels: Int) throws {
     switch type {
     case .coreAudio:
       self = .coreAudio(CoreAudioPlaybackConfig(channels: channels))
     case .rawFile:
       self = .rawFile(RawFilePlaybackConfig(channels: channels, filename: "", format: "S16_LE"))
     case .wavFile, .signalGenerator:
-      fatalError("Unsupported playback backend: \(type)")
+      throw ConfigError.validationError("Unsupported playback backend: \(type)")
     }
   }
 }

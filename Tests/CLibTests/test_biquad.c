@@ -32,7 +32,7 @@ TEST(ImpulseResponse) {
   biquad_parameters_t params = {
       .type = BIQUAD_TYPE_LOWPASS, .freq = 10000.0, .q = 0.5};
   biquad_coefficients_t coeffs = make_coeffs(&params, 44100);
-  biquad_filter_t* filter = biquad_filter_create("biquad", &coeffs);
+  biquad_filter_t* filter = biquad_filter_create("biquad", &coeffs, NULL);
   ASSERT_TRUE(filter != NULL);
 
   double wave[] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};

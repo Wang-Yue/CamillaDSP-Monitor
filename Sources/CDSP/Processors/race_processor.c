@@ -47,12 +47,23 @@ const char* race_processor_get_name(const race_processor_t* processor) {
 
 race_processor_t* race_processor_create(const char* name,
                                         const race_parameters_t* params,
-                                        int sample_rate) {
-  if (!params || sample_rate <= 0) return NULL;
+                                        int sample_rate,
+                                        config_error_t* err) {
+  if (!params) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER, "RACE params is NULL");
+    return NULL;
+  }
+  if (sample_rate <= 0) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER, "RACE sample_rate must be positive");
+    return NULL;
+  }
 
   race_processor_t* processor =
       (race_processor_t*)calloc(1, sizeof(race_processor_t));
-  if (!processor) return NULL;
+  if (!processor) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate RACE processor wrapper");
+    return NULL;
+  }
 
   if (name) {
     strncpy(processor->name, name, sizeof(processor->name) - 1);
@@ -108,9 +119,9 @@ race_processor_t* race_processor_create(const char* name,
       params->has_subsample_delay ? params->subsample_delay : false;
 
   processor->delay_a =
-      delay_filter_create("race-DelayA", &dparams, sample_rate);
+      delay_filter_create("race-DelayA", &dparams, sample_rate, err);
   processor->delay_b =
-      delay_filter_create("race-DelayB", &dparams, sample_rate);
+      delay_filter_create("race-DelayB", &dparams, sample_rate, err);
 
   gain_parameters_t gparams = {0};
   gparams.gain = -params->attenuation;
@@ -124,6 +135,11 @@ race_processor_t* race_processor_create(const char* name,
   processor->feedback_b = 0.0;
 
   if (!processor->delay_a || !processor->delay_b || !processor->gain) {
+    if (err && err->type == CONFIG_ERR_NONE) {
+      config_error_set(err, CONFIG_ERR_INVALID_FILTER,
+                       "Failed to initialize sub-filters for RACE processor '%s'",
+                       processor->name);
+    }
     race_processor_free(processor);
     return NULL;
   }

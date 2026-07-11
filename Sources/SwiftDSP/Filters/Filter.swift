@@ -53,7 +53,7 @@ enum FilterFactory {
         processingParameters: procParams
       )
     case .loudness(let p):
-      return LoudnessFilter(name: name, parameters: p, sampleRate: sampleRate)
+      return try LoudnessFilter(name: name, parameters: p, sampleRate: sampleRate)
     case .biquad(let p):
       return try BiquadFilter(
         name: name,
@@ -62,7 +62,7 @@ enum FilterFactory {
       return try ConvolutionFilter(
         name: name, parameters: p, chunkSize: chunkSize, sampleRate: sampleRate)
     case .delay(let p):
-      return DelayFilter(name: name, parameters: p, sampleRate: sampleRate)
+      return try DelayFilter(name: name, parameters: p, sampleRate: sampleRate)
     case .biquadCombo(let p):
       return try BiquadComboFilter(name: name, parameters: p, sampleRate: sampleRate)
     case .diffEq(let p):

@@ -19,9 +19,9 @@ final class RACEProcessor: Processor {
     self.channelB = max(parameters.channelA, parameters.channelB)
 
     let delayParams = Self.delayConfig(parameters, sampleRate: sampleRate)
-    self.delayA = DelayFilter(
+    self.delayA = try DelayFilter(
       name: "\(name)-DelayA", parameters: delayParams, sampleRate: sampleRate)
-    self.delayB = DelayFilter(
+    self.delayB = try DelayFilter(
       name: "\(name)-DelayB", parameters: delayParams, sampleRate: sampleRate)
 
     let gainParams = Self.gainConfig(parameters)

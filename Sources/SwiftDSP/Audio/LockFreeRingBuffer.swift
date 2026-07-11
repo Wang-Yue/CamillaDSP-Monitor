@@ -79,10 +79,7 @@ final class SPSCAudioRingBuffer: @unchecked Sendable {
     let buffer = UnsafeMutableBufferPointer<Float>.allocate(capacity: cap)
     buffer.initialize(repeating: 0)
     self.storage = buffer
-    guard let basePtr = buffer.baseAddress else {
-      fatalError("Failed to allocate storage for SPSCAudioRingBuffer")
-    }
-    self.base = basePtr
+    self.base = buffer.baseAddress!
   }
 
   deinit {

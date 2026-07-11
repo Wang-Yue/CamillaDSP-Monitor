@@ -438,7 +438,7 @@ TEST(AppleResampler_AllocationFree_Stereo) {
   cfg.has_apple_complexity = true;
 
   audio_resampler_t* res =
-      audio_resampler_create_from_config(&cfg, 44100, 48000, 2, 1024);
+      audio_resampler_create_from_config(&cfg, 44100, 48000, 2, 1024, NULL);
   ASSERT_TRUE(res != NULL);
   run_resampler_hot_path(res, 2, "AppleResampler stereo");
   audio_resampler_free(res);
@@ -451,7 +451,7 @@ TEST(Synchronous_Stereo) {
   cfg.type = RESAMPLER_TYPE_SYNCHRONOUS;
 
   audio_resampler_t* res =
-      audio_resampler_create_from_config(&cfg, 44100, 48000, 2, 1024);
+      audio_resampler_create_from_config(&cfg, 44100, 48000, 2, 1024, NULL);
   ASSERT_TRUE(res != NULL);
   run_resampler_hot_path(res, 2, "Synchronous stereo");
   audio_resampler_free(res);
@@ -465,7 +465,7 @@ TEST(AsyncPoly_Stereo) {
   cfg.has_interpolation = true;
 
   audio_resampler_t* res =
-      audio_resampler_create_from_config(&cfg, 44100, 48000, 2, 1024);
+      audio_resampler_create_from_config(&cfg, 44100, 48000, 2, 1024, NULL);
   ASSERT_TRUE(res != NULL);
   run_resampler_hot_path(res, 2, "AsyncPoly stereo");
   audio_resampler_free(res);
@@ -479,7 +479,7 @@ TEST(AsyncSinc_Stereo) {
   cfg.has_profile = true;
 
   audio_resampler_t* res =
-      audio_resampler_create_from_config(&cfg, 44100, 48000, 2, 1024);
+      audio_resampler_create_from_config(&cfg, 44100, 48000, 2, 1024, NULL);
   ASSERT_TRUE(res != NULL);
   run_resampler_hot_path(res, 2, "AsyncSinc stereo");
   audio_resampler_free(res);
@@ -537,7 +537,7 @@ TEST(Biquad_AllocationFree) {
   biquad_coefficients_t coeffs = {
       .b0 = 0.25, .b1 = 0.5, .b2 = 0.25, .a1 = -0.5, .a2 = 0.1};
   (void)params;
-  biquad_filter_t* filter = biquad_filter_create("bq", &coeffs);
+  biquad_filter_t* filter = biquad_filter_create("bq", &coeffs, NULL);
   ASSERT_TRUE(filter != NULL);
   double* wave = (double*)calloc(1024, sizeof(double));
   fill_sine(wave, 1024, 1000.0, 44100.0);
@@ -557,7 +557,7 @@ TEST(Convolution_AllocationFree) {
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = ir, .values_count = ir_len};
   convolution_filter_t* filter =
-      convolution_filter_create("conv", &params, chunk_size);
+      convolution_filter_create("conv", &params, chunk_size, NULL);
   ASSERT_TRUE(filter != NULL);
   double* wave = (double*)calloc(chunk_size, sizeof(double));
   fill_sine(wave, chunk_size, 1000.0, 44100.0);
@@ -601,7 +601,7 @@ TEST(Volume_AllocationFree) {
                                 .has_limit = true,
                                 .fader = FADER_MAIN};
   volume_filter_t* filter =
-      volume_filter_create("vol", &params, 44100, 1024, proc_params);
+      volume_filter_create("vol", &params, 44100, 1024, proc_params, NULL);
   ASSERT_TRUE(filter != NULL);
   double* wave = (double*)calloc(1024, sizeof(double));
   fill_sine(wave, 1024, 1000.0, 44100.0);
@@ -624,7 +624,7 @@ TEST(Loudness_AllocationFree) {
                                   .has_low_boost = true,
                                   .attenuate_mid = false};
   loudness_filter_t* filter =
-      loudness_filter_create("loud", &params, 44100, proc_params);
+      loudness_filter_create("loud", &params, 44100, proc_params, NULL);
   ASSERT_TRUE(filter != NULL);
   double* wave = (double*)calloc(1024, sizeof(double));
   fill_sine(wave, 1024, 1000.0, 44100.0);
@@ -638,7 +638,7 @@ TEST(Loudness_AllocationFree) {
 TEST(Delay_AllocationFree) {
   delay_parameters_t params = {
       .delay = 5.5, .unit = DELAY_UNIT_SAMPLES, .subsample = true};
-  delay_filter_t* filter = delay_filter_create("del", &params, 44100);
+  delay_filter_t* filter = delay_filter_create("del", &params, 44100, NULL);
   ASSERT_TRUE(filter != NULL);
   double* wave = (double*)calloc(1024, sizeof(double));
   fill_sine(wave, 1024, 1000.0, 44100.0);
@@ -666,7 +666,7 @@ TEST(BiquadCombo_AllocationFree) {
                                       .qhs = 0.707,
                                       .ghs = 2.5};
   biquad_combo_filter_t* filter =
-      biquad_combo_filter_create("combo", &params, 44100);
+      biquad_combo_filter_create("combo", &params, 44100, NULL);
   ASSERT_TRUE(filter != NULL);
   double* wave = (double*)calloc(1024, sizeof(double));
   fill_sine(wave, 1024, 1000.0, 44100.0);
@@ -824,7 +824,7 @@ TEST(RACE_AllocationFree) {
                               .delay_unit = DELAY_UNIT_SAMPLES,
                               .has_delay_unit = true,
                               .attenuation = 6.0};
-  race_processor_t* proc = race_processor_create("race", &params, 44100);
+  race_processor_t* proc = race_processor_create("race", &params, 44100, NULL);
   ASSERT_TRUE(proc != NULL);
   audio_chunk_t* chunk = audio_chunk_create(1024, 2);
   for (size_t f = 0; f < 1024; f++) {

@@ -175,7 +175,7 @@ TEST(Convolution_1024_Benchmark) {
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 1024};
   convolution_filter_t* f =
-      convolution_filter_create("conv-1024", &params, CHUNK_SIZE);
+      convolution_filter_create("conv-1024", &params, CHUNK_SIZE, NULL);
   run_filter_benchmark("FftConv_1024", "Conv/FftConv/1024", f, process_conv);
   convolution_filter_free(f);
   free(coeffs);
@@ -186,7 +186,7 @@ TEST(Convolution_4096_Benchmark) {
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 4096};
   convolution_filter_t* f =
-      convolution_filter_create("conv-4096", &params, CHUNK_SIZE);
+      convolution_filter_create("conv-4096", &params, CHUNK_SIZE, NULL);
   run_filter_benchmark("FftConv_4096", "Conv/FftConv/4096", f, process_conv);
   convolution_filter_free(f);
   free(coeffs);
@@ -197,7 +197,7 @@ TEST(Convolution_16384_Benchmark) {
   conv_parameters_t params = {
       .type = CONV_TYPE_VALUES, .values = coeffs, .values_count = 16384};
   convolution_filter_t* f =
-      convolution_filter_create("conv-16384", &params, CHUNK_SIZE);
+      convolution_filter_create("conv-16384", &params, CHUNK_SIZE, NULL);
   run_filter_benchmark("FftConv_16384", "Conv/FftConv/16384", f, process_conv);
   convolution_filter_free(f);
   free(coeffs);
@@ -209,7 +209,7 @@ TEST(Biquad_Benchmark) {
                                   .b2 = 0.21476322779271284,
                                   .a1 = -0.1462978543780541,
                                   .a2 = 0.005350765548905586};
-  biquad_filter_t* f = biquad_filter_create("biquad", &coeffs);
+  biquad_filter_t* f = biquad_filter_create("biquad", &coeffs, NULL);
   run_filter_benchmark("Biquad", "Biquad", f, process_biquad);
   biquad_filter_free(f);
 }

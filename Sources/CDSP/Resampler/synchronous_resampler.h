@@ -87,6 +87,7 @@
 #include <stddef.h>
 
 #include "Audio/audio_chunk.h"
+#include "Config/config_error.h"
 #include "FFT/real_fft.h"
 #include "resampler_error.h"
 #include "sinc_window_function.h"
@@ -111,11 +112,12 @@ typedef struct synchronous_resampler synchronous_resampler_t;
  * @param requested_chunk_size The desired size of input chunks (in frames).
  *                             The resampler will round this up to a size
  * matching the rational period.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A pointer to the created resampler instance, or NULL on failure.
  */
 synchronous_resampler_t* synchronous_resampler_create(
     size_t channels, size_t input_rate, size_t output_rate,
-    size_t requested_chunk_size);
+    size_t requested_chunk_size, config_error_t* err);
 
 /**
  * @brief Frees all memory allocated for the synchronous resampler.

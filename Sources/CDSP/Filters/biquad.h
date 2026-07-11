@@ -93,10 +93,12 @@ typedef struct biquad_filter biquad_filter_t;
  *
  * @param name The name of the filter (for debugging/identification).
  * @param coeffs The initial coefficients to use.
+ * @param err Pointer to a config error struct to populate on failure.
  * @return A pointer to the created filter instance, or `NULL` on failure.
  */
 biquad_filter_t* biquad_filter_create(const char* name,
-                                      const biquad_coefficients_t* coeffs);
+                                      const biquad_coefficients_t* coeffs,
+                                      config_error_t* err);
 
 /**
  * @brief Processes an array of samples through the biquad filter.

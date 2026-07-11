@@ -78,7 +78,8 @@ static biquad_filter_t* create_section(biquad_type_t type, double freq,
                                        double q, double gain, double slope,
                                        double bandwidth,
                                        steepness_type_t steepness_type,
-                                       int sample_rate) {
+                                       int sample_rate,
+                                       config_error_t* err) {
   biquad_parameters_t bp;
   memset(&bp, 0, sizeof(bp));
   bp.type = type;
@@ -89,17 +90,27 @@ static biquad_filter_t* create_section(biquad_type_t type, double freq,
   bp.bandwidth = bandwidth;
   bp.steepness_type = steepness_type;
   biquad_coefficients_t coeffs;
-  if (!biquad_coefficients_compute(&bp, sample_rate, &coeffs)) return NULL;
-  return biquad_filter_create("combo_sec", &coeffs);
+  if (!biquad_coefficients_compute(&bp, sample_rate, &coeffs)) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER,
+                     "Failed to compute section coefficients for biquad combo");
+    return NULL;
+  }
+  return biquad_filter_create("combo_sec", &coeffs, err);
 }
 
 biquad_combo_filter_t* biquad_combo_filter_create(
-    const char* name, const biquad_combo_parameters_t* params,
-    int sample_rate) {
-  if (!params) return NULL;
+    const char* name, const biquad_combo_parameters_t* params, int sample_rate,
+    config_error_t* err) {
+  if (!params) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER, "BiquadCombo params is NULL");
+    return NULL;
+  }
   biquad_combo_filter_t* filter =
       (biquad_combo_filter_t*)malloc(sizeof(biquad_combo_filter_t));
-  if (!filter) return NULL;
+  if (!filter) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate BiquadCombo filter '%s'", name ? name : "");
+    return NULL;
+  }
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
     filter->name[sizeof(filter->name) - 1] = '\0';
@@ -125,7 +136,7 @@ biquad_combo_filter_t* biquad_combo_filter_create(
         }
         secs[num++] =
             create_section(t, params->freq, q_vals[i] > 0 ? q_vals[i] : 0.707,
-                           0.0, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
+                           0.0, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate, err);
       }
       break;
     }
@@ -137,7 +148,7 @@ biquad_combo_filter_t* biquad_combo_filter_create(
       for (size_t i = 0; i < nq; i++) {
         biquad_type_t t = hp ? BIQUAD_TYPE_HIGHPASS : BIQUAD_TYPE_LOWPASS;
         secs[num++] = create_section(t, params->freq, q_vals[i], 0.0, 0.0, 0.0,
-                                     STEEPNESS_TYPE_Q, sample_rate);
+                                     STEEPNESS_TYPE_Q, sample_rate, err);
       }
       break;
     }
@@ -149,10 +160,10 @@ biquad_combo_filter_t* biquad_combo_filter_create(
       double gain = params->has_gain ? params->gain : 0.0;
       secs[num++] =
           create_section(BIQUAD_TYPE_LOWSHELF, 110.0, 0.35, -gain / 2.0, 0.0,
-                         0.0, STEEPNESS_TYPE_Q, sample_rate);
+                         0.0, STEEPNESS_TYPE_Q, sample_rate, err);
       secs[num++] =
           create_section(BIQUAD_TYPE_HIGHSHELF, 3500.0, 0.35, gain / 2.0, 0.0,
-                         0.0, STEEPNESS_TYPE_Q, sample_rate);
+                         0.0, STEEPNESS_TYPE_Q, sample_rate, err);
       break;
     }
     // MARK: - Graphic EQ
@@ -173,7 +184,7 @@ biquad_combo_filter_t* biquad_combo_filter_create(
         double log_freq = log_min + ((double)i + 0.5) * bw;
         double f = pow(2.0, log_freq);
         secs[num++] = create_section(BIQUAD_TYPE_PEAKING, f, 0.0, g, 0.0, bw,
-                                     STEEPNESS_TYPE_BANDWIDTH, sample_rate);
+                                     STEEPNESS_TYPE_BANDWIDTH, sample_rate, err);
       }
       break;
     }
@@ -183,29 +194,29 @@ biquad_combo_filter_t* biquad_combo_filter_create(
       if (params->qls > 0.001 && fabs(params->gls) > 0.001) {
         secs[num++] = create_section(
             BIQUAD_TYPE_LOWSHELF, params->fls > 0 ? params->fls : 80.0,
-            params->qls, params->gls, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
+            params->qls, params->gls, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate, err);
       }
       // Mid bands
       if (params->qp1 > 0.001 && fabs(params->gp1) > 0.001) {
         secs[num++] = create_section(
             BIQUAD_TYPE_PEAKING, params->fp1 > 0 ? params->fp1 : 250.0,
-            params->qp1, params->gp1, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
+            params->qp1, params->gp1, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate, err);
       }
       if (params->qp2 > 0.001 && fabs(params->gp2) > 0.001) {
         secs[num++] = create_section(
             BIQUAD_TYPE_PEAKING, params->fp2 > 0 ? params->fp2 : 1000.0,
-            params->qp2, params->gp2, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
+            params->qp2, params->gp2, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate, err);
       }
       if (params->qp3 > 0.001 && fabs(params->gp3) > 0.001) {
         secs[num++] = create_section(
             BIQUAD_TYPE_PEAKING, params->fp3 > 0 ? params->fp3 : 4000.0,
-            params->qp3, params->gp3, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
+            params->qp3, params->gp3, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate, err);
       }
       // High shelf
       if (params->qhs > 0.001 && fabs(params->ghs) > 0.001) {
         secs[num++] = create_section(
             BIQUAD_TYPE_HIGHSHELF, params->fhs > 0 ? params->fhs : 12000.0,
-            params->qhs, params->ghs, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate);
+            params->qhs, params->ghs, 0.0, 0.0, STEEPNESS_TYPE_Q, sample_rate, err);
       }
       break;
     }
@@ -225,6 +236,7 @@ biquad_combo_filter_t* biquad_combo_filter_create(
   filter->num_sections = num;
   filter->sections = (biquad_filter_t**)malloc(num * sizeof(biquad_filter_t*));
   if (!filter->sections) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate BiquadCombo sections memory");
     for (size_t j = 0; j < num; j++) {
       biquad_filter_free(secs[j]);
     }

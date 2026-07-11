@@ -51,7 +51,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: Self.sampleRate, chunksize: Self.chunkSize,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 4),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     var filters: [String: FilterConfig] = [:]
     var preFilterNames: [String] = []
@@ -119,7 +119,7 @@ import Testing
       devices: DevicesConfig(
         samplerate: Self.sampleRate, chunksize: Self.chunkSize,
         capture: CaptureDeviceConfig(type: .coreAudio, channels: 4),
-        playback: PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
+        playback: try! PlaybackDeviceConfig(type: .coreAudio, channels: 2)))
 
     var filters: [String: FilterConfig] = [:]
     var preFilterNames: [String] = []

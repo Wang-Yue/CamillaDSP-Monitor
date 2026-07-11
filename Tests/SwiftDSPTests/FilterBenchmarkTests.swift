@@ -103,7 +103,7 @@ import Testing
       rustName: "Conv/FftConv/1024",
       createSwiftFilter: {
         let coeffs = [Double](repeating: 0.0, count: 1024)
-        return ConvolutionFilter(coefficients: coeffs, chunkSize: Self.chunkSize)
+        return try! ConvolutionFilter(coefficients: coeffs, chunkSize: Self.chunkSize)
       }
     )
   }
@@ -114,7 +114,7 @@ import Testing
       rustName: "Conv/FftConv/4096",
       createSwiftFilter: {
         let coeffs = [Double](repeating: 0.0, count: 4096)
-        return ConvolutionFilter(coefficients: coeffs, chunkSize: Self.chunkSize)
+        return try! ConvolutionFilter(coefficients: coeffs, chunkSize: Self.chunkSize)
       }
     )
   }
@@ -125,7 +125,7 @@ import Testing
       rustName: "Conv/FftConv/16384",
       createSwiftFilter: {
         let coeffs = [Double](repeating: 0.0, count: 16384)
-        return ConvolutionFilter(coefficients: coeffs, chunkSize: Self.chunkSize)
+        return try! ConvolutionFilter(coefficients: coeffs, chunkSize: Self.chunkSize)
       }
     )
   }
@@ -142,7 +142,7 @@ import Testing
           a1: -0.1462978543780541,
           a2: 0.005350765548905586
         )
-        return BiquadFilter(coefficients: coeffs)
+        return try! BiquadFilter(coefficients: coeffs)
       }
     )
   }

@@ -51,7 +51,7 @@ final class SpectrumAnalyzer {
 
   init() {
     let n = 4096
-    self.fft = GenericRealFFT<Float>(length: n)
+    self.fft = try! GenericRealFFT<Float>(length: n)
 
     var w = [Float](repeating: 0, count: n)
     vDSP_hann_window(&w, vDSP_Length(n), 0)

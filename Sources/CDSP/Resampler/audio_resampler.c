@@ -419,13 +419,21 @@ audio_resampler_t* audio_resampler_wrap_apple(apple_resampler_t* res) {
 
 audio_resampler_t* audio_resampler_create_from_config(
     const resampler_config_t* config, size_t input_rate, size_t output_rate,
-    size_t channels, size_t chunk_size) {
-  if (!config) return NULL;
+    size_t channels, size_t chunk_size, config_error_t* err) {
+  if (!config) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Resampler config is NULL");
+    return NULL;
+  }
   switch (config->type) {
     case RESAMPLER_TYPE_SYNCHRONOUS: {
       synchronous_resampler_t* res = synchronous_resampler_create(
-          channels, input_rate, output_rate, chunk_size);
-      return audio_resampler_wrap_synchronous(res);
+          channels, input_rate, output_rate, chunk_size, err);
+      if (!res) return NULL;
+      audio_resampler_t* wrap = audio_resampler_wrap_synchronous(res);
+      if (!wrap) {
+        config_error_set(err, CONFIG_ERR_PARSE, "Failed to wrap synchronous resampler");
+      }
+      return wrap;
     }
     case RESAMPLER_TYPE_ASYNC_SINC: {
       if (config->has_sinc_len && config->has_oversampling_factor &&
@@ -437,16 +445,26 @@ audio_resampler_t* audio_resampler_create_from_config(
         async_sinc_resampler_t* res = async_sinc_resampler_create(
             channels, input_rate, output_rate, (size_t)config->sinc_len,
             (size_t)config->oversampling_factor, interp, wf, config->f_cutoff,
-            config->has_f_cutoff, chunk_size, 1.1);
-        return audio_resampler_wrap_async_sinc(res);
+            config->has_f_cutoff, chunk_size, 1.1, err);
+        if (!res) return NULL;
+        audio_resampler_t* wrap = audio_resampler_wrap_async_sinc(res);
+        if (!wrap) {
+          config_error_set(err, CONFIG_ERR_PARSE, "Failed to wrap async sinc resampler");
+        }
+        return wrap;
       } else {
         resampler_profile_t prof = RESAMPLER_PROFILE_BALANCED;
         if (config->has_profile) {
           prof = resampler_profile_from_string(config->profile);
         }
         async_sinc_resampler_t* res = async_sinc_resampler_create_from_profile(
-            channels, input_rate, output_rate, prof, chunk_size, 1.1);
-        return audio_resampler_wrap_async_sinc(res);
+            channels, input_rate, output_rate, prof, chunk_size, 1.1, err);
+        if (!res) return NULL;
+        audio_resampler_t* wrap = audio_resampler_wrap_async_sinc(res);
+        if (!wrap) {
+          config_error_set(err, CONFIG_ERR_PARSE, "Failed to wrap async sinc resampler");
+        }
+        return wrap;
       }
     }
     case RESAMPLER_TYPE_ASYNC_POLY: {
@@ -455,8 +473,13 @@ audio_resampler_t* audio_resampler_create_from_config(
         interp = poly_interpolation_from_string(config->interpolation);
       }
       async_poly_resampler_t* res = async_poly_resampler_create(
-          channels, input_rate, output_rate, interp, chunk_size, 1.1);
-      return audio_resampler_wrap_async_poly(res);
+          channels, input_rate, output_rate, interp, chunk_size, 1.1, err);
+      if (!res) return NULL;
+      audio_resampler_t* wrap = audio_resampler_wrap_async_poly(res);
+      if (!wrap) {
+        config_error_set(err, CONFIG_ERR_PARSE, "Failed to wrap async poly resampler");
+      }
+      return wrap;
     }
 #if defined(ENABLE_COREAUDIO)
     case RESAMPLER_TYPE_APPLE: {
@@ -467,11 +490,17 @@ audio_resampler_t* audio_resampler_create_from_config(
           config->has_apple_complexity ? config->apple_complexity
                                        : APPLE_RESAMPLER_COMPLEXITY_NORMAL;
       apple_resampler_t* res = apple_resampler_create(
-          channels, input_rate, output_rate, qual, comp, chunk_size);
-      return audio_resampler_wrap_apple(res);
+          channels, input_rate, output_rate, qual, comp, chunk_size, err);
+      if (!res) return NULL;
+      audio_resampler_t* wrap = audio_resampler_wrap_apple(res);
+      if (!wrap) {
+        config_error_set(err, CONFIG_ERR_PARSE, "Failed to wrap Apple resampler");
+      }
+      return wrap;
     }
 #endif
     default:
+      config_error_set(err, CONFIG_ERR_PARSE, "Unknown resampler type %d", config->type);
       return NULL;
   }
 }

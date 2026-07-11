@@ -132,10 +132,16 @@ final class SynchronousResampler: AudioResampler {
   var ratio: Double { _ratio }
   var maxOutputFrames: Int { outputChunkSize }
 
-  init(channels: Int, inputRate: Int, outputRate: Int, chunkSize requestedChunkSize: Int) {
-    precondition(channels > 0, "channels must be positive")
-    precondition(requestedChunkSize > 0, "chunkSize must be positive")
-    precondition(inputRate > 0 && outputRate > 0, "sample rates must be positive")
+  init(channels: Int, inputRate: Int, outputRate: Int, chunkSize requestedChunkSize: Int) throws {
+    guard channels > 0 else {
+      throw ResamplerError.invalidParameter(message: "channels must be positive, got \(channels)")
+    }
+    guard requestedChunkSize > 0 else {
+      throw ResamplerError.invalidParameter(message: "chunkSize must be positive, got \(requestedChunkSize)")
+    }
+    guard inputRate > 0 && outputRate > 0 else {
+      throw ResamplerError.invalidParameter(message: "sample rates must be positive, got inputRate=\(inputRate), outputRate=\(outputRate)")
+    }
 
     self.channels = channels
     self._ratio = Double(outputRate) / Double(inputRate)
@@ -152,11 +158,11 @@ final class SynchronousResampler: AudioResampler {
     let outputBlock = K * M
 
     guard inputBlock > 0 && outputBlock > 0 else {
-      fatalError("Block sizes must be positive: inputBlock=\(inputBlock), outputBlock=\(outputBlock)")
+      throw ResamplerError.initializationFailed(message: "Block sizes must be positive: inputBlock=\(inputBlock), outputBlock=\(outputBlock)")
     }
     let limit = Int.max / 2
     guard inputBlock <= limit && outputBlock <= limit else {
-      fatalError("Block sizes too large, overflow risk: inputBlock=\(inputBlock), outputBlock=\(outputBlock)")
+      throw ResamplerError.initializationFailed(message: "Block sizes too large, overflow risk: inputBlock=\(inputBlock), outputBlock=\(outputBlock)")
     }
 
     self.inputBlockLen = inputBlock
@@ -189,8 +195,8 @@ final class SynchronousResampler: AudioResampler {
       filterTime[i] = kernel[i] * scale
     }
 
-    let inputFFT = RealFFT(length: twoN)
-    let outputFFT = RealFFT(length: 2 * outputBlock)
+    let inputFFT = try RealFFT(length: twoN)
+    let outputFFT = try RealFFT(length: 2 * outputBlock)
     self.inputFFT = inputFFT
     self.outputFFT = outputFFT
 

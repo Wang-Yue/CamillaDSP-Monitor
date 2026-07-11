@@ -36,10 +36,17 @@ struct filter {
 /// inside `Pipeline` and cannot be user-defined.
 filter_t* filter_create(const char* name, const filter_config_t* config,
                         int sample_rate, size_t chunk_size,
-                        processing_parameters_t* proc_params) {
-  if (!config) return NULL;
+                        processing_parameters_t* proc_params,
+                        config_error_t* err) {
+  if (!config) {
+    config_error_set(err, CONFIG_ERR_INVALID_FILTER, "Filter config is NULL");
+    return NULL;
+  }
   filter_t* filter = (filter_t*)malloc(sizeof(filter_t));
-  if (!filter) return NULL;
+  if (!filter) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Failed to allocate filter wrapper");
+    return NULL;
+  }
   if (name) {
     strncpy(filter->name, name, sizeof(filter->name) - 1);
     filter->name[sizeof(filter->name) - 1] = '\0';
@@ -50,26 +57,30 @@ filter_t* filter_create(const char* name, const filter_config_t* config,
   switch (config->type) {
     case FILTER_TYPE_BIQUAD: {
       biquad_coefficients_t coeffs;
-      biquad_coefficients_compute(&config->parameters.biquad, sample_rate,
-                                  &coeffs);
+      if (!biquad_coefficients_compute(&config->parameters.biquad, sample_rate, &coeffs)) {
+        config_error_set(err, CONFIG_ERR_INVALID_FILTER,
+                         "Failed to compute biquad coefficients for filter '%s'", filter->name);
+        free(filter);
+        return NULL;
+      }
       filter->type = FILTER_INSTANCE_BIQUAD;
-      filter->instance = biquad_filter_create(name, &coeffs);
+      filter->instance = biquad_filter_create(name, &coeffs, err);
       break;
     }
     case FILTER_TYPE_BIQUAD_COMBO:
       filter->type = FILTER_INSTANCE_BIQUAD_COMBO;
       filter->instance = biquad_combo_filter_create(
-          name, &config->parameters.biquad_combo, sample_rate);
+          name, &config->parameters.biquad_combo, sample_rate, err);
       break;
     case FILTER_TYPE_CONV:
       filter->type = FILTER_INSTANCE_CONVOLUTION;
       filter->instance =
-          convolution_filter_create(name, &config->parameters.conv, chunk_size);
+          convolution_filter_create(name, &config->parameters.conv, chunk_size, err);
       break;
     case FILTER_TYPE_DELAY:
       filter->type = FILTER_INSTANCE_DELAY;
       filter->instance =
-          delay_filter_create(name, &config->parameters.delay, sample_rate);
+          delay_filter_create(name, &config->parameters.delay, sample_rate, err);
       break;
     case FILTER_TYPE_DIFF_EQ:
       filter->type = FILTER_INSTANCE_DIFF_EQ;
@@ -97,15 +108,16 @@ filter_t* filter_create(const char* name, const filter_config_t* config,
     case FILTER_TYPE_LOUDNESS:
       filter->type = FILTER_INSTANCE_LOUDNESS;
       filter->instance = loudness_filter_create(
-          name, &config->parameters.loudness, sample_rate, proc_params);
+          name, &config->parameters.loudness, sample_rate, proc_params, err);
       break;
     case FILTER_TYPE_VOLUME:
       filter->type = FILTER_INSTANCE_VOLUME;
       filter->instance =
           volume_filter_create(name, &config->parameters.volume, sample_rate,
-                               chunk_size, proc_params);
+                               chunk_size, proc_params, err);
       break;
     default:
+      config_error_set(err, CONFIG_ERR_INVALID_FILTER, "Unknown filter type %d for '%s'", config->type, filter->name);
       free(filter);
       return NULL;
   }

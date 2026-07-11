@@ -4,21 +4,33 @@
 import Accelerate
 import Foundation
 
+internal enum MeasurementFFTError: Error, CustomStringConvertible {
+  case invalidLength(String)
+  case setupFailed
+
+  var description: String {
+    switch self {
+    case .invalidLength(let msg): return "MeasurementFFT length error: \(msg)"
+    case .setupFailed: return "MeasurementFFT: failed to create FFT setup (vDSP_create_fftsetupD failed)"
+    }
+  }
+}
+
 internal final class MeasurementFFT {
   internal let length: Int
   private let halfN: Int
   private let log2n: vDSP_Length
   private let setup: FFTSetupD
 
-  init(length: Int) {
-    precondition(
-      length >= 8 && length.nonzeroBitCount == 1,
-      "MeasurementFFT: length must be a power of two >= 8")
+  init(length: Int) throws {
+    guard length >= 8 && length.nonzeroBitCount == 1 else {
+      throw MeasurementFFTError.invalidLength("length must be a power of two >= 8, got \(length)")
+    }
     self.length = length
     self.halfN = length / 2
     let log2nVal = vDSP_Length(length.trailingZeroBitCount)
     guard let fftSetup = vDSP_create_fftsetupD(log2nVal, FFTRadix(kFFTRadix2)) else {
-      fatalError("MeasurementFFT: failed to create FFT setup")
+      throw MeasurementFFTError.setupFailed
     }
     self.setup = fftSetup
     self.log2n = log2nVal

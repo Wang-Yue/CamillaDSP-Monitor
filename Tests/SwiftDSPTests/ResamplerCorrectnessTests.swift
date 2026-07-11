@@ -21,20 +21,20 @@ import Testing
 
   @Test func Stereo_MatchesPerChannelMono_Synchronous() throws {
     try assertStereoMatchesMono { channels, inR, outR, cs in
-      SynchronousResampler(channels: channels, inputRate: inR, outputRate: outR, chunkSize: cs)
+      try! SynchronousResampler(channels: channels, inputRate: inR, outputRate: outR, chunkSize: cs)
     }
   }
 
   @Test func Stereo_MatchesPerChannelMono_AsyncPoly() throws {
     try assertStereoMatchesMono { channels, inR, outR, cs in
-      AsyncPolyResampler(
+      try! AsyncPolyResampler(
         channels: channels, inputRate: inR, outputRate: outR, interpolation: .cubic, chunkSize: cs)
     }
   }
 
   @Test func Stereo_MatchesPerChannelMono_AsyncSinc() throws {
     try assertStereoMatchesMono { channels, inR, outR, cs in
-      AsyncSincResampler(
+      try! AsyncSincResampler(
         channels: channels, inputRate: inR, outputRate: outR, profile: .accurate, chunkSize: cs)
     }
   }
@@ -44,10 +44,10 @@ import Testing
   @Test func InoutAPI_Synchronous_MatchesAllocatingAPI() {
     assertInoutMatchesAlloc(
       makeA: {
-        SynchronousResampler(channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
+        try! SynchronousResampler(channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
       },
       makeB: {
-        SynchronousResampler(channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
+        try! SynchronousResampler(channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
       }
     )
   }
@@ -55,11 +55,11 @@ import Testing
   @Test func InoutAPI_AsyncPoly_MatchesAllocatingAPI() {
     assertInoutMatchesAlloc(
       makeA: {
-        AsyncPolyResampler(
+        try! AsyncPolyResampler(
           channels: 2, inputRate: 44100, outputRate: 48000, interpolation: .cubic, chunkSize: 1024)
       },
       makeB: {
-        AsyncPolyResampler(
+        try! AsyncPolyResampler(
           channels: 2, inputRate: 44100, outputRate: 48000, interpolation: .cubic, chunkSize: 1024)
       }
     )
@@ -68,11 +68,11 @@ import Testing
   @Test func InoutAPI_AsyncSinc_MatchesAllocatingAPI() {
     assertInoutMatchesAlloc(
       makeA: {
-        AsyncSincResampler(
+        try! AsyncSincResampler(
           channels: 2, inputRate: 44100, outputRate: 48000, profile: .accurate, chunkSize: 1024)
       },
       makeB: {
-        AsyncSincResampler(
+        try! AsyncSincResampler(
           channels: 2, inputRate: 44100, outputRate: 48000, profile: .accurate, chunkSize: 1024)
       }
     )
@@ -82,20 +82,20 @@ import Testing
 
   @Test func InoutAPI_RejectsTooSmallOutputBuffer_Synchronous() {
     assertRejectsTooSmallOutputBuffer {
-      SynchronousResampler(channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
+      try! SynchronousResampler(channels: 2, inputRate: 44100, outputRate: 48000, chunkSize: 1024)
     }
   }
 
   @Test func InoutAPI_RejectsTooSmallOutputBuffer_AsyncPoly() {
     assertRejectsTooSmallOutputBuffer {
-      AsyncPolyResampler(
+      try! AsyncPolyResampler(
         channels: 2, inputRate: 44100, outputRate: 48000, interpolation: .cubic, chunkSize: 1024)
     }
   }
 
   @Test func InoutAPI_RejectsTooSmallOutputBuffer_AsyncSinc() {
     assertRejectsTooSmallOutputBuffer {
-      AsyncSincResampler(
+      try! AsyncSincResampler(
         channels: 2, inputRate: 44100, outputRate: 48000, profile: .accurate, chunkSize: 1024)
     }
   }

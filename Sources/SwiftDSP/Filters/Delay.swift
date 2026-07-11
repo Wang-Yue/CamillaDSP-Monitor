@@ -35,7 +35,7 @@ final class DelayFilter: Filter {
   private var readIndex: Int = 0
   private var biquad: BiquadFilter?
 
-  init(name: String = "delay", parameters: DelayParameters, sampleRate: Int) {
+  init(name: String = "delay", parameters: DelayParameters, sampleRate: Int) throws {
     self.name = name
 
     let delay = parameters.delay
@@ -55,7 +55,7 @@ final class DelayFilter: Filter {
     }
     self.readIndex = 0
     if let c = coeffs {
-      self.biquad = BiquadFilter(coefficients: c)
+      self.biquad = try BiquadFilter(coefficients: c)
     }
   }
 
