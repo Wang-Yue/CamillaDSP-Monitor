@@ -235,8 +235,16 @@ static double* load_raw_file(const char* path, const char* format_str,
     FILE* f = fopen(path, "r");
     if (!f) return NULL;
     char line[128];
+    bool skip_failed = false;
     for (int i = 0; i < skip_bytes; i++) {
-      if (!fgets(line, sizeof(line), f)) break;
+      if (!fgets(line, sizeof(line), f)) {
+        skip_failed = true;
+        break;
+      }
+    }
+    if (skip_failed) {
+      fclose(f);
+      return NULL;
     }
     size_t cap = 1024;
     double* result = (double*)malloc(cap * sizeof(double));
@@ -526,6 +534,7 @@ fail:
  */
 static void process_chunk(convolution_filter_t* filter,
                           mutable_waveform_t waveform) {
+  if (!filter || filter->num_segments == 0) return;
   size_t cs = filter->chunk_size;
   size_t spec_len = real_fft_get_spectrum_length(filter->fft);
   size_t num_seg = filter->num_segments;

@@ -40,7 +40,7 @@ noise_shaper_t* noise_shaper_create(const double* filter_coeffs, size_t count) {
 
 double noise_shaper_process(noise_shaper_t* shaper, double scaled,
                             double dither) {
-  if (!shaper) return round(scaled + dither);
+  if (!shaper || shaper->filter_count == 0) return round(scaled + dither);
   double filt_buf = 0.0;
   size_t count = shaper->filter_count;
   // Apply feedback filter to past quantization errors stored in the circular

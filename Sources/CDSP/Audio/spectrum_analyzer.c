@@ -105,7 +105,11 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
                                             size_t samplerate,
                                             spectrum_result_t* out_result) {
   if (!analyzer || !buffer || !out_result) return SPECTRUM_ERROR_INVALID_PARAM;
-  if (n_bins == 0 || min_freq <= 0.0 || max_freq <= min_freq ||
+  if (analyzer->out_capacity == 0 || !analyzer->plan.frequencies ||
+      !analyzer->plan.ranges || !analyzer->out_magnitudes) {
+    return SPECTRUM_ERROR_INVALID_PARAM;
+  }
+  if (n_bins == 0 || n_bins > 65536 || min_freq <= 0.0 || max_freq <= min_freq ||
       max_freq > (double)samplerate / 2.0 || samplerate == 0) {
     return SPECTRUM_ERROR_INVALID_PARAM;
   }
@@ -160,6 +164,9 @@ spectrum_status_t spectrum_analyzer_compute(spectrum_analyzer_t* analyzer,
   // capacity.
   if (n_bins > analyzer->out_capacity) {
     size_t new_cap = spsc_audio_ring_buffer_round_up_to_power_of_two(n_bins);
+    if (new_cap == 0) {
+      return SPECTRUM_ERROR_INVALID_PARAM;
+    }
     float* new_freqs =
         (float*)realloc(analyzer->plan.frequencies, new_cap * sizeof(float));
     bin_range_t* new_ranges = (bin_range_t*)realloc(

@@ -277,16 +277,20 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
     }
   }
 
-  if (total_exec_steps > 0) {
-    pipeline->steps = (pipeline_exec_step_t*)calloc(
-        total_exec_steps, sizeof(pipeline_exec_step_t));
-    if (!pipeline->steps) {
-      config_error_set(err, CONFIG_ERR_PARSE, "Memory allocation failure");
-      pipeline_free(pipeline);
-      return NULL;
-    }
-    pipeline->steps_count = total_exec_steps;
+  if (total_exec_steps == 0) {
+    pipeline->steps_count = 0;
+    pipeline->expected_out_channels = current_channels;
+    return pipeline;
   }
+
+  pipeline->steps = (pipeline_exec_step_t*)calloc(
+      total_exec_steps, sizeof(pipeline_exec_step_t));
+  if (!pipeline->steps) {
+    config_error_set(err, CONFIG_ERR_PARSE, "Memory allocation failure");
+    pipeline_free(pipeline);
+    return NULL;
+  }
+  pipeline->steps_count = total_exec_steps;
   if (num_mixers > 0) {
     pipeline->scratches_for_mixers =
         (audio_chunk_t**)calloc(num_mixers, sizeof(audio_chunk_t*));

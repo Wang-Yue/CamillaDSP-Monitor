@@ -1081,8 +1081,7 @@ static bool server_handle_adjust_volume_fader(
 void websocket_server_handle_command(websocket_server_t* server, int client_idx,
                                      const char* command_text,
                                      dyn_string_t* ds) {
-  if (!ds) return;
-  if (!command_text) return;
+  if (!server || !ds || !command_text) return;
 
   cJSON* root = cJSON_Parse(command_text);
   if (!root) {
@@ -1090,9 +1089,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
     return;
   }
 
-  if (server) {
-    pthread_mutex_lock(&server->sessions_mutex);
-  }
+  pthread_mutex_lock(&server->sessions_mutex);
 
   char cmd_name[128] = "";
   cJSON* arg = NULL;
@@ -2758,9 +2755,7 @@ void websocket_server_handle_command(websocket_server_t* server, int client_idx,
   } else {
     dyn_string_printf(ds, "{\"Invalid\":{\"error\":\"Unsupported command\"}}");
   }
-  if (server) {
-    pthread_mutex_unlock(&server->sessions_mutex);
-  }
+  pthread_mutex_unlock(&server->sessions_mutex);
   cJSON_Delete(root);
 }
 
@@ -3208,6 +3203,7 @@ static void* server_thread_func(void* arg) {
       if (current_pb_peak) free(current_pb_peak);
       if (current_pb_rms) free(current_pb_rms);
     }
+    pthread_mutex_unlock(&server->sessions_mutex);
 
     if (ret > 0) {
       if (fds[0].revents & POLLIN) {
@@ -3216,6 +3212,7 @@ static void* server_thread_func(void* arg) {
           client_fds[num_clients] = cfd;
           last_state[num_clients][0] = '\0';
 
+          pthread_mutex_lock(&server->sessions_mutex);
           client_session_t* session = &server->client_sessions[num_clients];
           memset(session, 0, sizeof(client_session_t));
           uint64_t now_ms = get_time_ms();
@@ -3223,6 +3220,7 @@ static void* server_thread_func(void* arg) {
           session->last_cap_rms_time = now_ms;
           session->last_pb_peak_time = now_ms;
           session->last_pb_rms_time = now_ms;
+          pthread_mutex_unlock(&server->sessions_mutex);
 
           num_clients++;
         } else if (!IS_INVALID_SOCKET(cfd)) {
@@ -3235,6 +3233,7 @@ static void* server_thread_func(void* arg) {
           int n = recv(client_fds[i], buf, sizeof(buf) - 1, 0);
           if (n <= 0) {
             CLOSE_SOCKET(client_fds[i]);
+            pthread_mutex_lock(&server->sessions_mutex);
             client_session_clear(&server->client_sessions[i]);
 
             for (int j = i; j < num_clients - 1; j++) {
@@ -3244,6 +3243,7 @@ static void* server_thread_func(void* arg) {
             }
             memset(&server->client_sessions[num_clients - 1], 0,
                    sizeof(client_session_t));
+            pthread_mutex_unlock(&server->sessions_mutex);
             num_clients--;
             i--;
           } else {
@@ -3299,6 +3299,7 @@ static void* server_thread_func(void* arg) {
               if (first_byte == 0x81 || (first_byte & 0x0F) == 0x08) {
                 if ((first_byte & 0x0F) == 0x08) {
                   CLOSE_SOCKET(client_fds[i]);
+                  pthread_mutex_lock(&server->sessions_mutex);
                   client_session_clear(&server->client_sessions[i]);
                   for (int j = i; j < num_clients - 1; j++) {
                     client_fds[j] = client_fds[j + 1];
@@ -3307,6 +3308,7 @@ static void* server_thread_func(void* arg) {
                   }
                   memset(&server->client_sessions[num_clients - 1], 0,
                          sizeof(client_session_t));
+                  pthread_mutex_unlock(&server->sessions_mutex);
                   num_clients--;
                   i--;
                   break;
@@ -3332,6 +3334,7 @@ static void* server_thread_func(void* arg) {
                 if (payload_len > 4096 || offset + mask_offset + 4 + payload_len > (size_t)n) {
                   // Payload size exceeds buffer limits or packet bounds. Close socket.
                   CLOSE_SOCKET(client_fds[i]);
+                  pthread_mutex_lock(&server->sessions_mutex);
                   client_session_clear(&server->client_sessions[i]);
 
                   for (int j = i; j < num_clients - 1; j++) {
@@ -3341,6 +3344,7 @@ static void* server_thread_func(void* arg) {
                   }
                   memset(&server->client_sessions[num_clients - 1], 0,
                          sizeof(client_session_t));
+                  pthread_mutex_unlock(&server->sessions_mutex);
                   num_clients--;
                   i--;
                   break;
@@ -3395,7 +3399,6 @@ static void* server_thread_func(void* arg) {
         }
       }
     }
-    pthread_mutex_unlock(&server->sessions_mutex);
   }
   for (int i = 0; i < num_clients; i++) {
     CLOSE_SOCKET(client_fds[i]);

@@ -694,13 +694,16 @@ bool file_capture_read(file_capture_t* capture, size_t frames,
 #endif
 
   size_t sample_size = get_sample_size(capture->format);
+  if (sample_size == 0 || capture->channels == 0) {
+    audio_chunk_set_valid_frames(chunk, 0);
+    return false;
+  }
   size_t frames_to_read = frames;
 
   size_t bytes_to_read = frames_to_read * capture->channels * sample_size;
   if (capture->read_bytes > 0 &&
       (capture->total_bytes_read + bytes_to_read) > capture->read_bytes) {
     bytes_to_read = capture->read_bytes - capture->total_bytes_read;
-    frames_to_read = bytes_to_read / (capture->channels * sample_size);
   }
 
   size_t bytes_read = 0;
