@@ -40,8 +40,6 @@ endif
 
 export ENGINE
 
-C_SRCS := $(shell find Sources/CDSP -type f \( -name "*.c" -o -name "*.h" \) 2>/dev/null)
-
 ifeq ($(ENGINE),rust)
 	# Rust FFI path
 	ROOT_DIR := $(shell pwd)
@@ -55,15 +53,7 @@ else
 	SWIFT_SRCS := $(shell find Sources -type f -name "*.swift" -not -name "CamillaDSP.swift" -not -name "camilladsp_ffi.swift")
 endif
 
-# Rust harness layout (tests against rubato + camilladsp upstream).
-RUST_HARNESS_DIR := Tests/RustHarnesses
-RUST_HARNESS_BINS := \
-	$(RUST_HARNESS_DIR)/target/release/cdsp_resampler_compare \
-	$(RUST_HARNESS_DIR)/target/release/cdsp_filter_compare
-RUST_HARNESS_SRCS := $(shell find $(RUST_HARNESS_DIR) -type f \
-	\( -name "*.rs" -o -name "Cargo.toml" \) 2>/dev/null)
-
-.PHONY: all build app run clean install help test test-swift test-c test-rust-build bench cli
+.PHONY: all build app run clean install help test test-swift
 
 # Default target
 all: app
@@ -111,13 +101,13 @@ Sources/DSPLib/camilladsp_ffi.swift: $(RUST_BRIDGE_DIR)/generated/swift/camillad
 	fi
 
 # 4. Build Swift application (Rust path)
-$(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/DSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS) $(C_SRCS) Package.swift
+$(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/DSPLib/camilladsp_ffi.swift Sources/CamillaDSPFFI/include/camilladsp_ffiFFI.h Sources/CamillaDSPFFI/include/module.modulemap $(SWIFT_SRCS) Package.swift
 	@echo "🍎 Building Swift application with Rust library ($(MODE))..."
 	$(SWIFT) build $(SWIFT_FLAGS) --product DSPMonitor
 
 else
 # Build Swift application (C path)
-$(EXECUTABLE): $(SWIFT_SRCS) $(C_SRCS) Package.swift
+$(EXECUTABLE): $(SWIFT_SRCS) Package.swift
 	@echo "🍎 Building Swift application with pure C library ($(MODE))..."
 	$(SWIFT) build $(SWIFT_FLAGS) --product DSPMonitor
 endif
@@ -127,11 +117,7 @@ build: $(EXECUTABLE)
 	@echo "\n✅ Build Complete!"
 	@echo "📍 Binary location: $(EXECUTABLE)"
 
-## cli: Build the standalone command-line executable (dsp-cli)
-cli:
-	@echo "🍎 Building C dsp-cli CLI..."
-	@$(MAKE) -f Sources/CDSP/Makefile cli
-	@echo "📍 Binary location: Sources/CDSP/bin/dsp-cli"
+
 
 ## app: Build and package as a macOS Application (.app)
 app: build
@@ -165,58 +151,24 @@ run: app
 	open $(APP_BUNDLE)
 
 
-## test-rust-build: Build the Rust harness binaries used by Swift/C tests
-##                  (rubato + camilladsp upstream).
-test-rust-build:
-	@$(MAKE) $(RUST_HARNESS_BINS)
-
-$(RUST_HARNESS_BINS): $(RUST_HARNESS_SRCS)
-	@echo "🦀 Building Rust harness binaries..."
-	cd $(RUST_HARNESS_DIR) && $(CARGO_CMD) build --release
-	@touch $(RUST_HARNESS_BINS)
-
 ## test-swift: Run only the Swift test suite (pure Swift path only)
 test-swift:
 	@echo "🧪 Running Swift tests..."
 	$(SWIFT) test
 
-## test-c: Run C unit tests (except benchmark tests)
-test-c:
-	@echo "🧪 Running C test suite..."
-	@$(MAKE) -f Sources/CDSP/Makefile test
-
-## test: Build the Rust harnesses and run the full test suite (C or Rust depending on ENGINE)
+## test: Run the Swift RoomCorrection test suite
 test:
-ifeq ($(ENGINE),c)
-	@$(MAKE) test-rust-build
-	@echo "🧪 Running C unit tests..."
-	@$(MAKE) -f Sources/CDSP/Makefile test
-	@echo "🧪 Running Swift RoomCorrection tests..."
+	@echo "🧪 Running Swift tests..."
 	$(SWIFT) test
-else
-	@$(MAKE) test-rust-build
-	@echo "🧪 Running C unit tests for Rust fallback..."
-	@$(MAKE) -f Sources/CDSP/Makefile test
-	@echo "🧪 Running Swift RoomCorrection tests..."
-	$(SWIFT) test
-endif
-
-## bench: Run C benchmarks
-bench:
-	@$(MAKE) test-rust-build
-	@echo "⏱️  Running C benchmark tests..."
-	@$(MAKE) -f Sources/CDSP/Makefile bench
 
 ## clean: Remove all build artifacts
 clean:
 	@echo "🧹 Cleaning up..."
 	rm -rf .build
 	rm -rf $(APP_BUNDLE)
-	rm -rf $(RUST_HARNESS_DIR)/target
 	rm -rf lib
 	rm -rf Sources/CamillaDSPFFI/include
 	rm -f Sources/DSPLib/camilladsp_ffi.swift
-	@$(MAKE) -f Sources/CDSP/Makefile clean 2>/dev/null || true
 	@if [ -d RustBridge ]; then \
 		echo "🧹 Cleaning Rust bridge..."; \
 		cd RustBridge && $(CARGO_CMD) clean && rm -rf generated; \
