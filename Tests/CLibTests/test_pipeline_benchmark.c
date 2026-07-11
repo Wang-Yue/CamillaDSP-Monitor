@@ -125,8 +125,7 @@ static pipeline_rust_results_t run_upstream_pipeline_benchmark(
 }
 
 static void print_comparison_table(const char* label, double rust_single,
-                                   double rust_multi, double swift_single,
-                                   double swift_multi, double c_single,
+                                   double rust_multi, double c_single,
                                    double c_multi) {
   printf(
       "\n======================================================================"
@@ -145,13 +144,6 @@ static void print_comparison_table(const char* label, double rust_single,
            rust_multi, rust_single / rust_multi);
   } else {
     printf("CamillaDSP (Rust) |          N/A |          N/A |        N/A\n");
-  }
-
-  if (!isnan(swift_single)) {
-    printf("SwiftDSP (Swift)  | %12.3f | %12.3f | %10.2fx\n", swift_single,
-           swift_multi, swift_single / swift_multi);
-  } else {
-    printf("SwiftDSP (Swift)  |          N/A |          N/A |        N/A\n");
   }
 
   printf("Pipeline C (CDSP) | %12.3f | %12.3f | %10.2fx\n", c_single, c_multi,
@@ -302,8 +294,7 @@ TEST(Pipeline_Biquads_Benchmark) {
                     (double)(end_multi.tv_nsec - start_multi.tv_nsec);
   double c_multi_ms = multi_ns / (double)ITERS / 1e6;
 
-  // Load Swift and Rust results
-  double swift_single = NAN, swift_multi = NAN;
+  // Load Rust results
   pipeline_rust_results_t rust =
       run_upstream_pipeline_benchmark("biquad_single", "biquad_multi");
   double rust_single = rust.single_ms;
@@ -311,8 +302,7 @@ TEST(Pipeline_Biquads_Benchmark) {
 
   print_comparison_table(
       "Upstream Match: 4-in 2-out Biquad Pipeline (96 EQ evaluations)",
-      rust_single, rust_multi, swift_single, swift_multi, c_single_ms,
-      c_multi_ms);
+      rust_single, rust_multi, c_single_ms, c_multi_ms);
 
   audio_chunk_free(input);
   audio_chunk_free(output);
@@ -479,8 +469,7 @@ TEST(Pipeline_Biquads_Conv_Benchmark) {
                     (double)(end_multi.tv_nsec - start_multi.tv_nsec);
   double c_multi_ms = multi_ns / 10.0 / 1e6;
 
-  // Load Swift and Rust results
-  double swift_single = NAN, swift_multi = NAN;
+  // Load Rust results
   pipeline_rust_results_t rust = run_upstream_pipeline_benchmark(
       "biquad_conv_single", "biquad_conv_multi");
   double rust_single = rust.single_ms;
@@ -489,8 +478,7 @@ TEST(Pipeline_Biquads_Conv_Benchmark) {
   print_comparison_table(
       "Upstream Match: 4-in 2-out Biquad + Convolution Pipeline (96 EQ + 12 "
       "long convolve)",
-      rust_single, rust_multi, swift_single, swift_multi, c_single_ms,
-      c_multi_ms);
+      rust_single, rust_multi, c_single_ms, c_multi_ms);
 
   audio_chunk_free(input);
   audio_chunk_free(output);

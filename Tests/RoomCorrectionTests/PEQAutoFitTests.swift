@@ -13,7 +13,6 @@ import Testing
 
 @testable import DSPConfig
 @testable import DSPMonitor
-@testable import SwiftDSP
 
 @Suite struct PEQAutoFitTests {
 

@@ -2,7 +2,7 @@
 import Foundation
 import PackageDescription
 
-let engine = ProcessInfo.processInfo.environment["ENGINE"] ?? "swift"
+let engine = ProcessInfo.processInfo.environment["ENGINE"] ?? "c"
 
 // MARK: - Core Products List
 var products: [Product] = [
@@ -16,51 +16,12 @@ let dspMonitorDependencies: [Target.Dependency]
 let engineTargets: [Target]
 
 switch engine {
-case "swift":
-  dspLibTarget = .target(
-    name: "DSPLib",
-    dependencies: ["DSPConfig", "SwiftDSP"],
-    path: "Sources/DSPLib",
-    exclude: ["RustDSPEngine.swift", "camilladsp_ffi.swift", "CDSPEngine.swift"]
-  )
-  dspMonitorDependencies = ["DSPLib", "DSPConfig", "SwiftDSP"]
-  engineTargets = [
-    .target(
-      name: "SwiftDSP",
-      dependencies: ["DSPConfig"],
-      path: "Sources/SwiftDSP",
-      linkerSettings: [
-        .linkedFramework("Accelerate"),
-        .linkedFramework("AudioToolbox"),
-        .linkedFramework("CoreAudio"),
-      ]
-    ),
-    .executableTarget(
-      name: "DSPCLI",
-      dependencies: ["DSPLib", "DSPConfig", "SwiftDSP"],
-      path: "Sources/DSPCLI"
-    ),
-    .testTarget(
-      name: "SwiftDSPTests",
-      dependencies: ["DSPLib", "SwiftDSP", "DSPConfig"],
-      path: "Tests/SwiftDSPTests"
-    ),
-    .testTarget(
-      name: "RoomCorrectionTests",
-      dependencies: ["DSPLib", "SwiftDSP", "DSPConfig", "DSPMonitor"],
-      path: "Tests/RoomCorrectionTests"
-    ),
-  ]
-  products.append(contentsOf: [
-    .executable(name: "dsp-cli", targets: ["DSPCLI"])
-  ])
-
 case "c":
   dspLibTarget = .target(
     name: "DSPLib",
     dependencies: ["DSPConfig", "CDSP"],
     path: "Sources/DSPLib",
-    exclude: ["SwiftDSPEngine.swift", "RustDSPEngine.swift", "camilladsp_ffi.swift"],
+    exclude: ["RustDSPEngine.swift", "camilladsp_ffi.swift"],
     swiftSettings: [
       .unsafeFlags(["-Xcc", "-DENABLE_COREAUDIO"]),
       .unsafeFlags(["-Xcc", "-DENABLE_ACCELERATE"]),
@@ -92,7 +53,7 @@ default:  // rust
     name: "DSPLib",
     dependencies: ["CamillaDSPFFI", "DSPConfig"],
     path: "Sources/DSPLib",
-    exclude: ["SwiftDSPEngine.swift", "CDSPEngine.swift"],
+    exclude: ["CDSPEngine.swift"],
     linkerSettings: [
       .linkedLibrary("camilladsp_ffi"),
       .linkedFramework("AudioToolbox"),
@@ -122,6 +83,11 @@ var targets: [Target] =
       name: "DSPMonitor",
       dependencies: dspMonitorDependencies,
       path: "Sources/DSPMonitor"
+    ),
+    .testTarget(
+      name: "RoomCorrectionTests",
+      dependencies: ["DSPLib", "DSPConfig", "DSPMonitor"],
+      path: "Tests/RoomCorrectionTests"
     ),
   ] + engineTargets
 

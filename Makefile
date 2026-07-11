@@ -1,8 +1,8 @@
 # Build Mode: release or debug
 MODE ?= release
 
-# Engine: swift, rust, or c
-ENGINE ?= swift
+# # Engine: rust or c
+ENGINE ?= c
 
 ifeq ($(MODE),release)
 	CARGO_FLAGS = --release
@@ -51,7 +51,7 @@ ifeq ($(ENGINE),rust)
 	SWIFT_SRCS := $(shell find Sources -type f -name "*.swift")
 	UNIFFI_BINDGEN := $(CARGO_CMD) run $(CARGO_FLAGS) --bin uniffi-bindgen --
 else
-	# Swift or C path
+	# C path
 	SWIFT_SRCS := $(shell find Sources -type f -name "*.swift" -not -name "CamillaDSP.swift" -not -name "camilladsp_ffi.swift")
 endif
 
@@ -116,9 +116,9 @@ $(EXECUTABLE): lib/libcamilladsp_ffi.a Sources/DSPLib/camilladsp_ffi.swift Sourc
 	$(SWIFT) build $(SWIFT_FLAGS) --product DSPMonitor
 
 else
-# Build Swift application (Swift/C path)
+# Build Swift application (C path)
 $(EXECUTABLE): $(SWIFT_SRCS) $(C_SRCS) Package.swift
-	@echo "🍎 Building Swift application with pure Swift/C library ($(MODE))..."
+	@echo "🍎 Building Swift application with pure C library ($(MODE))..."
 	$(SWIFT) build $(SWIFT_FLAGS) --product DSPMonitor
 endif
 
@@ -129,14 +129,9 @@ build: $(EXECUTABLE)
 
 ## cli: Build the standalone command-line executable (dsp-cli)
 cli:
-ifeq ($(ENGINE),swift)
-	@echo "🍎 Building dsp-cli CLI..."
-	$(SWIFT) build $(SWIFT_FLAGS) --product dsp-cli
-else
 	@echo "🍎 Building C dsp-cli CLI..."
 	@$(MAKE) -f Sources/CDSP/Makefile cli
 	@echo "📍 Binary location: Sources/CDSP/bin/dsp-cli"
-endif
 
 ## app: Build and package as a macOS Application (.app)
 app: build
@@ -183,42 +178,34 @@ $(RUST_HARNESS_BINS): $(RUST_HARNESS_SRCS)
 ## test-swift: Run only the Swift test suite (pure Swift path only)
 test-swift:
 	@echo "🧪 Running Swift tests..."
-	$(SWIFT) test --test-product DSPMonitorPackageTests --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests --skip PipelineBenchmarkTests
+	$(SWIFT) test
 
 ## test-c: Run C unit tests (except benchmark tests)
 test-c:
 	@echo "🧪 Running C test suite..."
 	@$(MAKE) -f Sources/CDSP/Makefile test
 
-## test: Build the Rust harnesses and run the full test suite (Swift or C depending on ENGINE)
+## test: Build the Rust harnesses and run the full test suite (C or Rust depending on ENGINE)
 test:
-ifeq ($(ENGINE),swift)
-	@$(MAKE) test-rust-build
-	@echo "🧪 Running Swift tests (with Rust harness comparison tests enabled)..."
-	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --skip ResamplerComparisonMatrix --skip FilterBenchmarkTests --skip DoPBenchmarkTests --skip PipelineBenchmarkTests
-else
+ifeq ($(ENGINE),c)
 	@$(MAKE) test-rust-build
 	@echo "🧪 Running C unit tests..."
 	@$(MAKE) -f Sources/CDSP/Makefile test
+	@echo "🧪 Running Swift RoomCorrection tests..."
+	$(SWIFT) test
+else
+	@$(MAKE) test-rust-build
+	@echo "🧪 Running C unit tests for Rust fallback..."
+	@$(MAKE) -f Sources/CDSP/Makefile test
+	@echo "🧪 Running Swift RoomCorrection tests..."
+	$(SWIFT) test
 endif
 
-## bench: Run resampler/filter benchmarks (Swift or C depending on ENGINE)
+## bench: Run C benchmarks
 bench:
-ifeq ($(ENGINE),swift)
-	@$(MAKE) test-rust-build
-	@echo "⏱️  Running Filter benchmarks in release mode..."
-	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter FilterBenchmarkTests
-	@echo "⏱️  Running DoP benchmarks in release mode..."
-	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter DoPBenchmarkTests
-	@echo "⏱️  Running Pipeline benchmarks in release mode..."
-	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter PipelineBenchmarkTests
-	@echo "⏱️  Running Resampler benchmarks in release mode..."
-	$(SWIFT) test -c release --test-product DSPMonitorPackageTests --filter ResamplerComparisonMatrix
-else
 	@$(MAKE) test-rust-build
 	@echo "⏱️  Running C benchmark tests..."
 	@$(MAKE) -f Sources/CDSP/Makefile bench
-endif
 
 ## clean: Remove all build artifacts
 clean:
@@ -238,7 +225,7 @@ clean:
 
 ## help: Show this help message
 help:
-	@echo "Usage: make [target] [ENGINE=swift|rust|c] [MODE=release|debug]"
+	@echo "Usage: make [target] [ENGINE=rust|c] [MODE=release|debug]"
 	@echo ""
 	@echo "Targets:"
 	@sed -n 's/^##//p' Makefile | column -t -s ':' |  sed -e 's/^/ /'

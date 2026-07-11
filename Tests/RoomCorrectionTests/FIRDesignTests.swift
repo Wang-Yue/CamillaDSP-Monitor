@@ -15,7 +15,6 @@ import Testing
 
 @testable import DSPConfig
 @testable import DSPMonitor
-@testable import SwiftDSP
 
 @Suite struct FIRDesignTests {
 
@@ -158,40 +157,5 @@ import Testing
     #expect(
       maxAsym < 1e-9,
       "linear-phase IR asymmetry = \(maxAsym); expected ~0")
-  }
-
-  /// End-to-end: feed the IR into a `ConvolutionFilter` and verify
-  /// the convolution's output magnitude tracks the chain's response.
-  @Test func MinPhaseRoundTripThroughConvolutionFilter() {
-    let chain: [BiquadParameters] = [
-      .init(type: .peaking, freq: 1_000, gain: 6, q: 2.0)
-    ]
-    let opts = FIRDesign.Options(fftSize: 4096, outputLength: 4096, preampDB: 0)
-    let ir = FIRDesign.minimumPhase(from: chain, sampleRate: sampleRate, options: opts)
-
-    // Pump a unit impulse through the convolution filter — the
-    // multi-block output should equal the IR over its duration.
-    let chunk = 1024
-    let filter = try! ConvolutionFilter(coefficients: ir, chunkSize: chunk)
-
-    var collected: [Double] = []
-    collected.reserveCapacity(ir.count + chunk)
-    var buf = [Double](repeating: 0, count: chunk)
-    buf[0] = 1.0
-    filter.process(waveform: &buf)
-    collected.append(contentsOf: buf)
-    for _ in 0..<3 {
-      var b = [Double](repeating: 0, count: chunk)
-      filter.process(waveform: &b)
-      collected.append(contentsOf: b)
-    }
-
-    var maxErr: Double = 0
-    for i in 0..<ir.count {
-      maxErr = max(maxErr, abs(collected[i] - ir[i]))
-    }
-    #expect(
-      maxErr < 1e-6,
-      "ConvolutionFilter round-trip err = \(maxErr); expected < 1e-6")
   }
 }
