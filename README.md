@@ -73,12 +73,12 @@ DSPMonitor empowers you to take full control of your audio experience with a sui
 
 ## Building & Installation
 
-Use the main `Makefile` to control build targets. You can choose the engine at build time using the `ENGINE` variable (defaults to `swift`).
+Use the main `Makefile` to control build targets. You can choose the engine at build time using the `ENGINE` variable (defaults to `c`).
 
 ### 1. Build and Run macOS Application Bundle
 To build the macOS native UI application:
 ```bash
-make                          # Build DSPMonitor.app (Default Engine: swift)
+make                          # Build DSPMonitor.app (Default Engine: c)
 make ENGINE=c                 # Build DSPMonitor.app (Engine: CDSP C engine)
 make ENGINE=rust              # Build DSPMonitor.app (Engine: Rust CamillaDSP)
 ```
@@ -88,18 +88,17 @@ make ENGINE=rust              # Build DSPMonitor.app (Engine: Rust CamillaDSP)
 ### 2. Standalone Command-Line Tool (`dsp-cli`)
 You can build a standalone command-line tool as a drop-in replacement for the CamillaDSP command-line interface:
 ```bash
-make cli                      # Builds Swift dsp-cli executable
-make ENGINE=c cli             # Builds C dsp-cli executable
+make cli                      # Builds C dsp-cli executable (defaults to ENGINE=c)
+make ENGINE=rust cli          # Builds Rust camilladsp executable
 ```
 *Outputs:*
-- Swift CLI: `.build/release/dsp-cli`
-- C CLI: `Sources/CDSP/bin/dsp-cli`
+- C CLI: `.build/release/dsp-cli`
 
 ### Other Make Commands
 ```bash
 make build                    # Compiles without packaging the app bundle
-make test                     # Runs full test suite (Swift or C depending on ENGINE)
-make bench                    # Runs benchmarks (Swift or C depending on ENGINE)
+make test                     # Runs full test suite (C or Rust depending on ENGINE)
+make bench                    # Runs benchmarks (C or Rust depending on ENGINE)
 make clean                    # Removes all build artifacts
 ```
 
@@ -138,18 +137,18 @@ dsp-cli [CONFIGFILE] [OPTIONS]
 
 ## Technical Highlights
 
-For an in-depth exploration of the core real-time processing design, thread synchronization, off-thread garbage collection, and benchmark evaluations, please refer to the complete [ARCHITECTURE.md](ARCHITECTURE.md) document.
+For an in-depth exploration of the core real-time processing design, thread synchronization, off-thread garbage collection, and benchmark evaluations, please refer to the complete [CDSP Architecture Guide](https://github.com/Wang-Yue/cdsp#readme).
 
 ### 1. Wait-Free Concurrency & Real-Time Safety
 To satisfy sub-millisecond real-time deadlines, the audio hot paths (Capture, Processing, Playback loops) achieve **zero lock contention** and **zero heap allocations/deallocations**:
 - **Lock-Free Ring Buffers**: Uses custom single-producer single-consumer (SPSC) queues with atomic indices using acquire-release memory ordering.
-- **Platform Semaphores**: Leverages platform-native binary semaphores (`dispatch_semaphore` on macOS, POSIX semaphores on Linux) for low-overhead thread wakeup and sleeping instead of heavy mutexes.
+- **Platform Semaphores**: Leverages platform-native binary semaphores (`dispatch_semaphore_t` on macOS, POSIX semaphores on Linux) for low-overhead thread wakeup and sleeping instead of heavy mutexes.
 - **Deferred Garbage Collection**: Configuration updates and WAV coefficient loads are compiled in the background by the control thread. An atomic swap passes the pipeline to the processing thread, which copies the active history states (biquads, loudness, volume) in-place without pausing the audio. The old structures are sent to a background garbage queue to be freed off the audio thread.
 
 ### 2. Native Acceleration & Vectorization
 - **Apple Accelerate**: Biquad calculations, mixer mappings, and FFTs utilize macOS **Accelerate (vDSP / vForce)** kernels, optimized for Apple Silicon ARM NEON units.
-- **Dynamic GCD Scheduling**: Parallelizes multi-channel filtering using Grand Central Dispatch (`concurrentPerform`), dynamically steering lanes to Performance (P) and Efficiency (E) cores according to cache locality and thread priority.
-- **NEON Register Pinning**: Windowed-sinc and polynomial resamplers enforce SIMD register residency in vector loops using `SIMD2<Double>` with 8 independent accumulators, preventing compiler scalarization.
+- **Dynamic GCD Scheduling**: Parallelizes multi-channel filtering using Grand Central Dispatch (`dispatch_apply_f`), dynamically steering lanes to Performance (P) and Efficiency (E) cores according to cache locality and thread priority.
+- **Explicit SIMD Vectorization**: Resampler dot products use loop vectorization flags and fast math contract pragmas, ensuring Clang generates clean, pipeline-unrolled ARM Neon vector instructions.
 
 ### 3. Integrated Format & Fail-Safe Features
 - **DoP (DSD over PCM) Support**: Fully integrated in-place decoding (at capture loop) and encoding (at processing loop) of DSD256 carrier streams, allowing downstream DSP stages to work on standard decimated PCM.
