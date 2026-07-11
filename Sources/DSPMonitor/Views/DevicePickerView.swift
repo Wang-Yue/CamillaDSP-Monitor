@@ -102,7 +102,6 @@ struct DevicePickerView: View {
               Picker("", selection: $bindableDevices.playbackConfig.backend) {
                 Text("CoreAudio").tag(AudioBackendType.coreAudio)
                 Text("RawFile").tag(AudioBackendType.rawFile)
-                Text("WavFile").tag(AudioBackendType.wavFile)
               }
               .labelsHidden()
             }
@@ -139,19 +138,7 @@ struct DevicePickerView: View {
                 showExtras: false,
                 isCapture: false
               )
-            case .wavFile:
-              FileSelectionView(
-                filename: $bindableDevices.playbackConfig.filename,
-                format: $bindableDevices.playbackConfig.fileFormat,
-                isWav: true,
-                channels: $bindableDevices.playbackConfig.channels,
-                skipBytes: .constant(0),
-                readBytes: .constant(0),
-                extraSamples: .constant(0),
-                showExtras: false,
-                isCapture: false
-              )
-            case .signalGenerator:
+            case .wavFile, .signalGenerator:
               EmptyView()
             }
           }
