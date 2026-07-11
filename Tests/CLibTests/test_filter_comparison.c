@@ -115,14 +115,32 @@ static bool run_harness_arr(const char* argv[], size_t argc) {
         "&& cargo build --release`\n");
     return false;
   }
+  char bin_normalized[4096];
+  strncpy(bin_normalized, bin, sizeof(bin_normalized) - 1);
+  bin_normalized[sizeof(bin_normalized) - 1] = '\0';
+#ifdef _WIN32
+  for (int i = 0; bin_normalized[i]; i++) {
+    if (bin_normalized[i] == '/') {
+      bin_normalized[i] = '\\';
+    }
+  }
+#endif
   char cmd[4096];
-  snprintf(cmd, sizeof(cmd), "\"%s\"", bin);
+#ifdef _WIN32
+  snprintf(cmd, sizeof(cmd), "\"\"%s\"", bin_normalized);
+#else
+  snprintf(cmd, sizeof(cmd), "\"%s\"", bin_normalized);
+#endif
   for (size_t i = 0; i < argc; i++) {
     strncat(cmd, " \"", sizeof(cmd) - strlen(cmd) - 1);
     strncat(cmd, argv[i], sizeof(cmd) - strlen(cmd) - 1);
     strncat(cmd, "\"", sizeof(cmd) - strlen(cmd) - 1);
   }
+#ifdef _WIN32
+  strncat(cmd, "\" 2>&1", sizeof(cmd) - strlen(cmd) - 1);
+#else
   strncat(cmd, " 2>&1", sizeof(cmd) - strlen(cmd) - 1);
+#endif
 
   FILE* fp = popen(cmd, "r");
   if (!fp) {
@@ -140,6 +158,7 @@ static bool run_harness_arr(const char* argv[], size_t argc) {
   }
   int status = pclose(fp);
   if (status != 0) {
+    printf("harness cmd: %s\n", cmd);
     printf("harness exited with status %d: %s\n", status, output);
     printf("  [FAIL] %s:%d: harness execution failed\n", __FILE__, __LINE__);
     g_test_failures++;

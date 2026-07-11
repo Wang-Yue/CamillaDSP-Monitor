@@ -93,6 +93,19 @@ static char g_rubato_bin_path[1024] = {0};
 static bool g_rubato_checked = false;
 static bool g_rubato_available = false;
 
+#ifdef _WIN32
+#define RUBATO_HARNESS_NAME "cdsp_resampler_compare.exe"
+static void normalize_path(char* path) {
+  for (int i = 0; path[i]; i++) {
+    if (path[i] == '/') {
+      path[i] = '\\';
+    }
+  }
+}
+#else
+#define RUBATO_HARNESS_NAME "cdsp_resampler_compare"
+#endif
+
 static bool check_rubato_available(void) {
   if (g_rubato_checked) return g_rubato_available;
   g_rubato_checked = true;
@@ -103,6 +116,9 @@ static bool check_rubato_available(void) {
     if (f) {
       fclose(f);
       strncpy(g_rubato_bin_path, env_path, sizeof(g_rubato_bin_path) - 1);
+#ifdef _WIN32
+      normalize_path(g_rubato_bin_path);
+#endif
       g_rubato_available = true;
       return true;
     }
@@ -113,15 +129,15 @@ static bool check_rubato_available(void) {
   if (home) {
     snprintf(home_path, sizeof(home_path),
              "%s/CamillaDSP-Monitor/Tests/RustHarnesses/target/release/"
-             "cdsp_resampler_compare",
+             RUBATO_HARNESS_NAME,
              home);
   }
 
   const char* candidates[] = {
-      "Tests/RustHarnesses/target/release/cdsp_resampler_compare",
-      "./Tests/RustHarnesses/target/release/cdsp_resampler_compare",
-      "../Tests/RustHarnesses/target/release/cdsp_resampler_compare",
-      "../../Tests/RustHarnesses/target/release/cdsp_resampler_compare",
+      "Tests/RustHarnesses/target/release/" RUBATO_HARNESS_NAME,
+      "./Tests/RustHarnesses/target/release/" RUBATO_HARNESS_NAME,
+      "../Tests/RustHarnesses/target/release/" RUBATO_HARNESS_NAME,
+      "../../Tests/RustHarnesses/target/release/" RUBATO_HARNESS_NAME,
       home_path[0] ? home_path : NULL};
   for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
     if (!candidates[i]) continue;
@@ -129,6 +145,9 @@ static bool check_rubato_available(void) {
     if (f) {
       fclose(f);
       strncpy(g_rubato_bin_path, candidates[i], sizeof(g_rubato_bin_path) - 1);
+#ifdef _WIN32
+      normalize_path(g_rubato_bin_path);
+#endif
       g_rubato_available = true;
       return true;
     }
@@ -354,9 +373,15 @@ static double* run_rubato(const char* mode, int in_rate, int out_rate,
   if (!write_raw_f64(input, input_count, in_path)) return NULL;
 
   char cmd[1024];
+#ifdef _WIN32
+  snprintf(cmd, sizeof(cmd),
+           "\"\"%s\" %s \"%s\" \"%s\" %d %d %d --no-partial > NUL 2>&1\"",
+           g_rubato_bin_path, mode, in_path, out_path, in_rate, out_rate, 1024);
+#else
   snprintf(cmd, sizeof(cmd),
            "\"%s\" %s \"%s\" \"%s\" %d %d %d --no-partial >/dev/null 2>&1",
            g_rubato_bin_path, mode, in_path, out_path, in_rate, out_rate, 1024);
+#endif
   int status = system(cmd);
   if (status != 0) return NULL;
 
@@ -647,9 +672,15 @@ static bool measure_rubato_perf(const char* mode, int in_rate, int out_rate,
   free(input);
 
   char cmd[1024];
+#ifdef _WIN32
+  snprintf(cmd, sizeof(cmd),
+           "\"\"%s\" %s \"%s\" \"%s\" %d %d %zu --bench=20 2>&1\"",
+           g_rubato_bin_path, mode, in_path, out_path, in_rate, out_rate, cs);
+#else
   snprintf(cmd, sizeof(cmd),
            "\"%s\" %s \"%s\" \"%s\" %d %d %zu --bench=20 2>&1",
            g_rubato_bin_path, mode, in_path, out_path, in_rate, out_rate, cs);
+#endif
 
   FILE* fp = popen(cmd, "r");
   if (!fp) return false;
