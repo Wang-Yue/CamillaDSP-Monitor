@@ -637,6 +637,29 @@ TEST(DSPEngineE2E_CoreAudio) {
 #endif
 }
 
+TEST(DSPEngineE2E_JACK) {
+#if defined(ENABLE_JACK)
+  const char* json =
+      "{\n"
+      "    \"devices\": {\n"
+      "        \"samplerate\": 44100,\n"
+      "        \"chunksize\": 512,\n"
+      "        \"capture\": {\n"
+      "            \"type\": \"Jack\",\n"
+      "            \"channels\": 2,\n"
+      "            \"device\": \"camilladsp_c\"\n"
+      "        },\n"
+      "        \"playback\": {\n"
+      "            \"type\": \"Jack\",\n"
+      "            \"channels\": 2,\n"
+      "            \"device\": \"camilladsp_p\"\n"
+      "        }\n"
+      "    }\n"
+      "}";
+  run_e2e_test_config(json, "JACK");
+#endif
+}
+
 TEST(DSPEngineE2E_GeneratorFile) {
   const char* json =
       "{\n"

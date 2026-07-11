@@ -80,6 +80,9 @@ endif
 ifeq ($(ENABLE_ASIO),1)
     CFLAGS += -DENABLE_ASIO
 endif
+ifeq ($(ENABLE_JACK),1)
+    CFLAGS += -DENABLE_JACK
+endif
 
 
 # Map Flags to link options (LDFLAGS)
@@ -136,16 +139,18 @@ else
                 LDFLAGS += -fopenmp
             endif
         endif
-        ifeq ($(ENABLE_JACK),1)
-            CFLAGS += -DENABLE_JACK
-            LDFLAGS += -ljack
-        endif
         ifeq ($(ENABLE_BLUEZ),1)
             CFLAGS += -DENABLE_BLUEZ
             LDFLAGS += $(shell pkg-config --libs dbus-1 2>/dev/null || echo "-ldbus-1")
             CFLAGS += $(shell pkg-config --cflags dbus-1 2>/dev/null || echo "")
         endif
     endif
+endif
+
+# Global settings for optional backends
+ifeq ($(ENABLE_JACK),1)
+    CFLAGS += $(shell pkg-config --cflags jack 2>/dev/null || echo "")
+    LDFLAGS += $(shell pkg-config --libs jack 2>/dev/null || echo "-ljack")
 endif
 
 # All library C source files across subdirectories of CDSP
@@ -176,6 +181,14 @@ endif
 
 ifneq ($(ENABLE_ASIO),1)
     SRCS := $(filter-out %/asio_backend.c %/asio_capabilities.c, $(SRCS))
+endif
+
+ifneq ($(ENABLE_JACK),1)
+    SRCS := $(filter-out %/jack_backend.c, $(SRCS))
+endif
+
+ifneq ($(ENABLE_BLUEZ),1)
+    SRCS := $(filter-out %/bluez_backend.c, $(SRCS))
 endif
 
 # Map source files to object files in .build/obj/
