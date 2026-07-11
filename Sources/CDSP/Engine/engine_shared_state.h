@@ -78,7 +78,12 @@ typedef sem_t* engine_semaphore_t;
 static inline bool engine_sem_init(engine_semaphore_t* sem) {
   *sem = (sem_t*)malloc(sizeof(sem_t));
   if (!*sem) return false;
-  return sem_init(*sem, 0, 0) == 0;
+  if (sem_init(*sem, 0, 0) != 0) {
+    free(*sem);
+    *sem = NULL;
+    return false;
+  }
+  return true;
 }
 /**
  * @brief Destroys the semaphore.

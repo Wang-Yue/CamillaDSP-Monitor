@@ -446,6 +446,7 @@ pipeline_t* pipeline_create(const dsp_config_t* config,
                 merged[last->chains_count] = *new_chain;
                 last->chains = merged;
                 last->chains_count += 1;
+                new_chain->filters = NULL;
               }
             }
 

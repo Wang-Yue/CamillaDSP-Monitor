@@ -595,6 +595,7 @@ bool file_capture_open(file_capture_t* capture, backend_error_t* err) {
     char msg[256];
     if (!parse_wav_header(capture->f, &info, msg, sizeof(msg))) {
       fclose(capture->f);
+      capture->f = NULL;
       if (err)
         backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED, msg);
       return false;
@@ -623,7 +624,10 @@ bool file_capture_open(file_capture_t* capture, backend_error_t* err) {
       capture->chunk_size * capture->channels * sample_size;
   capture->raw_buf = (uint8_t*)malloc(capture->raw_buf_capacity);
   if (!capture->raw_buf) {
-    if (!capture->is_stdin) fclose(capture->f);
+    if (!capture->is_stdin) {
+      fclose(capture->f);
+      capture->f = NULL;
+    }
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Memory allocation failure");
@@ -887,7 +891,10 @@ bool file_playback_open(file_playback_t* playback, backend_error_t* err) {
       playback->chunk_size * playback->channels * sample_size;
   playback->raw_buf = (uint8_t*)malloc(playback->raw_buf_capacity);
   if (!playback->raw_buf) {
-    if (!playback->is_stdout) fclose(playback->f);
+    if (!playback->is_stdout) {
+      fclose(playback->f);
+      playback->f = NULL;
+    }
     if (err)
       backend_error_init(err, BACKEND_ERROR_INITIALIZATION_FAILED,
                          "Memory allocation failure");

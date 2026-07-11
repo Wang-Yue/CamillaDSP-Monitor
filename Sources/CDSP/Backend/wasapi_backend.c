@@ -744,7 +744,12 @@ bool wasapi_capture_wait(wasapi_capture_t* capture, uint32_t timeout_ms) {
   return WaitForSingleObject(capture->event, timeout_ms) == WAIT_OBJECT_0;
 }
 
-void wasapi_capture_destroy(wasapi_capture_t* capture) { free(capture); }
+void wasapi_capture_destroy(wasapi_capture_t* capture) {
+  if (capture) {
+    wasapi_capture_close(capture);
+    free(capture);
+  }
+}
 
 // MARK: - Playback Backend implementation
 
@@ -1250,6 +1255,11 @@ void wasapi_playback_set_is_paused(wasapi_playback_t* playback, bool paused) {
   atomic_store_explicit(&playback->paused, paused, memory_order_release);
 }
 
-void wasapi_playback_destroy(wasapi_playback_t* playback) { free(playback); }
+void wasapi_playback_destroy(wasapi_playback_t* playback) {
+  if (playback) {
+    wasapi_playback_close(playback);
+    free(playback);
+  }
+}
 
 #endif  // ENABLE_WASAPI

@@ -280,7 +280,12 @@ bool pulse_capture_wait(pulse_capture_t* capture, uint32_t timeout_ms) {
   return true;
 }
 
-void pulse_capture_destroy(pulse_capture_t* capture) { free(capture); }
+void pulse_capture_destroy(pulse_capture_t* capture) {
+  if (capture) {
+    pulse_capture_close(capture);
+    free(capture);
+  }
+}
 
 // MARK: - Pulse Playback Backend implementation
 
@@ -576,6 +581,11 @@ void pulse_playback_set_is_paused(pulse_playback_t* playback, bool paused) {
   atomic_store_explicit(&playback->paused, paused, memory_order_release);
 }
 
-void pulse_playback_destroy(pulse_playback_t* playback) { free(playback); }
+void pulse_playback_destroy(pulse_playback_t* playback) {
+  if (playback) {
+    pulse_playback_close(playback);
+    free(playback);
+  }
+}
 
 #endif  // ENABLE_PULSE

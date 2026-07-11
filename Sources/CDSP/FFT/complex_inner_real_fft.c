@@ -109,7 +109,6 @@ complex_inner_real_fft_t* complex_inner_real_fft_create(
   fft->base.inverse = complex_inner_real_fft_inverse_wrapper;
   fft->base.free = complex_inner_real_fft_free_wrapper;
   fft->half_n = half_n;
-  fft->inner = inner;
 
   fft->twiddle_re = (double*)malloc(half_n * sizeof(double));
   fft->twiddle_im = (double*)malloc(half_n * sizeof(double));
@@ -123,6 +122,8 @@ complex_inner_real_fft_t* complex_inner_real_fft_create(
     complex_inner_real_fft_free(fft);
     return NULL;
   }
+
+  fft->inner = inner;
 
   for (size_t k = 0; k < half_n; k++) {
     double theta = -M_PI * (double)k / (double)half_n;

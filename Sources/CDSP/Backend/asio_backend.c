@@ -561,6 +561,7 @@ static bool force_sample_rate_with_dummy_cycle(const char* driver_name,
   iasio->lpVtbl->stop(iasio);
   iasio->lpVtbl->disposeBuffers(iasio);
   SAFE_RELEASE(iasio);
+  *p_iasio = NULL;
 
   Sleep(50);
 
