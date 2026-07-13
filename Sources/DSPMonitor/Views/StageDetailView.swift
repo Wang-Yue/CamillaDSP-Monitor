@@ -998,20 +998,27 @@ struct MatrixMixerOptions: View {
   @Bindable var stage: PipelineStage
   @Environment(AudioDeviceManager.self) var devices
   @Environment(DSPEngineController.self) var dsp
+  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
+    let incomingChannels = pipeline.incomingChannels(
+      for: stage.id, captureChannels: devices.captureConfig.channels)
+
     VStack(alignment: .leading, spacing: 16) {
       HStack(spacing: 24) {
         VStack(alignment: .leading, spacing: 4) {
           Text("Input Channels").font(.caption).foregroundStyle(.secondary)
-          Picker("", selection: $stage.mixerChannelsIn) {
-            ForEach(1...16, id: \.self) { ch in
-              Text("\(ch) Channels").tag(ch)
-            }
+          HStack {
+            Text("\(incomingChannels) Channels (Auto)")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+            Spacer()
           }
-          .frame(width: 140)
-          .labelsHidden()
-          .onChange(of: stage.mixerChannelsIn) { _, _ in dsp.applyConfig() }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 5)
+          .frame(width: 160, alignment: .leading)
+          .background(Color.secondary.opacity(0.12))
+          .clipShape(RoundedRectangle(cornerRadius: 6))
         }
 
         VStack(alignment: .leading, spacing: 4) {
@@ -1038,7 +1045,7 @@ struct MatrixMixerOptions: View {
                 .font(.caption.bold())
                 .frame(width: 80, alignment: .leading)
 
-              ForEach(0..<stage.mixerChannelsIn, id: \.self) { inCh in
+              ForEach(0..<incomingChannels, id: \.self) { inCh in
                 Text("Ch \(inCh + 1)")
                   .font(.caption.bold())
                   .frame(width: 90, alignment: .center)
@@ -1054,7 +1061,7 @@ struct MatrixMixerOptions: View {
                   .font(.body.bold())
                   .frame(width: 80, alignment: .leading)
 
-                ForEach(0..<stage.mixerChannelsIn, id: \.self) { inCh in
+                ForEach(0..<incomingChannels, id: \.self) { inCh in
                   MatrixCell(stage: stage, dest: outCh, src: inCh)
                     .frame(width: 90)
                 }
@@ -1066,7 +1073,7 @@ struct MatrixMixerOptions: View {
         }
 
         Button("Reset to 1:1 Passthrough") {
-          let minCh = min(stage.mixerChannelsIn, stage.mixerChannelsOut)
+          let minCh = min(incomingChannels, stage.mixerChannelsOut)
           stage.mixerMappings = (0..<stage.mixerChannelsOut).map { i in
             let src = i < minCh ? i : 0
             return MixerMapping(dest: i, sources: [MixerSource(channel: src, gain: 0.0)])
@@ -1076,6 +1083,14 @@ struct MatrixMixerOptions: View {
         .controlSize(.small)
         .padding(.top, 8)
       }
+    }
+    .onAppear {
+      if stage.mixerChannelsIn != incomingChannels {
+        stage.mixerChannelsIn = incomingChannels
+      }
+    }
+    .onChange(of: incomingChannels) { _, newCount in
+      stage.mixerChannelsIn = newCount
     }
   }
 }

@@ -447,11 +447,11 @@ extension PipelineStage {
       var cleanedMapping: [MixerMapping] = []
       for dest in 0..<mixerChannelsOut {
         if let existing = mixerMappings.first(where: { $0.dest == dest }) {
-          let cleanedSources = existing.sources.filter { $0.channel < mixerChannelsIn }
+          let cleanedSources = existing.sources.filter { $0.channel < channels }
           cleanedMapping.append(
             MixerMapping(dest: dest, sources: cleanedSources, mute: existing.mute))
         } else {
-          let src = dest < mixerChannelsIn ? dest : 0
+          let src = dest < channels ? dest : 0
           cleanedMapping.append(
             MixerMapping(dest: dest, sources: [MixerSource(channel: src, gain: 0.0)]))
         }
@@ -459,7 +459,7 @@ extension PipelineStage {
 
       return [
         prefix: MixerConfig(
-          channelsIn: mixerChannelsIn,
+          channelsIn: channels,
           channelsOut: mixerChannelsOut,
           mapping: cleanedMapping
         )

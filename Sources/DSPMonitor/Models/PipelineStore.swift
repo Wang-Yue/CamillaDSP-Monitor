@@ -69,6 +69,20 @@ final class PipelineStore {
     onChanged?()
   }
 
+  /// Calculates the number of channels entering a given pipeline stage based on preceding stages.
+  func incomingChannels(for stageID: UUID, captureChannels: Int) -> Int {
+    var count = captureChannels
+    for stage in stages {
+      if stage.id == stageID {
+        return count
+      }
+      if stage.isActive && stage.type == .mixer {
+        count = stage.mixerChannelsOut
+      }
+    }
+    return count
+  }
+
   // MARK: - EQ Preset Persistence
 
   func saveEQPresets() {
