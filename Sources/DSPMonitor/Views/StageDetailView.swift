@@ -161,7 +161,8 @@ struct StageChannelSelector: View {
                   }) {
                     Text("\(ch + 1)")
                       .font(.caption.bold())
-                      .padding(.horizontal, 8)
+                      .frame(minWidth: ch + 1 >= 10 ? 28 : 22)
+                      .padding(.horizontal, 6)
                       .padding(.vertical, 4)
                       .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.1))
                       .foregroundStyle(isSelected ? Color.white : Color.primary)
