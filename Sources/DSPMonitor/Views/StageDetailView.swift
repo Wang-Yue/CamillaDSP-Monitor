@@ -1256,8 +1256,14 @@ struct MatrixCell: View {
 struct CompressorOptions: View {
   @Bindable var stage: PipelineStage
   @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioDeviceManager.self) var devices
+  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
+    let index = pipeline.stages.firstIndex(where: { $0.id == stage.id }) ?? 0
+    let incomingChannels = pipeline.channelCount(
+      beforeStageAtIndex: index, captureChannels: devices.captureConfig.channels)
+
     GroupBox("Dynamics Compressor") {
       VStack(alignment: .leading, spacing: 12) {
         HStack(spacing: 16) {
@@ -1327,7 +1333,7 @@ struct CompressorOptions: View {
             .frame(width: 90, alignment: .leading)
           ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-              ForEach(0..<max(1, dsp.devices.captureConfig.channels), id: \.self) { ch in
+              ForEach(0..<max(1, incomingChannels), id: \.self) { ch in
                 let isSelected = stage.monitorChannels.contains(ch)
                 Button(action: {
                   if isSelected {
@@ -1385,8 +1391,14 @@ struct CompressorOptions: View {
 struct NoiseGateOptions: View {
   @Bindable var stage: PipelineStage
   @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioDeviceManager.self) var devices
+  @Environment(PipelineStore.self) var pipeline
 
   var body: some View {
+    let index = pipeline.stages.firstIndex(where: { $0.id == stage.id }) ?? 0
+    let incomingChannels = pipeline.channelCount(
+      beforeStageAtIndex: index, captureChannels: devices.captureConfig.channels)
+
     GroupBox("Noise Gate") {
       VStack(alignment: .leading, spacing: 12) {
         HStack(spacing: 16) {
@@ -1444,7 +1456,7 @@ struct NoiseGateOptions: View {
             .frame(width: 90, alignment: .leading)
           ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-              ForEach(0..<max(1, dsp.devices.captureConfig.channels), id: \.self) { ch in
+              ForEach(0..<max(1, incomingChannels), id: \.self) { ch in
                 let isSelected = stage.monitorChannels.contains(ch)
                 Button(action: {
                   if isSelected {
