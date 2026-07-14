@@ -15,6 +15,11 @@ struct DSPDetailedSignalGraphCard: View {
   private var playbackChannels: Int { max(1, devices.playbackConfig.channels) }
   private var sampleRate: Int { devices.captureConfig.sampleRate }
 
+  // MARK: - Interactive Drag & Custom Positions State
+
+  @State private var customPositions: [String: CGPoint] = [:]
+  @State private var activeDragOffset: (id: String, translation: CGSize)? = nil
+
   // MARK: - Scaling & Dimension Constants
 
   private let xStep: CGFloat = 130 // Horizontal step distance between columns
@@ -34,14 +39,6 @@ struct DSPDetailedSignalGraphCard: View {
     let width: CGFloat
     let height: CGFloat
     let isChannelPort: Bool
-
-    var inputPoint: CGPoint {
-      CGPoint(x: x - width / 2, y: y)
-    }
-
-    var outputPoint: CGPoint {
-      CGPoint(x: x + width / 2, y: y)
-    }
   }
 
   private struct ContainerBox: Identifiable {
@@ -52,12 +49,15 @@ struct DSPDetailedSignalGraphCard: View {
     let width: CGFloat
     let height: CGFloat
     let centerY: CGFloat
+    let containedBlockIds: [String]
   }
 
   private struct GraphArrow: Identifiable {
     let id: String
-    let from: CGPoint
-    let to: CGPoint
+    let fromBlockId: String
+    let toBlockId: String
+    let fromFallback: CGPoint
+    let toFallback: CGPoint
     let label: String?
   }
 
@@ -116,7 +116,8 @@ struct DSPDetailedSignalGraphCard: View {
         activeChannelsCount: blocksInBox.count,
         width: 76,
         height: height,
-        centerY: centerY
+        centerY: centerY,
+        containedBlockIds: blocksInBox.map(\.id)
       )
     }
 
@@ -233,8 +234,10 @@ struct DSPDetailedSignalGraphCard: View {
                 arrows.append(
                   GraphArrow(
                     id: "arrow_mix_\(totalLength)_\(srcCh)_\(destCh)",
-                    from: srcBlock.outputPoint,
-                    to: destBlock.inputPoint,
+                    fromBlockId: srcBlock.id,
+                    toBlockId: destBlock.id,
+                    fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
+                    toFallback: CGPoint(x: destBlock.x - destBlock.width / 2, y: destBlock.y),
                     label: labelStr
                   )
                 )
@@ -250,8 +253,10 @@ struct DSPDetailedSignalGraphCard: View {
                 arrows.append(
                   GraphArrow(
                     id: "arrow_mix_fb_\(totalLength)_\(n)",
-                    from: srcBlock.outputPoint,
-                    to: destBlock.inputPoint,
+                    fromBlockId: srcBlock.id,
+                    toBlockId: destBlock.id,
+                    fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
+                    toFallback: CGPoint(x: destBlock.x - destBlock.width / 2, y: destBlock.y),
                     label: "0 dB"
                   )
                 )
@@ -316,8 +321,10 @@ struct DSPDetailedSignalGraphCard: View {
                 arrows.append(
                   GraphArrow(
                     id: "arrow_filter_\(chStep)_\(chNbr)_\(rawName)",
-                    from: srcBlock.outputPoint,
-                    to: b.inputPoint,
+                    fromBlockId: srcBlock.id,
+                    toBlockId: b.id,
+                    fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
+                    toFallback: CGPoint(x: b.x - b.width / 2, y: b.y),
                     label: nil
                   )
                 )
@@ -353,8 +360,10 @@ struct DSPDetailedSignalGraphCard: View {
               arrows.append(
                 GraphArrow(
                   id: "arrow_proc_\(totalLength)_\(n)",
-                  from: srcBlock.outputPoint,
-                  to: b.inputPoint,
+                  fromBlockId: srcBlock.id,
+                  toBlockId: b.id,
+                  fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
+                  toFallback: CGPoint(x: b.x - b.width / 2, y: b.y),
                   label: nil
                 )
               )
@@ -383,7 +392,6 @@ struct DSPDetailedSignalGraphCard: View {
         }
       }
 
-      // Progress stageStart for filter stages so consecutive filter stages do not stack in the same column
       stageStart = totalLength
     }
 
@@ -411,8 +419,10 @@ struct DSPDetailedSignalGraphCard: View {
         arrows.append(
           GraphArrow(
             id: "arrow_play_\(n)",
-            from: srcBlock.outputPoint,
-            to: b.inputPoint,
+            fromBlockId: srcBlock.id,
+            toBlockId: b.id,
+            fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
+            toFallback: CGPoint(x: b.x - b.width / 2, y: b.y),
             label: nil
           )
         )
@@ -436,19 +446,91 @@ struct DSPDetailedSignalGraphCard: View {
     return (blocks, boxes, arrows, bounds)
   }
 
+  // MARK: - Dynamic Real-Time Position Resolvers
+
+  private func currentBlockPosition(b: GraphBlock, originY: CGFloat) -> CGPoint {
+    let basePos = customPositions[b.id] ?? CGPoint(x: b.x + canvasPadding + 40, y: originY + b.y)
+    if let active = activeDragOffset, active.id == b.id {
+      return CGPoint(x: basePos.x + active.translation.width, y: basePos.y + active.translation.height)
+    }
+    return basePos
+  }
+
+  private func boxFrame(box: ContainerBox, blocksMap: [String: GraphBlock], originY: CGFloat) -> (center: CGPoint, width: CGFloat, height: CGFloat) {
+    let childBlocks = box.containedBlockIds.compactMap { blocksMap[$0] }
+    if childBlocks.isEmpty {
+      return (CGPoint(x: box.centerX + canvasPadding + 40, y: originY + box.centerY), box.width, box.height)
+    }
+    let positions = childBlocks.map { currentBlockPosition(b: $0, originY: originY) }
+    let minX = positions.map(\.x).min()! - 38
+    let maxX = positions.map(\.x).max()! + 38
+    let minY = positions.map(\.y).min()! - 18
+    let maxY = positions.map(\.y).max()! + 18
+
+    let center = CGPoint(x: (minX + maxX) / 2.0, y: (minY + maxY) / 2.0)
+    let w = max(box.width, maxX - minX)
+    let h = max(40, maxY - minY)
+    return (center, w, h)
+  }
+
+  private func dynamicCanvasSize(data: (blocks: [GraphBlock], boxes: [ContainerBox], arrows: [GraphArrow], bounds: CGRect), blocksMap: [String: GraphBlock], originY: CGFloat) -> CGSize {
+    let initialW = data.bounds.width
+    let initialH = data.bounds.height
+
+    var maxX = initialW - canvasPadding - 60
+    var maxY = initialH - canvasPadding - 40
+
+    for b in data.blocks {
+      let pos = currentBlockPosition(b: b, originY: originY)
+      let halfW = b.width / 2
+      let halfH = b.height / 2
+
+      maxX = max(maxX, pos.x + halfW + 60)
+      maxY = max(maxY, pos.y + halfH + 40)
+    }
+
+    let calculatedW = max(initialW, maxX + canvasPadding)
+    let calculatedH = max(initialH, maxY + canvasPadding)
+
+    return CGSize(width: calculatedW, height: calculatedH)
+  }
+
   // MARK: - View Body
 
   var body: some View {
     let data = graphData
+    let originY = data.bounds.height / 2 + titleHeaderHeight / 2
+    let blocksMap = Dictionary(uniqueKeysWithValues: data.blocks.map { ($0.id, $0) })
+    let canvasSize = dynamicCanvasSize(data: data, blocksMap: blocksMap, originY: originY)
 
     VStack(alignment: .leading, spacing: 12) {
-      // Card Title Header
+      // Card Title Header & Reset Button
       HStack(spacing: 8) {
         Image(systemName: "point.3.filled.connected.trianglepath.dotted")
           .font(.title3)
           .foregroundStyle(Color.accentColor)
         Text("DSP Signal Processing Graph")
           .font(.headline)
+
+        if !customPositions.isEmpty {
+          Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+              customPositions.removeAll()
+            }
+          } label: {
+            HStack(spacing: 4) {
+              Image(systemName: "arrow.counterclockwise")
+              Text("Reset Layout")
+            }
+            .font(.caption)
+            .foregroundStyle(Color.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.primary.opacity(0.06))
+            .clipShape(Capsule())
+          }
+          .buttonStyle(.plain)
+        }
 
         Spacer()
 
@@ -464,16 +546,16 @@ struct DSPDetailedSignalGraphCard: View {
       // 2D Canvas View
       HorizontalScrollWithVerticalWheel {
         ZStack(alignment: .topLeading) {
-          // Layer 1: Container Box Bounding Outlines
-          containerBoxesLayer(boxes: data.boxes, bounds: data.bounds)
+          // Layer 1: Container Box Bounding Outlines (Dynamically Scaled)
+          containerBoxesLayer(boxes: data.boxes, blocksMap: blocksMap, originY: originY)
 
-          // Layer 2: Connecting Arrows Canvas
-          arrowsCanvasLayer(arrows: data.arrows, bounds: data.bounds)
+          // Layer 2: Interactive Connecting Arrows Canvas
+          arrowsCanvasLayer(arrows: data.arrows, blocksMap: blocksMap, originY: originY)
 
-          // Layer 3: Interactive Blocks & Channel Ports
-          blocksLayer(blocks: data.blocks, bounds: data.bounds)
+          // Layer 3: Draggable Interactive Blocks & Channel Ports
+          blocksLayer(blocks: data.blocks, originY: originY)
         }
-        .frame(width: data.bounds.width, height: data.bounds.height)
+        .frame(width: canvasSize.width, height: canvasSize.height)
       }
     }
     .padding()
@@ -483,42 +565,36 @@ struct DSPDetailedSignalGraphCard: View {
   // MARK: - Render Layers
 
   @ViewBuilder
-  private func containerBoxesLayer(boxes: [ContainerBox], bounds: CGRect) -> some View {
-    let originY = bounds.height / 2 + titleHeaderHeight / 2
-
+  private func containerBoxesLayer(boxes: [ContainerBox], blocksMap: [String: GraphBlock], originY: CGFloat) -> some View {
     ZStack(alignment: .topLeading) {
       ForEach(boxes) { box in
-        let screenX = box.centerX + canvasPadding + 40
-        let screenY = originY + box.centerY
+        let frame = boxFrame(box: box, blocksMap: blocksMap, originY: originY)
 
-        // Dashed container box centered directly over channel ports
+        // Dashed container box centered directly over live channel ports
         RoundedRectangle(cornerRadius: 10)
           .fill(Color.primary.opacity(0.03))
           .overlay(
             RoundedRectangle(cornerRadius: 10)
               .stroke(Color.primary.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
           )
-          .frame(width: box.width, height: box.height)
-          .position(x: screenX, y: screenY)
+          .frame(width: frame.width, height: frame.height)
+          .position(x: frame.center.x, y: frame.center.y)
 
         // Stage title header floated directly above container box
         Text(box.label)
           .font(.system(size: 11, weight: .bold, design: .monospaced))
           .foregroundStyle(Color.accentColor)
           .lineLimit(1)
-          .position(x: screenX, y: screenY - (box.height / 2) - 12)
+          .position(x: frame.center.x, y: frame.center.y - (frame.height / 2) - 12)
       }
     }
   }
 
   @ViewBuilder
-  private func blocksLayer(blocks: [GraphBlock], bounds: CGRect) -> some View {
-    let originY = bounds.height / 2 + titleHeaderHeight / 2
-
+  private func blocksLayer(blocks: [GraphBlock], originY: CGFloat) -> some View {
     ZStack(alignment: .topLeading) {
       ForEach(blocks) { b in
-        let screenX = b.x + canvasPadding + 40
-        let screenY = originY + b.y
+        let currentPos = currentBlockPosition(b: b, originY: originY)
 
         Group {
           if b.isChannelPort {
@@ -541,18 +617,40 @@ struct DSPDetailedSignalGraphCard: View {
               .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.25), lineWidth: 1))
           }
         }
-        .position(x: screenX, y: screenY)
+        .position(x: currentPos.x, y: currentPos.y)
+        .gesture(
+          DragGesture(minimumDistance: 1)
+            .onChanged { value in
+              activeDragOffset = (id: b.id, translation: value.translation)
+            }
+            .onEnded { value in
+              let basePos = customPositions[b.id] ?? CGPoint(x: b.x + canvasPadding + 40, y: originY + b.y)
+              customPositions[b.id] = CGPoint(x: basePos.x + value.translation.width, y: basePos.y + value.translation.height)
+              activeDragOffset = nil
+            }
+        )
       }
     }
   }
 
-  private func arrowsCanvasLayer(arrows: [GraphArrow], bounds: CGRect) -> some View {
-    let originY = bounds.height / 2 + titleHeaderHeight / 2
-
-    return Canvas { context, size in
+  private func arrowsCanvasLayer(arrows: [GraphArrow], blocksMap: [String: GraphBlock], originY: CGFloat) -> some View {
+    Canvas { context, size in
       for arrow in arrows {
-        let p0 = CGPoint(x: arrow.from.x + canvasPadding + 40, y: originY + arrow.from.y)
-        let p1 = CGPoint(x: arrow.to.x + canvasPadding + 40, y: originY + arrow.to.y)
+        let p0: CGPoint = {
+          if let srcBlock = blocksMap[arrow.fromBlockId] {
+            let pos = currentBlockPosition(b: srcBlock, originY: originY)
+            return CGPoint(x: pos.x + srcBlock.width / 2, y: pos.y)
+          }
+          return CGPoint(x: arrow.fromFallback.x + canvasPadding + 40, y: originY + arrow.fromFallback.y)
+        }()
+
+        let p1: CGPoint = {
+          if let destBlock = blocksMap[arrow.toBlockId] {
+            let pos = currentBlockPosition(b: destBlock, originY: originY)
+            return CGPoint(x: pos.x - destBlock.width / 2, y: pos.y)
+          }
+          return CGPoint(x: arrow.toFallback.x + canvasPadding + 40, y: originY + arrow.toFallback.y)
+        }()
 
         let dx = p1.x - p0.x
         let ctrl1 = CGPoint(x: p0.x + dx * 0.45, y: p0.y)
