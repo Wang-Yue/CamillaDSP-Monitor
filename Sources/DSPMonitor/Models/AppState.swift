@@ -47,6 +47,11 @@ final class AppState {
       UserDefaults.standard.set(showAnalogVUInDashboard, forKey: "show_analog_vu_in_dashboard")
     }
   }
+  var showSignalGraphInDashboard = true {
+    didSet {
+      UserDefaults.standard.set(showSignalGraphInDashboard, forKey: "show_signal_graph_in_dashboard")
+    }
+  }
 
   init() {
     print("[AppState] Initializing...")
@@ -66,6 +71,9 @@ final class AppState {
     self.showAnalogVUInDashboard =
       UserDefaults.standard.object(forKey: "show_analog_vu_in_dashboard") != nil
       ? UserDefaults.standard.bool(forKey: "show_analog_vu_in_dashboard") : true
+    self.showSignalGraphInDashboard =
+      UserDefaults.standard.object(forKey: "show_signal_graph_in_dashboard") != nil
+      ? UserDefaults.standard.bool(forKey: "show_signal_graph_in_dashboard") : true
 
     let engine = DSPEngine()
     let settings = AudioSettings()

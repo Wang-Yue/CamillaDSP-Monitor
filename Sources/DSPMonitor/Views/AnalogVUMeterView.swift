@@ -497,11 +497,6 @@ struct AnalogVUCard: View {
   }
 
   private func channelLabel(for index: Int, totalCount: Int) -> String {
-    if totalCount == 2 {
-      return index == 0 ? "LEFT" : "RIGHT"
-    }
-    if index == 0 { return "LEFT" }
-    if index == 1 { return "RIGHT" }
-    return "CH \(index + 1)"
+    "\(index + 1)"
   }
 }

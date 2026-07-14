@@ -172,7 +172,7 @@ final class PipelineStore {
     for i in 0..<index {
       guard i < stages.count else { break }
       let stage = stages[i]
-      if stage.isEnabled && stage.type == .mixer {
+      if stage.isEnabled && stage.isActive && stage.type == .mixer {
         current = stage.mixerChannelsOut
       }
     }

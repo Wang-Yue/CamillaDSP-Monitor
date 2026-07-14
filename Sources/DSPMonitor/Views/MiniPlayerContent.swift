@@ -28,27 +28,9 @@ struct MiniSpectrumView: View {
 // MARK: - Mini Pipeline
 
 struct MiniPipelineView: View {
-  @Environment(AudioSettings.self) var settings
-  @Environment(PipelineStore.self) var pipeline
-
   var body: some View {
-    HorizontalScrollWithVerticalWheel {
-      HStack(spacing: 3) {
-        Button {
-          settings.resamplerEnabled.toggle()
-        } label: {
-          StageChip(
-            icon: "arrow.triangle.2.circlepath", label: "Resampler",
-            color: .green, isActive: settings.resamplerEnabled, compact: true)
-        }
-        .buttonStyle(.plain)
-
-        ForEach(pipeline.stages.indices, id: \.self) { index in
-          StageChipButton(stage: pipeline.stages[index], compact: true)
-        }
-      }
-    }
-    .frame(minHeight: 60, maxHeight: .infinity)
+    MiniPipelineOverview()
+      .frame(minHeight: 60, maxHeight: .infinity)
   }
 }
 
@@ -73,12 +55,7 @@ struct MiniMetersView: View {
   }
 
   private func channelLabel(for index: Int, totalCount: Int) -> String {
-    if totalCount == 2 {
-      return index == 0 ? "L" : "R"
-    }
-    if index == 0 { return "L" }
-    if index == 1 { return "R" }
-    return "\(index + 1)"
+    "\(index + 1)"
   }
 }
 
@@ -125,12 +102,7 @@ struct MiniAnalogVUView: View {
   }
 
   private func channelLabel(for index: Int, totalCount: Int) -> String {
-    if totalCount == 2 {
-      return index == 0 ? "L" : "R"
-    }
-    if index == 0 { return "L" }
-    if index == 1 { return "R" }
-    return "\(index + 1)"
+    "\(index + 1)"
   }
 }
 

@@ -72,7 +72,9 @@ struct DashboardView: View {
   var body: some View {
     ScrollView {
       LazyVStack(spacing: 20) {
-        PipelineOverview()
+        if appState.showSignalGraphInDashboard {
+          PipelineOverviewCard()
+        }
 
         if appState.showLevelMetersInDashboard {
           LevelMetersCard()
@@ -95,108 +97,6 @@ struct DashboardView: View {
       .padding()
     }
     .background(Color(nsColor: .controlBackgroundColor))
-  }
-}
-
-struct PipelineOverview: View {
-  @Environment(DSPEngineController.self) var dsp
-  @Environment(AudioDeviceManager.self) var devices
-  @Environment(AudioSettings.self) var settings
-  @Environment(PipelineStore.self) var pipeline
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("Signal Chain").font(.headline)
-      HorizontalScrollWithVerticalWheel {
-        HStack(spacing: 4) {
-          StageChip(
-            icon: "mic", label: devices.captureConfig.deviceName ?? "Input", color: .blue,
-            isActive: dsp.status == .running)
-          Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
-          Button {
-            settings.resamplerEnabled.toggle()
-          } label: {
-            StageChip(
-              icon: "arrow.triangle.2.circlepath", label: "Resampler",
-              color: settings.resamplerEnabled ? Color.accentColor : .gray,
-              isActive: settings.resamplerEnabled)
-          }.buttonStyle(.plain)
-          Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
-          ForEach(pipeline.stages) { stage in
-            StageChipButton(stage: stage)
-            Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption)
-          }
-          StageChip(
-            icon: "hifispeaker", label: devices.playbackConfig.deviceName ?? "Output",
-            color: .green, isActive: dsp.status == .running)
-        }.padding(.vertical, 4)
-      }
-    }.padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-  }
-}
-
-struct StageChip: View {
-  let icon: String
-  let label: String
-  let color: Color
-  let isActive: Bool
-  var compact: Bool = false
-
-  var body: some View {
-    HStack(spacing: compact ? 3 : 6) {
-      Image(systemName: icon)
-        .font(compact ? .system(size: 8) : .caption)
-      Text(label)
-        .font(compact ? .system(size: 9, weight: isActive ? .semibold : .regular) : .caption)
-        .lineLimit(1)
-    }
-    .padding(.horizontal, compact ? 6 : 10)
-    .padding(.vertical, compact ? 4 : 6)
-    .background(
-      compact
-        ? (isActive ? color : Color.gray.opacity(0.3))
-        : (isActive ? color.opacity(0.15) : Color.gray.opacity(0.08))
-    )
-    .foregroundStyle(
-      compact
-        ? (isActive ? AnyShapeStyle(.black) : AnyShapeStyle(.white.opacity(0.6)))
-        : (isActive ? AnyShapeStyle(color) : AnyShapeStyle(.secondary))
-    )
-    .clipShape(Capsule())
-    .modifier(StageChipBorderModifier(color: color, isActive: isActive, compact: compact))
-  }
-}
-
-private struct StageChipBorderModifier: ViewModifier {
-  let color: Color
-  let isActive: Bool
-  let compact: Bool
-  func body(content: Content) -> some View {
-    if compact {
-      content
-    } else {
-      content
-        .onHover { h in if h { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
-        .overlay(Capsule().stroke(isActive ? color.opacity(0.3) : Color.clear, lineWidth: 1))
-    }
-  }
-}
-
-struct StageChipButton: View {
-  let stage: PipelineStage
-  @Environment(DSPEngineController.self) var dsp
-  var compact: Bool = false
-
-  var body: some View {
-    Button {
-      stage.isEnabled.toggle()
-      dsp.applyConfig()
-    } label: {
-      StageChip(
-        icon: stage.type.icon, label: stage.name,
-        color: stage.isEnabled ? Color.accentColor : .gray,
-        isActive: stage.isEnabled, compact: compact)
-    }.buttonStyle(.plain)
   }
 }
 
@@ -242,12 +142,7 @@ struct LevelMetersCard: View {
   }
 
   private func channelLabel(for index: Int, totalCount: Int) -> String {
-    if totalCount == 2 {
-      return index == 0 ? "L" : "R"
-    }
-    if index == 0 { return "L" }
-    if index == 1 { return "R" }
-    return "\(index + 1)"
+    "\(index + 1)"
   }
 }
 
