@@ -168,6 +168,8 @@ struct DSPDetailedSignalGraphCard: View {
         channels: currentStageInputChannels
       )
 
+      var stageFilterBlockCounts: [Int: Int] = [:]
+
       for step in steps {
         if step.type == .mixer {
           totalLength += 1
@@ -289,8 +291,10 @@ struct DSPDetailedSignalGraphCard: View {
 
             for rawName in namesToUnroll {
               let name = readableFilterStepName(rawName, stage: stage)
-              let chStep = stageStart + 1 + stages.last![chNbr].count
+              let countInStage = stageFilterBlockCounts[chNbr, default: 0]
+              let chStep = stageStart + 1 + countInStage
               totalLength = max(totalLength, chStep)
+              stageFilterBlockCounts[chNbr] = countInStage + 1
 
               let isPassthrough = chNbr >= 4
               let y = yPos(channel: chNbr, activeChannelsInStage: activeChannels, isPassthrough: isPassthrough)
