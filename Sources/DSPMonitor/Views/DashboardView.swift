@@ -74,6 +74,7 @@ struct DashboardView: View {
       LazyVStack(spacing: 20) {
         if appState.showSignalGraphInDashboard {
           PipelineOverviewCard()
+          DSPDetailedSignalGraphCard()
         }
 
         if appState.showLevelMetersInDashboard {

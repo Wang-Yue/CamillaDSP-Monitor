@@ -330,18 +330,21 @@ extension PipelineStage {
     case .crossfeed:
       guard crossfeedLevel != .off else { return [:] }
 
+      let leftCh = 0
+      let rightCh = 1
+
       var otherChannels: [Int] = []
       for i in 0..<channels {
-        if i != leftChannel && i != rightChannel {
+        if i != leftCh && i != rightCh {
           otherChannels.append(i)
         }
       }
 
       var mapping2to4 = [
-        MixerMapping(dest: 0, sources: [MixerSource(channel: leftChannel, gain: 0.0)]),
-        MixerMapping(dest: 1, sources: [MixerSource(channel: leftChannel, gain: 0.0)]),
-        MixerMapping(dest: 2, sources: [MixerSource(channel: rightChannel, gain: 0.0)]),
-        MixerMapping(dest: 3, sources: [MixerSource(channel: rightChannel, gain: 0.0)]),
+        MixerMapping(dest: 0, sources: [MixerSource(channel: leftCh, gain: 0.0)]),
+        MixerMapping(dest: 1, sources: [MixerSource(channel: leftCh, gain: 0.0)]),
+        MixerMapping(dest: 2, sources: [MixerSource(channel: rightCh, gain: 0.0)]),
+        MixerMapping(dest: 3, sources: [MixerSource(channel: rightCh, gain: 0.0)]),
       ]
       for (idx, ch) in otherChannels.enumerated() {
         mapping2to4.append(
@@ -350,21 +353,21 @@ extension PipelineStage {
 
       var mapping4to2: [MixerMapping] = Array(
         repeating: MixerMapping(dest: 0, sources: []), count: channels)
-      mapping4to2[leftChannel] = MixerMapping(
-        dest: leftChannel,
+      mapping4to2[leftCh] = MixerMapping(
+        dest: leftCh,
         sources: [
           MixerSource(channel: 0, gain: 0.0),
           MixerSource(channel: 2, gain: 0.0),
         ])
-      mapping4to2[rightChannel] = MixerMapping(
-        dest: rightChannel,
+      mapping4to2[rightCh] = MixerMapping(
+        dest: rightCh,
         sources: [
           MixerSource(channel: 1, gain: 0.0),
           MixerSource(channel: 3, gain: 0.0),
         ])
       for (idx, ch) in otherChannels.enumerated() {
         mapping4to2[ch] = MixerMapping(
-          dest: idx + 4, sources: [MixerSource(channel: idx + 4, gain: 0.0)])
+          dest: ch, sources: [MixerSource(channel: idx + 4, gain: 0.0)])
       }
 
       return [
@@ -381,18 +384,21 @@ extension PipelineStage {
       ]
 
     case .splitWidth:
+      let leftCh = (leftChannel < channels) ? leftChannel : 0
+      let rightCh = (rightChannel < channels) ? rightChannel : 1
+
       var otherChannels: [Int] = []
       for i in 0..<channels {
-        if i != leftChannel && i != rightChannel {
+        if i != leftCh && i != rightCh {
           otherChannels.append(i)
         }
       }
 
       var mapping2to4 = [
-        MixerMapping(dest: 0, sources: [MixerSource(channel: leftChannel)]),
-        MixerMapping(dest: 1, sources: [MixerSource(channel: rightChannel)]),
-        MixerMapping(dest: 2, sources: [MixerSource(channel: leftChannel)]),
-        MixerMapping(dest: 3, sources: [MixerSource(channel: rightChannel)]),
+        MixerMapping(dest: 0, sources: [MixerSource(channel: leftCh)]),
+        MixerMapping(dest: 1, sources: [MixerSource(channel: rightCh)]),
+        MixerMapping(dest: 2, sources: [MixerSource(channel: leftCh)]),
+        MixerMapping(dest: 3, sources: [MixerSource(channel: rightCh)]),
       ]
       for (idx, ch) in otherChannels.enumerated() {
         mapping2to4.append(
@@ -411,15 +417,15 @@ extension PipelineStage {
 
       var mapping4to2: [MixerMapping] = Array(
         repeating: MixerMapping(dest: 0, sources: []), count: channels)
-      mapping4to2[leftChannel] = MixerMapping(
-        dest: leftChannel,
+      mapping4to2[leftCh] = MixerMapping(
+        dest: leftCh,
         sources: [
           MixerSource(channel: 0),
           makeMixerSource(channel: 2, linearGain: c1),
           makeMixerSource(channel: 3, linearGain: c2),
         ])
-      mapping4to2[rightChannel] = MixerMapping(
-        dest: rightChannel,
+      mapping4to2[rightCh] = MixerMapping(
+        dest: rightCh,
         sources: [
           MixerSource(channel: 1),
           makeMixerSource(channel: 2, linearGain: c2),
@@ -427,7 +433,7 @@ extension PipelineStage {
         ])
       for (idx, ch) in otherChannels.enumerated() {
         mapping4to2[ch] = MixerMapping(
-          dest: idx + 4, sources: [MixerSource(channel: idx + 4)])
+          dest: ch, sources: [MixerSource(channel: idx + 4)])
       }
 
       return [
