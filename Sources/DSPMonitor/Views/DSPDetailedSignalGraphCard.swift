@@ -298,8 +298,7 @@ struct DSPDetailedSignalGraphCard: View {
               totalLength = max(totalLength, chStep)
               stageFilterBlockCounts[chNbr] = countInStage + 1
 
-              let isPassthrough = chNbr >= 4
-              let y = yPos(channel: chNbr, activeChannelsInStage: activeChannels, isPassthrough: isPassthrough)
+              let y = yPos(channel: chNbr, activeChannelsInStage: activeChannels, isPassthrough: false)
               let x = xPos(step: chStep)
 
               let b = GraphBlock(
