@@ -477,7 +477,7 @@ struct PipelineOverviewCard: View {
       } else if let ch = step.channel {
         return [ch]
       } else if step.type == .processor {
-        return stage.channels.sorted()
+        return stage.channels.filter { $0 < incomingChannels }.sorted()
       } else {
         return Array(0..<incomingChannels)
       }

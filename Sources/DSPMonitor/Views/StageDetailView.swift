@@ -181,6 +181,22 @@ struct StageChannelSelector: View {
       .padding(.vertical, 4)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .onAppear {
+      sanitizeStereoChannels(incomingChannels: incomingChannels)
+    }
+    .onChange(of: incomingChannels) { _, newCount in
+      sanitizeStereoChannels(incomingChannels: newCount)
+    }
+  }
+
+  private func sanitizeStereoChannels(incomingChannels: Int) {
+    guard incomingChannels > 0 else { return }
+    if stage.leftChannel >= incomingChannels {
+      stage.leftChannel = 0
+    }
+    if stage.rightChannel >= incomingChannels {
+      stage.rightChannel = min(1, incomingChannels - 1)
+    }
   }
 }
 

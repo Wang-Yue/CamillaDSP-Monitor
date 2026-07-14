@@ -59,7 +59,7 @@ struct PipelineChannelRoutingCanvas: View {
           } else if let ch = step.channel {
             return [ch]
           } else if step.type == .processor {
-            return stage.channels
+            return stage.channels.filter { $0 < currentCh }
           } else {
             return Set(0..<currentCh)
           }

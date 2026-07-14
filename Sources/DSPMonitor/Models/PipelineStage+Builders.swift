@@ -225,8 +225,13 @@ extension PipelineStage {
 
   func buildMixers(channels: Int) -> [String: MixerConfig] {
     guard isActive else { return [:] }
+    let leftCh = (leftChannel < channels) ? leftChannel : 0
+    let rightCh =
+      (rightChannel < channels && rightChannel != leftCh)
+      ? rightChannel : (channels > 1 ? 1 : 0)
+
     if type == .balance || type == .width || type == .msProc || type == .crossfeed {
-      guard leftChannel < channels && rightChannel < channels else {
+      guard leftCh < channels && rightCh < channels else {
         return [:]
       }
     }
@@ -241,12 +246,12 @@ extension PipelineStage {
 
       var mapping: [MixerMapping] = []
       for i in 0..<channels {
-        if i == leftChannel {
+        if i == leftCh {
           mapping.append(
-            MixerMapping(dest: i, sources: [MixerSource(channel: leftChannel, gain: leftDB)]))
-        } else if i == rightChannel {
+            MixerMapping(dest: i, sources: [MixerSource(channel: leftCh, gain: leftDB)]))
+        } else if i == rightCh {
           mapping.append(
-            MixerMapping(dest: i, sources: [MixerSource(channel: rightChannel, gain: rightDB)]))
+            MixerMapping(dest: i, sources: [MixerSource(channel: rightCh, gain: rightDB)]))
         } else {
           mapping.append(MixerMapping(dest: i, sources: [MixerSource(channel: i, gain: 0.0)]))
         }
@@ -269,20 +274,20 @@ extension PipelineStage {
         var sources: [MixerSource] = []
         if abs(ch0) > threshold {
           sources.append(
-            MixerSource(channel: leftChannel, gain: 20.0 * log10(abs(ch0)), inverted: ch0 < 0))
+            MixerSource(channel: leftCh, gain: 20.0 * log10(abs(ch0)), inverted: ch0 < 0))
         }
         if abs(ch1) > threshold {
           sources.append(
-            MixerSource(channel: rightChannel, gain: 20.0 * log10(abs(ch1)), inverted: ch1 < 0))
+            MixerSource(channel: rightCh, gain: 20.0 * log10(abs(ch1)), inverted: ch1 < 0))
         }
         return sources
       }
 
       var mapping: [MixerMapping] = []
       for i in 0..<channels {
-        if i == leftChannel {
+        if i == leftCh {
           mapping.append(MixerMapping(dest: i, sources: makeSources(ch0: ll, ch1: lr)))
-        } else if i == rightChannel {
+        } else if i == rightCh {
           mapping.append(MixerMapping(dest: i, sources: makeSources(ch0: lr, ch1: ll)))
         } else {
           mapping.append(MixerMapping(dest: i, sources: [MixerSource(channel: i, gain: 0.0)]))
@@ -299,21 +304,21 @@ extension PipelineStage {
     case .msProc:
       var mapping: [MixerMapping] = []
       for i in 0..<channels {
-        if i == leftChannel {
+        if i == leftCh {
           mapping.append(
             MixerMapping(
               dest: i,
               sources: [
-                MixerSource(channel: leftChannel, gain: -6.02),
-                MixerSource(channel: rightChannel, gain: -6.02),
+                MixerSource(channel: leftCh, gain: -6.02),
+                MixerSource(channel: rightCh, gain: -6.02),
               ]))
-        } else if i == rightChannel {
+        } else if i == rightCh {
           mapping.append(
             MixerMapping(
               dest: i,
               sources: [
-                MixerSource(channel: leftChannel, gain: -6.02),
-                MixerSource(channel: rightChannel, gain: -6.02, inverted: true),
+                MixerSource(channel: leftCh, gain: -6.02),
+                MixerSource(channel: rightCh, gain: -6.02, inverted: true),
               ]))
         } else {
           mapping.append(MixerMapping(dest: i, sources: [MixerSource(channel: i, gain: 0.0)]))
@@ -328,7 +333,7 @@ extension PipelineStage {
       ]
 
     case .crossfeed:
-      guard crossfeedLevel != .off else { return [:] }
+      guard crossfeedLevel != .off && channels >= 2 else { return [:] }
 
       let leftCh = 0
       let rightCh = 1
@@ -384,6 +389,7 @@ extension PipelineStage {
       ]
 
     case .splitWidth:
+      guard channels >= 2 else { return [:] }
       let leftCh = (leftChannel < channels) ? leftChannel : 0
       let rightCh = (rightChannel < channels) ? rightChannel : 1
 
@@ -480,19 +486,26 @@ extension PipelineStage {
 
   func buildProcessors(channels: Int) -> [String: ProcessorConfig] {
     guard isActive else { return [:] }
+    let leftCh = (leftChannel < channels) ? leftChannel : 0
+    let rightCh =
+      (rightChannel < channels && rightChannel != leftCh)
+      ? rightChannel : (channels > 1 ? 1 : 0)
+
     if type == .race {
-      guard leftChannel < channels && rightChannel < channels else {
+      guard leftCh < channels && rightCh < channels else {
         return [:]
       }
     }
     let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
-    let chList = self.channels.sorted()
+    let chList = self.channels.filter { $0 < channels }.sorted()
+    let monitorList = self.monitorChannels.filter { $0 < channels }.sorted()
 
     switch type {
     case .compressor:
+      guard !chList.isEmpty else { return [:] }
       let params = CompressorParameters(
         channels: channels,
-        monitorChannels: self.monitorChannels.sorted(),
+        monitorChannels: monitorList.isEmpty ? chList : monitorList,
         processChannels: chList,
         attack: compressorAttack,
         release: compressorRelease,
@@ -505,9 +518,10 @@ extension PipelineStage {
       return [prefix: .compressor(params)]
 
     case .noiseGate:
+      guard !chList.isEmpty else { return [:] }
       let params = NoiseGateParameters(
         channels: channels,
-        monitorChannels: self.monitorChannels.sorted(),
+        monitorChannels: monitorList.isEmpty ? chList : monitorList,
         processChannels: chList,
         attack: gateAttack,
         release: gateRelease,
@@ -519,8 +533,8 @@ extension PipelineStage {
     case .race:
       let params = RACEParameters(
         channels: channels,
-        channelA: leftChannel,
-        channelB: rightChannel,
+        channelA: leftCh,
+        channelB: rightCh,
         delay: raceDelay,
         subsampleDelay: raceSubsampleDelay,
         delayUnit: raceDelayUnit,
@@ -540,25 +554,30 @@ extension PipelineStage {
     sampleRate: Int
   ) -> [PipelineStep] {
     guard isActive else { return [] }
+    let leftCh = (leftChannel < channelCount) ? leftChannel : 0
+    let rightCh =
+      (rightChannel < channelCount && rightChannel != leftCh)
+      ? rightChannel : (channelCount > 1 ? 1 : 0)
+
     if type == .balance || type == .width || type == .msProc || type == .crossfeed || type == .race
     {
-      guard leftChannel < channelCount && rightChannel < channelCount else {
+      guard leftCh < channelCount && rightCh < channelCount else {
         return []
       }
     }
     let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
-    let chList = self.channels.sorted()
+    let chList = self.channels.filter { $0 < channelCount }.sorted()
 
     switch type {
     case .balance, .width, .msProc, .mixer:
       return [PipelineStep(type: .mixer, name: prefix)]
 
     case .phaseInvert:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_invert"])]
 
     case .crossfeed:
-      guard crossfeedLevel != .off else { return [] }
+      guard crossfeedLevel != .off && channelCount >= 2 else { return [] }
       return [
         PipelineStep(type: .mixer, name: "\(prefix)_2to4"),
         PipelineStep(type: .filter, channels: [0, 3], names: ["\(prefix)_hi"]),
@@ -568,6 +587,7 @@ extension PipelineStage {
       ]
 
     case .splitWidth:
+      guard channelCount >= 2 else { return [] }
       return [
         PipelineStep(type: .mixer, name: "\(prefix)_2to4"),
         PipelineStep(
@@ -579,7 +599,7 @@ extension PipelineStage {
 
     case .eq:
       guard let presetID = eqPresetID, let preset = eqPresets.first(where: { $0.id == presetID }),
-        !channels.isEmpty
+        !chList.isEmpty
       else { return [] }
       var names = ["\(prefix)_preamp"]
       names.append(
@@ -591,16 +611,16 @@ extension PipelineStage {
     case .convolution:
       guard let presetID = convPresetID,
         let preset = convPresets.first(where: { $0.id == presetID }),
-        preset.irPath(forSampleRate: sampleRate) != nil, !channels.isEmpty
+        preset.irPath(forSampleRate: sampleRate) != nil, !chList.isEmpty
       else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_conv"])]
 
     case .loudness:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_loudness"])]
 
     case .emphasis:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       switch emphasisMode {
       case .off: return []
       case .deEmphasis:
@@ -610,46 +630,51 @@ extension PipelineStage {
       }
 
     case .dcProtection:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_dcp"])]
 
     case .gain:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_gain"])]
 
     case .delay:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_delay"])]
 
     case .volume:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_volume"])]
 
     case .lookaheadLimiter:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_lookahead_limiter"])]
 
-    case .compressor, .noiseGate, .race:
+    case .compressor, .noiseGate:
+      guard !chList.isEmpty else { return [] }
+      return [PipelineStep(type: .processor, name: prefix)]
+
+    case .race:
+      guard leftCh < channelCount && rightCh < channelCount else { return [] }
       return [PipelineStep(type: .processor, name: prefix)]
 
     case .dither:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_dither"])]
 
     case .diffEq:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_diffeq"])]
 
     case .biquadCombo:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_combo"])]
 
     case .limiter:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_limiter"])]
 
     case .graphicEQ:
-      guard !channels.isEmpty else { return [] }
+      guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_geq"])]
     }
   }
