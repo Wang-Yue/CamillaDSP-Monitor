@@ -57,36 +57,6 @@ public struct MixerConfig: Codable, Equatable, Sendable {
     try container.encodeIfPresent(description, forKey: .description)
     try container.encodeIfPresent(labels, forKey: .labels)
   }
-
-  /// Validate the mapping is internally consistent: every dest is in
-  /// range, no dest appears twice, and within a single dest no source
-  /// channel appears twice.
-  public func validate() throws {
-    var seenDests = Set<Int>()
-    for map in mapping {
-      guard map.dest < channelsOut else {
-        throw ConfigError.invalidMixer(
-          "mixer dest \(map.dest) >= channels_out \(channelsOut)")
-      }
-      guard !seenDests.contains(map.dest) else {
-        throw ConfigError.invalidMixer("mixer dest \(map.dest) mapped more than once")
-      }
-      seenDests.insert(map.dest)
-
-      var seenSources = Set<Int>()
-      for src in map.sources {
-        guard src.channel < channelsIn else {
-          throw ConfigError.invalidMixer(
-            "mixer source channel \(src.channel) >= channels_in \(channelsIn)")
-        }
-        guard !seenSources.contains(src.channel) else {
-          throw ConfigError.invalidMixer(
-            "mixer source channel \(src.channel) listed more than once for dest \(map.dest)")
-        }
-        seenSources.insert(src.channel)
-      }
-    }
-  }
 }
 
 public struct MixerMapping: Codable, Equatable, Sendable {

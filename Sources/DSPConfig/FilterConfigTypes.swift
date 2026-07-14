@@ -106,14 +106,6 @@ public struct GainParameters: Codable, Sendable, Equatable {
     self.inverted = inverted
     self.mute = mute
   }
-
-  public func validate() throws {
-    if let gain = gain {
-      guard gain >= -150 && gain <= 150 else {
-        throw ConfigError.invalidFilter("gain must be in [-150, 150] dB, got \(gain)")
-      }
-    }
-  }
 }
 
 public struct LoudnessParameters: Codable, Sendable, Equatable {
@@ -142,24 +134,6 @@ public struct LoudnessParameters: Codable, Sendable, Equatable {
     self.lowBoost = lowBoost
     self.attenuateMid = attenuateMid
     self.fader = fader
-  }
-
-  public func validate() throws {
-    if let ref = referenceLevel {
-      guard ref >= -100 && ref <= 20 else {
-        throw ConfigError.invalidFilter("reference_level must be in [-100, 20], got \(ref)")
-      }
-    }
-    if let boost = highBoost {
-      guard boost >= 0 && boost <= 20 else {
-        throw ConfigError.invalidFilter("high_boost must be in [0, 20], got \(boost)")
-      }
-    }
-    if let boost = lowBoost {
-      guard boost >= 0 && boost <= 20 else {
-        throw ConfigError.invalidFilter("low_boost must be in [0, 20], got \(boost)")
-      }
-    }
   }
 }
 
@@ -296,23 +270,6 @@ public struct ConvParameters: Codable, Sendable, Equatable {
     self.skipBytesLines = skipBytesLines
     self.readBytesLines = readBytesLines
   }
-
-  public func validate() throws {
-    switch type {
-    case .values:
-      guard let v = values, !v.isEmpty else {
-        throw ConfigError.invalidFilter("Conv 'values' must be non-empty")
-      }
-    case .wav, .raw:
-      guard let f = filename, !f.isEmpty else {
-        throw ConfigError.invalidFilter("Conv '\(type.rawValue)' missing filename")
-      }
-    case .dummy:
-      guard let n = length, n > 0 else {
-        throw ConfigError.invalidFilter("Conv 'dummy' length must be > 0")
-      }
-    }
-  }
 }
 
 public enum FilterConfig: Codable, Sendable, Equatable {
@@ -341,33 +298,6 @@ public enum FilterConfig: Codable, Sendable, Equatable {
     case .dither: return .dither
     case .limiter: return .limiter
     case .lookaheadLimiter: return .lookaheadLimiter
-    }
-  }
-
-  public func validate(sampleRate: Int) throws {
-    switch self {
-    case .biquad(let params):
-      try params.validate(sampleRate: sampleRate)
-    case .gain(let params):
-      try params.validate()
-    case .loudness(let params):
-      try params.validate()
-    case .conv(let params):
-      try params.validate()
-    case .volume(let params):
-      try params.validate()
-    case .delay(let params):
-      try params.validate()
-    case .biquadCombo(let params):
-      try params.validate(sampleRate: sampleRate)
-    case .diffEq(let params):
-      try params.validate()
-    case .dither(let params):
-      try params.validate()
-    case .limiter(let params):
-      try params.validate()
-    case .lookaheadLimiter(let params):
-      try params.validate(sampleRate: sampleRate)
     }
   }
 
@@ -488,12 +418,6 @@ public struct DelayParameters: Codable, Sendable, Equatable {
     self.unit = unit
     self.subsample = subsample
   }
-
-  public func validate() throws {
-    guard delay >= 0 else {
-      throw ConfigError.invalidFilter("Delay cannot be negative, got \(delay)")
-    }
-  }
 }
 
 public enum BiquadComboType: String, Codable, Sendable {
@@ -579,92 +503,6 @@ public struct BiquadComboParameters: Codable, Sendable, Equatable {
     self.freqMax = freqMax
     self.gains = gains
   }
-
-  public func validate(sampleRate: Int) throws {
-    let nyquist = Double(sampleRate) / 2.0
-    switch type {
-    case .butterworthLowpass, .butterworthHighpass:
-      guard let freq = freq, freq > 0 else {
-        throw ConfigError.invalidFilter(
-          "BiquadCombo: freq must be > 0, got \(String(describing: freq))")
-      }
-      guard freq < nyquist else {
-        throw ConfigError.invalidFilter(
-          "BiquadCombo: freq must be less than Nyquist (\(nyquist)), got \(freq)")
-      }
-      guard let order = order, order >= 1, order <= 64 else {
-        throw ConfigError.invalidFilter(
-          "BiquadCombo: order must be between 1 and 64, got \(String(describing: order))")
-      }
-    case .linkwitzRileyLowpass, .linkwitzRileyHighpass:
-      guard let freq = freq, freq > 0 else {
-        throw ConfigError.invalidFilter(
-          "BiquadCombo: freq must be > 0, got \(String(describing: freq))")
-      }
-      guard freq < nyquist else {
-        throw ConfigError.invalidFilter(
-          "BiquadCombo: freq must be less than Nyquist (\(nyquist)), got \(freq)")
-      }
-      guard let order = order, order >= 2, order <= 64, order % 2 == 0 else {
-        throw ConfigError.invalidFilter(
-          "Linkwitz-Riley order must be an even number between 2 and 64 (inclusive), got \(String(describing: order))")
-      }
-    case .tilt:
-      guard let gain = gain else {
-        throw ConfigError.invalidFilter("Tilt: gain must be set")
-      }
-      guard gain > -100.0 && gain < 100.0 else {
-        throw ConfigError.invalidFilter("Tilt: gain must be between -100 and 100 dB, got \(gain)")
-      }
-    case .fivePointPeq:
-      guard let qls = qls, qls > 0,
-        let qhs = qhs, qhs > 0,
-        let qp1 = qp1, qp1 > 0,
-        let qp2 = qp2, qp2 > 0,
-        let qp3 = qp3, qp3 > 0
-      else {
-        throw ConfigError.invalidFilter("FivePointPeq: all Q-values must be > 0")
-      }
-      guard let fls = fls, fls < nyquist,
-        let fhs = fhs, fhs < nyquist,
-        let fp1 = fp1, fp1 < nyquist,
-        let fp2 = fp2, fp2 < nyquist,
-        let fp3 = fp3, fp3 < nyquist
-      else {
-        throw ConfigError.invalidFilter(
-          "FivePointPeq: all frequencies must be less than Nyquist (\(nyquist))")
-      }
-      guard fls > 0, fhs > 0, fp1 > 0, fp2 > 0, fp3 > 0 else {
-        throw ConfigError.invalidFilter("FivePointPeq: all frequencies must be > 0")
-      }
-    case .graphicEqualizer:
-      guard let gains = gains, !gains.isEmpty else {
-        throw ConfigError.invalidFilter("GraphicEqualizer: gains must be non-empty")
-      }
-      guard gains.count <= 32 else {
-        throw ConfigError.invalidFilter("GraphicEqualizer: number of gains must be <= 32, got \(gains.count)")
-      }
-      guard let freqMin = freqMin, freqMin > 0,
-        let freqMax = freqMax, freqMax > 0
-      else {
-        throw ConfigError.invalidFilter("GraphicEqualizer: min and max frequencies must be > 0")
-      }
-      guard freqMin < nyquist, freqMax < nyquist else {
-        throw ConfigError.invalidFilter(
-          "GraphicEqualizer: min and max frequencies must be less than Nyquist (\(nyquist))")
-      }
-      guard freqMin < freqMax else {
-        throw ConfigError.invalidFilter(
-          "GraphicEqualizer: min frequency must be lower than max frequency")
-      }
-      for g in gains {
-        guard g >= -40.0 && g <= 40.0 else {
-          throw ConfigError.invalidFilter(
-            "GraphicEqualizer: gains must be within +- 40 dB, got \(g)")
-        }
-      }
-    }
-  }
 }
 
 public struct DiffEqParameters: Codable, Sendable, Equatable {
@@ -678,9 +516,6 @@ public struct DiffEqParameters: Codable, Sendable, Equatable {
   public init(a: [Double]? = nil, b: [Double]? = nil) {
     self.a = a
     self.b = b
-  }
-
-  public func validate() throws {
   }
 }
 
@@ -723,17 +558,6 @@ public struct DitherParameters: Codable, Sendable, Equatable {
     self.bits = bits
     self.amplitude = amplitude
   }
-
-  public func validate() throws {
-    guard bits >= 2 else {
-      throw ConfigError.invalidFilter("Dither bit depth must be at least 2, got \(bits)")
-    }
-    if let amplitude = amplitude {
-      guard amplitude >= 0 && amplitude <= 100 else {
-        throw ConfigError.invalidFilter("Dither amplitude must be in [0, 100], got \(amplitude)")
-      }
-    }
-  }
 }
 
 public struct LimiterParameters: Codable, Sendable, Equatable {
@@ -748,12 +572,6 @@ public struct LimiterParameters: Codable, Sendable, Equatable {
   public init(clipLimit: Double, softClip: Bool? = nil) {
     self.clipLimit = clipLimit
     self.softClip = softClip
-  }
-
-  public func validate() throws {
-    guard clipLimit.isFinite, clipLimit >= -120.0, clipLimit <= 20.0 else {
-      throw ConfigError.invalidFilter("Limiter: clip_limit must be finite and between -120.0 and 20.0, got \(clipLimit)")
-    }
   }
 }
 
@@ -773,39 +591,6 @@ public struct LookaheadLimiterParameters: Codable, Sendable, Equatable {
     self.release = release
     self.unit = unit
   }
-
-  public func validate(sampleRate: Int) throws {
-    guard sampleRate > 0 else {
-      throw ConfigError.invalidFilter("Lookahead Limiter: sample rate must be > 0, got \(sampleRate)")
-    }
-    guard limit.isFinite, limit >= -120.0, limit <= 20.0 else {
-      throw ConfigError.invalidFilter("Lookahead Limiter: limit must be finite and between -120.0 and 20.0, got \(limit)")
-    }
-    guard attack >= 0 else {
-      throw ConfigError.invalidFilter("Lookahead Limiter: attack cannot be negative, got \(attack)")
-    }
-    guard release >= 0 else {
-      throw ConfigError.invalidFilter(
-        "Lookahead Limiter: release cannot be negative, got \(release)")
-    }
-    let u = unit ?? .ms
-    let attackSamples: Double
-    switch u {
-    case .ms:
-      attackSamples = attack / 1000.0 * Double(sampleRate)
-    case .us:
-      attackSamples = attack / 1_000_000.0 * Double(sampleRate)
-    case .samples:
-      attackSamples = attack
-    case .mm:
-      attackSamples = attack / 1000.0 * Double(sampleRate) / 343.0
-    }
-    guard attackSamples <= Double(sampleRate) else {
-      throw ConfigError.invalidFilter(
-        "Lookahead Limiter: attack time cannot be longer than 1 second, got \(attackSamples) samples"
-      )
-    }
-  }
 }
 
 public struct VolumeParameters: Codable, Sendable, Equatable {
@@ -823,80 +608,5 @@ public struct VolumeParameters: Codable, Sendable, Equatable {
     self.rampTime = rampTime
     self.limit = limit
     self.fader = fader
-  }
-
-  public func validate() throws {
-    if let r = rampTime {
-      guard r >= 0 else {
-        throw ConfigError.invalidFilter("Volume ramp time cannot be negative, got \(r)")
-      }
-    }
-  }
-}
-
-extension BiquadParameters {
-  public func validate(sampleRate: Int) throws {
-    guard type != nil else {
-      throw ConfigError.invalidFilter("Biquad filter missing 'type'")
-    }
-
-    let nyquist = Double(sampleRate) / 2.0
-
-    if let freq = freq {
-      try Self.checkFreq(freq, nyquist: nyquist, label: "freq")
-    }
-    if let q = q {
-      try Self.checkPositive(q, label: "Q")
-    }
-    if let slope = slope {
-      try Self.checkPositive(slope, label: "slope")
-      guard slope <= 12.0 else {
-        throw ConfigError.invalidFilter("slope must be <= 12.0 dB/oct, got \(slope)")
-      }
-    }
-    if let bw = bandwidth {
-      try Self.checkPositive(bw, label: "bandwidth")
-    }
-    if let fn = freqNotch {
-      try Self.checkFreq(fn, nyquist: nyquist, label: "freq_notch")
-    }
-    if let fp = freqPole {
-      try Self.checkFreq(fp, nyquist: nyquist, label: "freq_pole")
-    }
-    if let fa = freqAct {
-      try Self.checkFreq(fa, nyquist: nyquist, label: "freq_act")
-    }
-    if let ft = freqTarget {
-      try Self.checkFreq(ft, nyquist: nyquist, label: "freq_target")
-    }
-    if let qa = qAct {
-      try Self.checkPositive(qa, label: "q_act")
-    }
-    if let qt = qTarget {
-      try Self.checkPositive(qt, label: "q_target")
-    }
-
-    // Stability check: pole positions of the realised coefficients must
-    // lie strictly inside the unit circle.
-    if let coeffs = BiquadCoefficients.compute(parameters: self, sampleRate: sampleRate) {
-      if abs(coeffs.a2) >= 1.0 || abs(coeffs.a1) >= 1.0 + coeffs.a2 {
-        throw ConfigError.invalidFilter("Unstable biquad filter specified")
-      }
-    }
-  }
-
-  private static func checkFreq(_ freq: Double, nyquist: Double, label: String) throws {
-    guard freq > 0 else {
-      throw ConfigError.invalidFilter("\(label) must be > 0, got \(freq)")
-    }
-    guard freq < nyquist else {
-      throw ConfigError.invalidFilter("\(label) must be < Nyquist (\(nyquist) Hz), got \(freq)")
-    }
-  }
-
-  private static func checkPositive(_ value: Double, label: String) throws {
-    guard value > 0 else {
-      throw ConfigError.invalidFilter("\(label) must be > 0, got \(value)")
-    }
   }
 }
