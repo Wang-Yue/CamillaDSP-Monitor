@@ -132,7 +132,7 @@ struct EQFrequencyResponseView: View {
     guard let idx = preset.bands.firstIndex(where: { $0.id == band.id }) else { return .gray }
     return Self.bandColors[idx % Self.bandColors.count]
   }
-  private let minFreq = 20.0, maxFreq = 20000.0, minDB = -24.0, maxDB = 24.0, numPoints = 1000
+  private let minFreq = 20.0, maxFreq = 20000.0, minDB = -24.0, maxDB = 24.0, numPoints = 250
   private let logAxis = LogScaleAxis(minFreq: 20.0, maxFreq: 20000.0)
   private func freqToX(_ f: Double, width: Double) -> Double {
     logAxis.x(for: f, width: width)

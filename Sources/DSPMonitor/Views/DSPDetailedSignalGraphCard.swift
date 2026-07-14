@@ -5,10 +5,7 @@ import Observation
 import SwiftUI
 
 struct DSPDetailedSignalGraphCard: View {
-  @Environment(AppState.self) var appState
-  @Environment(DSPEngineController.self) var dsp
   @Environment(AudioDeviceManager.self) var devices
-  @Environment(AudioSettings.self) var settings
   @Environment(PipelineStore.self) var pipeline
 
   private var captureChannels: Int { max(1, devices.captureConfig.channels) }

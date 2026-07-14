@@ -111,7 +111,6 @@ struct StageChipButton: View {
 // MARK: - Pipeline Overview Card (For Dashboard)
 
 struct PipelineOverviewCard: View {
-  @Environment(AppState.self) var appState
   @Environment(DSPEngineController.self) var dsp
   @Environment(AudioDeviceManager.self) var devices
   @Environment(AudioSettings.self) var settings
@@ -153,19 +152,22 @@ struct PipelineOverviewCard: View {
     finalPipelineOutputChannels != playbackChannels
   }
 
-  private var totalElementarySteps: Int {
-    var count = 0
+  private var stageStepsMap: [UUID: [PipelineStep]] {
+    var map: [UUID: [PipelineStep]] = [:]
     for (i, stage) in pipeline.stages.enumerated() {
       let inCh = pipeline.channelCount(beforeStageAtIndex: i, captureChannels: captureChannels)
-      let steps = stage.buildPipelineSteps(
+      map[stage.id] = stage.buildPipelineSteps(
         channelCount: inCh,
         eqPresets: pipeline.eqPresets,
         convPresets: pipeline.convPresets,
         sampleRate: sampleRate
       )
-      count += steps.count
     }
-    return count
+    return map
+  }
+
+  private var totalElementarySteps: Int {
+    stageStepsMap.values.reduce(0) { $0 + $1.count }
   }
 
   var body: some View {
@@ -358,12 +360,7 @@ struct PipelineOverviewCard: View {
   ) -> some View {
     let active = stage.isEnabled && stage.isActive
     let categoryColor = categoryColor(for: stage.type)
-    let elementarySteps = stage.buildPipelineSteps(
-      channelCount: incomingChannels,
-      eqPresets: pipeline.eqPresets,
-      convPresets: pipeline.convPresets,
-      sampleRate: sampleRate
-    )
+    let elementarySteps = stageStepsMap[stage.id] ?? []
 
     GraphNodeCard(
       title: stage.name,
