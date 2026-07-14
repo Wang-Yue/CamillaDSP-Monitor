@@ -124,7 +124,7 @@ struct DevicePickerView: View {
                 supportedFormats: bindableDevices.playbackConfig.supportedFormats,
                 exclusiveMode: $bindableDevices.exclusiveMode,
                 outputDoP: $bindableDevices.playbackConfig.outputDoP,
-                dopEncoderFilter: $bindableDevices.playbackConfig.dopEncoderFilter
+                dsdEncoderFilter: $bindableDevices.playbackConfig.dsdEncoderFilter
               )
             case .rawFile:
               FileSelectionView(
@@ -377,7 +377,7 @@ struct CoreAudioPlaybackSelectionView: View {
   let supportedFormats: [String]
   @Binding var exclusiveMode: Bool
   @Binding var outputDoP: Bool
-  @Binding var dopEncoderFilter: SDMFilter
+  @Binding var dsdEncoderFilter: SDMFilter
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -478,7 +478,7 @@ struct CoreAudioPlaybackSelectionView: View {
         HStack {
           Text("SDM Filter")
             .frame(width: 100, alignment: .leading)
-          Picker("", selection: $dopEncoderFilter) {
+          Picker("", selection: $dsdEncoderFilter) {
             ForEach(SDMFilter.allCases, id: \.self) { filter in
               Text(filter.rawValue).tag(filter)
             }

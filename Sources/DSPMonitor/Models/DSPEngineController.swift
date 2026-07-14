@@ -138,7 +138,7 @@ final class DSPEngineController {
       )
       if !DSPEngine.isRustEngine {
         coreAudioCfg.outputDoP = devices.playbackConfig.outputDoP
-        coreAudioCfg.dopEncoderFilter = devices.playbackConfig.dopEncoderFilter
+        coreAudioCfg.dsdEncoderFilter = devices.playbackConfig.dsdEncoderFilter
       }
       playbackConfig = .coreAudio(coreAudioCfg)
     case .rawFile:

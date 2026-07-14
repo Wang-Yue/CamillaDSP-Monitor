@@ -21,7 +21,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   /// Whether to encode output PCM into DSD-over-PCM (DoP)
   public var outputDoP: Bool
   /// Selected sigma-delta modulator noise-shaping filter or "auto"
-  public var dopEncoderFilter: SDMFilter
+  public var dsdEncoderFilter: SDMFilter
 
   // File Backend Settings
   public var filename: String
@@ -61,7 +61,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.bypassDoP = true
     self.dopCutoffHz = 20_000
     self.outputDoP = false
-    self.dopEncoderFilter = .sdm6
+    self.dsdEncoderFilter = .sdm6
     self.filename = ""
     self.fileFormat = "S16_LE"
     self.isWav = false
@@ -77,7 +77,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   private enum CodingKeys: String, CodingKey {
     case backend, capabilities, channels, deviceChannels, sampleRate, format, bypassDoP,
       dopCutoffHz,
-      outputDoP, dopEncoderFilter, filename, fileFormat, isWav, skipBytes, readBytes, extraSamples,
+      outputDoP, dsdEncoderFilter, filename, fileFormat, isWav, skipBytes, readBytes, extraSamples,
       generatorType, generatorFreq, generatorLevel
   }
 
@@ -92,8 +92,8 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.bypassDoP = try c.decode(Bool.self, forKey: .bypassDoP)
     self.dopCutoffHz = try c.decodeIfPresent(Double.self, forKey: .dopCutoffHz) ?? 20_000
     self.outputDoP = try c.decodeIfPresent(Bool.self, forKey: .outputDoP) ?? false
-    self.dopEncoderFilter =
-      try c.decodeIfPresent(SDMFilter.self, forKey: .dopEncoderFilter) ?? .sdm6
+    self.dsdEncoderFilter =
+      try c.decodeIfPresent(SDMFilter.self, forKey: .dsdEncoderFilter) ?? .sdm6
     self.filename = try c.decodeIfPresent(String.self, forKey: .filename) ?? ""
     self.fileFormat = try c.decodeIfPresent(String.self, forKey: .fileFormat) ?? "S16_LE"
     self.isWav = try c.decodeIfPresent(Bool.self, forKey: .isWav) ?? false
@@ -103,6 +103,29 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.generatorType = try c.decodeIfPresent(String.self, forKey: .generatorType) ?? "Sine"
     self.generatorFreq = try c.decodeIfPresent(Double.self, forKey: .generatorFreq) ?? 1000.0
     self.generatorLevel = try c.decodeIfPresent(Double.self, forKey: .generatorLevel) ?? -6.0
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(backend, forKey: .backend)
+    try c.encode(capabilities, forKey: .capabilities)
+    try c.encode(channels, forKey: .channels)
+    try c.encode(deviceChannels, forKey: .deviceChannels)
+    try c.encode(sampleRate, forKey: .sampleRate)
+    try c.encode(format, forKey: .format)
+    try c.encode(bypassDoP, forKey: .bypassDoP)
+    try c.encode(dopCutoffHz, forKey: .dopCutoffHz)
+    try c.encode(outputDoP, forKey: .outputDoP)
+    try c.encode(dsdEncoderFilter, forKey: .dsdEncoderFilter)
+    try c.encode(filename, forKey: .filename)
+    try c.encode(fileFormat, forKey: .fileFormat)
+    try c.encode(isWav, forKey: .isWav)
+    try c.encode(skipBytes, forKey: .skipBytes)
+    try c.encode(readBytes, forKey: .readBytes)
+    try c.encode(extraSamples, forKey: .extraSamples)
+    try c.encode(generatorType, forKey: .generatorType)
+    try c.encode(generatorFreq, forKey: .generatorFreq)
+    try c.encode(generatorLevel, forKey: .generatorLevel)
   }
 
   // MARK: - Capabilities Logic

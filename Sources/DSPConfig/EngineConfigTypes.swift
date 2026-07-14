@@ -243,7 +243,7 @@ public struct CoreAudioPlaybackConfig: Codable, Equatable, Sendable {
   public var format: String?
   public var exclusive: Bool?
   public var outputDoP: Bool?
-  public var dopEncoderFilter: SDMFilter?
+  public var dsdEncoderFilter: SDMFilter?
   public var channelLabels: [String]?
 
   enum CodingKeys: String, CodingKey {
@@ -251,7 +251,7 @@ public struct CoreAudioPlaybackConfig: Codable, Equatable, Sendable {
     case format
     case exclusive
     case outputDoP = "output_dop"
-    case dopEncoderFilter = "dop_encoder_filter"
+    case dsdEncoderFilter = "dsd_encoder_filter"
     case channelLabels = "channel_labels"
   }
 
@@ -261,7 +261,7 @@ public struct CoreAudioPlaybackConfig: Codable, Equatable, Sendable {
     format: String? = nil,
     exclusive: Bool? = nil,
     outputDoP: Bool? = nil,
-    dopEncoderFilter: SDMFilter? = nil,
+    dsdEncoderFilter: SDMFilter? = nil,
     channelLabels: [String]? = nil
   ) {
     self.channels = channels
@@ -269,7 +269,7 @@ public struct CoreAudioPlaybackConfig: Codable, Equatable, Sendable {
     self.format = format
     self.exclusive = exclusive
     self.outputDoP = outputDoP
-    self.dopEncoderFilter = dopEncoderFilter
+    self.dsdEncoderFilter = dsdEncoderFilter
     self.channelLabels = channelLabels
   }
 }
@@ -523,9 +523,9 @@ extension PlaybackDeviceConfig {
     }
   }
 
-  public var dopEncoderFilter: SDMFilter? {
+  public var dsdEncoderFilter: SDMFilter? {
     switch self {
-    case .coreAudio(let cfg): return cfg.dopEncoderFilter
+    case .coreAudio(let cfg): return cfg.dsdEncoderFilter
     default: return nil
     }
   }
