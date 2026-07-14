@@ -382,6 +382,9 @@ struct DSPDetailedSignalGraphCard: View {
           stageStart = totalLength
         }
       }
+
+      // Progress stageStart for filter stages so consecutive filter stages do not stack in the same column
+      stageStart = totalLength
     }
 
     // 3. PLAYBACK OUTPUT STAGE
