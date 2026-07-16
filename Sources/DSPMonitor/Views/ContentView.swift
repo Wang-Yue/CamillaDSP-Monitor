@@ -510,10 +510,13 @@ struct SpectrumDetailView: View {
 
           VStack(alignment: .leading, spacing: 4) {
             Text("Channel").font(.caption).foregroundStyle(.secondary)
-            Picker("", selection: $spectrum.channel) {
-              Text("Average").tag(Int?.none)
+            Picker("", selection: Binding(
+              get: { spectrum.channel ?? -1 },
+              set: { spectrum.channel = ($0 == -1 ? nil : $0) }
+            )) {
+              Text("Average").tag(-1)
               ForEach(0..<channelCount, id: \.self) { ch in
-                Text("Channel \(ch + 1)").tag(Int?.some(ch))
+                Text("Channel \(ch + 1)").tag(ch)
               }
             }
             .frame(width: 120)
@@ -589,10 +592,13 @@ struct SpectroscopeDetailView: View {
 
           VStack(alignment: .leading, spacing: 4) {
             Text("Channel").font(.caption).foregroundStyle(.secondary)
-            Picker("", selection: $spectroscope.channel) {
-              Text("Average").tag(Int?.none)
+            Picker("", selection: Binding(
+              get: { spectroscope.channel ?? -1 },
+              set: { spectroscope.channel = ($0 == -1 ? nil : $0) }
+            )) {
+              Text("Average").tag(-1)
               ForEach(0..<channelCount, id: \.self) { ch in
-                Text("Channel \(ch + 1)").tag(Int?.some(ch))
+                Text("Channel \(ch + 1)").tag(ch)
               }
             }
             .frame(width: 120)

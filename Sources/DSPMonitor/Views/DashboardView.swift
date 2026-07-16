@@ -45,23 +45,22 @@ struct HorizontalScrollWithVerticalWheel<Content: View>: NSViewRepresentable {
 
 private class VerticalToHorizontalScrollView: NSScrollView {
   override func scrollWheel(with event: NSEvent) {
-    if abs(event.deltaX) >= abs(event.deltaY) {
+    let deltaX = event.hasPreciseScrollingDeltas ? event.scrollingDeltaX : event.deltaX
+    let deltaY = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.deltaY
+
+    if abs(deltaX) >= abs(deltaY) {
       super.scrollWheel(with: event)
     } else {
-      guard let cg = event.cgEvent else {
+      guard let documentView = documentView else {
         super.scrollWheel(with: event)
         return
       }
-      cg.setDoubleValueField(
-        .scrollWheelEventDeltaAxis2,
-        value: cg.getDoubleValueField(.scrollWheelEventDeltaAxis1)
-      )
-      cg.setDoubleValueField(.scrollWheelEventDeltaAxis1, value: 0)
-      if let converted = NSEvent(cgEvent: cg) {
-        super.scrollWheel(with: converted)
-      } else {
-        super.scrollWheel(with: event)
-      }
+      let scrollDistance = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : (event.deltaY * 10)
+      let maxScrollX = max(0, documentView.frame.width - contentView.bounds.width)
+      var newOrigin = contentView.bounds.origin
+      newOrigin.x = max(0, min(newOrigin.x - scrollDistance, maxScrollX))
+      contentView.scroll(to: newOrigin)
+      reflectScrolledClipView(contentView)
     }
   }
 }

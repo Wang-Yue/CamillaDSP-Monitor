@@ -5,6 +5,31 @@ import DSPLib
 import Observation
 import SwiftUI
 
+enum ChunkSizeOption: Int, CaseIterable, Identifiable {
+  case s256 = 256
+  case s512 = 512
+  case s1024 = 1024
+  case s2048 = 2048
+  case s4096 = 4096
+  case s8192 = 8192
+  case s16384 = 16384
+  case s32768 = 32768
+
+  var id: Int { rawValue }
+  var label: String { "\(rawValue) samples" }
+}
+
+enum DoPCutoffFrequency: Double, CaseIterable, Identifiable {
+  case c20k = 20000.0
+  case c25k = 25000.0
+  case c30k = 30000.0
+  case c40k = 40000.0
+  case c50k = 50000.0
+
+  var id: Double { rawValue }
+  var label: String { "\(Int(rawValue / 1000)) kHz" }
+}
+
 struct DevicePickerView: View {
   @Environment(AudioDeviceManager.self) var devices
   @Environment(AudioSettings.self) var settings
@@ -152,14 +177,9 @@ struct DevicePickerView: View {
               Text("Chunk Size")
                 .frame(width: 100, alignment: .leading)
               Picker("", selection: $bindableSettings.chunkSize) {
-                Text("256 samples").tag(256)
-                Text("512 samples").tag(512)
-                Text("1024 samples").tag(1024)
-                Text("2048 samples").tag(2048)
-                Text("4096 samples").tag(4096)
-                Text("8192 samples").tag(8192)
-                Text("16384 samples").tag(16384)
-                Text("32768 samples").tag(32768)
+                ForEach(ChunkSizeOption.allCases) { option in
+                  Text(option.label).tag(option.rawValue)
+                }
               }
               .labelsHidden()
 
@@ -342,11 +362,9 @@ struct CoreAudioDeviceSelectionView: View {
           Text("DoP Cutoff")
             .frame(width: 100, alignment: .leading)
           Picker("", selection: $dopCutoffHz) {
-            Text("20 kHz").tag(20_000.0)
-            Text("25 kHz").tag(25_000.0)
-            Text("30 kHz").tag(30_000.0)
-            Text("40 kHz").tag(40_000.0)
-            Text("50 kHz").tag(50_000.0)
+            ForEach(DoPCutoffFrequency.allCases) { item in
+              Text(item.label).tag(item.rawValue)
+            }
           }
           .labelsHidden()
           .disabled(bypassDoP)
