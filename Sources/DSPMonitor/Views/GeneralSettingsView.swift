@@ -6,6 +6,7 @@ struct GeneralSettingsView: View {
   @Environment(MonitoringController.self) var monitoring
 
   var body: some View {
+    @Bindable var bindableSettings = settings
     @Bindable var bindableMonitoring = monitoring
 
     Form {
@@ -33,11 +34,7 @@ struct GeneralSettingsView: View {
           HStack {
             Text("Silence Threshold")
               .frame(width: 120, alignment: .leading)
-            Slider(
-              value: Binding(
-                get: { Double(settings.silenceThreshold) },
-                set: { settings.silenceThreshold = Int($0) }
-              ), in: -120...0)
+            Slider(value: $bindableSettings.silenceThresholdDouble, in: -120...0)
             Text("\(settings.silenceThreshold) dB")
               .font(.system(.body, design: .monospaced))
               .foregroundStyle(.secondary)
@@ -47,11 +44,7 @@ struct GeneralSettingsView: View {
           HStack {
             Text("Silence Timeout")
               .frame(width: 120, alignment: .leading)
-            Slider(
-              value: Binding(
-                get: { Double(settings.silenceTimeout) },
-                set: { settings.silenceTimeout = Int($0) }
-              ), in: 0...60)
+            Slider(value: $bindableSettings.silenceTimeoutDouble, in: 0...60)
             if settings.silenceTimeout == 0 {
               Text("Disabled")
                 .font(.caption)

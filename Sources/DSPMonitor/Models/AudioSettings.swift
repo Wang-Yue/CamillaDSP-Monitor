@@ -208,17 +208,33 @@ final class AudioSettings {
     case .aux4: fader4Muted = muted
     }
   }
+  subscript(faderVolume fader: Fader) -> Float {
+    get { volume(for: fader) }
+    set { setVolume(newValue, for: fader) }
+  }
+
   var silenceThreshold: Int = -60 {
     didSet {
       defaults.set(silenceThreshold, forKey: "silenceThreshold")
       onChanged?()
     }
   }
+
+  var silenceThresholdDouble: Double {
+    get { Double(silenceThreshold) }
+    set { silenceThreshold = Int(newValue) }
+  }
+
   var silenceTimeout: Int = 0 {
     didSet {
       defaults.set(silenceTimeout, forKey: "silenceTimeout")
       onChanged?()
     }
+  }
+
+  var silenceTimeoutDouble: Double {
+    get { Double(silenceTimeout) }
+    set { silenceTimeout = Int(newValue) }
   }
   var queuelimit: Int = 4 {
     didSet {

@@ -315,4 +315,32 @@ final class PipelineStage: Identifiable, Hashable {
   static func == (lhs: PipelineStage, rhs: PipelineStage) -> Bool {
     lhs.id == rhs.id
   }
+
+  subscript(graphicEQGain index: Int) -> Double {
+    get {
+      guard index < graphicEQGains.count else { return 0.0 }
+      return graphicEQGains[index]
+    }
+    set {
+      guard index < graphicEQGains.count else { return }
+      graphicEQGains[index] = newValue
+    }
+  }
+
+  subscript(mixerSourceGain mappingIndex: Int, sourceIndex: Int) -> Double {
+    get {
+      guard mappingIndex < mixerMappings.count,
+        sourceIndex < mixerMappings[mappingIndex].sources.count
+      else { return 0.0 }
+      return mixerMappings[mappingIndex].sources[sourceIndex].gain ?? 0.0
+    }
+    set {
+      guard mappingIndex < mixerMappings.count,
+        sourceIndex < mixerMappings[mappingIndex].sources.count
+      else { return }
+      var mappings = mixerMappings
+      mappings[mappingIndex].sources[sourceIndex].gain = newValue
+      mixerMappings = mappings
+    }
+  }
 }

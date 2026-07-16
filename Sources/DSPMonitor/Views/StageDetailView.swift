@@ -1146,16 +1146,10 @@ struct MatrixCell: View {
         VStack(spacing: 3) {
           TextField(
             "",
-            value: Binding(
-              get: { source.gain },
-              set: { newGain in
-                var mappings = stage.mixerMappings
-                mappings[mappingIndex].sources[sourceIndex].gain = newGain
-                stage.mixerMappings = mappings
-                dsp.applyConfig()
-              }
-            ), format: .number
+            value: $stage[mixerSourceGain: mappingIndex, sourceIndex],
+            format: .number
           )
+          .onSubmit { dsp.applyConfig() }
           .textFieldStyle(.roundedBorder)
           .font(.system(size: 10, design: .monospaced))
           .multilineTextAlignment(.center)
@@ -1930,14 +1924,11 @@ struct GraphicEQOptions: View {
             Text("Bands").font(.caption).foregroundStyle(.secondary)
             Stepper(
               "\(stage.graphicEQBandCount) Bands",
-              value: Binding(
-                get: { stage.graphicEQBandCount },
-                set: { newVal in
-                  stage.graphicEQBandCount = newVal
-                  dsp.applyConfig()
-                }
-              ), in: 2...64
+              value: $stage.graphicEQBandCount, in: 2...64
             )
+            .onChange(of: stage.graphicEQBandCount) { _, _ in
+              dsp.applyConfig()
+            }
             .controlSize(.small)
           }
 
@@ -1964,18 +1955,12 @@ struct GraphicEQOptions: View {
                 .frame(width: 35)
 
                 VSlider(
-                  value: Binding(
-                    get: {
-                      guard index < stage.graphicEQGains.count else { return 0.0 }
-                      return stage.graphicEQGains[index]
-                    },
-                    set: { newVal in
-                      guard index < stage.graphicEQGains.count else { return }
-                      stage.graphicEQGains[index] = newVal
-                      dsp.applyConfig()
-                    }
-                  ), in: -40...40
+                  value: $stage[graphicEQGain: index],
+                  in: -40...40
                 )
+                .onChange(of: stage[graphicEQGain: index]) { _, _ in
+                  dsp.applyConfig()
+                }
                 .frame(height: 160)
 
                 Text(freqLabel(freq))

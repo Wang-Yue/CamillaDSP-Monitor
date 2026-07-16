@@ -38,9 +38,7 @@ struct DevicePickerView: View {
             case .coreAudio:
               CoreAudioDeviceSelectionView(
                 devices: bindableDevices.captureDevices,
-                selectedDevice: Binding(
-                  get: { bindableDevices.captureConfig.deviceName },
-                  set: { bindableDevices.captureConfig.deviceName = $0 }),
+                selectedDevice: $bindableDevices.captureConfig.deviceName,
                 channels: $bindableDevices.captureConfig.channels,
                 deviceChannels: $bindableDevices.captureConfig.deviceChannels,
                 supportedChannels: bindableDevices.captureConfig.supportedChannels,
@@ -112,9 +110,7 @@ struct DevicePickerView: View {
             case .coreAudio:
               CoreAudioPlaybackSelectionView(
                 devices: bindableDevices.playbackDevices,
-                selectedDevice: Binding(
-                  get: { bindableDevices.playbackConfig.deviceName },
-                  set: { bindableDevices.playbackConfig.deviceName = $0 }),
+                selectedDevice: $bindableDevices.playbackConfig.deviceName,
                 channels: $bindableDevices.playbackConfig.channels,
                 deviceChannels: $bindableDevices.playbackConfig.deviceChannels,
                 supportedChannels: bindableDevices.playbackConfig.supportedChannels,
@@ -132,9 +128,9 @@ struct DevicePickerView: View {
                 format: $bindableDevices.playbackConfig.fileFormat,
                 isWav: false,
                 channels: $bindableDevices.playbackConfig.channels,
-                skipBytes: .constant(0),
-                readBytes: .constant(0),
-                extraSamples: .constant(0),
+                skipBytes: Self.zeroBinding,
+                readBytes: Self.zeroBinding,
+                extraSamples: Self.zeroBinding,
                 showExtras: false,
                 isCapture: false
               )
@@ -224,6 +220,8 @@ struct DevicePickerView: View {
     }
     .background(Color(nsColor: .controlBackgroundColor))
   }
+
+  private static let zeroBinding: Binding<Int> = .constant(0)
 
   private var latencyText: String {
     String(format: "(%.1f ms latency)", devices.latencyMs)

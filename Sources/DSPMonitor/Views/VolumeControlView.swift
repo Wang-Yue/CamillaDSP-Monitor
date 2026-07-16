@@ -8,6 +8,7 @@ struct VolumeControlView: View {
   @Environment(AudioSettings.self) var settings
 
   var body: some View {
+    @Bindable var bindableSettings = settings
     HStack(spacing: 8) {
       Button {
         dsp.toggleFaderMute(fader: .main)
@@ -17,17 +18,12 @@ struct VolumeControlView: View {
       }
       .buttonStyle(.plain)
 
-      Slider(
-        value: Binding(
-          get: { settings.volume },
-          set: { newValue in
-            let rounded = (newValue * 2.0).rounded() / 2.0
-            dsp.setFaderVolume(fader: .main, db: rounded)
-          }
-        ),
-        in: -60...20
-      )
-      .frame(width: 400)
+      Slider(value: $bindableSettings.volume, in: -60...20)
+        .onChange(of: settings.volume) { _, newVol in
+          let rounded = (newVol * 2.0).rounded() / 2.0
+          dsp.setFaderVolume(fader: .main, db: rounded)
+        }
+        .frame(width: 400)
 
       Text(String(format: "%+.1f dB", settings.volume))
         .font(.system(.caption, design: .monospaced))

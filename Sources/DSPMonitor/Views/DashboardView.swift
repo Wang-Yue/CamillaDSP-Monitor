@@ -202,6 +202,7 @@ struct FaderControlView: View {
   @Environment(AudioSettings.self) var settings
 
   var body: some View {
+    @Bindable var bindableSettings = settings
     HStack(spacing: 12) {
       Text(faderName(fader))
         .frame(width: 80, alignment: .leading)
@@ -219,15 +220,13 @@ struct FaderControlView: View {
       .buttonStyle(.plain)
 
       Slider(
-        value: Binding(
-          get: { settings.volume(for: fader) },
-          set: { newValue in
-            let rounded = (newValue * 2.0).rounded() / 2.0
-            dsp.setFaderVolume(fader: fader, db: rounded)
-          }
-        ),
+        value: $bindableSettings[faderVolume: fader],
         in: -60...20
       )
+      .onChange(of: settings.volume(for: fader)) { _, newVol in
+        let rounded = (newVol * 2.0).rounded() / 2.0
+        dsp.setFaderVolume(fader: fader, db: rounded)
+      }
 
       Text(String(format: "%+.1f dB", settings.volume(for: fader)))
         .font(.system(.body, design: .monospaced))

@@ -55,6 +55,7 @@ struct MiniPlayerView: View {
   @State private var isHovering = false
 
   var body: some View {
+    @Bindable var bindableSettings = settings
     VStack(spacing: 0) {
       // Header: Controls + switcher (visible on hover)
       HStack(spacing: 6) {
@@ -85,17 +86,12 @@ struct MiniPlayerView: View {
           }
           .buttonStyle(.plain)
 
-          Slider(
-            value: Binding(
-              get: { settings.volume },
-              set: { newValue in
-                let rounded = (newValue * 2.0).rounded() / 2.0
-                dsp.setFaderVolume(fader: .main, db: rounded)
-              }
-            ),
-            in: -60...20
-          )
-          .controlSize(.mini)
+          Slider(value: $bindableSettings.volume, in: -60...20)
+            .onChange(of: settings.volume) { _, newVol in
+              let rounded = (newVol * 2.0).rounded() / 2.0
+              dsp.setFaderVolume(fader: .main, db: rounded)
+            }
+            .controlSize(.mini)
 
           Text(String(format: "%+.0f", settings.volume))
             .font(.system(size: 9, design: .monospaced))
