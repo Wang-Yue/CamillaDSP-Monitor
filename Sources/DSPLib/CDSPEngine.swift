@@ -83,7 +83,7 @@ public actor DSPEngine {
 
   public func isFaderMuted(_ fader: Fader) async -> Bool {
     guard let e = engine else { return false }
-    return cdsp_is_fader_muted(e, fader.cValue)
+    return cdsp_get_fader_mute(e, fader.cValue)
   }
 
   public func getStatus() async -> StateUpdate {
