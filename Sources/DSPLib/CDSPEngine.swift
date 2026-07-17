@@ -209,8 +209,9 @@ public actor DSPEngine {
     let success = backend.withCString { bStr in
       cdsp_get_available_devices(bStr, input, &devs, &count)
     }
-    guard success, count > 0, let dPtr = devs else { return [] }
+    guard success, let dPtr = devs else { return [] }
     defer { free(dPtr) }
+    guard count > 0 else { return [] }
     var res: [AudioDevice] = []
     for i in 0..<count {
       let name = withUnsafePointer(to: dPtr[i].name) { ptr in
@@ -235,6 +236,9 @@ public actor DSPEngine {
       }
     })
     guard success, let desc = outDesc else {
+      if let desc = outDesc {
+        cdsp_free_device_capabilities(desc)
+      }
       if devErr.type != CDSP_DEVICE_ERROR_NONE {
         let msg = withUnsafePointer(to: devErr.message) { ptr in
           ptr.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }
