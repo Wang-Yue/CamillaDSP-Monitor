@@ -483,7 +483,7 @@ struct PipelineChannelRoutingCanvas: View {
     case "dither": return "Dither"
     case "diffeq": return "DiffEq"
     case "combo": return "Biquad Combo"
-    case "limiter": return "Limiter"
+    case "clipper": return "Clipper"
     case "geq": return "Graphic EQ"
     default:
       if let b = Int(suffix) { return "Band #\(b)" }

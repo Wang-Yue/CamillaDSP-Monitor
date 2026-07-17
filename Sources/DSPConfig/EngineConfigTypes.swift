@@ -645,15 +645,15 @@ public struct DevicesConfig: Codable, Equatable, Sendable {
     case samplerate, chunksize, resampler, capture, playback
     case enableRateAdjust = "enable_rate_adjust"
     case targetLevel = "target_level"
-    case adjustPeriod = "adjust_period"
+    case adjustPeriod = "adjust_interval_s"
     case captureSamplerate = "capture_samplerate"
     case silenceThreshold = "silence_threshold"
-    case silenceTimeout = "silence_timeout"
-    case volumeRampTime = "volume_ramp_time"
+    case silenceTimeout = "silence_timeout_s"
+    case volumeRampTime = "volume_ramp_time_ms"
     case volumeLimit = "volume_limit"
     case queuelimit
     case stopOnRateChange = "stop_on_rate_change"
-    case rateMeasureInterval = "rate_measure_interval"
+    case rateMeasureInterval = "rate_measure_interval_s"
     case multithreaded
     case workerThreads = "worker_threads"
   }

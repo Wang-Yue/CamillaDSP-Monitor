@@ -117,9 +117,9 @@ extension PipelineStage {
     var peqGhs: Double
     var peqQhs: Double
 
-    // Limiter parameters
-    var limiterLimit: Double
-    var limiterSoftClip: Bool
+    // Clipper parameters
+    var clipperLimit: Double
+    var clipperSoftClip: Bool
 
     // Graphic EQ parameters
     var graphicEQFreqMin: Double
@@ -228,9 +228,9 @@ extension PipelineStage {
       peqGhs: peqGhs,
       peqQhs: peqQhs,
 
-      // Limiter parameters
-      limiterLimit: limiterLimit,
-      limiterSoftClip: limiterSoftClip,
+      // Clipper parameters
+      clipperLimit: clipperLimit,
+      clipperSoftClip: clipperSoftClip,
 
       // Graphic EQ
       graphicEQFreqMin: graphicEQFreqMin,
@@ -337,9 +337,9 @@ extension PipelineStage {
     peqGhs = s.peqGhs
     peqQhs = s.peqQhs
 
-    // Limiter parameters
-    limiterLimit = s.limiterLimit
-    limiterSoftClip = s.limiterSoftClip
+    // Clipper parameters
+    clipperLimit = s.clipperLimit
+    clipperSoftClip = s.clipperSoftClip
 
     // Graphic EQ
     graphicEQFreqMin = s.graphicEQFreqMin

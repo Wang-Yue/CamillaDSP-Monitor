@@ -77,7 +77,7 @@ public enum FilterType: String, Codable, Sendable {
   case biquadCombo = "BiquadCombo"
   case diffEq = "DiffEq"
   case dither = "Dither"
-  case limiter = "Limiter"
+  case clipper = "Clipper"
   case lookaheadLimiter = "LookaheadLimiter"
 }
 
@@ -282,7 +282,7 @@ public enum FilterConfig: Codable, Sendable, Equatable {
   case biquadCombo(BiquadComboParameters)
   case diffEq(DiffEqParameters)
   case dither(DitherParameters)
-  case limiter(LimiterParameters)
+  case clipper(ClipperParameters)
   case lookaheadLimiter(LookaheadLimiterParameters)
 
   public var type: FilterType {
@@ -296,7 +296,7 @@ public enum FilterConfig: Codable, Sendable, Equatable {
     case .biquadCombo: return .biquadCombo
     case .diffEq: return .diffEq
     case .dither: return .dither
-    case .limiter: return .limiter
+    case .clipper: return .clipper
     case .lookaheadLimiter: return .lookaheadLimiter
     }
   }
@@ -340,9 +340,9 @@ public enum FilterConfig: Codable, Sendable, Equatable {
     case .dither:
       let p = try container.decode(DitherParameters.self, forKey: .parameters)
       self = .dither(p)
-    case .limiter:
-      let p = try container.decode(LimiterParameters.self, forKey: .parameters)
-      self = .limiter(p)
+    case .clipper:
+      let p = try container.decode(ClipperParameters.self, forKey: .parameters)
+      self = .clipper(p)
     case .lookaheadLimiter:
       let p = try container.decode(LookaheadLimiterParameters.self, forKey: .parameters)
       self = .lookaheadLimiter(p)
@@ -372,7 +372,7 @@ public enum FilterConfig: Codable, Sendable, Equatable {
       try container.encode(p, forKey: .parameters)
     case .dither(let p):
       try container.encode(p, forKey: .parameters)
-    case .limiter(let p):
+    case .clipper(let p):
       try container.encode(p, forKey: .parameters)
     case .lookaheadLimiter(let p):
       try container.encode(p, forKey: .parameters)
@@ -560,7 +560,7 @@ public struct DitherParameters: Codable, Sendable, Equatable {
   }
 }
 
-public struct LimiterParameters: Codable, Sendable, Equatable {
+public struct ClipperParameters: Codable, Sendable, Equatable {
   public var clipLimit: Double
   public var softClip: Bool?
 
@@ -579,17 +579,21 @@ public struct LookaheadLimiterParameters: Codable, Sendable, Equatable {
   public var limit: Double
   public var attack: Double
   public var release: Double
-  public var unit: DelayUnit?
+  public var attackUnit: DelayUnit?
+  public var releaseUnit: DelayUnit?
 
   enum CodingKeys: String, CodingKey {
-    case limit, attack, release, unit
+    case limit, attack, release
+    case attackUnit = "attack_unit"
+    case releaseUnit = "release_unit"
   }
 
-  public init(limit: Double, attack: Double, release: Double, unit: DelayUnit? = nil) {
+  public init(limit: Double, attack: Double, release: Double, attackUnit: DelayUnit? = nil, releaseUnit: DelayUnit? = nil) {
     self.limit = limit
     self.attack = attack
     self.release = release
-    self.unit = unit
+    self.attackUnit = attackUnit
+    self.releaseUnit = releaseUnit
   }
 }
 
@@ -599,7 +603,7 @@ public struct VolumeParameters: Codable, Sendable, Equatable {
   public var fader: Fader?
 
   enum CodingKeys: String, CodingKey {
-    case rampTime = "ramp_time"
+    case rampTime = "ramp_time_ms"
     case limit
     case fader
   }

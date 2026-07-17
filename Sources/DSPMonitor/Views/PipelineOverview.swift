@@ -706,7 +706,7 @@ struct PipelineOverviewCard: View {
     case "dither": return "Dither (\(stage.ditherBits)-bit)"
     case "diffeq": return "Differential Equation IIR/FIR"
     case "combo": return "Biquad Combo (\(stage.comboType.rawValue))"
-    case "limiter": return "Peak Limiter (\(String(format: "%+.1f", stage.limiterLimit)) dB)"
+    case "clipper": return "Clipper (\(String(format: "%+.1f", stage.clipperLimit)) dB)"
     case "geq": return "Graphic EQ (\(stage.graphicEQBandCount) Bands)"
     default:
       if let bandNum = Int(suffix) {

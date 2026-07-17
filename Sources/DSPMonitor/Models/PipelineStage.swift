@@ -28,7 +28,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
   case gain = "Gain"
   case delay = "Delay"
   case lookaheadLimiter = "Lookahead Limiter"
-  case limiter = "Limiter"
+  case clipper = "Clipper"
   case volume = "Volume"
   case mixer = "Matrix Mixer"
   case compressor = "Compressor"
@@ -41,7 +41,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
   var id: String { rawValue }
   var category: StageCategory {
     switch self {
-    case .eq, .graphicEQ, .convolution, .biquadCombo, .diffEq, .gain, .delay, .volume, .limiter,
+    case .eq, .graphicEQ, .convolution, .biquadCombo, .diffEq, .gain, .delay, .volume, .clipper,
       .lookaheadLimiter, .dither, .loudness:
       return .filters
     case .mixer:
@@ -78,7 +78,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
     case .dither: return "square.grid.3x1.below.line.grid.1x2"
     case .diffEq: return "function"
     case .biquadCombo: return "arrow.up.and.down.and.arrow.left.and.right"
-    case .limiter: return "scissors"
+    case .clipper: return "scissors"
     }
   }
 }
@@ -228,9 +228,9 @@ final class PipelineStage: Identifiable, Hashable {
   var peqGhs: Double = 0.0
   var peqQhs: Double = 0.707
 
-  // Limiter (Simple Peak Limiter) parameters
-  var limiterLimit: Double = 0.0
-  var limiterSoftClip: Bool = false
+  // Clipper parameters
+  var clipperLimit: Double = 0.0
+  var clipperSoftClip: Bool = false
 
   // Split Width parameters
   var splitWidthCrossover: Double = 150.0

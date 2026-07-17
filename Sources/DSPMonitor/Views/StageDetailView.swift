@@ -69,7 +69,7 @@ private struct StageDetailContent: View {
           case .volume: VolumeOptions(stage: stage)
           case .delay: DelayOptions(stage: stage)
           case .lookaheadLimiter: LookaheadLimiterOptions(stage: stage)
-          case .limiter: LimiterOptions(stage: stage)
+          case .clipper: ClipperOptions(stage: stage)
           case .mixer: MatrixMixerOptions(stage: stage)
           case .compressor: CompressorOptions(stage: stage)
           case .noiseGate: NoiseGateOptions(stage: stage)
@@ -1866,29 +1866,29 @@ struct FivePointPeqFields: View {
   }
 }
 
-// MARK: - Limiter (Peak Limiter)
+// MARK: - Clipper
 
-struct LimiterOptions: View {
+struct ClipperOptions: View {
   @Bindable var stage: PipelineStage
   @Environment(DSPEngineController.self) var dsp
 
   var body: some View {
-    GroupBox("Peak Limiter") {
+    GroupBox("Clipper") {
       VStack(alignment: .leading, spacing: 12) {
         HStack(spacing: 16) {
           Text("Limit")
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .frame(width: 90, alignment: .leading)
-          Slider(value: $stage.limiterLimit, in: -30...0, step: 0.1)
-            .onChange(of: stage.limiterLimit) { _, _ in dsp.applyConfig() }
-          Text(String(format: "%.1f dB", stage.limiterLimit))
+          Slider(value: $stage.clipperLimit, in: -30...0, step: 0.1)
+            .onChange(of: stage.clipperLimit) { _, _ in dsp.applyConfig() }
+          Text(String(format: "%.1f dB", stage.clipperLimit))
             .font(.system(.body, design: .monospaced))
             .frame(width: 70, alignment: .trailing)
         }
 
-        Toggle("Enable Soft Clipping", isOn: $stage.limiterSoftClip)
-          .onChange(of: stage.limiterSoftClip) { _, _ in dsp.applyConfig() }
+        Toggle("Enable Soft Clipping", isOn: $stage.clipperSoftClip)
+          .onChange(of: stage.clipperSoftClip) { _, _ in dsp.applyConfig() }
       }
       .padding(.vertical, 4)
     }

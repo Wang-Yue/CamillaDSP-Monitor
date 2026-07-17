@@ -157,7 +157,7 @@ extension PipelineStage {
       return [
         "\(prefix)_lookahead_limiter": .lookaheadLimiter(
           LookaheadLimiterParameters(
-            limit: lookaheadLimit, attack: lookaheadAttack, release: lookaheadRelease, unit: .ms))
+            limit: lookaheadLimit, attack: lookaheadAttack, release: lookaheadRelease, attackUnit: .ms, releaseUnit: .ms))
       ]
 
     case .dither:
@@ -208,10 +208,10 @@ extension PipelineStage {
       }
       return ["\(prefix)_combo": .biquadCombo(params)]
 
-    case .limiter:
+    case .clipper:
       return [
-        "\(prefix)_limiter": .limiter(
-          LimiterParameters(clipLimit: limiterLimit, softClip: limiterSoftClip))
+        "\(prefix)_clipper": .clipper(
+          ClipperParameters(clipLimit: clipperLimit, softClip: clipperSoftClip))
       ]
 
     case .graphicEQ:
@@ -669,9 +669,9 @@ extension PipelineStage {
       guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_combo"])]
 
-    case .limiter:
+    case .clipper:
       guard !chList.isEmpty else { return [] }
-      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_limiter"])]
+      return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_clipper"])]
 
     case .graphicEQ:
       guard !chList.isEmpty else { return [] }
