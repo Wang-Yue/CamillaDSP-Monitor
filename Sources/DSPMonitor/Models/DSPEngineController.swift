@@ -205,7 +205,7 @@ final class DSPEngineController {
         }
       case .asyncPoly:
         resampler.interpolation = settings.resamplerInterpolation.rawValue
-      case .synchronous:
+      case .synchronous, .slip:
         break
       }
       devicesConfig.resampler = resampler

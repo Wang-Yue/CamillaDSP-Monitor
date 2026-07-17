@@ -200,6 +200,9 @@ final class AudioDeviceManager {
     if !settings.resamplerEnabled && captureConfig.sampleRate != playbackConfig.sampleRate {
       captureConfig.sampleRate = playbackConfig.sampleRate
     }
+    if settings.resamplerEnabled && settings.resamplerType == .slip && captureConfig.sampleRate != playbackConfig.sampleRate {
+      settings.resamplerType = .synchronous
+    }
   }
 
   // MARK: - Helpers

@@ -10,6 +10,7 @@ enum ResamplerType: String, Codable, Sendable, CaseIterable, Identifiable {
   case asyncSinc = "AsyncSinc"
   case asyncPoly = "AsyncPoly"
   case synchronous = "Synchronous"
+  case slip = "Slip"
   var id: String { rawValue }
 }
 

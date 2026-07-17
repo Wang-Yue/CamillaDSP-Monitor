@@ -6,6 +6,7 @@ public enum ResamplerType: String, Codable, Equatable, Sendable {
   case synchronous = "Synchronous"
   case asyncSinc = "AsyncSinc"
   case asyncPoly = "AsyncPoly"
+  case slip = "Slip"
 }
 
 public struct ResamplerConfig: Codable, Equatable, Sendable, CustomStringConvertible {

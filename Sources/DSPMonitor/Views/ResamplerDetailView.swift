@@ -41,7 +41,9 @@ struct ResamplerDetailView: View {
                   //   Rust engine  — `.apple` is unavailable; all other
                   //                  types are supported.
                   ForEach(ResamplerType.allCases) { type in
-                    Text(type.rawValue).tag(type)
+                    if type != .slip || devices.playbackConfig.sampleRate == devices.captureConfig.sampleRate {
+                      Text(type.rawValue).tag(type)
+                    }
                   }
                 }
                 .pickerStyle(.segmented)
