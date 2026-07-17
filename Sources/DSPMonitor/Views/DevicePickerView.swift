@@ -549,6 +549,13 @@ struct FileSelectionView: View {
     "S16_LE", "S24_3_LE", "S24_4_RJ_LE", "S24_4_LJ_LE", "S32_LE", "F32_LE", "F64_LE",
   ]
 
+  var availableFormats: [String] {
+    if !isCapture && isWav {
+      return formats.filter { $0 != "S24_4_RJ_LE" }
+    }
+    return formats
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
@@ -571,7 +578,7 @@ struct FileSelectionView: View {
           Text("Format")
             .frame(width: 100, alignment: .leading)
           Picker("", selection: $format) {
-            ForEach(formats, id: \.self) { fmt in
+            ForEach(availableFormats, id: \.self) { fmt in
               Text(fmt).tag(fmt)
             }
           }
@@ -625,6 +632,16 @@ struct FileSelectionView: View {
           Stepper("\(extraSamples)", value: $extraSamples, in: 0...1_000_000)
             .frame(width: 120)
         }
+      }
+    }
+    .onChange(of: format) { oldValue, newValue in
+      if !isCapture && isWav && newValue == "S24_4_RJ_LE" {
+        format = "S16_LE"
+      }
+    }
+    .onAppear {
+      if !isCapture && isWav && format == "S24_4_RJ_LE" {
+        format = "S16_LE"
       }
     }
   }
