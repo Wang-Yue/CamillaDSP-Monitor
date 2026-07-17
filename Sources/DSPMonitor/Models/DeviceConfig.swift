@@ -188,11 +188,58 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
       if !fmts.isEmpty && !fmts.contains(result.format) {
         result.format = fmts.first ?? "F32"
       }
+    } else if result.backend == .wavFile {
+      if !result.filename.isEmpty {
+        if let wavInfo = Self.parseWavHeader(atPath: result.filename) {
+          result.channels = wavInfo.channels
+          result.sampleRate = wavInfo.sampleRate
+        }
+      }
+      result.channels = max(1, min(32, result.channels))
+      result.deviceChannels = result.channels
     } else {
       result.channels = max(1, min(32, result.channels))
       result.deviceChannels = result.channels
     }
     return result
+  }
+
+  public static func parseWavHeader(atPath path: String) -> (channels: Int, sampleRate: Int)? {
+    guard !path.isEmpty else { return nil }
+    let url = URL(fileURLWithPath: path)
+    guard FileManager.default.fileExists(atPath: path) else { return nil }
+    guard let fileHandle = try? FileHandle(forReadingFrom: url) else { return nil }
+    defer {
+      try? fileHandle.close()
+    }
+    do {
+      guard let riffData = try fileHandle.read(upToCount: 12), riffData.count == 12 else {
+        return nil
+      }
+      let riff = String(decoding: riffData.subdata(in: 0..<4), as: UTF8.self)
+      let wave = String(decoding: riffData.subdata(in: 8..<12), as: UTF8.self)
+      guard riff == "RIFF" && wave == "WAVE" else {
+        return nil
+      }
+      try fileHandle.seek(toOffset: 12)
+      guard let remainingData = try fileHandle.read(upToCount: 1024) else {
+        return nil
+      }
+      let fmtMarker = Data("fmt ".utf8)
+      guard let fmtOffset = remainingData.range(of: fmtMarker)?.lowerBound else {
+        return nil
+      }
+      guard fmtOffset + 16 <= remainingData.count else {
+        return nil
+      }
+      let numChannels = remainingData.subdata(in: (fmtOffset + 10)..<(fmtOffset + 12)).withUnsafeBytes { $0.load(as: UInt16.self) }
+      let sampleRate = remainingData.subdata(in: (fmtOffset + 12)..<(fmtOffset + 16)).withUnsafeBytes { $0.load(as: UInt32.self) }
+      guard numChannels > 0 && numChannels <= 32 else { return nil }
+      guard sampleRate >= 8000 && sampleRate <= 768000 else { return nil }
+      return (channels: Int(numChannels), sampleRate: Int(sampleRate))
+    } catch {
+      return nil
+    }
   }
 
   public static func bestRate(from rates: [Int], preferring current: Int) -> Int {
