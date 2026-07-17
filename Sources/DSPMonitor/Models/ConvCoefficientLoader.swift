@@ -8,13 +8,42 @@ enum ConvCoefficientLoader {
       throw ConfigError.invalidFilter("WAV file not found: \(path)")
     }
     let data = try Data(contentsOf: url)
-    guard data.count > 44 else {
+    guard data.count > 12 else {
       throw ConfigError.invalidFilter("WAV file too small: \(path)")
     }
 
-    let numChannels = data.withUnsafeBytes { $0.load(fromByteOffset: 22, as: UInt16.self) }
-    let bitsPerSample = data.withUnsafeBytes { $0.load(fromByteOffset: 34, as: UInt16.self) }
-    let dataSize = data.withUnsafeBytes { $0.load(fromByteOffset: 40, as: UInt32.self) }
+    // Check RIFF & WAVE headers
+    let riffHeader = String(bytes: data.prefix(4), encoding: .ascii)
+    let waveHeader = String(bytes: data[8..<12], encoding: .ascii)
+    guard riffHeader == "RIFF", waveHeader == "WAVE" else {
+      throw ConfigError.invalidFilter("Invalid WAV format: \(path)")
+    }
+
+    var offset = 12
+    var numChannels: UInt16 = 0
+    var bitsPerSample: UInt16 = 0
+    var audioDataOffset: Int? = nil
+    var audioDataSize: Int = 0
+
+    while offset + 8 <= data.count {
+      let chunkID = String(bytes: data[offset..<(offset + 4)], encoding: .ascii) ?? ""
+      let chunkSize = Int(data.withUnsafeBytes { $0.load(fromByteOffset: offset + 4, as: UInt32.self) })
+      let nextOffset = offset + 8 + chunkSize
+
+      if chunkID == "fmt " && chunkSize >= 16 {
+        numChannels = data.withUnsafeBytes { $0.load(fromByteOffset: offset + 10, as: UInt16.self) }
+        bitsPerSample = data.withUnsafeBytes { $0.load(fromByteOffset: offset + 22, as: UInt16.self) }
+      } else if chunkID == "data" {
+        audioDataOffset = offset + 8
+        audioDataSize = chunkSize
+        break
+      }
+      offset = nextOffset + (chunkSize % 2) // Word alignment
+    }
+
+    guard let dataOffset = audioDataOffset, numChannels > 0, bitsPerSample > 0 else {
+      throw ConfigError.invalidFilter("Could not locate audio data chunk in WAV file: \(path)")
+    }
 
     guard channel < Int(numChannels) else {
       throw ConfigError.invalidFilter(
@@ -22,29 +51,31 @@ enum ConvCoefficientLoader {
     }
 
     let bytesPerSample = Int(bitsPerSample) / 8
-    let numFrames = Int(dataSize) / (Int(numChannels) * bytesPerSample)
+    guard bytesPerSample > 0 else {
+      throw ConfigError.invalidFilter("Invalid bit depth in WAV file: \(bitsPerSample)")
+    }
+    let numFrames = audioDataSize / (Int(numChannels) * bytesPerSample)
     var result = [Double](repeating: 0, count: numFrames)
-    let headerSize = 44
 
     for frame in 0..<numFrames {
-      let offset = headerSize + (frame * Int(numChannels) + channel) * bytesPerSample
-      guard offset + bytesPerSample <= data.count else { break }
+      let sampleOffset = dataOffset + (frame * Int(numChannels) + channel) * bytesPerSample
+      guard sampleOffset + bytesPerSample <= data.count else { break }
       switch bitsPerSample {
       case 16:
-        let raw = data.withUnsafeBytes { $0.load(fromByteOffset: offset, as: Int16.self) }
+        let raw = data.withUnsafeBytes { $0.load(fromByteOffset: sampleOffset, as: Int16.self) }
         result[frame] = Double(raw) / Double(Int16.max)
       case 24:
-        let b0 = Int32(data[offset])
-        let b1 = Int32(data[offset + 1])
-        let b2 = Int32(data[offset + 2])
+        let b0 = Int32(data[sampleOffset])
+        let b1 = Int32(data[sampleOffset + 1])
+        let b2 = Int32(data[sampleOffset + 2])
         var raw = b0 | (b1 << 8) | (b2 << 16)
         if raw & 0x800000 != 0 { raw |= -0x800000 }
         result[frame] = Double(raw) / Double((1 << 23) - 1)
       case 32:
-        let raw = data.withUnsafeBytes { $0.load(fromByteOffset: offset, as: Float.self) }
+        let raw = data.withUnsafeBytes { $0.load(fromByteOffset: sampleOffset, as: Float.self) }
         result[frame] = Double(raw)
       case 64:
-        let raw = data.withUnsafeBytes { $0.load(fromByteOffset: offset, as: Double.self) }
+        let raw = data.withUnsafeBytes { $0.load(fromByteOffset: sampleOffset, as: Double.self) }
         result[frame] = Double(raw)
       default:
         throw ConfigError.invalidFilter("Unsupported WAV bit depth: \(bitsPerSample)")

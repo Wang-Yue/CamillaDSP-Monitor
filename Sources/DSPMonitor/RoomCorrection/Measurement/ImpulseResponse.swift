@@ -96,7 +96,7 @@ public struct ImpulseResponse: Sendable {
   /// to 0 dB at the peak.
   public func schroederDecay() -> [Double] {
     let p = zeroIndex
-    guard p < samples.count else { return [] }
+    guard p >= 0 && p < samples.count else { return [] }
     let n = samples.count - p
     var energy = [Double](repeating: 0, count: n)
     var sum: Double = 0

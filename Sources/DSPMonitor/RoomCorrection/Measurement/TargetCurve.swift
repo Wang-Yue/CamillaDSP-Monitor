@@ -62,7 +62,8 @@ public struct TargetCurve: Codable, Sendable {
         let logF = log10(f)
         let logLo = log10(lo.freqHz)
         let logHi = log10(next.freqHz)
-        let t = (logF - logLo) / (logHi - logLo)
+        let denom = logHi - logLo
+        let t = denom > 1e-9 ? (logF - logLo) / denom : 0.0
         return lo.gainDB + t * (next.gainDB - lo.gainDB)
       }
       lo = next

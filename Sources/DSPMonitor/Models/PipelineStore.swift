@@ -119,6 +119,7 @@ final class PipelineStore {
     }
     eqPresets.remove(at: index)
     saveEQPresets()
+    savePipelineStages()
     onChanged?()
   }
 
@@ -159,6 +160,7 @@ final class PipelineStore {
 
     convPresets.remove(at: index)
     saveConvPresets()
+    savePipelineStages()
     onChanged?()
   }
 

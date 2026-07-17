@@ -25,6 +25,7 @@ final class AudioDeviceManager {
   // is connected and printing spurious "notConnected" errors on every launch.
   private var isInitializing = true
   private var isValidating = false
+  private var capabilityRefreshTask: Task<Void, Never>?
 
   var captureConfig: DeviceConfig = DeviceConfig() {
     didSet {
@@ -40,7 +41,8 @@ final class AudioDeviceManager {
       if captureConfig.deviceName != oldValue.deviceName
         || captureConfig.backend != oldValue.backend
       {
-        Task { await refreshDeviceCapabilities() }
+        capabilityRefreshTask?.cancel()
+        capabilityRefreshTask = Task { await refreshDeviceCapabilities() }
       } else {
         validateSampleRates()
         onConfigChanged?()
@@ -62,7 +64,8 @@ final class AudioDeviceManager {
       if playbackConfig.deviceName != oldValue.deviceName
         || playbackConfig.backend != oldValue.backend
       {
-        Task { await refreshDeviceCapabilities() }
+        capabilityRefreshTask?.cancel()
+        capabilityRefreshTask = Task { await refreshDeviceCapabilities() }
       } else {
         validateSampleRates()
         onConfigChanged?()
@@ -104,7 +107,8 @@ final class AudioDeviceManager {
   }
 
   var latencyMs: Double {
-    Double(settings.chunkSize) / Double(captureConfig.sampleRate) * 1000.0
+    let rate = max(1, captureConfig.sampleRate)
+    return Double(settings.chunkSize) / Double(rate) * 1000.0
   }
 
   // MARK: - Init

@@ -124,7 +124,7 @@ final class MonitoringController {
     do {
       return try await engine.getSpectrum(
         isCapture: spectrum.isCapture,
-        channel: nil,
+        channel: spectrum.channel.map { UInt32($0) },
         minFreq: spectrum.minFreq,
         maxFreq: spectrum.maxFreq,
         nBins: spectrum.nBins
@@ -139,7 +139,7 @@ final class MonitoringController {
     do {
       return try await engine.getSpectrum(
         isCapture: spectroscope.isCapture,
-        channel: nil,
+        channel: spectroscope.channel.map { UInt32($0) },
         minFreq: spectroscope.minFreq,
         maxFreq: spectroscope.maxFreq,
         nBins: spectroscope.nBins

@@ -41,7 +41,7 @@ enum SweepDeconvolver {
     }
     let n = nextPowerOfTwo(max(8, m))
     let bins = n / 2 + 1
-    let fft = try! MeasurementFFT(length: n)
+    guard let fft = try? MeasurementFFT(length: n) else { return [] }
 
     var aPadded = [Double](repeating: 0, count: n)
     var bPadded = [Double](repeating: 0, count: n)

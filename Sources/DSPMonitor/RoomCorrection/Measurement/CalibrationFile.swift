@@ -220,7 +220,7 @@ public struct CalibrationCurve: Sendable {
     at f: Double, frequencies: [Double], values: [Double]
   ) -> Double {
     let n = frequencies.count
-    guard n > 0 else { return 0 }
+    guard n > 0, f > 0 else { return 0 }
     if n == 1 { return values[0] }
     if f <= frequencies[0] { return values[0] }
     if f >= frequencies[n - 1] { return values[n - 1] }
@@ -231,14 +231,15 @@ public struct CalibrationCurve: Sendable {
       let mid = (lo + hi) / 2
       if frequencies[mid] <= f { lo = mid } else { hi = mid }
     }
-    let fLo = frequencies[lo]
-    let fHi = frequencies[hi]
+    let fLo = max(1e-3, frequencies[lo])
+    let fHi = max(fLo + 1e-3, frequencies[hi])
     let vLo = values[lo]
     let vHi = values[hi]
-    let logF = log10(f)
+    let logF = log10(max(1e-3, f))
     let logLo = log10(fLo)
     let logHi = log10(fHi)
-    let t = (logF - logLo) / (logHi - logLo)
+    let denom = logHi - logLo
+    let t = denom > 1e-9 ? (logF - logLo) / denom : 0.0
     return vLo + t * (vHi - vLo)
   }
 }

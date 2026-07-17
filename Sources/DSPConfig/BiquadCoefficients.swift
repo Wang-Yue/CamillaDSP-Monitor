@@ -21,7 +21,7 @@ public struct BiquadCoefficients: Sendable {
     parameters: BiquadParameters,
     sampleRate: Int
   ) -> BiquadCoefficients? {
-    guard let type = parameters.type else { return nil }
+    guard let type = parameters.type, sampleRate > 0 else { return nil }
 
     let fs = Double(sampleRate)
 
@@ -45,7 +45,10 @@ public struct BiquadCoefficients: Sendable {
 
       // Compute effective Q if bandwidth or slope is present
       if let bw = parameters.bandwidth {
-        q = 1.0 / (2.0 * sinh(log(2.0) / 2.0 * bw * w0 / sinW0))
+        let denom = sinW0
+        if abs(denom) > 1e-9 {
+          q = 1.0 / (2.0 * sinh(log(2.0) / 2.0 * bw * w0 / denom))
+        }
       } else if let s = parameters.slope {
         let slopeS = s / 12.0
         q = 1.0 / sqrt((A + 1.0 / A) * (1.0 / slopeS - 1.0) + 2.0)
@@ -221,6 +224,7 @@ public struct BiquadCoefficients: Sendable {
   /// Returns 0 dB for the degenerate case where the denominator
   /// vanishes.
   public func gainDB(atFreqHz f: Double, sampleRate: Int) -> Double {
+    guard sampleRate > 0 else { return 0 }
     let w = 2.0 * .pi * f / Double(sampleRate)
     let cosW = cos(w)
     let sinW = sin(w)
@@ -232,12 +236,13 @@ public struct BiquadCoefficients: Sendable {
     let denIm = -a1 * sinW - a2 * sin2W
     let numMagSq = numRe * numRe + numIm * numIm
     let denMagSq = denRe * denRe + denIm * denIm
-    return (denMagSq > 0) ? 10.0 * log10(numMagSq / denMagSq) : 0
+    return (denMagSq > 0 && numMagSq > 0) ? 10.0 * log10(numMagSq / denMagSq) : 0
   }
 
   /// Phase response in radians at frequency `f` (Hz), wrapped to
   /// `(−π, π]`. Sign convention matches `atan2(Im(H), Re(H))`.
   public func phaseRad(atFreqHz f: Double, sampleRate: Int) -> Double {
+    guard sampleRate > 0 else { return 0 }
     let w = 2.0 * .pi * f / Double(sampleRate)
     let cosW = cos(w)
     let sinW = sin(w)

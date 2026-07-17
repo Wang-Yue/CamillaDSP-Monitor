@@ -98,21 +98,24 @@ enum SubwooferAssist {
   /// window is small.
   private static func peakOffset(of b: [Double], against a: [Double]) -> Int {
     let sr = 48_000  // search window is in samples; a tighter ±100 ms
-    let maxLag = min(sr / 10, min(a.count, b.count) - 1)
+    guard !a.isEmpty, !b.isEmpty else { return 0 }
+    let maxLag = max(0, min(sr / 10, min(a.count, b.count) - 1))
     var bestLag = 0
     var bestVal = -Double.infinity
-    for lag in -maxLag...maxLag {
-      var sum = 0.0
-      let aStart = max(0, -lag)
-      let bStart = max(0, lag)
-      let n = min(a.count - aStart, b.count - bStart)
-      if n <= 0 { continue }
-      for k in 0..<n {
-        sum += a[aStart + k] * b[bStart + k]
-      }
-      if sum > bestVal {
-        bestVal = sum
-        bestLag = lag
+    if maxLag >= 0 {
+      for lag in -maxLag...maxLag {
+        var sum = 0.0
+        let aStart = max(0, -lag)
+        let bStart = max(0, lag)
+        let n = min(a.count - aStart, b.count - bStart)
+        if n <= 0 { continue }
+        for k in 0..<n {
+          sum += a[aStart + k] * b[bStart + k]
+        }
+        if sum > bestVal {
+          bestVal = sum
+          bestLag = lag
+        }
       }
     }
     return bestLag

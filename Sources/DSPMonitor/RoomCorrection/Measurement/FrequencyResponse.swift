@@ -118,7 +118,9 @@ public struct FrequencyResponse: Sendable {
     }
     let n = nextPowerOfTwo(max(8, fftSize ?? ir.count))
     let bins = n / 2 + 1
-    let fft = try! MeasurementFFT(length: n)
+    guard let fft = try? MeasurementFFT(length: n) else {
+      return FrequencyResponse(real: [], imag: [], sampleRate: ir.sampleRate, fftSize: n)
+    }
 
     var padded = [Double](repeating: 0, count: n)
     padded.replaceSubrange(0..<ir.samples.count, with: ir.samples)
@@ -168,13 +170,15 @@ public struct FrequencyResponse: Sendable {
       var iSum: Double = 0
 
       let kOverN = Double(k) / Double(n)
-      for i in startIdx...endIdx {
-        let d = abs(Double(i - p))
-        if d <= h_k {
-          let w = 0.5 * (1.0 + cos(Double.pi * d / h_k))
-          let angle = twoPi * kOverN * Double(i)
-          rSum += ir.samples[i] * w * cos(angle)
-          iSum -= ir.samples[i] * w * sin(angle)
+      if startIdx <= endIdx {
+        for i in startIdx...endIdx {
+          let d = abs(Double(i - p))
+          if d <= h_k {
+            let w = 0.5 * (1.0 + cos(Double.pi * d / h_k))
+            let angle = twoPi * kOverN * Double(i)
+            rSum += ir.samples[i] * w * cos(angle)
+            iSum -= ir.samples[i] * w * sin(angle)
+          }
         }
       }
       re[k] = rSum

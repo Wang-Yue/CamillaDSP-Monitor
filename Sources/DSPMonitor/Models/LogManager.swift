@@ -134,6 +134,7 @@ class LogManager {
 
     outPipe.fileHandleForReading.readabilityHandler = { handle in
       let data = handle.availableData
+      guard !data.isEmpty else { return }
       Task {
         _ = await bufferRef.appendRawData(data)
       }
@@ -141,6 +142,7 @@ class LogManager {
 
     errPipe.fileHandleForReading.readabilityHandler = { handle in
       let data = handle.availableData
+      guard !data.isEmpty else { return }
       Task {
         _ = await bufferRef.appendRawData(data)
       }
