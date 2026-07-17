@@ -40,13 +40,7 @@ struct ResamplerDetailView: View {
                   //   Swift engine — supports all resampler types.
                   //   Rust engine  — `.apple` is unavailable; all other
                   //                  types are supported.
-                  ForEach(
-                    ResamplerType.allCases.filter { type in
-                      DSPEngine.isRustEngine
-                        ? (type != .apple)
-                        : true
-                    }
-                  ) { type in
+                  ForEach(ResamplerType.allCases) { type in
                     Text(type.rawValue).tag(type)
                   }
                 }
@@ -181,48 +175,6 @@ struct ResamplerDetailView: View {
                   .frame(maxWidth: .infinity, alignment: .leading)
                   .frame(minWidth: 400)
                   .onChange(of: settings.resamplerInterpolation) { _, _ in dsp.applyConfig() }
-
-                  Spacer()
-                }
-              }
-
-              if settings.resamplerType == .apple {
-                HStack(spacing: 16) {
-                  Text("Quality")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
-
-                  Picker("", selection: $settings.resamplerAppleQuality) {
-                    ForEach(ResamplerAppleQuality.allCases) { quality in
-                      Text(quality.rawValue).tag(quality)
-                    }
-                  }
-                  .pickerStyle(.segmented)
-                  .labelsHidden()
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .frame(minWidth: 400)
-                  .onChange(of: settings.resamplerAppleQuality) { _, _ in dsp.applyConfig() }
-
-                  Spacer()
-                }
-
-                HStack(spacing: 16) {
-                  Text("Algorithm")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
-
-                  Picker("", selection: $settings.resamplerAppleComplexity) {
-                    ForEach(ResamplerAppleComplexity.allCases) { complexity in
-                      Text(complexity.rawValue).tag(complexity)
-                    }
-                  }
-                  .pickerStyle(.segmented)
-                  .labelsHidden()
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .frame(minWidth: 400)
-                  .onChange(of: settings.resamplerAppleComplexity) { _, _ in dsp.applyConfig() }
 
                   Spacer()
                 }

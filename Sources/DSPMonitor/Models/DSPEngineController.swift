@@ -188,18 +188,7 @@ final class DSPEngineController {
 
     if settings.resamplerEnabled {
       devicesConfig.captureSamplerate = devices.captureConfig.sampleRate
-      // Per-engine fallbacks for resampler types the running engine
-      // doesn't implement:
-      //   * Swift engine → supports all resampler types natively.
-      //   * Rust engine → only the rubato-native types and
-      //     `.synchronous` are implemented. `.apple` (the Core Audio
-      //     wrapper) maps onto `.asyncSinc`.
-      let effectiveType: ResamplerType
-      if DSPEngine.isRustEngine {
-        effectiveType = settings.resamplerType == .apple ? .asyncSinc : settings.resamplerType
-      } else {
-        effectiveType = settings.resamplerType
-      }
+      let effectiveType = settings.resamplerType
       let configResamplerType =
         DSPConfig.ResamplerType(rawValue: effectiveType.rawValue) ?? .synchronous
       var resampler = ResamplerConfig(type: configResamplerType)
@@ -218,11 +207,6 @@ final class DSPEngineController {
         resampler.interpolation = settings.resamplerInterpolation.rawValue
       case .synchronous:
         break
-      case .apple:
-        resampler.appleQuality =
-          AppleResamplerQuality(rawValue: settings.resamplerAppleQuality.rawValue) ?? .high
-        resampler.appleComplexity =
-          AppleResamplerComplexity(rawValue: settings.resamplerAppleComplexity.rawValue) ?? .normal
       }
       devicesConfig.resampler = resampler
     }

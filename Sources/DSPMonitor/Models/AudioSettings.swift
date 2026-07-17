@@ -10,7 +10,6 @@ enum ResamplerType: String, Codable, Sendable, CaseIterable, Identifiable {
   case asyncSinc = "AsyncSinc"
   case asyncPoly = "AsyncPoly"
   case synchronous = "Synchronous"
-  case apple = "Apple"
   var id: String { rawValue }
 }
 
@@ -30,22 +29,7 @@ enum SincInterpolation: String, Codable, Sendable, CaseIterable, Identifiable {
   var id: String { rawValue }
 }
 
-enum ResamplerAppleQuality: String, Codable, Sendable, CaseIterable, Identifiable {
-  case min = "Min"
-  case low = "Low"
-  case medium = "Medium"
-  case high = "High"
-  case max = "Max"
-  var id: String { rawValue }
-}
 
-enum ResamplerAppleComplexity: String, Codable, Sendable, CaseIterable, Identifiable {
-  case linear = "Linear"
-  case normal = "Normal"
-  case mastering = "Mastering"
-  case minimumPhase = "MinimumPhase"
-  var id: String { rawValue }
-}
 
 @MainActor
 @Observable
@@ -124,18 +108,7 @@ final class AudioSettings {
       onChanged?()
     }
   }
-  var resamplerAppleQuality: ResamplerAppleQuality = .max {
-    didSet {
-      defaults.set(resamplerAppleQuality.rawValue, forKey: "resamplerAppleQuality")
-      onChanged?()
-    }
-  }
-  var resamplerAppleComplexity: ResamplerAppleComplexity = .normal {
-    didSet {
-      defaults.set(resamplerAppleComplexity.rawValue, forKey: "resamplerAppleComplexity")
-      onChanged?()
-    }
-  }
+
   var volume: Float = 0.0 {
     didSet { defaults.set(volume, forKey: "volume") }
   }
@@ -322,16 +295,6 @@ final class AudioSettings {
       let interpolation = SincInterpolation(rawValue: si)
     {
       resamplerSincInterpolation = interpolation
-    }
-    if let q = defaults.string(forKey: "resamplerAppleQuality"),
-      let quality = ResamplerAppleQuality(rawValue: q)
-    {
-      resamplerAppleQuality = quality
-    }
-    if let c = defaults.string(forKey: "resamplerAppleComplexity"),
-      let complexity = ResamplerAppleComplexity(rawValue: c)
-    {
-      resamplerAppleComplexity = complexity
     }
   }
 }
