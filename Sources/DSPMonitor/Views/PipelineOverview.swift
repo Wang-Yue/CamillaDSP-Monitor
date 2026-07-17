@@ -483,15 +483,52 @@ struct PipelineOverviewCard: View {
       }
     }()
 
-    HStack(spacing: 2) {
-      ForEach(chList, id: \.self) { ch in
-        Text(channelLabel(ch))
+    Group {
+      if chList.count == incomingChannels && incomingChannels > 4 {
+        Text("All")
           .font(.system(size: 8, weight: .bold))
-          .padding(.horizontal, 3)
+          .padding(.horizontal, 4)
           .padding(.vertical, 1)
-          .background(channelColor(ch).opacity(0.2))
-          .foregroundStyle(channelColor(ch))
+          .background(Color.secondary.opacity(0.15))
+          .foregroundStyle(.secondary)
           .cornerRadius(3)
+      } else if chList.count > 4 {
+        let isContiguous: Bool = {
+          guard let first = chList.first, let last = chList.last else { return false }
+          return chList == Array(first...last)
+        }()
+        
+        if isContiguous {
+          let firstLabel = channelLabel(chList.first!)
+          let lastLabel = channelLabel(chList.last!)
+          Text("\(firstLabel)–\(lastLabel)")
+            .font(.system(size: 8, weight: .bold))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(Color.secondary.opacity(0.15))
+            .foregroundStyle(.secondary)
+            .cornerRadius(3)
+        } else {
+          Text("\(chList.count) ch")
+            .font(.system(size: 8, weight: .bold))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(Color.secondary.opacity(0.15))
+            .foregroundStyle(.secondary)
+            .cornerRadius(3)
+        }
+      } else {
+        HStack(spacing: 2) {
+          ForEach(chList, id: \.self) { ch in
+            Text(channelLabel(ch))
+              .font(.system(size: 8, weight: .bold))
+              .padding(.horizontal, 3)
+              .padding(.vertical, 1)
+              .background(channelColor(ch).opacity(0.2))
+              .foregroundStyle(channelColor(ch))
+              .cornerRadius(3)
+          }
+        }
       }
     }
   }
