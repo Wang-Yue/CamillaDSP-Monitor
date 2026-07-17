@@ -132,17 +132,17 @@ class LogManager {
 
     let bufferRef = self.buffer
 
-    outPipe.fileHandleForReading.readabilityHandler = { handle in
+    outPipe.fileHandleForReading.readabilityHandler = { [weak bufferRef] handle in
       let data = handle.availableData
-      guard !data.isEmpty else { return }
+      guard !data.isEmpty, let bufferRef else { return }
       Task {
         _ = await bufferRef.appendRawData(data)
       }
     }
 
-    errPipe.fileHandleForReading.readabilityHandler = { handle in
+    errPipe.fileHandleForReading.readabilityHandler = { [weak bufferRef] handle in
       let data = handle.availableData
-      guard !data.isEmpty else { return }
+      guard !data.isEmpty, let bufferRef else { return }
       Task {
         _ = await bufferRef.appendRawData(data)
       }
@@ -150,10 +150,10 @@ class LogManager {
   }
 
   private func setupBatchTimer() {
-    updateTask = Task {
+    updateTask = Task { [weak self] in
       while !Task.isCancelled {
         try? await Task.sleep(nanoseconds: 100_000_000)  // 10Hz
-        guard !Task.isCancelled else { break }
+        guard !Task.isCancelled, let self else { break }
 
         let newEntries = await self.buffer.flush()
         if !newEntries.isEmpty {
