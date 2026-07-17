@@ -517,6 +517,8 @@ struct CoreAudioPlaybackSelectionView: View {
   }
 }
 
+import UniformTypeIdentifiers
+
 struct FileSelectionView: View {
   @Binding var filename: String
   @Binding var format: String
@@ -539,6 +541,10 @@ struct FileSelectionView: View {
           .frame(width: 100, alignment: .leading)
         TextField(isWav ? "e.g. /path/to/audio.wav" : "e.g. /path/to/audio.raw", text: $filename)
           .textFieldStyle(.roundedBorder)
+
+        Button(isCapture ? "Open File..." : "Select File...") {
+          selectFile()
+        }
       }
 
       if isCapture && isWav {
@@ -593,6 +599,31 @@ struct FileSelectionView: View {
         }
       }
     }
+  }
+
+  private func selectFile() {
+    #if os(macOS)
+    if isCapture {
+      let panel = NSOpenPanel()
+      panel.canChooseFiles = true
+      panel.canChooseDirectories = false
+      panel.allowsMultipleSelection = false
+      if isWav {
+        panel.allowedContentTypes = [.wav, .audio]
+      } else {
+        panel.allowedContentTypes = [.data, .item]
+      }
+      if panel.runModal() == .OK, let url = panel.url {
+        filename = url.path
+      }
+    } else {
+      let panel = NSSavePanel()
+      panel.allowedContentTypes = [.data, .item]
+      if panel.runModal() == .OK, let url = panel.url {
+        filename = url.path
+      }
+    }
+    #endif
   }
 }
 
