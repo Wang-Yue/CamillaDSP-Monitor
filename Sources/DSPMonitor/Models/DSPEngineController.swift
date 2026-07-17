@@ -155,7 +155,8 @@ final class DSPEngineController {
           channels: devices.playbackConfig.channels,
           filename: devices.playbackConfig.filename.isEmpty ? "" : devices.playbackConfig.filename,
           format: devices.playbackConfig.fileFormat,
-          wavHeader: true
+          wavHeader: true,
+          useRf64: devices.playbackConfig.useRf64
         ))
     case .signalGenerator:
       playbackConfig = .coreAudio(

@@ -27,6 +27,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   public var filename: String
   public var fileFormat: String
   public var isWav: Bool
+  public var useRf64: Bool
   public var skipBytes: Int
   public var readBytes: Int
   public var extraSamples: Int
@@ -65,6 +66,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.filename = ""
     self.fileFormat = "S16_LE"
     self.isWav = false
+    self.useRf64 = false
     self.skipBytes = 0
     self.readBytes = 0
     self.extraSamples = 0
@@ -77,7 +79,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   private enum CodingKeys: String, CodingKey {
     case backend, capabilities, channels, deviceChannels, sampleRate, format, bypassDoP,
       dopCutoffHz,
-      outputDoP, dsdEncoderFilter, filename, fileFormat, isWav, skipBytes, readBytes, extraSamples,
+      outputDoP, dsdEncoderFilter, filename, fileFormat, isWav, useRf64, skipBytes, readBytes, extraSamples,
       generatorType, generatorFreq, generatorLevel
   }
 
@@ -97,6 +99,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.filename = try c.decodeIfPresent(String.self, forKey: .filename) ?? ""
     self.fileFormat = try c.decodeIfPresent(String.self, forKey: .fileFormat) ?? "S16_LE"
     self.isWav = try c.decodeIfPresent(Bool.self, forKey: .isWav) ?? false
+    self.useRf64 = try c.decodeIfPresent(Bool.self, forKey: .useRf64) ?? false
     self.skipBytes = try c.decodeIfPresent(Int.self, forKey: .skipBytes) ?? 0
     self.readBytes = try c.decodeIfPresent(Int.self, forKey: .readBytes) ?? 0
     self.extraSamples = try c.decodeIfPresent(Int.self, forKey: .extraSamples) ?? 0
@@ -120,6 +123,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     try c.encode(filename, forKey: .filename)
     try c.encode(fileFormat, forKey: .fileFormat)
     try c.encode(isWav, forKey: .isWav)
+    try c.encode(useRf64, forKey: .useRf64)
     try c.encode(skipBytes, forKey: .skipBytes)
     try c.encode(readBytes, forKey: .readBytes)
     try c.encode(extraSamples, forKey: .extraSamples)
@@ -218,7 +222,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
       }
       let riff = String(decoding: riffData.subdata(in: 0..<4), as: UTF8.self)
       let wave = String(decoding: riffData.subdata(in: 8..<12), as: UTF8.self)
-      guard riff == "RIFF" && wave == "WAVE" else {
+      guard (riff == "RIFF" || riff == "RF64") && wave == "WAVE" else {
         return nil
       }
       try fileHandle.seek(toOffset: 12)

@@ -125,6 +125,7 @@ struct DevicePickerView: View {
               Picker("", selection: $bindableDevices.playbackConfig.backend) {
                 Text("CoreAudio").tag(AudioBackendType.coreAudio)
                 Text("RawFile").tag(AudioBackendType.rawFile)
+                Text("WavFile").tag(AudioBackendType.wavFile)
               }
               .labelsHidden()
             }
@@ -159,7 +160,20 @@ struct DevicePickerView: View {
                 showExtras: false,
                 isCapture: false
               )
-            case .wavFile, .signalGenerator:
+            case .wavFile:
+              FileSelectionView(
+                filename: $bindableDevices.playbackConfig.filename,
+                format: $bindableDevices.playbackConfig.fileFormat,
+                isWav: true,
+                useRf64: $bindableDevices.playbackConfig.useRf64,
+                channels: $bindableDevices.playbackConfig.channels,
+                skipBytes: Self.zeroBinding,
+                readBytes: Self.zeroBinding,
+                extraSamples: Self.zeroBinding,
+                showExtras: false,
+                isCapture: false
+              )
+            case .signalGenerator:
               EmptyView()
             }
           }
@@ -523,6 +537,7 @@ struct FileSelectionView: View {
   @Binding var filename: String
   @Binding var format: String
   let isWav: Bool
+  var useRf64: Binding<Bool>? = nil
   @Binding var channels: Int
   @Binding var skipBytes: Int
   @Binding var readBytes: Int
@@ -568,6 +583,19 @@ struct FileSelectionView: View {
             .frame(width: 100, alignment: .leading)
           Stepper("\(channels)", value: $channels, in: 1...32)
             .frame(width: 100)
+        }
+      }
+      
+      if !isCapture && isWav, let useRf64Binding = useRf64 {
+        HStack {
+          Text("WAV Format")
+            .frame(width: 100, alignment: .leading)
+          Picker("", selection: useRf64Binding) {
+            Text("Standard (RIFF)").tag(false)
+            Text("RF64 (64-bit)").tag(true)
+          }
+          .pickerStyle(.segmented)
+          .frame(width: 200)
         }
       }
 
@@ -618,7 +646,11 @@ struct FileSelectionView: View {
       }
     } else {
       let panel = NSSavePanel()
-      panel.allowedContentTypes = [.data, .item]
+      if isWav {
+        panel.allowedContentTypes = [.wav, .audio]
+      } else {
+        panel.allowedContentTypes = [.data, .item]
+      }
       if panel.runModal() == .OK, let url = panel.url {
         filename = url.path
       }

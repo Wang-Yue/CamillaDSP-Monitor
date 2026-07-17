@@ -337,11 +337,13 @@ public struct RawFilePlaybackConfig: Codable, Equatable, Sendable {
   public var filename: String
   public var format: String
   public var wavHeader: Bool?
+  public var useRf64: Bool?
   public var channelLabels: [String]?
 
   enum CodingKeys: String, CodingKey {
     case channels, filename, format
     case wavHeader = "wav_header"
+    case useRf64 = "use_rf64"
     case channelLabels = "channel_labels"
   }
 
@@ -350,12 +352,14 @@ public struct RawFilePlaybackConfig: Codable, Equatable, Sendable {
     filename: String,
     format: String,
     wavHeader: Bool? = nil,
+    useRf64: Bool? = nil,
     channelLabels: [String]? = nil
   ) {
     self.channels = channels
     self.filename = filename
     self.format = format
     self.wavHeader = wavHeader
+    self.useRf64 = useRf64
     self.channelLabels = channelLabels
   }
 }
