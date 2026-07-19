@@ -844,6 +844,7 @@ struct DelayOptions: View {
           Picker("", selection: $stage.delayUnit) {
             Text("Milliseconds (ms)").tag(DelayUnit.ms)
             Text("Microseconds (μs)").tag(DelayUnit.us)
+            Text("Seconds (s)").tag(DelayUnit.s)
             Text("Samples").tag(DelayUnit.samples)
             Text("Millimeters (mm)").tag(DelayUnit.mm)
           }
@@ -860,8 +861,14 @@ struct DelayOptions: View {
             .foregroundStyle(.secondary)
             .fixedSize()
 
-          let maxVal: Double =
-            stage.delayUnit == .samples ? 96000 : (stage.delayUnit == .us ? 1_000_000 : 1000)
+          let maxVal: Double = {
+            switch stage.delayUnit {
+            case .samples: return 96000
+            case .us: return 1_000_000
+            case .s: return 10.0
+            default: return 1000
+            }
+          }()
           let stepVal: Double = {
             if stage.delayUnit == .samples {
               return stage.delaySubsample ? 0.01 : 1.0
@@ -985,7 +992,7 @@ struct LookaheadLimiterOptions: View {
           Slider(value: $stage.lookaheadAttack, in: 0.1...1000.0, step: 0.1)
             .onChange(of: stage.lookaheadAttack) { _, _ in dsp.applyConfig() }
 
-          Text(String(format: "%.1f ms", stage.lookaheadAttack))
+          Text("\(String(format: "%.1f", stage.lookaheadAttack)) \(stage.lookaheadAttackUnit.rawValue)")
             .font(.system(.body, design: .monospaced))
             .fixedSize()
         }
@@ -999,7 +1006,7 @@ struct LookaheadLimiterOptions: View {
           Slider(value: $stage.lookaheadRelease, in: 5...1000, step: 5)
             .onChange(of: stage.lookaheadRelease) { _, _ in dsp.applyConfig() }
 
-          Text(String(format: "%.0f ms", stage.lookaheadRelease))
+          Text("\(String(format: "%.0f", stage.lookaheadRelease)) \(stage.lookaheadReleaseUnit.rawValue)")
             .font(.system(.body, design: .monospaced))
             .fixedSize()
         }
@@ -1291,7 +1298,7 @@ struct CompressorOptions: View {
             .frame(width: 90, alignment: .leading)
           Slider(value: $stage.compressorAttack, in: 0.1...100.0, step: 0.1)
             .onChange(of: stage.compressorAttack) { _, _ in dsp.applyConfig() }
-          Text(String(format: "%.1f ms", stage.compressorAttack))
+          Text("\(String(format: "%.1f", stage.compressorAttack)) \(stage.compressorAttackUnit.rawValue)")
             .font(.system(.body, design: .monospaced))
             .frame(width: 70, alignment: .trailing)
         }
@@ -1303,7 +1310,7 @@ struct CompressorOptions: View {
             .frame(width: 90, alignment: .leading)
           Slider(value: $stage.compressorRelease, in: 5...1000, step: 5)
             .onChange(of: stage.compressorRelease) { _, _ in dsp.applyConfig() }
-          Text(String(format: "%.0f ms", stage.compressorRelease))
+          Text("\(String(format: "%.0f", stage.compressorRelease)) \(stage.compressorReleaseUnit.rawValue)")
             .font(.system(.body, design: .monospaced))
             .frame(width: 70, alignment: .trailing)
         }
@@ -1426,7 +1433,7 @@ struct NoiseGateOptions: View {
             .frame(width: 90, alignment: .leading)
           Slider(value: $stage.gateAttack, in: 0.1...100.0, step: 0.1)
             .onChange(of: stage.gateAttack) { _, _ in dsp.applyConfig() }
-          Text(String(format: "%.1f ms", stage.gateAttack))
+          Text("\(String(format: "%.1f", stage.gateAttack)) \(stage.gateAttackUnit.rawValue)")
             .font(.system(.body, design: .monospaced))
             .frame(width: 70, alignment: .trailing)
         }
@@ -1438,7 +1445,7 @@ struct NoiseGateOptions: View {
             .frame(width: 90, alignment: .leading)
           Slider(value: $stage.gateRelease, in: 5...1000, step: 5)
             .onChange(of: stage.gateRelease) { _, _ in dsp.applyConfig() }
-          Text(String(format: "%.0f ms", stage.gateRelease))
+          Text("\(String(format: "%.0f", stage.gateRelease)) \(stage.gateReleaseUnit.rawValue)")
             .font(.system(.body, design: .monospaced))
             .frame(width: 70, alignment: .trailing)
         }
@@ -1505,6 +1512,7 @@ struct RACEOptions: View {
           Picker("", selection: $stage.raceDelayUnit) {
             Text("Milliseconds (ms)").tag(DelayUnit.ms)
             Text("Microseconds (μs)").tag(DelayUnit.us)
+            Text("Seconds (s)").tag(DelayUnit.s)
             Text("Samples").tag(DelayUnit.samples)
             Text("Millimeters (mm)").tag(DelayUnit.mm)
           }
@@ -1524,6 +1532,7 @@ struct RACEOptions: View {
             switch stage.raceDelayUnit {
             case .samples: return 100.0
             case .us: return 2000.0
+            case .s: return 1.0
             case .mm: return 700.0
             case .ms: return 2.0
             }
@@ -1532,6 +1541,7 @@ struct RACEOptions: View {
             switch stage.raceDelayUnit {
             case .samples: return 1.0
             case .us: return 5.0
+            case .s: return 0.0001
             case .mm: return 2.0
             case .ms: return 0.01
             }
@@ -1540,6 +1550,7 @@ struct RACEOptions: View {
             switch stage.raceDelayUnit {
             case .samples: return stage.raceSubsampleDelay ? 0.01 : 1.0
             case .us: return 1.0
+            case .s: return 0.001
             case .mm: return 1.0
             case .ms: return 0.01
             }

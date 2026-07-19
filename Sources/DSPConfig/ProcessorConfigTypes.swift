@@ -11,7 +11,9 @@ public struct CompressorParameters: Codable, Sendable, Equatable {
   public var monitorChannels: [Int]?
   public var processChannels: [Int]?
   public var attack: Double
+  public var attackUnit: TimeUnit
   public var release: Double
+  public var releaseUnit: TimeUnit
   public var threshold: Double
   public var factor: Double
   public var makeupGain: Double?
@@ -22,7 +24,11 @@ public struct CompressorParameters: Codable, Sendable, Equatable {
     case channels
     case monitorChannels = "monitor_channels"
     case processChannels = "process_channels"
-    case attack, release, threshold, factor
+    case attack
+    case attackUnit = "attack_unit"
+    case release
+    case releaseUnit = "release_unit"
+    case threshold, factor
     case makeupGain = "makeup_gain"
     case softClip = "soft_clip"
     case clipLimit = "clip_limit"
@@ -30,14 +36,17 @@ public struct CompressorParameters: Codable, Sendable, Equatable {
 
   public init(
     channels: Int, monitorChannels: [Int]? = nil, processChannels: [Int]? = nil,
-    attack: Double, release: Double, threshold: Double, factor: Double,
+    attack: Double, attackUnit: TimeUnit = .ms, release: Double, releaseUnit: TimeUnit = .ms,
+    threshold: Double, factor: Double,
     makeupGain: Double? = nil, softClip: Bool? = nil, clipLimit: Double? = nil
   ) {
     self.channels = channels
     self.monitorChannels = monitorChannels
     self.processChannels = processChannels
     self.attack = attack
+    self.attackUnit = attackUnit
     self.release = release
+    self.releaseUnit = releaseUnit
     self.threshold = threshold
     self.factor = factor
     self.makeupGain = makeupGain
@@ -67,7 +76,9 @@ public struct NoiseGateParameters: Codable, Sendable, Equatable {
   public var monitorChannels: [Int]?
   public var processChannels: [Int]?
   public var attack: Double
+  public var attackUnit: TimeUnit
   public var release: Double
+  public var releaseUnit: TimeUnit
   public var threshold: Double
   public var attenuation: Double
 
@@ -75,18 +86,25 @@ public struct NoiseGateParameters: Codable, Sendable, Equatable {
     case channels
     case monitorChannels = "monitor_channels"
     case processChannels = "process_channels"
-    case attack, release, threshold, attenuation
+    case attack
+    case attackUnit = "attack_unit"
+    case release
+    case releaseUnit = "release_unit"
+    case threshold, attenuation
   }
 
   public init(
     channels: Int, monitorChannels: [Int]? = nil, processChannels: [Int]? = nil,
-    attack: Double, release: Double, threshold: Double, attenuation: Double
+    attack: Double, attackUnit: TimeUnit = .ms, release: Double, releaseUnit: TimeUnit = .ms,
+    threshold: Double, attenuation: Double
   ) {
     self.channels = channels
     self.monitorChannels = monitorChannels
     self.processChannels = processChannels
     self.attack = attack
+    self.attackUnit = attackUnit
     self.release = release
+    self.releaseUnit = releaseUnit
     self.threshold = threshold
     self.attenuation = attenuation
   }
@@ -106,7 +124,7 @@ public struct RACEParameters: Codable, Sendable, Equatable {
   public var channelB: Int
   public var delay: Double
   public var subsampleDelay: Bool?
-  public var delayUnit: DelayUnit?
+  public var delayUnit: DelayUnit
   public var attenuation: Double
 
   enum CodingKeys: String, CodingKey {
@@ -121,7 +139,7 @@ public struct RACEParameters: Codable, Sendable, Equatable {
 
   public init(
     channels: Int, channelA: Int, channelB: Int, delay: Double,
-    subsampleDelay: Bool? = nil, delayUnit: DelayUnit? = nil, attenuation: Double
+    subsampleDelay: Bool? = nil, delayUnit: DelayUnit = .ms, attenuation: Double
   ) {
     self.channels = channels
     self.channelA = channelA
@@ -137,7 +155,7 @@ public struct RACEParameters: Codable, Sendable, Equatable {
   }
 
   public func delayUnitValue() -> DelayUnit {
-    return delayUnit ?? .ms
+    return delayUnit
   }
 }
 

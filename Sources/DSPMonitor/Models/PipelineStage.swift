@@ -165,7 +165,9 @@ final class PipelineStage: Identifiable, Hashable {
 
   var lookaheadLimit: Double = 0.0
   var lookaheadAttack: Double = 5.0
+  var lookaheadAttackUnit: TimeUnit = .ms
   var lookaheadRelease: Double = 100.0
+  var lookaheadReleaseUnit: TimeUnit = .ms
 
   // Matrix Mixer channel layouts
   var mixerChannelsIn: Int = 2
@@ -174,7 +176,9 @@ final class PipelineStage: Identifiable, Hashable {
 
   // Compressor parameters
   var compressorAttack: Double = 5.0
+  var compressorAttackUnit: TimeUnit = .ms
   var compressorRelease: Double = 100.0
+  var compressorReleaseUnit: TimeUnit = .ms
   var compressorThreshold: Double = -20.0
   var compressorRatio: Double = 2.0
   var compressorMakeupGain: Double = 0.0
@@ -183,7 +187,9 @@ final class PipelineStage: Identifiable, Hashable {
 
   // Noise Gate parameters
   var gateAttack: Double = 5.0
+  var gateAttackUnit: TimeUnit = .ms
   var gateRelease: Double = 100.0
+  var gateReleaseUnit: TimeUnit = .ms
   var gateThreshold: Double = -60.0
   var gateAttenuation: Double = -40.0
 

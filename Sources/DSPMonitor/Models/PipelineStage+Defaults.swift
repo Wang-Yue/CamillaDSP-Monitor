@@ -54,7 +54,9 @@ extension PipelineStage {
     var delaySubsample: Bool
     var lookaheadLimit: Double
     var lookaheadAttack: Double
+    var lookaheadAttackUnit: String?
     var lookaheadRelease: Double
+    var lookaheadReleaseUnit: String?
 
     // Split Width parameters
     var splitWidthCrossover: Double
@@ -67,14 +69,18 @@ extension PipelineStage {
 
     // Processor parameters
     var compressorAttack: Double
+    var compressorAttackUnit: String?
     var compressorRelease: Double
+    var compressorReleaseUnit: String?
     var compressorThreshold: Double
     var compressorRatio: Double
     var compressorMakeupGain: Double
     var compressorSoftClip: Bool
     var compressorClipLimit: Double
     var gateAttack: Double
+    var gateAttackUnit: String?
     var gateRelease: Double
+    var gateReleaseUnit: String?
     var gateThreshold: Double
     var gateAttenuation: Double
     var raceDelay: Double
@@ -165,7 +171,9 @@ extension PipelineStage {
       delaySubsample: delaySubsample,
       lookaheadLimit: lookaheadLimit,
       lookaheadAttack: lookaheadAttack,
+      lookaheadAttackUnit: lookaheadAttackUnit.rawValue,
       lookaheadRelease: lookaheadRelease,
+      lookaheadReleaseUnit: lookaheadReleaseUnit.rawValue,
 
       // Split Width
       splitWidthCrossover: splitWidthCrossover,
@@ -178,14 +186,18 @@ extension PipelineStage {
 
       // Processor parameters
       compressorAttack: compressorAttack,
+      compressorAttackUnit: compressorAttackUnit.rawValue,
       compressorRelease: compressorRelease,
+      compressorReleaseUnit: compressorReleaseUnit.rawValue,
       compressorThreshold: compressorThreshold,
       compressorRatio: compressorRatio,
       compressorMakeupGain: compressorMakeupGain,
       compressorSoftClip: compressorSoftClip,
       compressorClipLimit: compressorClipLimit,
       gateAttack: gateAttack,
+      gateAttackUnit: gateAttackUnit.rawValue,
       gateRelease: gateRelease,
+      gateReleaseUnit: gateReleaseUnit.rawValue,
       gateThreshold: gateThreshold,
       gateAttenuation: gateAttenuation,
       raceDelay: raceDelay,
@@ -274,7 +286,9 @@ extension PipelineStage {
     delaySubsample = s.delaySubsample
     lookaheadLimit = s.lookaheadLimit
     lookaheadAttack = s.lookaheadAttack
+    if let u = s.lookaheadAttackUnit, let v = TimeUnit(rawValue: u) { lookaheadAttackUnit = v }
     lookaheadRelease = s.lookaheadRelease
+    if let u = s.lookaheadReleaseUnit, let v = TimeUnit(rawValue: u) { lookaheadReleaseUnit = v }
 
     // Split Width
     splitWidthCrossover = s.splitWidthCrossover
@@ -287,14 +301,18 @@ extension PipelineStage {
 
     // Processor parameters
     compressorAttack = s.compressorAttack
+    if let u = s.compressorAttackUnit, let v = TimeUnit(rawValue: u) { compressorAttackUnit = v }
     compressorRelease = s.compressorRelease
+    if let u = s.compressorReleaseUnit, let v = TimeUnit(rawValue: u) { compressorReleaseUnit = v }
     compressorThreshold = s.compressorThreshold
     compressorRatio = s.compressorRatio
     compressorMakeupGain = s.compressorMakeupGain
     compressorSoftClip = s.compressorSoftClip
     compressorClipLimit = s.compressorClipLimit
     gateAttack = s.gateAttack
+    if let u = s.gateAttackUnit, let v = TimeUnit(rawValue: u) { gateAttackUnit = v }
     gateRelease = s.gateRelease
+    if let u = s.gateReleaseUnit, let v = TimeUnit(rawValue: u) { gateReleaseUnit = v }
     gateThreshold = s.gateThreshold
     gateAttenuation = s.gateAttenuation
     raceDelay = s.raceDelay

@@ -380,9 +380,17 @@ public enum FilterConfig: Codable, Sendable, Equatable {
   }
 }
 
+public enum TimeUnit: String, Codable, Sendable {
+  case ms
+  case us
+  case s
+  case samples
+}
+
 public enum DelayUnit: String, Codable, Sendable {
   case ms
   case us
+  case s
   case samples
   case mm
 }
@@ -395,6 +403,8 @@ extension DelayUnit {
       return delay / 1000.0 * sampleRate
     case .us:
       return delay / 1000000.0 * sampleRate
+    case .s:
+      return delay * sampleRate
     case .samples:
       return delay
     case .mm:
@@ -406,16 +416,18 @@ extension DelayUnit {
 
 public struct DelayParameters: Codable, Sendable, Equatable {
   public var delay: Double
-  public var unit: DelayUnit?
+  public var delayUnit: DelayUnit
   public var subsample: Bool?
 
   enum CodingKeys: String, CodingKey {
-    case delay, unit, subsample
+    case delay
+    case delayUnit = "delay_unit"
+    case subsample
   }
 
-  public init(delay: Double, unit: DelayUnit? = nil, subsample: Bool? = nil) {
+  public init(delay: Double, delayUnit: DelayUnit = .ms, subsample: Bool? = nil) {
     self.delay = delay
-    self.unit = unit
+    self.delayUnit = delayUnit
     self.subsample = subsample
   }
 }
@@ -579,8 +591,8 @@ public struct LookaheadLimiterParameters: Codable, Sendable, Equatable {
   public var limit: Double
   public var attack: Double
   public var release: Double
-  public var attackUnit: DelayUnit?
-  public var releaseUnit: DelayUnit?
+  public var attackUnit: TimeUnit
+  public var releaseUnit: TimeUnit
 
   enum CodingKeys: String, CodingKey {
     case limit, attack, release
@@ -588,7 +600,7 @@ public struct LookaheadLimiterParameters: Codable, Sendable, Equatable {
     case releaseUnit = "release_unit"
   }
 
-  public init(limit: Double, attack: Double, release: Double, attackUnit: DelayUnit? = nil, releaseUnit: DelayUnit? = nil) {
+  public init(limit: Double, attack: Double, release: Double, attackUnit: TimeUnit = .ms, releaseUnit: TimeUnit = .ms) {
     self.limit = limit
     self.attack = attack
     self.release = release

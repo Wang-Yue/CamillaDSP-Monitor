@@ -139,7 +139,7 @@ extension PipelineStage {
     case .delay:
       return [
         "\(prefix)_delay": .delay(
-          DelayParameters(delay: delayValue, unit: delayUnit, subsample: delaySubsample))
+          DelayParameters(delay: delayValue, delayUnit: delayUnit, subsample: delaySubsample))
       ]
 
     case .volume:
@@ -157,7 +157,7 @@ extension PipelineStage {
       return [
         "\(prefix)_lookahead_limiter": .lookaheadLimiter(
           LookaheadLimiterParameters(
-            limit: lookaheadLimit, attack: lookaheadAttack, release: lookaheadRelease, attackUnit: .ms, releaseUnit: .ms))
+            limit: lookaheadLimit, attack: lookaheadAttack, release: lookaheadRelease, attackUnit: lookaheadAttackUnit, releaseUnit: lookaheadReleaseUnit))
       ]
 
     case .dither:
@@ -508,7 +508,9 @@ extension PipelineStage {
         monitorChannels: monitorList.isEmpty ? chList : monitorList,
         processChannels: chList,
         attack: compressorAttack,
+        attackUnit: compressorAttackUnit,
         release: compressorRelease,
+        releaseUnit: compressorReleaseUnit,
         threshold: compressorThreshold,
         factor: compressorRatio,
         makeupGain: compressorMakeupGain,
@@ -524,7 +526,9 @@ extension PipelineStage {
         monitorChannels: monitorList.isEmpty ? chList : monitorList,
         processChannels: chList,
         attack: gateAttack,
+        attackUnit: gateAttackUnit,
         release: gateRelease,
+        releaseUnit: gateReleaseUnit,
         threshold: gateThreshold,
         attenuation: gateAttenuation
       )
