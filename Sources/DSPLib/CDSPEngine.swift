@@ -168,8 +168,13 @@ public actor DSPEngine {
       throw AudioBackendError.engineNotRunning
     }
     var res = cdsp_spectrum_t()
-    let ch = channel ?? 0
-    let success = cdsp_get_spectrum(e, isCapture, ch, minFreq, maxFreq, Int(nBins), &res)
+    let side = isCapture ? CDSP_SPECTRUM_SIDE_CAPTURE : CDSP_SPECTRUM_SIDE_PLAYBACK
+    let success: Bool
+    if var ch = channel {
+      success = cdsp_get_spectrum(e, side, &ch, minFreq, maxFreq, Int(nBins), &res)
+    } else {
+      success = cdsp_get_spectrum(e, side, nil, minFreq, maxFreq, Int(nBins), &res)
+    }
     if !success {
       throw AudioBackendError.bufferEmpty
     }
