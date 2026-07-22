@@ -19,6 +19,9 @@ final class AudioDeviceManager {
   var captureDevices: [AudioDevice] = []
   var playbackDevices: [AudioDevice] = []
 
+  private var captureDeviceConfigs: [String: DeviceConfig] = [:]
+  private var playbackDeviceConfigs: [String: DeviceConfig] = [:]
+
   // Suppresses side-effects (capability refresh, persistence, callbacks) while init()
   // is loading persisted values. Without this guard, setters fire for every
   // assignment inside init(), spawning refreshDeviceCapabilities() Tasks before the engine
@@ -38,6 +41,17 @@ final class AudioDeviceManager {
       if let data = try? JSONEncoder().encode(captureConfig) {
         defaults.set(data, forKey: "captureConfig")
       }
+
+      if captureConfig.deviceName == oldValue.deviceName
+        && captureConfig.backend == oldValue.backend
+      {
+        let name = captureConfig.deviceName ?? ""
+        captureDeviceConfigs[name] = captureConfig
+        if let data = try? JSONEncoder().encode(captureDeviceConfigs) {
+          defaults.set(data, forKey: "captureDeviceConfigs")
+        }
+      }
+
       if captureConfig.deviceName != oldValue.deviceName
         || captureConfig.backend != oldValue.backend
       {
@@ -61,6 +75,17 @@ final class AudioDeviceManager {
       if let data = try? JSONEncoder().encode(playbackConfig) {
         defaults.set(data, forKey: "playbackConfig")
       }
+
+      if playbackConfig.deviceName == oldValue.deviceName
+        && playbackConfig.backend == oldValue.backend
+      {
+        let name = playbackConfig.deviceName ?? ""
+        playbackDeviceConfigs[name] = playbackConfig
+        if let data = try? JSONEncoder().encode(playbackDeviceConfigs) {
+          defaults.set(data, forKey: "playbackDeviceConfigs")
+        }
+      }
+
       if playbackConfig.deviceName != oldValue.deviceName
         || playbackConfig.backend != oldValue.backend
       {
@@ -118,6 +143,21 @@ final class AudioDeviceManager {
     self.settings = settings
     captureConfig = Self.loadDeviceConfig(key: "captureConfig", defaults: defaults)
     playbackConfig = Self.loadDeviceConfig(key: "playbackConfig", defaults: defaults)
+
+    if let data = defaults.data(forKey: "captureDeviceConfigs"),
+       let dict = try? JSONDecoder().decode([String: DeviceConfig].self, from: data) {
+      self.captureDeviceConfigs = dict
+    } else {
+      self.captureDeviceConfigs = [captureConfig.deviceName ?? "": captureConfig]
+    }
+
+    if let data = defaults.data(forKey: "playbackDeviceConfigs"),
+       let dict = try? JSONDecoder().decode([String: DeviceConfig].self, from: data) {
+      self.playbackDeviceConfigs = dict
+    } else {
+      self.playbackDeviceConfigs = [playbackConfig.deviceName ?? "": playbackConfig]
+    }
+
     exclusiveMode = defaults.bool(forKey: "exclusiveMode")
     isInitializing = false
     startDeviceChangeListener()
@@ -148,6 +188,11 @@ final class AudioDeviceManager {
 
     if newCapture.backend == .coreAudio {
       let name = newCapture.deviceName ?? ""
+      if var saved = captureDeviceConfigs[name] {
+        saved.capabilities = newCapture.capabilities
+        saved.backend = newCapture.backend
+        newCapture = saved
+      }
       if let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: true)
       {
@@ -159,6 +204,11 @@ final class AudioDeviceManager {
 
     if newPlayback.backend == .coreAudio {
       let name = newPlayback.deviceName ?? ""
+      if var saved = playbackDeviceConfigs[name] {
+        saved.capabilities = newPlayback.capabilities
+        saved.backend = newPlayback.backend
+        newPlayback = saved
+      }
       if let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: false)
       {
