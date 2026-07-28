@@ -92,6 +92,7 @@ extension PipelineStage {
     var ditherType: String
     var ditherBits: Int
     var ditherAmplitude: Double
+    var lookaheadDelayProcessedOnly: Bool?
 
     // DiffEq parameters
     var diffEqA: String
@@ -209,6 +210,7 @@ extension PipelineStage {
       ditherType: ditherType.rawValue,
       ditherBits: ditherBits,
       ditherAmplitude: ditherAmplitude,
+      lookaheadDelayProcessedOnly: lookaheadDelayProcessedOnly,
 
       // DiffEq parameters
       diffEqA: diffEqA,
@@ -324,6 +326,7 @@ extension PipelineStage {
     if let v = DitherType(rawValue: s.ditherType) { ditherType = v }
     ditherBits = s.ditherBits
     ditherAmplitude = s.ditherAmplitude
+    lookaheadDelayProcessedOnly = s.lookaheadDelayProcessedOnly ?? false
 
     // DiffEq parameters
     diffEqA = s.diffEqA

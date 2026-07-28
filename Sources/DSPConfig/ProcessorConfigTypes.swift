@@ -4,6 +4,7 @@ public enum ProcessorType: String, Codable, Sendable {
   case compressor = "Compressor"
   case noiseGate = "NoiseGate"
   case race = "RACE"
+  case lookaheadLimiter = "LookaheadLimiter"
 }
 
 public struct CompressorParameters: Codable, Sendable, Equatable {
@@ -159,10 +160,62 @@ public struct RACEParameters: Codable, Sendable, Equatable {
   }
 }
 
+public struct LookaheadLimiterProcessorParameters: Codable, Sendable, Equatable {
+  public var channels: Int
+  public var monitorChannels: [Int]?
+  public var processChannels: [Int]?
+  public var limit: Double
+  public var attack: Double
+  public var attackUnit: TimeUnit
+  public var release: Double
+  public var releaseUnit: TimeUnit
+  public var delayProcessedOnly: Bool?
+
+  enum CodingKeys: String, CodingKey {
+    case channels
+    case monitorChannels = "monitor_channels"
+    case processChannels = "process_channels"
+    case limit, attack
+    case attackUnit = "attack_unit"
+    case release
+    case releaseUnit = "release_unit"
+    case delayProcessedOnly = "delay_processed_only"
+  }
+
+  public init(
+    channels: Int, monitorChannels: [Int]? = nil, processChannels: [Int]? = nil,
+    limit: Double, attack: Double, attackUnit: TimeUnit = .ms,
+    release: Double, releaseUnit: TimeUnit = .ms, delayProcessedOnly: Bool? = nil
+  ) {
+    self.channels = channels
+    self.monitorChannels = monitorChannels
+    self.processChannels = processChannels
+    self.limit = limit
+    self.attack = attack
+    self.attackUnit = attackUnit
+    self.release = release
+    self.releaseUnit = releaseUnit
+    self.delayProcessedOnly = delayProcessedOnly
+  }
+
+  public func monitorChannelsArray() -> [Int] {
+    return monitorChannels ?? []
+  }
+
+  public func processChannelsArray() -> [Int] {
+    return processChannels ?? []
+  }
+
+  public func delayProcessedOnlyValue() -> Bool {
+    return delayProcessedOnly ?? false
+  }
+}
+
 public enum ProcessorConfig: Codable, Sendable, Equatable {
   case compressor(CompressorParameters)
   case noiseGate(NoiseGateParameters)
   case race(RACEParameters)
+  case lookaheadLimiter(LookaheadLimiterProcessorParameters)
 
   enum CodingKeys: String, CodingKey {
     case type, parameters
@@ -173,6 +226,7 @@ public enum ProcessorConfig: Codable, Sendable, Equatable {
     case .compressor: return .compressor
     case .noiseGate: return .noiseGate
     case .race: return .race
+    case .lookaheadLimiter: return .lookaheadLimiter
     }
   }
 
@@ -190,6 +244,9 @@ public enum ProcessorConfig: Codable, Sendable, Equatable {
     case .race:
       let p = try container.decode(RACEParameters.self, forKey: .parameters)
       self = .race(p)
+    case .lookaheadLimiter:
+      let p = try container.decode(LookaheadLimiterProcessorParameters.self, forKey: .parameters)
+      self = .lookaheadLimiter(p)
     }
   }
 
@@ -203,6 +260,8 @@ public enum ProcessorConfig: Codable, Sendable, Equatable {
     case .noiseGate(let p):
       try container.encode(p, forKey: .parameters)
     case .race(let p):
+      try container.encode(p, forKey: .parameters)
+    case .lookaheadLimiter(let p):
       try container.encode(p, forKey: .parameters)
     }
   }

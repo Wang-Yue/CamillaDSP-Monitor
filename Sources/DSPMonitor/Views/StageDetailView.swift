@@ -69,6 +69,7 @@ private struct StageDetailContent: View {
           case .volume: VolumeOptions(stage: stage)
           case .delay: DelayOptions(stage: stage)
           case .lookaheadLimiter: LookaheadLimiterOptions(stage: stage)
+          case .lookaheadLimiterProc: LookaheadLimiterProcOptions(stage: stage)
           case .clipper: ClipperOptions(stage: stage)
           case .mixer: MatrixMixerOptions(stage: stage)
           case .compressor: CompressorOptions(stage: stage)
@@ -2172,6 +2173,100 @@ struct SplitWidthOptions: View {
         }
         .padding(.vertical, 4)
       }
+    }
+  }
+}
+
+// MARK: - Lookahead Limiter Processor
+
+struct LookaheadLimiterProcOptions: View {
+  @Bindable var stage: PipelineStage
+  @Environment(DSPEngineController.self) var dsp
+  @Environment(AudioDeviceManager.self) var devices
+  @Environment(PipelineStore.self) var pipeline
+
+  var body: some View {
+    let index = pipeline.stages.firstIndex(where: { $0.id == stage.id }) ?? 0
+    let incomingChannels = pipeline.channelCount(
+      beforeStageAtIndex: index, captureChannels: devices.captureConfig.channels)
+
+    GroupBox("Lookahead Peak Limiter Processor") {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(spacing: 16) {
+          Text("Limit")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(width: 90, alignment: .leading)
+          Slider(value: $stage.lookaheadLimit, in: -30...0, step: 0.1)
+            .onChange(of: stage.lookaheadLimit) { _, _ in dsp.applyConfig() }
+          Text(String(format: "%.1f dB", stage.lookaheadLimit))
+            .font(.system(.body, design: .monospaced))
+            .frame(width: 70, alignment: .trailing)
+        }
+
+        HStack(spacing: 16) {
+          Text("Attack")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(width: 90, alignment: .leading)
+          Slider(value: $stage.lookaheadAttack, in: 0.1...1000.0, step: 0.1)
+            .onChange(of: stage.lookaheadAttack) { _, _ in dsp.applyConfig() }
+          Text("\(String(format: "%.1f", stage.lookaheadAttack)) \(stage.lookaheadAttackUnit.rawValue)")
+            .font(.system(.body, design: .monospaced))
+            .frame(width: 70, alignment: .trailing)
+        }
+
+        HStack(spacing: 16) {
+          Text("Release")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(width: 90, alignment: .leading)
+          Slider(value: $stage.lookaheadRelease, in: 5...1000, step: 5)
+            .onChange(of: stage.lookaheadRelease) { _, _ in dsp.applyConfig() }
+          Text("\(String(format: "%.0f", stage.lookaheadRelease)) \(stage.lookaheadReleaseUnit.rawValue)")
+            .font(.system(.body, design: .monospaced))
+            .frame(width: 70, alignment: .trailing)
+        }
+
+        Toggle("Delay Processed Channels Only", isOn: $stage.lookaheadDelayProcessedOnly)
+          .font(.subheadline)
+          .foregroundStyle(.primary)
+          .onChange(of: stage.lookaheadDelayProcessedOnly) { _, _ in dsp.applyConfig() }
+
+        HStack(spacing: 16) {
+          Text("Monitor Ch")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(width: 90, alignment: .leading)
+          ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+              ForEach(0..<max(1, incomingChannels), id: \.self) { ch in
+                let isSelected = stage.monitorChannels.contains(ch)
+                Button(action: {
+                  if isSelected {
+                    if stage.monitorChannels.count > 1 {
+                      stage.monitorChannels.remove(ch)
+                    }
+                  } else {
+                    stage.monitorChannels.insert(ch)
+                  }
+                  dsp.applyConfig()
+                }) {
+                  Text("\(ch + 1)")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.1))
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+              }
+            }
+          }
+        }
+      }
+      .padding(.vertical, 4)
     }
   }
 }

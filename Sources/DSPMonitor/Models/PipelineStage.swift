@@ -34,6 +34,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
   case compressor = "Compressor"
   case noiseGate = "Noise Gate"
   case race = "RACE"
+  case lookaheadLimiterProc = "Lookahead Limiter (Proc)"
   case dither = "Dither"
   case diffEq = "Differential Equation"
   case biquadCombo = "Biquad Combo"
@@ -46,7 +47,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
       return .filters
     case .mixer:
       return .mixer
-    case .compressor, .noiseGate, .race:
+    case .compressor, .noiseGate, .race, .lookaheadLimiterProc:
       return .processors
     case .balance, .width, .msProc, .phaseInvert, .crossfeed, .dcProtection, .emphasis, .splitWidth:
       return .others
@@ -73,6 +74,7 @@ enum StageType: String, CaseIterable, Codable, Identifiable {
     case .lookaheadLimiter: return "square.slash"
     case .mixer: return "grid"
     case .compressor: return "arrow.up.right.and.arrow.down.left.rectangle"
+    case .lookaheadLimiterProc: return "square.stack.3d.forward.dottedline"
     case .noiseGate: return "waveform.badge.minus"
     case .race: return "speaker.wave.2.bubble"
     case .dither: return "square.grid.3x1.below.line.grid.1x2"
@@ -198,6 +200,9 @@ final class PipelineStage: Identifiable, Hashable {
   var raceAttenuation: Double = 6.0
   var raceSubsampleDelay: Bool = false
   var raceDelayUnit: DelayUnit = .ms
+
+  // Lookahead Limiter Processor parameters
+  var lookaheadDelayProcessedOnly: Bool = false
 
   // Dither parameters
   var ditherType: DitherType = .flat

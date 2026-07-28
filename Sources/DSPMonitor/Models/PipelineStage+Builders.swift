@@ -14,7 +14,7 @@ extension PipelineStage {
     let prefix = "\(type.id.lowercased())_\(id.uuidString.prefix(8))"
 
     switch type {
-    case .balance, .width, .msProc, .mixer, .compressor, .noiseGate, .race:
+    case .balance, .width, .msProc, .mixer, .compressor, .noiseGate, .race, .lookaheadLimiterProc:
       return [:]
 
     case .phaseInvert:
@@ -477,7 +477,7 @@ extension PipelineStage {
         )
       ]
 
-    case .compressor, .noiseGate, .race:
+    case .compressor, .noiseGate, .race, .lookaheadLimiterProc:
       return [:]
     default:
       return [:]
@@ -533,6 +533,21 @@ extension PipelineStage {
         attenuation: gateAttenuation
       )
       return [prefix: .noiseGate(params)]
+
+    case .lookaheadLimiterProc:
+      guard !chList.isEmpty else { return [:] }
+      let params = LookaheadLimiterProcessorParameters(
+        channels: channels,
+        monitorChannels: monitorList.isEmpty ? chList : monitorList,
+        processChannels: chList,
+        limit: lookaheadLimit,
+        attack: lookaheadAttack,
+        attackUnit: lookaheadAttackUnit,
+        release: lookaheadRelease,
+        releaseUnit: lookaheadReleaseUnit,
+        delayProcessedOnly: lookaheadDelayProcessedOnly
+      )
+      return [prefix: .lookaheadLimiter(params)]
 
     case .race:
       let params = RACEParameters(
@@ -653,7 +668,7 @@ extension PipelineStage {
       guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .filter, channels: chList, names: ["\(prefix)_lookahead_limiter"])]
 
-    case .compressor, .noiseGate:
+    case .compressor, .noiseGate, .lookaheadLimiterProc:
       guard !chList.isEmpty else { return [] }
       return [PipelineStep(type: .processor, name: prefix)]
 
