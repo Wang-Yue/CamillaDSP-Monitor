@@ -134,9 +134,16 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
 
   // MARK: - Capabilities Logic
 
-  private static let formatPriority: [String: Int] = [
-    "S32": 4, "S24": 3, "S16": 2, "F32": 1, "F64": 0,
-  ]
+  private static func formatPriority(for fmt: String) -> Int {
+    if fmt == "S32" || fmt == "S32_LE" || fmt == "S32_BE" { return 7 }
+    if fmt == "S24" || fmt.hasPrefix("S24_4") { return 6 }
+    if fmt.hasPrefix("S24_3") { return 5 }
+    if fmt == "S16" || fmt == "S16_LE" || fmt == "S16_BE" { return 4 }
+    if fmt == "F32" || fmt == "F32_LE" || fmt == "F32_BE" { return 3 }
+    if fmt == "F64" || fmt == "F64_LE" || fmt == "F64_BE" { return 2 }
+    if fmt.hasPrefix("DSD") { return 1 }
+    return 0
+  }
 
   /// Channel counts this device supports, sorted ascending.
   public var supportedChannels: [Int] {
@@ -164,7 +171,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     let cap =
       set.capabilities.first(where: { $0.channels == deviceChannels }) ?? set.capabilities.first
     let formats = cap?.samplerates.first(where: { $0.samplerate == sampleRate })?.formats ?? []
-    return formats.sorted { (Self.formatPriority[$0] ?? -1) > (Self.formatPriority[$1] ?? -1) }
+    return formats.sorted { Self.formatPriority(for: $0) > Self.formatPriority(for: $1) }
   }
 
   /// Returns a copy with channels/rate/format snapped to supported values.
@@ -174,12 +181,15 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     if result.backend == .coreAudio {
       let ch = result.supportedChannels
       if !ch.isEmpty {
-        if let bestPhys = ch.first(where: { $0 >= result.channels }) {
-          result.deviceChannels = bestPhys
-        } else {
-          let maxPhys = ch.max() ?? 2
-          result.channels = maxPhys
-          result.deviceChannels = maxPhys
+        let devChValid = ch.contains(result.deviceChannels) && result.deviceChannels >= result.channels
+        if !devChValid {
+          if let bestPhys = ch.first(where: { $0 >= result.channels }) {
+            result.deviceChannels = bestPhys
+          } else {
+            let maxPhys = ch.max() ?? 2
+            result.channels = maxPhys
+            result.deviceChannels = maxPhys
+          }
         }
       }
       result.channels = max(1, min(result.deviceChannels, result.channels))

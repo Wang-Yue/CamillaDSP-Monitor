@@ -127,13 +127,6 @@ public struct AudioSamples: Codable, Sendable {
 
 // MARK: - Capability data model
 
-public enum SampleFormat: String, Codable, CaseIterable, Sendable {
-  case s16 = "S16"
-  case s24 = "S24"
-  case s32 = "S32"
-  case f32 = "F32"
-}
-
 public struct SamplerateCapability: Codable, Sendable, Equatable {
   public let samplerate: Int
   public let formats: [String]

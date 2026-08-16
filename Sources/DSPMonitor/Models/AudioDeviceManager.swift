@@ -29,32 +29,37 @@ final class AudioDeviceManager {
   private var isInitializing = true
   private var isValidating = false
   private var capabilityRefreshTask: Task<Void, Never>?
+  private var deviceChangeDebounceTask: Task<Void, Never>?
 
   var captureConfig: DeviceConfig = DeviceConfig() {
     didSet {
       guard !isInitializing else { return }
-      let enforced = captureConfig.enforced()
-      if enforced != captureConfig {
-        captureConfig = enforced
-        return
-      }
-      if let data = try? JSONEncoder().encode(captureConfig) {
-        defaults.set(data, forKey: "captureConfig")
-      }
+      var enforced = captureConfig.enforced()
+      let backendChanged = (enforced.backend != oldValue.backend)
+      let devChanged = (enforced.deviceName != oldValue.deviceName || backendChanged)
 
-      if captureConfig.deviceName == oldValue.deviceName
-        && captureConfig.backend == oldValue.backend
-      {
-        let name = captureConfig.deviceName ?? ""
-        captureDeviceConfigs[name] = captureConfig
+      if backendChanged {
+        enforced.deviceName = nil
+      } else if !devChanged {
+        let name = enforced.deviceName ?? ""
+        captureDeviceConfigs[name] = enforced
         if let data = try? JSONEncoder().encode(captureDeviceConfigs) {
           defaults.set(data, forKey: "captureDeviceConfigs")
         }
       }
 
-      if captureConfig.deviceName != oldValue.deviceName
-        || captureConfig.backend != oldValue.backend
-      {
+      if enforced != captureConfig {
+        captureConfig = enforced
+        return
+      }
+
+      if let data = try? JSONEncoder().encode(captureConfig) {
+        defaults.set(data, forKey: "captureConfig")
+      }
+
+      if backendChanged {
+        refreshDevices()
+      } else if devChanged {
         capabilityRefreshTask?.cancel()
         capabilityRefreshTask = Task { await refreshDeviceCapabilities() }
       } else {
@@ -67,28 +72,32 @@ final class AudioDeviceManager {
   var playbackConfig: DeviceConfig = DeviceConfig() {
     didSet {
       guard !isInitializing else { return }
-      let enforced = playbackConfig.enforced()
-      if enforced != playbackConfig {
-        playbackConfig = enforced
-        return
-      }
-      if let data = try? JSONEncoder().encode(playbackConfig) {
-        defaults.set(data, forKey: "playbackConfig")
-      }
+      var enforced = playbackConfig.enforced()
+      let backendChanged = (enforced.backend != oldValue.backend)
+      let devChanged = (enforced.deviceName != oldValue.deviceName || backendChanged)
 
-      if playbackConfig.deviceName == oldValue.deviceName
-        && playbackConfig.backend == oldValue.backend
-      {
-        let name = playbackConfig.deviceName ?? ""
-        playbackDeviceConfigs[name] = playbackConfig
+      if backendChanged {
+        enforced.deviceName = nil
+      } else if !devChanged {
+        let name = enforced.deviceName ?? ""
+        playbackDeviceConfigs[name] = enforced
         if let data = try? JSONEncoder().encode(playbackDeviceConfigs) {
           defaults.set(data, forKey: "playbackDeviceConfigs")
         }
       }
 
-      if playbackConfig.deviceName != oldValue.deviceName
-        || playbackConfig.backend != oldValue.backend
-      {
+      if enforced != playbackConfig {
+        playbackConfig = enforced
+        return
+      }
+
+      if let data = try? JSONEncoder().encode(playbackConfig) {
+        defaults.set(data, forKey: "playbackConfig")
+      }
+
+      if backendChanged {
+        refreshDevices()
+      } else if devChanged {
         capabilityRefreshTask?.cancel()
         capabilityRefreshTask = Task { await refreshDeviceCapabilities() }
       } else {
@@ -188,17 +197,18 @@ final class AudioDeviceManager {
 
     if newCapture.backend == .coreAudio {
       let name = newCapture.deviceName ?? ""
-      if var saved = captureDeviceConfigs[name] {
-        saved.capabilities = newCapture.capabilities
-        saved.backend = newCapture.backend
-        newCapture = saved
-      }
       let origName = newCapture.capabilities.name
       if let desc = await engine.getDeviceCapabilities(
-        backend: "coreaudio", device: name, isCapture: true)
+        backend: "coreaudio", device: name, isCapture: true),
+        !desc.capability_sets.isEmpty
       {
         newCapture.capabilities = AudioDeviceDescriptor(
-          name: origName, capability_sets: desc.capability_sets)
+          name: origName.isEmpty ? desc.name : origName, capability_sets: desc.capability_sets)
+      } else if let saved = captureDeviceConfigs[name], !saved.capabilities.capability_sets.isEmpty {
+        newCapture.capabilities = saved.capabilities
+      }
+      if !name.isEmpty && !newCapture.capabilities.capability_sets.isEmpty {
+        captureDeviceConfigs[name] = newCapture
       }
     } else {
       newCapture.capabilities = AudioDeviceDescriptor()
@@ -206,17 +216,18 @@ final class AudioDeviceManager {
 
     if newPlayback.backend == .coreAudio {
       let name = newPlayback.deviceName ?? ""
-      if var saved = playbackDeviceConfigs[name] {
-        saved.capabilities = newPlayback.capabilities
-        saved.backend = newPlayback.backend
-        newPlayback = saved
-      }
       let origName = newPlayback.capabilities.name
       if let desc = await engine.getDeviceCapabilities(
-        backend: "coreaudio", device: name, isCapture: false)
+        backend: "coreaudio", device: name, isCapture: false),
+        !desc.capability_sets.isEmpty
       {
         newPlayback.capabilities = AudioDeviceDescriptor(
-          name: origName, capability_sets: desc.capability_sets)
+          name: origName.isEmpty ? desc.name : origName, capability_sets: desc.capability_sets)
+      } else if let saved = playbackDeviceConfigs[name], !saved.capabilities.capability_sets.isEmpty {
+        newPlayback.capabilities = saved.capabilities
+      }
+      if !name.isEmpty && !newPlayback.capabilities.capability_sets.isEmpty {
+        playbackDeviceConfigs[name] = newPlayback
       }
     } else {
       newPlayback.capabilities = AudioDeviceDescriptor()
@@ -282,8 +293,14 @@ final class AudioDeviceManager {
 
     AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main) {
       [weak self] _, _ in
-      AppLogger.info("AudioDeviceManager", "Audio devices changed, refreshing list")
-      self?.refreshDevices()
+      guard let self else { return }
+      self.deviceChangeDebounceTask?.cancel()
+      self.deviceChangeDebounceTask = Task { @MainActor in
+        try? await Task.sleep(for: .milliseconds(500))
+        guard !Task.isCancelled else { return }
+        AppLogger.info("AudioDeviceManager", "Audio devices changed, refreshing list")
+        self.refreshDevices()
+      }
     }
   }
 
