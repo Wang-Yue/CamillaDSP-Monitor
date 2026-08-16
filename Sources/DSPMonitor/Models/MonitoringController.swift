@@ -112,7 +112,7 @@ final class MonitoringController {
         )
         vectorscope.updateSamples(left: samples.left, right: samples.right)
       } catch {
-        print("[MonitoringController] Failed to get samples: \(error.localizedDescription)")
+        AppLogger.error("MonitoringController", "Failed to get samples: \(error.localizedDescription)")
         vectorscope.reset()
       }
     } else {
@@ -130,7 +130,7 @@ final class MonitoringController {
         nBins: spectrum.nBins
       )
     } catch {
-      print("[MonitoringController] Failed to get spectrum: \(error.localizedDescription)")
+      AppLogger.error("MonitoringController", "Failed to get spectrum: \(error.localizedDescription)")
       return nil
     }
   }
@@ -145,7 +145,7 @@ final class MonitoringController {
         nBins: spectroscope.nBins
       )
     } catch {
-      print("[MonitoringController] Failed to get spectroscope: \(error.localizedDescription)")
+      AppLogger.error("MonitoringController", "Failed to get spectroscope: \(error.localizedDescription)")
       return nil
     }
   }
@@ -172,11 +172,11 @@ final class MonitoringController {
     case .done:
       break
     case .captureError(let message):
-      print("[MonitoringController] Capture error: \(message)")
+      AppLogger.error("MonitoringController", "Capture error: \(message)")
     case .playbackError(let message):
-      print("[MonitoringController] Playback error: \(message)")
+      AppLogger.error("MonitoringController", "Playback error: \(message)")
     case .captureFormatChange(let newRate):
-      print("[MonitoringController] Capture format change detected, switching to \(newRate) Hz")
+      AppLogger.info("MonitoringController", "Capture format change detected, switching to \(newRate) Hz")
       if settings.resamplerEnabled {
         devices.captureConfig.sampleRate = newRate
       } else {
@@ -186,11 +186,11 @@ final class MonitoringController {
       }
       onRestartEngine?()
     case .playbackFormatChange(let newRate):
-      print("[MonitoringController] Playback format change detected, switching to \(newRate) Hz")
+      AppLogger.info("MonitoringController", "Playback format change detected, switching to \(newRate) Hz")
       devices.playbackConfig.sampleRate = newRate
       onRestartEngine?()
     case .unknownError(let message):
-      print("[MonitoringController] Unknown error: \(message)")
+      AppLogger.error("MonitoringController", "Unknown error: \(message)")
     }
   }
 }

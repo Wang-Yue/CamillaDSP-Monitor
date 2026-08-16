@@ -54,7 +54,7 @@ final class AppState {
   }
 
   init() {
-    print("[AppState] Initializing...")
+    AppLogger.info("AppState", "Initializing...")
 
     self.showLevelMetersInDashboard =
       UserDefaults.standard.object(forKey: "show_levels_in_dashboard") != nil

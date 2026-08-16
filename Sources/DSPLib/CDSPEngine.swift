@@ -27,7 +27,7 @@ public actor DSPEngine {
   nonisolated(unsafe) private let engine: OpaquePointer?
 
   public init() {
-    print("[DSPEngine] Initializing C library engine...")
+    DSPEngine.dispatchLog(level: "INFO", label: "DSPEngine", message: "Initializing C library engine...")
     self.engine = cdsp_engine_create()
   }
 
@@ -248,7 +248,7 @@ public actor DSPEngine {
         let msg = withUnsafePointer(to: devErr.message) { ptr in
           ptr.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }
         }
-        print("[CDSPEngine] Device capabilities error: \(msg)")
+        DSPEngine.dispatchLog(level: "ERROR", label: "CDSPEngine", message: "Device capabilities error: \(msg)")
       }
       return nil
     }
@@ -295,10 +295,15 @@ public actor DSPEngine {
   nonisolated(unsafe) private static var logCallback: LogCallback?
   private static let logLock = NSLock()
 
+  public static func dispatchLog(level: String, label: String, message: String) {
+    let cb = logLock.withLock { logCallback }
+    cb?(level, label, message)
+  }
+
   public static func setLogCallback(_ callback: LogCallback?) {
-    logLock.lock()
-    logCallback = callback
-    logLock.unlock()
+    logLock.withLock {
+      logCallback = callback
+    }
 
     if callback != nil {
       cdsp_set_log_callback({ levelPtr, labelPtr, msgPtr, _ in
@@ -306,10 +311,7 @@ public actor DSPEngine {
         let level = String(cString: levelPtr)
         let label = String(cString: labelPtr)
         let msg = String(cString: msgPtr)
-        DSPEngine.logLock.lock()
-        let cb = DSPEngine.logCallback
-        DSPEngine.logLock.unlock()
-        cb?(level, label, msg)
+        DSPEngine.dispatchLog(level: level, label: label, message: msg)
       }, nil)
     } else {
       cdsp_set_log_callback(nil, nil)

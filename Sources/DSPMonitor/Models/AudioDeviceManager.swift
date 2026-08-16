@@ -223,8 +223,9 @@ final class AudioDeviceManager {
     }
 
     let enforcedCapture = newCapture.enforced()
-    print(
-      "[AudioDeviceManager] enforcedCapture channels: \(enforcedCapture.channels) (from supported: \(enforcedCapture.supportedChannels))"
+    AppLogger.info(
+      "AudioDeviceManager",
+      "enforcedCapture channels: \(enforcedCapture.channels) (from supported: \(enforcedCapture.supportedChannels))"
     )
     captureConfig = enforcedCapture
     playbackConfig = newPlayback.enforced()
@@ -281,7 +282,7 @@ final class AudioDeviceManager {
 
     AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main) {
       [weak self] _, _ in
-      print("[AudioDeviceManager] Audio devices changed, refreshing list")
+      AppLogger.info("AudioDeviceManager", "Audio devices changed, refreshing list")
       self?.refreshDevices()
     }
   }

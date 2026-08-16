@@ -61,7 +61,7 @@ public actor DSPEngine {
   let engine: CamillaEngine = CamillaEngine()
 
   public init() {
-    print("[DSPEngine] Initializing CamillaDSP library engine...")
+    DSPEngine.dispatchLog(level: "INFO", label: "DSPEngine", message: "Initializing CamillaDSP library engine...")
   }
 
   // MARK: - Commands
@@ -101,7 +101,7 @@ public actor DSPEngine {
     do {
       return try JSONDecoder().decode(AudioDeviceDescriptor.self, from: data)
     } catch {
-      print("[DSPEngine] Failed to decode device capabilities: \(error)")
+      DSPEngine.dispatchLog(level: "ERROR", label: "DSPEngine", message: "Failed to decode device capabilities: \(error)")
       return nil
     }
   }
@@ -163,10 +163,15 @@ public actor DSPEngine {
   nonisolated(unsafe) private static var leftoverOutData = Data()
   nonisolated(unsafe) private static var leftoverErrData = Data()
 
+  public static func dispatchLog(level: String, label: String, message: String) {
+    let cb = logLock.withLock { logCallback }
+    cb?(level, label, message)
+  }
+
   public static func setLogCallback(_ callback: LogCallback?) {
-    logLock.lock()
-    logCallback = callback
-    logLock.unlock()
+    logLock.withLock {
+      logCallback = callback
+    }
 
     if callback != nil {
       setupPipes()

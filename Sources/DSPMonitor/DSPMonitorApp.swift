@@ -82,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationWillTerminate(_ notification: Notification) {
-    print("[AppDelegate] applicationWillTerminate")
+    AppLogger.info("AppDelegate", "applicationWillTerminate")
     appState?.savePipelineStages()
     appState?.saveEQPresets()
   }

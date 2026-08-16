@@ -59,11 +59,13 @@ class LogManager {
 
   init() {
     loadLevel()
+    setupAppLogger()
     setupCallback()
     setupBatchTimer()
   }
 
   deinit {
+    AppLogger.setHandler(nil)
     DSPEngine.setLogCallback(nil)
   }
 
@@ -92,9 +94,19 @@ class LogManager {
     }
   }
 
+  private func setupAppLogger() {
+    AppLogger.setHandler { level, component, message in
+      let formatted = component.isEmpty ? "[\(level.rawValue.uppercased())] \(message)" : "[\(level.rawValue.uppercased())] [\(component)] \(message)"
+      let entry = LogEntry(message: formatted)
+      Task {
+        await LogBuffer.shared.append(entry)
+      }
+    }
+  }
+
   private func setupCallback() {
     DSPEngine.setLogCallback { level, label, msg in
-      let formatted = label.isEmpty ? "[\(level)] \(msg)" : "[\(level)] \(label): \(msg)"
+      let formatted = label.isEmpty ? "[\(level)] \(msg)" : "[\(level)] [\(label)] \(msg)"
       let entry = LogEntry(message: formatted)
       Task {
         await LogBuffer.shared.append(entry)

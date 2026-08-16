@@ -292,7 +292,7 @@ final class DSPEngineController {
       let config = buildConfig()
       try await apply(config: config)
     } catch {
-      print("[DSPEngineController] Config apply failed: \(error.localizedDescription)")
+      AppLogger.error("DSPEngineController", "Config apply failed: \(error.localizedDescription)")
     }
   }
 }
