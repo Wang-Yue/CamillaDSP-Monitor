@@ -150,4 +150,156 @@ public actor DSPEngine {
   public func setLogLevel(_ level: LogLevel) async {
     engine.setLogLevel(level: level.dspLogLevel)
   }
+
+  // MARK: - Log Callback Bridge (Pipes Interception for Rust Engine)
+
+  public typealias LogCallback = @Sendable (_ level: String, _ label: String, _ message: String) -> Void
+
+  nonisolated(unsafe) private static var logCallback: LogCallback?
+  private static let logLock = NSLock()
+  private static let outPipe = Pipe()
+  private static let errPipe = Pipe()
+  nonisolated(unsafe) private static var isPipeSetUp = false
+  nonisolated(unsafe) private static var leftoverOutData = Data()
+  nonisolated(unsafe) private static var leftoverErrData = Data()
+
+  public static func setLogCallback(_ callback: LogCallback?) {
+    logLock.lock()
+    logCallback = callback
+    logLock.unlock()
+
+    if callback != nil {
+      setupPipes()
+    }
+  }
+
+  private static func setupPipes() {
+    logLock.lock()
+    guard !isPipeSetUp else {
+      logLock.unlock()
+      return
+    }
+    isPipeSetUp = true
+    logLock.unlock()
+
+    // Disable buffering for stdout and stderr
+    setvbuf(stdout, nil, _IOLBF, 0)
+    setvbuf(stderr, nil, _IOLBF, 0)
+
+    let outHandle = outPipe.fileHandleForWriting
+    let errHandle = errPipe.fileHandleForWriting
+
+    dup2(outHandle.fileDescriptor, STDOUT_FILENO)
+    dup2(errHandle.fileDescriptor, STDERR_FILENO)
+
+    outPipe.fileHandleForReading.readabilityHandler = { handle in
+      let data = handle.availableData
+      guard !data.isEmpty else { return }
+      processCapturedData(data, isErr: false)
+    }
+
+    errPipe.fileHandleForReading.readabilityHandler = { handle in
+      let data = handle.availableData
+      guard !data.isEmpty else { return }
+      processCapturedData(data, isErr: true)
+    }
+  }
+
+  private static func processCapturedData(_ data: Data, isErr: Bool) {
+    logLock.lock()
+    let cb = logCallback
+    var leftover = isErr ? leftoverErrData : leftoverOutData
+    leftover.append(data)
+
+    guard let str = String(data: leftover, encoding: .utf8) else {
+      if isErr { leftoverErrData = leftover } else { leftoverOutData = leftover }
+      logLock.unlock()
+      return
+    }
+
+    let lines = str.components(separatedBy: .newlines)
+    if !str.hasSuffix("\n") {
+      if isErr {
+        leftoverErrData = lines.last?.data(using: .utf8) ?? Data()
+      } else {
+        leftoverOutData = lines.last?.data(using: .utf8) ?? Data()
+      }
+    } else {
+      if isErr { leftoverErrData = Data() } else { leftoverOutData = Data() }
+    }
+    logLock.unlock()
+
+    let completeLines = str.hasSuffix("\n") ? lines : lines.dropLast()
+    for line in completeLines where !line.isEmpty {
+      var level = isErr ? "ERROR" : "INFO"
+      var label = ""
+      var message = line
+
+      let levels = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
+      var foundLevel: String?
+      var levelRange: Range<String.Index>?
+
+      for lvl in levels {
+        if let r = line.range(of: " \(lvl)  ") ?? line.range(of: " \(lvl) ") ?? line.range(of: "[\(lvl)]") ?? line.range(of: "\(lvl) ") {
+          foundLevel = lvl
+          levelRange = r
+          break
+        }
+      }
+
+      if let foundLevel, let levelRange {
+        level = foundLevel
+        let afterLevel = line[levelRange.upperBound...].trimmingCharacters(in: .whitespaces)
+
+        if afterLevel.hasPrefix("[") {
+          if let closeIdx = afterLevel.firstIndex(of: "]") {
+            label = String(afterLevel[afterLevel.index(after: afterLevel.startIndex)..<closeIdx])
+            let rest = afterLevel[afterLevel.index(after: closeIdx)...].trimmingCharacters(in: .whitespaces)
+            if rest.hasPrefix(":") {
+              message = String(rest.dropFirst()).trimmingCharacters(in: .whitespaces)
+            } else {
+              message = rest
+            }
+          } else {
+            message = afterLevel
+          }
+        } else if let bracketIdx = afterLevel.firstIndex(of: "]") {
+          label = String(afterLevel[..<bracketIdx]).trimmingCharacters(in: .whitespaces)
+          var rest = String(afterLevel[afterLevel.index(after: bracketIdx)...]).trimmingCharacters(in: .whitespaces)
+          if rest.hasPrefix(":") {
+            rest = String(rest.dropFirst()).trimmingCharacters(in: .whitespaces)
+          }
+          message = rest
+        } else if let colonIdx = afterLevel.firstIndex(of: ":") {
+          let candidate = String(afterLevel[..<colonIdx]).trimmingCharacters(in: .whitespaces)
+          if !candidate.contains(" ") {
+            label = candidate
+            message = String(afterLevel[afterLevel.index(after: colonIdx)...]).trimmingCharacters(in: .whitespaces)
+          } else {
+            message = afterLevel
+          }
+        } else {
+          message = afterLevel
+        }
+      } else if line.hasPrefix("[") {
+        if let closeBracket = line.firstIndex(of: "]") {
+          let lvlSub = line[line.index(after: line.startIndex)..<closeBracket].trimmingCharacters(in: .whitespaces).uppercased()
+          if ["ERROR", "WARN", "WARNING", "INFO", "DEBUG", "TRACE"].contains(lvlSub) {
+            level = lvlSub == "WARNING" ? "WARN" : lvlSub
+            let rem = line[line.index(after: closeBracket)...].trimmingCharacters(in: .whitespaces)
+            if let colonIdx = rem.firstIndex(of: ":") {
+              label = String(rem[..<colonIdx]).trimmingCharacters(in: .whitespaces)
+              message = String(rem[rem.index(after: colonIdx)...]).trimmingCharacters(in: .whitespaces)
+            } else {
+              message = rem
+            }
+          }
+        }
+      } else if !isErr {
+        level = "INFO"
+      }
+
+      cb?(level, label, message)
+    }
+  }
 }

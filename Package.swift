@@ -33,7 +33,6 @@ case "c":
   dspMonitorDependencies = [
     "DSPLib",
     "DSPConfig",
-    .product(name: "CDSP", package: "CDSP")
   ]
   engineTargets = []
 

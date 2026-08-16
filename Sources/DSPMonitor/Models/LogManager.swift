@@ -18,44 +18,19 @@ struct LogEntry: Identifiable, Sendable {
 
 /// A thread-safe buffer for collecting logs in the background.
 actor LogBuffer {
+  static let shared = LogBuffer(maxEntries: 2000)
   private var pending: [LogEntry] = []
-  private var leftoverData = Data()
   private let maxEntries: Int
 
   init(maxEntries: Int) {
     self.maxEntries = maxEntries
   }
 
-  func appendRawData(_ data: Data) -> [LogEntry] {
-    guard !data.isEmpty else { return [] }
-
-    var combinedData = leftoverData
-    combinedData.append(data)
-
-    guard let str = String(data: combinedData, encoding: .utf8) else {
-      leftoverData = combinedData
-      return []
-    }
-
-    let lines = str.components(separatedBy: .newlines)
-
-    if !str.hasSuffix("\n") {
-      leftoverData = lines.last?.data(using: .utf8) ?? Data()
-    } else {
-      leftoverData = Data()
-    }
-
-    let completeLines = str.hasSuffix("\n") ? lines : lines.dropLast()
-    let newEntries =
-      completeLines
-      .filter { !$0.isEmpty }
-      .map { LogEntry(message: $0) }
-
-    pending.append(contentsOf: newEntries)
+  func append(_ entry: LogEntry) {
+    pending.append(entry)
     if pending.count > maxEntries {
       pending.removeFirst(pending.count - maxEntries)
     }
-    return newEntries
   }
 
   func flush() -> [LogEntry] {
@@ -79,19 +54,17 @@ class LogManager {
     }
   }
 
-  private let outPipe = Pipe()
-  private let errPipe = Pipe()
-
-  private let buffer: LogBuffer
   private var updateTask: Task<Void, Never>?
   private var engine: DSPEngine?
 
   init() {
-    let max = 2000
-    self.buffer = LogBuffer(maxEntries: max)
     loadLevel()
-    setupCapture()
+    setupCallback()
     setupBatchTimer()
+  }
+
+  deinit {
+    DSPEngine.setLogCallback(nil)
   }
 
   func setEngine(_ engine: DSPEngine) {
@@ -119,32 +92,12 @@ class LogManager {
     }
   }
 
-  private func setupCapture() {
-    // Disable buffering for stdout and stderr
-    setvbuf(stdout, nil, _IOLBF, 0)
-    setvbuf(stderr, nil, _IOLBF, 0)
-
-    let outHandle = outPipe.fileHandleForWriting
-    let errHandle = errPipe.fileHandleForWriting
-
-    dup2(outHandle.fileDescriptor, STDOUT_FILENO)
-    dup2(errHandle.fileDescriptor, STDERR_FILENO)
-
-    let bufferRef = self.buffer
-
-    outPipe.fileHandleForReading.readabilityHandler = { [weak bufferRef] handle in
-      let data = handle.availableData
-      guard !data.isEmpty, let bufferRef else { return }
+  private func setupCallback() {
+    DSPEngine.setLogCallback { level, label, msg in
+      let formatted = label.isEmpty ? "[\(level)] \(msg)" : "[\(level)] \(label): \(msg)"
+      let entry = LogEntry(message: formatted)
       Task {
-        _ = await bufferRef.appendRawData(data)
-      }
-    }
-
-    errPipe.fileHandleForReading.readabilityHandler = { [weak bufferRef] handle in
-      let data = handle.availableData
-      guard !data.isEmpty, let bufferRef else { return }
-      Task {
-        _ = await bufferRef.appendRawData(data)
+        await LogBuffer.shared.append(entry)
       }
     }
   }
@@ -155,7 +108,7 @@ class LogManager {
         try? await Task.sleep(nanoseconds: 100_000_000)  // 10Hz
         guard !Task.isCancelled, let self else { break }
 
-        let newEntries = await self.buffer.flush()
+        let newEntries = await LogBuffer.shared.flush()
         if !newEntries.isEmpty {
           self.entries.append(contentsOf: newEntries)
           if self.entries.count > self.maxEntries {

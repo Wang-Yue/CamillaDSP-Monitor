@@ -288,4 +288,31 @@ public actor DSPEngine {
       cdsp_set_log_level(cStr)
     }
   }
+
+  // MARK: - Log Callback Bridge
+
+  public typealias LogCallback = @Sendable (_ level: String, _ label: String, _ message: String) -> Void
+  nonisolated(unsafe) private static var logCallback: LogCallback?
+  private static let logLock = NSLock()
+
+  public static func setLogCallback(_ callback: LogCallback?) {
+    logLock.lock()
+    logCallback = callback
+    logLock.unlock()
+
+    if callback != nil {
+      cdsp_set_log_callback({ levelPtr, labelPtr, msgPtr, _ in
+        guard let levelPtr, let labelPtr, let msgPtr else { return }
+        let level = String(cString: levelPtr)
+        let label = String(cString: labelPtr)
+        let msg = String(cString: msgPtr)
+        DSPEngine.logLock.lock()
+        let cb = DSPEngine.logCallback
+        DSPEngine.logLock.unlock()
+        cb?(level, label, msg)
+      }, nil)
+    } else {
+      cdsp_set_log_callback(nil, nil)
+    }
+  }
 }
