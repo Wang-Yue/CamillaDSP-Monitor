@@ -831,12 +831,7 @@ final class MeasurementSession {
       let curve = try CalibrationCurve.load(at: path)
       self.calibration = curve
       self.calibrationPath = path
-      // Re-apply to the existing measurement, if any.
-      if let fr = measuredFR {
-        let raw = PEQAutoFit.sampleMagnitudeDB(of: fr, atFrequencies: grid)
-        self.measuredMagDB = MeasurementSession.applyCalibration(
-          raw, grid: grid, calibration: curve)
-      }
+      recomputeAverage()
       let name = (path as NSString).lastPathComponent
       status = "Loaded calibration “\(name).”"
     } catch {

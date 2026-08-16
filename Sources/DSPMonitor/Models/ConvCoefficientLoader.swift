@@ -20,6 +20,7 @@ enum ConvCoefficientLoader {
     }
 
     var offset = 12
+    var audioFormat: UInt16 = 1
     var numChannels: UInt16 = 0
     var bitsPerSample: UInt16 = 0
     var audioDataOffset: Int? = nil
@@ -31,6 +32,7 @@ enum ConvCoefficientLoader {
       let nextOffset = offset + 8 + chunkSize
 
       if chunkID == "fmt " && chunkSize >= 16 {
+        audioFormat = data.withUnsafeBytes { $0.load(fromByteOffset: offset + 8, as: UInt16.self) }
         numChannels = data.withUnsafeBytes { $0.load(fromByteOffset: offset + 10, as: UInt16.self) }
         bitsPerSample = data.withUnsafeBytes { $0.load(fromByteOffset: offset + 22, as: UInt16.self) }
       } else if chunkID == "data" {
@@ -72,8 +74,13 @@ enum ConvCoefficientLoader {
         if raw & 0x800000 != 0 { raw |= -0x800000 }
         result[frame] = Double(raw) / Double((1 << 23) - 1)
       case 32:
-        let raw = data.withUnsafeBytes { $0.load(fromByteOffset: sampleOffset, as: Float.self) }
-        result[frame] = Double(raw)
+        if audioFormat == 3 {
+          let raw = data.withUnsafeBytes { $0.load(fromByteOffset: sampleOffset, as: Float.self) }
+          result[frame] = Double(raw)
+        } else {
+          let raw = data.withUnsafeBytes { $0.load(fromByteOffset: sampleOffset, as: Int32.self) }
+          result[frame] = Double(raw) / Double(Int32.max)
+        }
       case 64:
         let raw = data.withUnsafeBytes { $0.load(fromByteOffset: sampleOffset, as: Double.self) }
         result[frame] = Double(raw)

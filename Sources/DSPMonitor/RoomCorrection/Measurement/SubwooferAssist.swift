@@ -61,7 +61,7 @@ enum SubwooferAssist {
     // Time-of-flight: cross-correlate mains vs sub. The peak's
     // offset (in samples) is the inter-arrival delay. Positive
     // offset = sub arrives later than mains.
-    let delaySamples = peakOffset(of: subIR.samples, against: mainsIR.samples)
+    let delaySamples = peakOffset(of: subIR.samples, against: mainsIR.samples, sampleRate: sr)
     let subDelayMs = Double(delaySamples) / Double(sr) * 1000.0
 
     // Magnitude crossover: pick the frequency where the mains have
@@ -96,8 +96,8 @@ enum SubwooferAssist {
   /// loudspeaker placement difference. Time-domain is fine here:
   /// we only do this once per "Recommend" click, and the search
   /// window is small.
-  private static func peakOffset(of b: [Double], against a: [Double]) -> Int {
-    let sr = 48_000  // search window is in samples; a tighter ±100 ms
+  private static func peakOffset(of b: [Double], against a: [Double], sampleRate: Int = 48_000) -> Int {
+    let sr = max(1, sampleRate)
     guard !a.isEmpty, !b.isEmpty else { return 0 }
     let maxLag = max(0, min(sr / 10, min(a.count, b.count) - 1))
     var bestLag = 0

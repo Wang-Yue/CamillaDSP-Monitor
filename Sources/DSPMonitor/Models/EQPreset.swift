@@ -363,8 +363,13 @@ final class EQPreset: Identifiable, Codable, Equatable {
       }
 
       if trimmed.lowercased().hasPrefix("filter") {
-        let content =
-          trimmed.components(separatedBy: ":").last?.trimmingCharacters(in: .whitespaces) ?? ""
+        let content: String
+        if trimmed.contains(":") {
+          content = trimmed.components(separatedBy: ":").dropFirst().joined(separator: ":").trimmingCharacters(in: .whitespaces)
+        } else {
+          let allWords = trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+          content = allWords.dropFirst(2).joined(separator: " ")
+        }
         let words = content.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         if words.count >= 4 {
           let isEnabled = words[0].uppercased() == "ON"

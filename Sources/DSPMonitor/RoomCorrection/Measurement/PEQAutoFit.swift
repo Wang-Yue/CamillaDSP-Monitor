@@ -409,9 +409,11 @@ enum PEQAutoFit {
     sampleRate: Int,
     options: Options
   ) -> BiquadParameters {
+    let isModalBand = options.modalMode && band.type == .peaking && (band.freq ?? 0.0) <= options.schroederHz
+    let maxG = isModalBand ? 0.0 : options.maxGainDB
     let result = goldenSectionSearch(
       lo: -options.maxGainDB,
-      hi: options.maxGainDB,
+      hi: maxG,
       tolerance: 0.02,
       logSpace: false
     ) { gain in
@@ -433,7 +435,9 @@ enum PEQAutoFit {
     minQOverride: Double? = nil,
     maxQOverride: Double? = nil
   ) -> BiquadParameters {
-    let qLo = minQOverride ?? options.minQ
+    let isModalBand = options.modalMode && band.type == .peaking && (band.freq ?? 0.0) <= options.schroederHz
+    let defaultQLo = isModalBand ? max(options.minQ, options.modalMinQ) : options.minQ
+    let qLo = minQOverride ?? defaultQLo
     let qHi = maxQOverride ?? options.maxQ
     let result = goldenSectionSearch(
       lo: qLo, hi: qHi, tolerance: 0.005, logSpace: true
