@@ -193,10 +193,12 @@ final class AudioDeviceManager {
         saved.backend = newCapture.backend
         newCapture = saved
       }
+      let origName = newCapture.capabilities.name
       if let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: true)
       {
-        newCapture.capabilities = desc
+        newCapture.capabilities = AudioDeviceDescriptor(
+          name: origName, capability_sets: desc.capability_sets)
       }
     } else {
       newCapture.capabilities = AudioDeviceDescriptor()
@@ -209,10 +211,12 @@ final class AudioDeviceManager {
         saved.backend = newPlayback.backend
         newPlayback = saved
       }
+      let origName = newPlayback.capabilities.name
       if let desc = await engine.getDeviceCapabilities(
         backend: "coreaudio", device: name, isCapture: false)
       {
-        newPlayback.capabilities = desc
+        newPlayback.capabilities = AudioDeviceDescriptor(
+          name: origName, capability_sets: desc.capability_sets)
       }
     } else {
       newPlayback.capabilities = AudioDeviceDescriptor()
