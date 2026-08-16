@@ -1,16 +1,16 @@
 // DevicePickerView - Audio device selection and configuration
 /*
  macOS Backend Option Support Matrix:
- ┌─────────────┬──────────┬──────────────┬────────────┬────────────┬────────┬────────┬───────────┬───────────┐
- │ Backend     │ Mode     │ Device List  │ Dev Chans  │ Stream Chs │ Rate   │ Format │ Exclusive │ DoP & SDM │
- │             │          │ & Warnings   │ (Hardware) │            │        │        │ (Hog)     │ Filters   │
- ├─────────────┼──────────┼──────────────┼────────────┼────────────┼────────┼────────┼───────────┼───────────┤
- │ CoreAudio   │ Capture  │     YES      │    YES     │    YES     │  YES   │  YES   │    NO     │  YES (C)  │
- │ CoreAudio   │ Playback │     YES      │    YES     │    YES     │  YES   │  YES   │    YES    │  YES (C)  │
- │ RawFile     │ Cap / Pb │      NO      │     NO     │    YES     │   NO   │ In-File│    NO     │    NO     │
- │ WavFile     │ Cap / Pb │      NO      │     NO     │NO(Cap)/Y(Pb│   NO   │   NO   │    NO     │    NO     │
- │ SignalGen   │ Capture  │      NO      │     NO     │    YES     │   NO   │   NO   │    NO     │    NO     │
- └─────────────┴──────────┴──────────────┴────────────┴────────────┴────────┴────────┴───────────┴───────────┘
+ ┌─────────────┬──────────┬──────────────┬────────────┬────────────┬────────┬──────────────┬───────────┬───────────┐
+ │ Backend     │ Mode     │ Device List  │ Dev Chans  │ Stream Chs │ Rate   │ Format       │ Exclusive │ DoP & SDM │
+ │             │          │ & Warnings   │ (Hardware) │            │        │ (Bit-depth)  │ (Hog)     │ Filters   │
+ ├─────────────┼──────────┼──────────────┼────────────┼────────────┼────────┼──────────────┼───────────┼───────────┤
+ │ CoreAudio   │ Capture  │     YES      │    YES     │    YES     │  YES   │     YES      │    NO     │  YES (C)  │
+ │ CoreAudio   │ Playback │     YES      │    YES     │    YES     │  YES   │     YES      │    YES    │  YES (C)  │
+ │ RawFile     │ Cap / Pb │      NO      │     NO     │    YES     │   NO   │     YES      │    NO     │    NO     │
+ │ WavFile     │ Cap / Pb │      NO      │     NO     │NO(Cap)/Y(Pb│   NO   │ NO(Cap)/Y(Pb)│    NO     │    NO     │
+ │ SignalGen   │ Capture  │      NO      │     NO     │    YES     │   NO   │      NO      │    NO     │    NO     │
+ └─────────────┴──────────┴──────────────┴────────────┴────────────┴────────┴──────────────┴───────────┴───────────┘
  */
 
 import DSPConfig
