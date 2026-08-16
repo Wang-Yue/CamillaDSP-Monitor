@@ -312,9 +312,9 @@ struct CoreAudioDeviceSelectionView: View {
 
           ForEach(devices) { device in
             DeviceRow(
-              name: device.name,
-              isSelected: selectedDevice == device.name,
-              onSelect: { selectedDevice = device.name }
+              name: device.displayName,
+              isSelected: selectedDevice == device.id || selectedDevice == device.name,
+              onSelect: { selectedDevice = device.id }
             )
           }
         }
@@ -443,9 +443,9 @@ struct CoreAudioPlaybackSelectionView: View {
 
           ForEach(devices) { device in
             DeviceRow(
-              name: device.name,
-              isSelected: selectedDevice == device.name,
-              onSelect: { selectedDevice = device.name }
+              name: device.displayName,
+              isSelected: selectedDevice == device.id || selectedDevice == device.name,
+              onSelect: { selectedDevice = device.id }
             )
           }
         }

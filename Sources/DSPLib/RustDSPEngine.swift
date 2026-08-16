@@ -90,7 +90,16 @@ public actor DSPEngine {
 
   public func getAvailableDevices(backend: String, input: Bool) async -> [AudioDevice] {
     let devices = engine.getAvailableDevices(backend: backend, input: input)
-    return devices.map { AudioDevice(name: $0) }
+    return devices.map { raw in
+      if let paren = raw.range(of: " ("), raw.hasSuffix(")") {
+        let id = String(raw[..<paren.lowerBound])
+        let descStart = raw.index(paren.lowerBound, offsetBy: 2)
+        let descEnd = raw.index(before: raw.endIndex)
+        let name = String(raw[descStart..<descEnd])
+        return AudioDevice(id: id, name: name)
+      }
+      return AudioDevice(name: raw)
+    }
   }
 
   public func getDeviceCapabilities(

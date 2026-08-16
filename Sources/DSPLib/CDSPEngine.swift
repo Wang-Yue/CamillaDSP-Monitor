@@ -219,10 +219,13 @@ public actor DSPEngine {
     guard count > 0 else { return [] }
     var res: [AudioDevice] = []
     for i in 0..<count {
+      let id = withUnsafePointer(to: dPtr[i].identifier) { ptr in
+        ptr.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }
+      }
       let name = withUnsafePointer(to: dPtr[i].name) { ptr in
         ptr.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }
       }
-      res.append(AudioDevice(name: name))
+      res.append(AudioDevice(id: id, name: name))
     }
     return res
   }

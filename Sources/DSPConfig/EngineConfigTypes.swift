@@ -53,9 +53,19 @@ public struct StateUpdate: Sendable {
 }
 
 public struct AudioDevice: Identifiable, Sendable, Equatable {
-  public var id: String { name }
+  public let id: String
   public let name: String
-  public init(name: String) { self.name = name }
+  public var displayName: String {
+    (id.isEmpty || id == name) ? name : "\(id) (\(name))"
+  }
+  public init(id: String, name: String) {
+    self.id = id
+    self.name = name
+  }
+  public init(name: String) {
+    self.id = name
+    self.name = name
+  }
 }
 
 public enum AudioBackendError: Error, LocalizedError, Sendable {
