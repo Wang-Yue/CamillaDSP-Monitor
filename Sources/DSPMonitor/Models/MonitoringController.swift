@@ -94,12 +94,12 @@ final class MonitoringController {
     }
 
     // 4. Poll Spectroscope Bands
-    if currentStatus != .inactive, currentStatus != .paused, spectroscope.visibilityCount > 0,
-      let spectrumData = await fetchSpectroscope(for: spectroscope)
-    {
-      spectroscope.updateSpectrum(
-        frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
-    } else {
+    if currentStatus != .inactive, currentStatus != .paused, spectroscope.visibilityCount > 0 {
+      if let spectrumData = await fetchSpectroscope(for: spectroscope) {
+        spectroscope.updateSpectrum(
+          frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
+      }
+    } else if currentStatus == .inactive {
       spectroscope.reset()
     }
 
