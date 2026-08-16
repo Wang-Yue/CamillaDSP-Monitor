@@ -1,6 +1,6 @@
 import Foundation
 
-public struct BiquadCoefficients: Sendable {
+public struct BiquadCoefficients: Sendable, Equatable {
   public var b0: Double
   public var b1: Double
   public var b2: Double
