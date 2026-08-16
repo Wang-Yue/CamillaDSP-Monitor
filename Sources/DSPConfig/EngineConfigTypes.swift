@@ -145,9 +145,11 @@ public struct ChannelCapability: Codable, Sendable, Equatable {
 }
 
 public struct DeviceCapabilitySet: Codable, Sendable, Equatable {
+  public let mode: String?
   public let capabilities: [ChannelCapability]
 
-  public init(capabilities: [ChannelCapability]) {
+  public init(mode: String? = nil, capabilities: [ChannelCapability]) {
+    self.mode = mode
     self.capabilities = capabilities
   }
 }

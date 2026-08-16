@@ -275,7 +275,10 @@ public actor DSPEngine {
         }
         chCaps.append(ChannelCapability(channels: Int(chCap.channels), samplerates: srCaps))
       }
-      capSets.append(DeviceCapabilitySet(capabilities: chCaps))
+      let mode = withUnsafePointer(to: cSet.mode) { ptr in
+        ptr.withMemoryRebound(to: CChar.self, capacity: 64) { String(cString: $0) }
+      }
+      capSets.append(DeviceCapabilitySet(mode: mode, capabilities: chCaps))
     }
     return AudioDeviceDescriptor(name: name, capability_sets: capSets)
   }
