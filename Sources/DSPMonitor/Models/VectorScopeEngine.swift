@@ -10,7 +10,11 @@ final class VectorScopeEngine {
   private(set) var rightSamples: [Float] = []
 
   /// Number of active vector scope views currently on screen.
-  var visibilityCount: Int = 0
+  var visibilityCount: Int = 0 {
+    didSet {
+      if visibilityCount < 0 { visibilityCount = 0 }
+    }
+  }
 
   private let defaults = UserDefaults.standard
 

@@ -10,7 +10,11 @@ final class SpectrumEngine {
   private(set) var frequencies: [Float]?
 
   /// Number of active spectrum views currently on screen.
-  var visibilityCount: Int = 0
+  var visibilityCount: Int = 0 {
+    didSet {
+      if visibilityCount < 0 { visibilityCount = 0 }
+    }
+  }
 
   private let defaults = UserDefaults.standard
 

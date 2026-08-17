@@ -98,8 +98,10 @@ final class MonitoringController {
       if let spectrumData = await fetchSpectroscope(for: spectroscope) {
         spectroscope.updateSpectrum(
           frequencies: spectrumData.frequencies, magnitudes: spectrumData.magnitudes)
+      } else {
+        spectroscope.reset()
       }
-    } else if currentStatus == .inactive {
+    } else {
       spectroscope.reset()
     }
 

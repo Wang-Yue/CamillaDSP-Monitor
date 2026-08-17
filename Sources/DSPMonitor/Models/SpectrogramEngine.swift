@@ -19,7 +19,11 @@ final class SpectrogramEngine {
   let timeWindow: TimeInterval = 10.0
 
   /// Number of active views currently on screen.
-  var visibilityCount: Int = 0
+  var visibilityCount: Int = 0 {
+    didSet {
+      if visibilityCount < 0 { visibilityCount = 0 }
+    }
+  }
 
   var show3D: Bool = false {
     didSet {
@@ -95,8 +99,10 @@ final class SpectrogramEngine {
   }
 
   func reset() {
-    bands = nil
-    history.removeAll()
+    if bands != nil || !history.isEmpty {
+      bands = nil
+      history.removeAll()
+    }
   }
 
   func resetToDefaults() {
