@@ -132,23 +132,37 @@ public actor DSPEngine {
     guard let e = engine else {
       return VuLevels(playback_rms: [], playback_peak: [], capture_rms: [], capture_peak: [])
     }
-    var levels = cdsp_vu_levels_t()
-    guard cdsp_get_vu_levels(e, &levels) else {
+    var query = cdsp_vu_levels_t()
+    guard cdsp_get_vu_levels(e, &query) else {
       return VuLevels(playback_rms: [], playback_peak: [], capture_rms: [], capture_peak: [])
     }
-    defer { cdsp_free_vu_levels(&levels) }
-    let pbRms = Array(
-      UnsafeBufferPointer(start: levels.playback_rms, count: Int(levels.playback_channels))
-    ).map { Float($0) }
-    let pbPeak = Array(
-      UnsafeBufferPointer(start: levels.playback_peak, count: Int(levels.playback_channels))
-    ).map { Float($0) }
-    let capRms = Array(
-      UnsafeBufferPointer(start: levels.capture_rms, count: Int(levels.capture_channels))
-    ).map { Float($0) }
-    let capPeak = Array(
-      UnsafeBufferPointer(start: levels.capture_peak, count: Int(levels.capture_channels))
-    ).map { Float($0) }
+    let pbCh = Int(query.playback_channels)
+    let capCh = Int(query.capture_channels)
+    var pbRms = [Float](repeating: 0, count: pbCh)
+    var pbPeak = [Float](repeating: 0, count: pbCh)
+    var capRms = [Float](repeating: 0, count: capCh)
+    var capPeak = [Float](repeating: 0, count: capCh)
+
+    let ok: Bool = pbRms.withUnsafeMutableBufferPointer { pbRmsPtr in
+      pbPeak.withUnsafeMutableBufferPointer { pbPeakPtr in
+        capRms.withUnsafeMutableBufferPointer { capRmsPtr in
+          capPeak.withUnsafeMutableBufferPointer { capPeakPtr in
+            var levels = cdsp_vu_levels_t(
+              playback_rms: pbRmsPtr.baseAddress,
+              playback_peak: pbPeakPtr.baseAddress,
+              capture_rms: capRmsPtr.baseAddress,
+              capture_peak: capPeakPtr.baseAddress,
+              playback_channels: 0,
+              capture_channels: 0
+            )
+            return cdsp_get_vu_levels(e, &levels)
+          }
+        }
+      }
+    }
+    guard ok else {
+      return VuLevels(playback_rms: [], playback_peak: [], capture_rms: [], capture_peak: [])
+    }
     return VuLevels(
       playback_rms: pbRms,
       playback_peak: pbPeak,
@@ -167,42 +181,89 @@ public actor DSPEngine {
     guard let e = engine else {
       throw AudioBackendError.engineNotRunning
     }
-    var res = cdsp_spectrum_t()
-    let side = isCapture ? CDSP_SPECTRUM_SIDE_CAPTURE : CDSP_SPECTRUM_SIDE_PLAYBACK
-    let success: Bool
-    if var ch = channel {
-      success = cdsp_get_spectrum(e, side, &ch, minFreq, maxFreq, Int(nBins), &res)
-    } else {
-      success = cdsp_get_spectrum(e, side, nil, minFreq, maxFreq, Int(nBins), &res)
-    }
-    if !success {
+    let n = Int(nBins)
+    guard n > 0 else {
       throw AudioBackendError.bufferEmpty
     }
-    defer { cdsp_free_spectrum(&res) }
-    let freqs = Array(UnsafeBufferPointer(start: res.frequencies, count: Int(res.count))).map { Float($0) }
-    let mags = Array(UnsafeBufferPointer(start: res.magnitudes, count: Int(res.count))).map { Float($0) }
+    let side = isCapture ? CDSP_SPECTRUM_SIDE_CAPTURE : CDSP_SPECTRUM_SIDE_PLAYBACK
+    var freqs = [Float](repeating: 0, count: n)
+    var mags = [Float](repeating: 0, count: n)
+    var countPopulated: size_t = 0
+
+    let success: Bool = freqs.withUnsafeMutableBufferPointer { fPtr in
+      mags.withUnsafeMutableBufferPointer { mPtr in
+        var res = cdsp_spectrum_t(
+          frequencies: fPtr.baseAddress,
+          magnitudes: mPtr.baseAddress,
+          count: 0
+        )
+        let ok: Bool
+        if let ch = channel {
+          var chSizeT = size_t(ch)
+          ok = cdsp_get_spectrum(e, side, &chSizeT, Float(minFreq), Float(maxFreq), n, &res)
+        } else {
+          ok = cdsp_get_spectrum(e, side, nil, Float(minFreq), Float(maxFreq), n, &res)
+        }
+        countPopulated = res.count
+        return ok
+      }
+    }
+    if !success || countPopulated == 0 {
+      throw AudioBackendError.bufferEmpty
+    }
+    if countPopulated < n {
+      freqs.removeLast(n - countPopulated)
+      mags.removeLast(n - countPopulated)
+    }
     return Spectrum(frequencies: freqs, magnitudes: mags)
   }
 
   public func getSamples(isCapture: Bool, nFrames: UInt32) async throws -> AudioSamples {
     guard let e = engine else { return AudioSamples(channels: [[], []]) }
     var err = cdsp_backend_error_t()
-    guard let res = cdsp_get_samples(e, isCapture, Int(nFrames), &err) else {
+    let framesCount = Int(nFrames)
+    guard framesCount > 0 else { return AudioSamples(channels: [[], []]) }
+
+    var query = cdsp_audio_samples_t()
+    guard cdsp_get_samples(e, isCapture, framesCount, &query, &err) else {
       if err.type == CDSP_BACKEND_ERR_UNKNOWN {
         throw AudioBackendError.engineNotRunning
       } else {
         throw AudioBackendError.bufferEmpty
       }
     }
-    defer { cdsp_free_samples(res) }
-    var channels: [[Float]] = []
-    for ch in 0..<Int(res.pointee.channels_count) {
-      if let ptr = res.pointee.channels[ch] {
-        let doubles = UnsafeBufferPointer(start: ptr, count: Int(res.pointee.frames))
-        channels.append(doubles.map { Float($0) })
-      } else {
-        channels.append([])
+
+    let chCount = Int(query.channels_count)
+    guard chCount > 0 else { return AudioSamples(channels: []) }
+
+    let allocatedPtrs = (0..<chCount).map { _ in UnsafeMutablePointer<Float>.allocate(capacity: framesCount) }
+    defer {
+      for ptr in allocatedPtrs {
+        ptr.deallocate()
       }
+    }
+
+    var ptrsCopy: [UnsafeMutablePointer<Float>?] = allocatedPtrs.map { Optional($0) }
+    let actualFrames: Int = try ptrsCopy.withUnsafeMutableBufferPointer { ptrsBuf in
+      var samples = cdsp_audio_samples_t(
+        channels: ptrsBuf.baseAddress,
+        channels_count: 0,
+        frames: 0
+      )
+      guard cdsp_get_samples(e, isCapture, framesCount, &samples, &err) else {
+        if err.type == CDSP_BACKEND_ERR_UNKNOWN {
+          throw AudioBackendError.engineNotRunning
+        } else {
+          throw AudioBackendError.bufferEmpty
+        }
+      }
+      return Int(samples.frames)
+    }
+
+    var channels: [[Float]] = []
+    channels.reserveCapacity(chCount)
+    for ptr in allocatedPtrs {
+      channels.append(Array(UnsafeBufferPointer(start: ptr, count: actualFrames)))
     }
     return AudioSamples(channels: channels)
   }
