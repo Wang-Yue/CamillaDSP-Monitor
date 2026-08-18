@@ -12,6 +12,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   public var deviceChannels: Int
   public var sampleRate: Int
   public var format: String
+  public var exclusive: Bool
   public var bypassDoP: Bool
   /// DoP decimator passband cutoff in Hz. 20 kHz keeps SINAD highest;
   /// 30–50 kHz widens the audible passband at modest SINAD cost. Ignored
@@ -59,6 +60,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.deviceChannels = 2
     self.sampleRate = 48000
     self.format = "F32"
+    self.exclusive = false
     self.bypassDoP = true
     self.dopCutoffHz = 20_000
     self.outputDoP = false
@@ -77,7 +79,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
 
   // Custom decode tolerates configs persisted before new fields existed.
   private enum CodingKeys: String, CodingKey {
-    case backend, capabilities, channels, deviceChannels, sampleRate, format, bypassDoP,
+    case backend, capabilities, channels, deviceChannels, sampleRate, format, exclusive, bypassDoP,
       dopCutoffHz,
       outputDoP, dsdEncoderFilter, filename, fileFormat, isWav, useRf64, skipBytes, readBytes, extraSamples,
       generatorType, generatorFreq, generatorLevel
@@ -91,6 +93,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     self.deviceChannels = try c.decodeIfPresent(Int.self, forKey: .deviceChannels) ?? self.channels
     self.sampleRate = try c.decode(Int.self, forKey: .sampleRate)
     self.format = try c.decode(String.self, forKey: .format)
+    self.exclusive = try c.decodeIfPresent(Bool.self, forKey: .exclusive) ?? false
     self.bypassDoP = try c.decode(Bool.self, forKey: .bypassDoP)
     self.dopCutoffHz = try c.decodeIfPresent(Double.self, forKey: .dopCutoffHz) ?? 20_000
     self.outputDoP = try c.decodeIfPresent(Bool.self, forKey: .outputDoP) ?? false
@@ -116,6 +119,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     try c.encode(deviceChannels, forKey: .deviceChannels)
     try c.encode(sampleRate, forKey: .sampleRate)
     try c.encode(format, forKey: .format)
+    try c.encode(exclusive, forKey: .exclusive)
     try c.encode(bypassDoP, forKey: .bypassDoP)
     try c.encode(dopCutoffHz, forKey: .dopCutoffHz)
     try c.encode(outputDoP, forKey: .outputDoP)
@@ -145,15 +149,36 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
     return 0
   }
 
+  private static func findActiveCapabilitySet(
+    in desc: AudioDeviceDescriptor, exclusive: Bool
+  ) -> DeviceCapabilitySet? {
+    if desc.capability_sets.isEmpty { return nil }
+    if exclusive {
+      if let set = desc.capability_sets.first(where: { $0.mode == "Exclusive" }) {
+        return set
+      }
+    } else {
+      if let set = desc.capability_sets.first(where: { $0.mode == "Shared" }) {
+        return set
+      }
+    }
+    return desc.capability_sets.first
+  }
+
   /// Channel counts this device supports, sorted ascending.
   public var supportedChannels: [Int] {
-    capabilities.capability_sets.first?.capabilities.map { $0.channels }.sorted() ?? []
+    guard let set = Self.findActiveCapabilitySet(in: capabilities, exclusive: exclusive) else { return [] }
+    let chs = set.capabilities.map { $0.channels }
+    return Set(chs).sorted()
   }
 
   /// Supported sample rates for a given channel count.
   /// Falls back to the union across all channel counts if the count is not found.
   public var supportedRates: [Int] {
-    guard let set = capabilities.capability_sets.first else { return [] }
+    if backend == .signalGenerator {
+      return [44100, 48000, 88200, 96000, 176400, 192000, 352800, 384000]
+    }
+    guard let set = Self.findActiveCapabilitySet(in: capabilities, exclusive: exclusive) else { return [] }
     let cap =
       set.capabilities.first(where: { $0.channels == deviceChannels }) ?? set.capabilities.first
     let rates: [Int]
@@ -167,7 +192,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
 
   /// Available sample formats for a given channel count and sample rate, sorted best-first.
   public var supportedFormats: [String] {
-    guard let set = capabilities.capability_sets.first else { return [] }
+    guard let set = Self.findActiveCapabilitySet(in: capabilities, exclusive: exclusive) else { return [] }
     let cap =
       set.capabilities.first(where: { $0.channels == deviceChannels }) ?? set.capabilities.first
     let formats = cap?.samplerates.first(where: { $0.samplerate == sampleRate })?.formats ?? []

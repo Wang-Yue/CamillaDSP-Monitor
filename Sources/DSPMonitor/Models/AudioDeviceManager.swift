@@ -111,6 +111,9 @@ final class AudioDeviceManager {
     didSet {
       guard !isInitializing else { return }
       defaults.set(exclusiveMode, forKey: "exclusiveMode")
+      if playbackConfig.exclusive != exclusiveMode {
+        playbackConfig.exclusive = exclusiveMode
+      }
       // DoP can't run without hog mode — turning hog off would silently
       // leave a stale `outputDoP=true` that the engine then rejects at
       // open(). Clear it here so the next config push is internally
@@ -150,8 +153,10 @@ final class AudioDeviceManager {
   init(engine: DSPEngine, settings: AudioSettings) {
     self.engine = engine
     self.settings = settings
+    exclusiveMode = defaults.bool(forKey: "exclusiveMode")
     captureConfig = Self.loadDeviceConfig(key: "captureConfig", defaults: defaults)
     playbackConfig = Self.loadDeviceConfig(key: "playbackConfig", defaults: defaults)
+    playbackConfig.exclusive = exclusiveMode
 
     if let data = defaults.data(forKey: "captureDeviceConfigs"),
        let dict = try? JSONDecoder().decode([String: DeviceConfig].self, from: data) {
@@ -167,7 +172,6 @@ final class AudioDeviceManager {
       self.playbackDeviceConfigs = [playbackConfig.deviceName ?? "": playbackConfig]
     }
 
-    exclusiveMode = defaults.bool(forKey: "exclusiveMode")
     isInitializing = false
     startDeviceChangeListener()
   }

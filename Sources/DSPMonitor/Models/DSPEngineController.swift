@@ -90,7 +90,8 @@ final class DSPEngineController {
     case .coreAudio:
       var coreAudioCfg = CoreAudioCaptureConfig(
         channels: devices.captureConfig.channels,
-        device: devices.captureConfig.deviceName
+        device: devices.captureConfig.deviceName,
+        format: devices.captureConfig.format
       )
       if !DSPEngine.isRustEngine {
         coreAudioCfg.bypassDoP = devices.captureConfig.bypassDoP
@@ -134,6 +135,7 @@ final class DSPEngineController {
       var coreAudioCfg = CoreAudioPlaybackConfig(
         channels: devices.playbackConfig.channels,
         device: devices.playbackConfig.deviceName,
+        format: devices.playbackConfig.format,
         exclusive: devices.exclusiveMode
       )
       if !DSPEngine.isRustEngine {
@@ -163,6 +165,7 @@ final class DSPEngineController {
         CoreAudioPlaybackConfig(
           channels: devices.playbackConfig.channels,
           device: devices.playbackConfig.deviceName,
+          format: devices.playbackConfig.format,
           exclusive: devices.exclusiveMode
         ))
     }
