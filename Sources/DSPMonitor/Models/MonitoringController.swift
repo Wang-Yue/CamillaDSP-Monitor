@@ -108,8 +108,10 @@ final class MonitoringController {
     // 5. Poll Vector Scope Samples
     if currentStatus != .inactive, currentStatus != .paused, vectorscope.visibilityCount > 0 {
       do {
-        let sr = Double(
-          vectorscope.isCapture ? devices.captureConfig.sampleRate : devices.playbackConfig.sampleRate)
+        let playbackRate = Double(devices.playbackConfig.sampleRate)
+        let captureRate = Double(
+          settings.resamplerEnabled ? devices.captureConfig.sampleRate : devices.playbackConfig.sampleRate)
+        let sr = vectorscope.isCapture ? captureRate : playbackRate
         let nFrames = vectorscope.framesToFetch(sampleRate: sr)
         let samples = try await engine.getSamples(
           isCapture: vectorscope.isCapture,
