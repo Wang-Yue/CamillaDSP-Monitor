@@ -3,6 +3,30 @@
 import Foundation
 import Observation
 
+enum VectorScopeWindow: String, CaseIterable, Identifiable {
+  case fast = "fast"
+  case smooth = "smooth"
+  case long = "long"
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .fast: return "Fast / Snappy (Δt = 25 ms)"
+    case .smooth: return "Smooth Persistence (Δt = 50 ms)"
+    case .long: return "Long Glow / Trace (Δt = 100 ms)"
+    }
+  }
+
+  var seconds: Double {
+    switch self {
+    case .fast: return 0.025
+    case .smooth: return 0.050
+    case .long: return 0.100
+    }
+  }
+}
+
 @MainActor
 @Observable
 final class VectorScopeEngine {
@@ -19,8 +43,8 @@ final class VectorScopeEngine {
   private let defaults = UserDefaults.standard
 
   // Configuration
-  var nFrames: UInt32 = 512 {
-    didSet { defaults.set(Int(nFrames), forKey: "vectorscope_n_frames") }
+  var window: VectorScopeWindow = .fast {
+    didSet { defaults.set(window.rawValue, forKey: "vectorscope_window") }
   }
   var isCapture: Bool = true {
     didSet { defaults.set(isCapture, forKey: "vectorscope_is_capture") }
@@ -33,8 +57,11 @@ final class VectorScopeEngine {
   }
 
   init() {
-    let frames = defaults.integer(forKey: "vectorscope_n_frames")
-    if frames > 0 { self.nFrames = UInt32(frames) }
+    if let savedWindow = defaults.string(forKey: "vectorscope_window"),
+      let opt = VectorScopeWindow(rawValue: savedWindow)
+    {
+      self.window = opt
+    }
 
     if defaults.object(forKey: "vectorscope_is_capture") != nil {
       self.isCapture = defaults.bool(forKey: "vectorscope_is_capture")
@@ -47,6 +74,13 @@ final class VectorScopeEngine {
     if defaults.object(forKey: "vectorscope_auto_scale") != nil {
       self.autoScale = defaults.bool(forKey: "vectorscope_auto_scale")
     }
+  }
+
+  /// Calculates the exact number of frames to fetch based on active sample rate and selected time window.
+  func framesToFetch(sampleRate: Double) -> UInt32 {
+    let rate = sampleRate > 0 ? sampleRate : 48_000
+    let frames = Int(round(rate * window.seconds))
+    return UInt32(max(128, min(262_144, frames)))
   }
 
   /// Update the samples.
@@ -63,9 +97,10 @@ final class VectorScopeEngine {
   }
 
   func resetToDefaults() {
-    nFrames = 512
+    window = .fast
     isCapture = true
     showParticles = true
     autoScale = true
   }
 }
+

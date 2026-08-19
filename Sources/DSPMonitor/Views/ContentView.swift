@@ -671,11 +671,13 @@ struct VectorScopeDetailView: View {
           }
 
           VStack(alignment: .leading, spacing: 4) {
-            Text("Frames").font(.caption).foregroundStyle(.secondary)
-            Stepper(
-              "\(Int(vectorscope.nFrames))", value: $vectorscope.nFrames, in: 128...4096, step: 128
-            )
-            .frame(width: 140)
+            Text("Window / Duration").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: $vectorscope.window) {
+              ForEach(VectorScopeWindow.allCases) { opt in
+                Text(opt.title).tag(opt)
+              }
+            }
+            .frame(width: 250)
           }
 
           VStack(alignment: .leading, spacing: 4) {

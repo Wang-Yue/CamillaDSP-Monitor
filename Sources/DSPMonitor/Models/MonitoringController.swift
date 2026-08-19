@@ -108,9 +108,12 @@ final class MonitoringController {
     // 5. Poll Vector Scope Samples
     if currentStatus != .inactive, currentStatus != .paused, vectorscope.visibilityCount > 0 {
       do {
+        let sr = Double(
+          vectorscope.isCapture ? devices.captureConfig.sampleRate : devices.playbackConfig.sampleRate)
+        let nFrames = vectorscope.framesToFetch(sampleRate: sr)
         let samples = try await engine.getSamples(
           isCapture: vectorscope.isCapture,
-          nFrames: vectorscope.nFrames
+          nFrames: nFrames
         )
         vectorscope.updateSamples(left: samples.left, right: samples.right)
       } catch {
