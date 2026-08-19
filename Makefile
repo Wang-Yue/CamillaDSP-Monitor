@@ -6,7 +6,7 @@ ENGINE ?= c
 
 ifeq ($(MODE),release)
 	CARGO_FLAGS = --release
-	SWIFT_FLAGS = -c release -Xcc -O3 -Xcc -mcpu=native -Xcc -flto=thin -Xcc -fvisibility=hidden -Xcc -ffp-contract=fast -Xcc -fno-math-errno -Xcc -funroll-loops -Xswiftc -cross-module-optimization
+	SWIFT_FLAGS = -c release -Xcc -O3 -Xcc -mcpu=native -Xcc -flto=thin -Xcc -fvisibility=hidden -Xcc -ffp-contract=fast -Xcc -fno-math-errno -Xcc -funroll-loops -Xswiftc -cross-module-optimization -Xlinker -object_path_lto -Xlinker .build/$(BUILD_DIR)/lto.o
 	BUILD_DIR = release
 else
 	CARGO_FLAGS =
