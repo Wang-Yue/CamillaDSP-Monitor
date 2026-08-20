@@ -17,6 +17,14 @@ let engineTargets: [Target]
 
 switch engine {
 case "c":
+  var excludes = ["RustDSPEngine.swift"]
+  let ffiPath = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .appendingPathComponent("Sources/DSPLib/camilladsp_ffi.swift").path
+  if FileManager.default.fileExists(atPath: ffiPath) {
+    excludes.append("camilladsp_ffi.swift")
+  }
+
   dspLibTarget = .target(
     name: "DSPLib",
     dependencies: [
@@ -24,7 +32,7 @@ case "c":
       .product(name: "CDSP", package: "CDSP")
     ],
     path: "Sources/DSPLib",
-    exclude: ["RustDSPEngine.swift", "camilladsp_ffi.swift"],
+    exclude: excludes,
     swiftSettings: [
       .unsafeFlags(["-Xcc", "-DENABLE_COREAUDIO"]),
       .unsafeFlags(["-Xcc", "-DENABLE_ACCELERATE"]),
