@@ -108,6 +108,8 @@ final class SpectrogramEngine {
   func resetToDefaults() {
     nBins = 200
     isCapture = true
+    channel = nil
+    show3D = false
     history.removeAll()
   }
 }

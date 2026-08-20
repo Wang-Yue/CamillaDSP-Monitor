@@ -84,5 +84,6 @@ final class SpectrumEngine {
     maxFreq = 20000.0
     nBins = 30
     isCapture = true
+    channel = nil
   }
 }
