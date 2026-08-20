@@ -176,7 +176,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
   /// Falls back to the union across all channel counts if the count is not found.
   public var supportedRates: [Int] {
     if backend == .signalGenerator {
-      return [44100, 48000, 88200, 96000, 176400, 192000, 352800, 384000]
+      return STANDARD_RATES
     }
     guard let set = Self.findActiveCapabilitySet(in: capabilities, exclusive: exclusive) else { return [] }
     let cap =
@@ -283,7 +283,7 @@ public struct DeviceConfig: Equatable, Sendable, Codable {
 
   public static func bestRate(from rates: [Int], preferring current: Int) -> Int {
     if rates.contains(current) { return current }
-    for preferred in [48000, 44100, 96000, 192000] {
+    for preferred in STANDARD_RATES {
       if rates.contains(preferred) { return preferred }
     }
     return rates.min(by: { abs($0 - current) < abs($1 - current) }) ?? 48000

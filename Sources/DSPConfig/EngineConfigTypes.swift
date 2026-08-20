@@ -52,6 +52,12 @@ public struct StateUpdate: Sendable {
   }
 }
 
+/// Standard sample rates matching upstream CamillaDSP STANDARD_RATES.
+public let STANDARD_RATES: [Int] = [
+  5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000,
+  352800, 384000, 705600, 768000,
+]
+
 public struct AudioDevice: Identifiable, Sendable, Equatable {
   public let id: String
   public let name: String

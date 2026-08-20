@@ -1,3 +1,4 @@
+import DSPConfig
 import Foundation
 
 @MainActor
@@ -21,18 +22,7 @@ final class ConvolutionImportService {
       self.channel = channel
     }
   }
-
-  private static let allStandardRates: [Int] = [
-    8000, 11025, 16000, 22050, 32000,
-    44100, 48000, 88200, 96000,
-    176400, 192000, 352800, 384000,
-    705600, 768000,
-  ]
-
-  /// Supported rates for UI picker (filtered to standard rates >= 32 kHz).
-  static var standardRates: [Int] {
-    allStandardRates.filter { $0 >= 32000 }
-  }
+  static let standardRates: [Int] = STANDARD_RATES
 
   /// Supported formats for UI picker.
   static let formats = ["WAV", "FLOAT64", "FLOAT32", "S16_LE", "S32_LE", "TEXT"]
@@ -65,7 +55,7 @@ final class ConvolutionImportService {
 
     // 2. Infer rate from filename if not already populated from WAV header
     if inferredFormat != "WAV" {
-      let rates = Self.allStandardRates.sorted(by: >)
+      let rates = Self.standardRates.sorted(by: >)
       for rate in rates {
         if filename.contains("\(rate)") || filename.contains("\(rate / 1000)k")
           || filename.contains("\(Double(rate) / 1000.0)k")

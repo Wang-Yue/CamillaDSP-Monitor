@@ -735,7 +735,7 @@ final class MeasurementSession {
     // Limit to rates ≥ 32 kHz: voice rates (8k/11k/16k/22k) aren't
     // useful for music room correction and just bloat the on-disk
     // footprint.
-    let rates = [32000, 44100, 48000, 88200, 96000, 176400, 192000, 352800, 384000, 705600, 768000]
+    let rates = STANDARD_RATES
     let presetID = UUID()
     var irPaths: [Int: String] = [:]
     var firstTapCount = 0
