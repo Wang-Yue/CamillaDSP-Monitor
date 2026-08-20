@@ -42,6 +42,9 @@ final class VectorScopeEngine {
 
   private let defaults = UserDefaults.standard
 
+  // Dynamic smoothed scale factor
+  var autoScaleFactor: Float = 1.0
+
   // Configuration
   var window: VectorScopeWindow = .fast {
     didSet { defaults.set(window.rawValue, forKey: "vectorscope_window") }
@@ -83,10 +86,30 @@ final class VectorScopeEngine {
     return UInt32(max(128, min(262_144, frames)))
   }
 
-  /// Update the samples.
+  /// Update the samples and compute auto scale factor.
   func updateSamples(left: [Float], right: [Float]) {
     self.leftSamples = left
     self.rightSamples = right
+
+    let count = min(left.count, right.count)
+    if autoScale && count > 1 {
+      var maxVectorNorm: Float = 0.0
+      for i in 0..<count {
+        let l = left[i]
+        let r = right[i]
+        let x = (l - r) * 0.5
+        let y = (l + r) * 0.5
+        let norm = sqrt(x * x + y * y)
+        if norm > maxVectorNorm { maxVectorNorm = norm }
+      }
+      var targetScale: Float = 1.0
+      if maxVectorNorm > 0.001 && maxVectorNorm.isFinite {
+        targetScale = min(0.90 / maxVectorNorm, 16.0)
+      }
+      self.autoScaleFactor = self.autoScaleFactor * 0.90 + targetScale * 0.10
+    } else {
+      self.autoScaleFactor = 1.0
+    }
   }
 
   func reset() {
@@ -94,6 +117,7 @@ final class VectorScopeEngine {
       leftSamples = []
       rightSamples = []
     }
+    autoScaleFactor = 1.0
   }
 
   func resetToDefaults() {
@@ -101,6 +125,7 @@ final class VectorScopeEngine {
     isCapture = true
     showParticles = true
     autoScale = true
+    autoScaleFactor = 1.0
   }
 }
 
