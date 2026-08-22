@@ -117,8 +117,6 @@ build: $(EXECUTABLE)
 	@echo "\n✅ Build Complete!"
 	@echo "📍 Binary location: $(EXECUTABLE)"
 
-
-
 ## app: Build and package as a macOS Application (.app)
 app: build
 	@echo "📦 Packaging as $(APP_BUNDLE)..."
@@ -149,12 +147,6 @@ install: app
 run: app
 	@echo "🚀 Running $(APP_NAME)..."
 	open $(APP_BUNDLE)
-
-
-## test-swift: Run only the Swift test suite (pure Swift path only)
-test-swift:
-	@echo "🧪 Running Swift tests..."
-	$(SWIFT) test
 
 ## test: Run the Swift RoomCorrection test suite
 test:

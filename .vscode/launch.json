@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:CamillaDSP-Monitor}",
+            "name": "Debug DSPMonitor",
+            "target": "DSPMonitor",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug DSPMonitor"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:CamillaDSP-Monitor}",
+            "name": "Release DSPMonitor",
+            "target": "DSPMonitor",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release DSPMonitor"
+        }
+    ]
+}
