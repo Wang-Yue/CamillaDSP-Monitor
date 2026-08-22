@@ -1,5 +1,6 @@
 // DSPDetailedSignalGraphCard.swift - Official CamillaDSP Pipeline Graph Engine faithful port of pycamilladsp-plot by Henrik Enquist
 
+import AppKit
 import DSPConfig
 import Observation
 import SwiftUI
@@ -31,31 +32,49 @@ struct DSPDetailedSignalGraphCard: View {
   private struct GraphBlock: Identifiable {
     let id: String
     let label: String
-    let x: CGFloat
+    var x: CGFloat
     let y: CGFloat
     let width: CGFloat
     let height: CGFloat
     let isChannelPort: Bool
+    var stepIndex: Int
   }
 
   private struct ContainerBox: Identifiable {
     let id: String
     let label: String
-    let centerX: CGFloat
+    var centerX: CGFloat
     let activeChannelsCount: Int
     let width: CGFloat
     let height: CGFloat
     let centerY: CGFloat
     let containedBlockIds: [String]
+    var stepIndex: Int
   }
 
   private struct GraphArrow: Identifiable {
     let id: String
     let fromBlockId: String
     let toBlockId: String
-    let fromFallback: CGPoint
-    let toFallback: CGPoint
+    var fromFallback: CGPoint
+    var toFallback: CGPoint
     let label: String?
+  }
+
+  private static func calculateBlockSize(label: String, isChannelPort: Bool) -> CGSize {
+    let fontSize: CGFloat = isChannelPort ? 11 : 10
+    let weight: NSFont.Weight = isChannelPort ? .bold : .semibold
+    let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: weight)
+    let attrString = NSAttributedString(string: label, attributes: [.font: font])
+    let textSize = attrString.size()
+    let textWidth = textSize.width
+    let textHeight = textSize.height
+
+    let minWidth: CGFloat = isChannelPort ? 48.0 : 85.0
+    let paddingH: CGFloat = isChannelPort ? 16.0 : 24.0
+    let width = max(minWidth, textWidth + paddingH)
+    let height = max(28.0, textHeight + 8.0)
+    return CGSize(width: width, height: height)
   }
 
   // MARK: - Execute Official pycamilladsp-plot Pipeline Placement Engine
@@ -97,24 +116,37 @@ struct DSPDetailedSignalGraphCard: View {
       return y
     }
 
-    func xPos(step: Int) -> CGFloat {
-      CGFloat(step) * xStep
-    }
-
-    func makeContainerBox(id: String, label: String, centerX: CGFloat, blocksInBox: [GraphBlock]) -> ContainerBox {
-      let minBlockY = blocksInBox.map(\.y).min() ?? 0
-      let maxBlockY = blocksInBox.map(\.y).max() ?? 0
+    func makeContainerBox(id: String, label: String, stepIndex: Int, blocksInBox: [GraphBlock]) -> ContainerBox {
+      var minBlockY: CGFloat = 0
+      var maxBlockY: CGFloat = 0
+      var maxBlockW: CGFloat = 48.0
+      if !blocksInBox.isEmpty {
+        minBlockY = blocksInBox[0].y
+        maxBlockY = blocksInBox[0].y
+        maxBlockW = blocksInBox[0].width
+        for b in blocksInBox {
+          minBlockY = min(minBlockY, b.y)
+          maxBlockY = max(maxBlockY, b.y)
+          maxBlockW = max(maxBlockW, b.width)
+        }
+      }
       let centerY = (minBlockY + maxBlockY) / 2.0
       let height = (maxBlockY - minBlockY) + blockHeight + 20
+
+      let headerFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .bold)
+      let titleWidth = NSAttributedString(string: label, attributes: [.font: headerFont]).size().width
+      let width = max(76.0, max(maxBlockW + 28.0, titleWidth + 24.0))
+
       return ContainerBox(
         id: id,
         label: label,
-        centerX: centerX,
+        centerX: 0,
         activeChannelsCount: blocksInBox.count,
-        width: 76,
+        width: width,
         height: height,
         centerY: centerY,
-        containedBlockIds: blocksInBox.map(\.id)
+        containedBlockIds: blocksInBox.map(\.id),
+        stepIndex: stepIndex
       )
     }
 
@@ -123,15 +155,17 @@ struct DSPDetailedSignalGraphCard: View {
     var captureInputBlocks: [GraphBlock] = []
     for n in 0..<activeChannels {
       let y = yPos(channel: n, activeChannelsInStage: activeChannels, isPassthrough: false)
-      let x = xPos(step: 0)
+      let label = "\(n + 1)"
+      let sz = Self.calculateBlockSize(label: label, isChannelPort: true)
       let b = GraphBlock(
         id: "input_ch\(n)",
-        label: "\(n + 1)",
-        x: x,
+        label: label,
+        x: 0,
         y: y,
-        width: 48,
-        height: blockHeight,
-        isChannelPort: true
+        width: sz.width,
+        height: sz.height,
+        isChannelPort: true,
+        stepIndex: 0
       )
       blocks.append(b)
       captureInputBlocks.append(b)
@@ -143,7 +177,7 @@ struct DSPDetailedSignalGraphCard: View {
       makeContainerBox(
         id: "box_input",
         label: captureName,
-        centerX: xPos(step: 0),
+        stepIndex: 0,
         blocksInBox: captureInputBlocks
       )
     )
@@ -192,15 +226,17 @@ struct DSPDetailedSignalGraphCard: View {
           var mixerBoxBlocks: [GraphBlock] = []
           for n in 0..<outChannels {
             let y = yPos(channel: n, activeChannelsInStage: outChannels, isPassthrough: false)
-            let x = xPos(step: totalLength)
+            let label = "\(n + 1)"
+            let sz = Self.calculateBlockSize(label: label, isChannelPort: true)
             let b = GraphBlock(
               id: "mixer_\(totalLength)_ch\(n)",
-              label: "\(n + 1)",
-              x: x,
+              label: label,
+              x: 0,
               y: y,
-              width: 48,
-              height: blockHeight,
-              isChannelPort: true
+              width: sz.width,
+              height: sz.height,
+              isChannelPort: true,
+              stepIndex: totalLength
             )
             blocks.append(b)
             mixerBoxBlocks.append(b)
@@ -233,8 +269,8 @@ struct DSPDetailedSignalGraphCard: View {
                     id: "arrow_mix_\(totalLength)_\(srcCh)_\(destCh)",
                     fromBlockId: srcBlock.id,
                     toBlockId: destBlock.id,
-                    fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
-                    toFallback: CGPoint(x: destBlock.x - destBlock.width / 2, y: destBlock.y),
+                    fromFallback: CGPoint(x: 0, y: srcBlock.y),
+                    toFallback: CGPoint(x: 0, y: destBlock.y),
                     label: labelStr
                   )
                 )
@@ -252,8 +288,8 @@ struct DSPDetailedSignalGraphCard: View {
                     id: "arrow_mix_fb_\(totalLength)_\(n)",
                     fromBlockId: srcBlock.id,
                     toBlockId: destBlock.id,
-                    fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
-                    toFallback: CGPoint(x: destBlock.x - destBlock.width / 2, y: destBlock.y),
+                    fromFallback: CGPoint(x: 0, y: srcBlock.y),
+                    toFallback: CGPoint(x: 0, y: destBlock.y),
                     label: "0 dB"
                   )
                 )
@@ -277,7 +313,7 @@ struct DSPDetailedSignalGraphCard: View {
             makeContainerBox(
               id: "box_mixer_\(totalLength)",
               label: readableMixerTitle(name, inCh: mixconf?.channelsIn ?? currentStageInputChannels, outCh: outChannels),
-              centerX: xPos(step: totalLength),
+              stepIndex: totalLength,
               blocksInBox: mixerBoxBlocks
             )
           )
@@ -299,28 +335,29 @@ struct DSPDetailedSignalGraphCard: View {
               stageFilterBlockCounts[chNbr] = countInStage + 1
 
               let y = yPos(channel: chNbr, activeChannelsInStage: activeChannels, isPassthrough: false)
-              let x = xPos(step: chStep)
+              let sz = Self.calculateBlockSize(label: name, isChannelPort: false)
 
               let b = GraphBlock(
                 id: "filter_\(chStep)_\(chNbr)_\(rawName)",
                 label: name,
-                x: x,
+                x: 0,
                 y: y,
-                width: blockWidth,
-                height: blockHeight,
-                isChannelPort: false
+                width: sz.width,
+                height: sz.height,
+                isChannelPort: false,
+                stepIndex: chStep
               )
 
               blocks.append(b)
 
-              if let srcBlock = stages.last![chNbr].last {
+              if let srcBlock = stages.last?[chNbr].last {
                 arrows.append(
                   GraphArrow(
                     id: "arrow_filter_\(chStep)_\(chNbr)_\(rawName)",
                     fromBlockId: srcBlock.id,
                     toBlockId: b.id,
-                    fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
-                    toFallback: CGPoint(x: b.x - b.width / 2, y: b.y),
+                    fromFallback: CGPoint(x: 0, y: srcBlock.y),
+                    toFallback: CGPoint(x: 0, y: b.y),
                     label: nil
                   )
                 )
@@ -338,15 +375,17 @@ struct DSPDetailedSignalGraphCard: View {
           var procBoxBlocks: [GraphBlock] = []
           for n in 0..<activeChannels {
             let y = yPos(channel: n, activeChannelsInStage: activeChannels, isPassthrough: false)
-            let x = xPos(step: totalLength)
+            let label = "\(n + 1)"
+            let sz = Self.calculateBlockSize(label: label, isChannelPort: true)
             let b = GraphBlock(
               id: "proc_\(totalLength)_ch\(n)",
-              label: "\(n + 1)",
-              x: x,
+              label: label,
+              x: 0,
               y: y,
-              width: 48,
-              height: blockHeight,
-              isChannelPort: true
+              width: sz.width,
+              height: sz.height,
+              isChannelPort: true,
+              stepIndex: totalLength
             )
             blocks.append(b)
             procBoxBlocks.append(b)
@@ -358,8 +397,8 @@ struct DSPDetailedSignalGraphCard: View {
                   id: "arrow_proc_\(totalLength)_\(n)",
                   fromBlockId: srcBlock.id,
                   toBlockId: b.id,
-                  fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
-                  toFallback: CGPoint(x: b.x - b.width / 2, y: b.y),
+                  fromFallback: CGPoint(x: 0, y: srcBlock.y),
+                  toFallback: CGPoint(x: 0, y: b.y),
                   label: nil
                 )
               )
@@ -379,7 +418,7 @@ struct DSPDetailedSignalGraphCard: View {
             makeContainerBox(
               id: "box_proc_\(totalLength)",
               label: name,
-              centerX: xPos(step: totalLength),
+              stepIndex: totalLength,
               blocksInBox: procBoxBlocks
             )
           )
@@ -397,15 +436,17 @@ struct DSPDetailedSignalGraphCard: View {
     var playBoxBlocks: [GraphBlock] = []
     for n in 0..<activeChannels {
       let y = yPos(channel: n, activeChannelsInStage: activeChannels, isPassthrough: false)
-      let x = xPos(step: totalLength)
+      let label = "\(n + 1)"
+      let sz = Self.calculateBlockSize(label: label, isChannelPort: true)
       let b = GraphBlock(
         id: "output_ch\(n)",
-        label: "\(n + 1)",
-        x: x,
+        label: label,
+        x: 0,
         y: y,
-        width: 48,
-        height: blockHeight,
-        isChannelPort: true
+        width: sz.width,
+        height: sz.height,
+        isChannelPort: true,
+        stepIndex: totalLength
       )
       blocks.append(b)
       playBoxBlocks.append(b)
@@ -417,8 +458,8 @@ struct DSPDetailedSignalGraphCard: View {
             id: "arrow_play_\(n)",
             fromBlockId: srcBlock.id,
             toBlockId: b.id,
-            fromFallback: CGPoint(x: srcBlock.x + srcBlock.width / 2, y: srcBlock.y),
-            toFallback: CGPoint(x: b.x - b.width / 2, y: b.y),
+            fromFallback: CGPoint(x: 0, y: srcBlock.y),
+            toFallback: CGPoint(x: 0, y: b.y),
             label: nil
           )
         )
@@ -430,12 +471,64 @@ struct DSPDetailedSignalGraphCard: View {
       makeContainerBox(
         id: "box_output",
         label: playName,
-        centerX: xPos(step: totalLength),
+        stepIndex: totalLength,
         blocksInBox: playBoxBlocks
       )
     )
 
-    let totalWidth = xPos(step: totalLength) + canvasPadding * 2 + 60
+    // Layout resolution: calculate column widths and X positions
+    var columnWidths = Array(repeating: CGFloat(0), count: totalLength + 1)
+    for b in blocks {
+      if b.stepIndex >= 0 && b.stepIndex <= totalLength {
+        columnWidths[b.stepIndex] = max(columnWidths[b.stepIndex], b.width)
+      }
+    }
+    for box in boxes {
+      if box.stepIndex >= 0 && box.stepIndex <= totalLength {
+        columnWidths[box.stepIndex] = max(columnWidths[box.stepIndex], box.width)
+      }
+    }
+
+    var xPositions = Array(repeating: CGFloat(0), count: totalLength + 1)
+    xPositions[0] = 0.0
+    if totalLength >= 1 {
+      for s in 1...totalLength {
+        let prevHalf = columnWidths[s - 1] / 2.0
+        let currHalf = columnWidths[s] / 2.0
+        let minSpacing = xStep
+        let neededSpacing = prevHalf + 48.0 + currHalf
+        xPositions[s] = xPositions[s - 1] + max(minSpacing, neededSpacing)
+      }
+    }
+
+    for i in 0..<blocks.count {
+      let step = blocks[i].stepIndex
+      if step >= 0 && step <= totalLength {
+        blocks[i].x = xPositions[step]
+      }
+    }
+
+    for i in 0..<boxes.count {
+      let step = boxes[i].stepIndex
+      if step >= 0 && step <= totalLength {
+        boxes[i].centerX = xPositions[step]
+      }
+    }
+
+    let blocksMap = Dictionary(uniqueKeysWithValues: blocks.map { ($0.id, $0) })
+
+    for i in 0..<arrows.count {
+      if let srcBlock = blocksMap[arrows[i].fromBlockId] {
+        arrows[i].fromFallback = CGPoint(x: srcBlock.x + srcBlock.width / 2.0, y: srcBlock.y)
+      }
+      if let destBlock = blocksMap[arrows[i].toBlockId] {
+        arrows[i].toFallback = CGPoint(x: destBlock.x - destBlock.width / 2.0, y: destBlock.y)
+      }
+    }
+
+    let lastX = (totalLength >= 0 && totalLength < xPositions.count) ? xPositions[totalLength] : 0.0
+    let lastColW = (totalLength >= 0 && totalLength < columnWidths.count) ? columnWidths[totalLength] : 76.0
+    let totalWidth = lastX + lastColW / 2.0 + canvasPadding * 2 + 40
     let totalHeight = (maxY - minY) + canvasPadding * 2 + titleHeaderHeight + 40
     let bounds = CGRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
 
@@ -457,11 +550,21 @@ struct DSPDetailedSignalGraphCard: View {
     if childBlocks.isEmpty {
       return (CGPoint(x: box.centerX + canvasPadding + 40, y: originY + box.centerY), box.width, box.height)
     }
-    let positions = childBlocks.map { currentBlockPosition(b: $0, originY: originY) }
-    let minX = positions.map(\.x).min()! - 38
-    let maxX = positions.map(\.x).max()! + 38
-    let minY = positions.map(\.y).min()! - 18
-    let maxY = positions.map(\.y).max()! + 18
+    var minX: CGFloat = 1e9
+    var maxX: CGFloat = -1e9
+    var minY: CGFloat = 1e9
+    var maxY: CGFloat = -1e9
+    for b in childBlocks {
+      let p = currentBlockPosition(b: b, originY: originY)
+      minX = min(minX, p.x - b.width / 2.0)
+      maxX = max(maxX, p.x + b.width / 2.0)
+      minY = min(minY, p.y - b.height / 2.0)
+      maxY = max(maxY, p.y + b.height / 2.0)
+    }
+    minX -= 14.0
+    maxX += 14.0
+    minY -= 12.0
+    maxY += 12.0
 
     let center = CGPoint(x: (minX + maxX) / 2.0, y: (minY + maxY) / 2.0)
     let w = max(box.width, maxX - minX)
